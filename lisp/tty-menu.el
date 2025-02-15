@@ -428,7 +428,9 @@ because the actual current selection is in another menu."
 
 (cl-defgeneric tty-menu-delete (thing)
   ( :method ((pane tty-menu-pane))
-    (with-slots (buffer frame parent-pane) pane
+    (with-slots (buffer frame parent-pane child-pane) pane
+      (when child-pane
+        (tty-menu-delete child-pane))
       (kill-buffer buffer)
       (delete-frame frame)
       (when parent-pane
