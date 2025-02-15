@@ -954,7 +954,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	    (win (frame-root-window frame))
             (posn (posn-at-point (1- end) win)))
        (cl-destructuring-bind (x . y) (posn-x-y posn)
-         (tty-menu-position (list (cons (1- x) y) win)))))
+         (list frame (1- x) y))))
      (mouse
       (let* ((posn (posn-at-point (pos-eol)))
 	    (win (posn-window posn)))
@@ -980,17 +980,29 @@ buffer, and HEIGHT is the number of lines in the buffer. "
                do (goto-char (slot-value item 'draw-start))
                and return t))))
 
+(defun tty-menu-open-on-pane (item)
+  (when-let* ((pane (slot-value item 'pane))
+              (open (slot-value pane 'child-pane)))
+    (slot-value open 'invoking-item)))
+
+(defun tty-menu-close-child (item)
+  (when item
+    (tty-menu-delete (slot-value item 'pane))))
+
 (cl-defun tty-menu-loop-1 (keymap where &key invoking-item (focus t))
   (let ((frame (tty-menu-create-frame keymap where invoking-item)))
     (unwind-protect
         (progn
           (when focus
             (select-frame-set-input-focus frame))
+          (message "-----> enter loop %S" frame)
+          (message "       selected frame %S" (selected-frame))
 	  (cl-loop
            named outer-loop while t for res =
            (catch 'tty-menu-leave
              ;; Loop until a command wants to leave this loop by
              ;; throwing 'tty-menu-leave.
+             (message "  inner loop %S" frame)
 	     (while t
 	       (let* ((track-mouse t)
 		      (key (read-key-sequence nil))
@@ -1009,6 +1021,8 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 		 (when (commandp cmd)
 		   (call-interactively cmd)))))
 	   do
+           (message "  exit inner loop %S" frame)
+           (message "  selected-frame %S" (selected-frame))
            ;; Some menu-item action wants to do something outside of the
            ;; immer loop above. If the action was for opening a
            ;; sub-menu, call ourselves recursively with the sub-pane.
@@ -1016,16 +1030,23 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	   (pcase-exhaustive res
              (`(,selected . ,(and (pred symbolp) how))
 	      (with-slots (binding) selected
-	        (if (keymapp binding)
-		    (tty-menu-loop-1 binding
-                                     (tty-menu-where selected how)
-                                     :invoking-item selected
-                                     :focus nil)
-		  (cl-return-from outer-loop selected))))
+	        (cond
+                 ((keymapp binding)
+                  ;;(message "  open %S" (slot-value selected 'name))
+                  (let ((open (tty-menu-open-on-pane selected)))
+                    (if (eq open selected)
+                        (select-frame-set-input-focus frame)
+		      (tty-menu-loop-1 binding
+                                       (tty-menu-where selected how)
+                                       :invoking-item selected
+                                       :focus nil))))
+                 (t
+		  (cl-return-from outer-loop selected)))))
              ('nil
 	      (cl-return-from outer-loop nil)))))
 
       ;; Make sure to alwaysdelete frame and buffer for this menu.
+      (message "<----- exit loop %S" frame)
       (tty-menu-delete frame))))
 
 (defun tty-menu-loop (keymap where)
