@@ -1034,12 +1034,26 @@ buffer, and HEIGHT is the number of lines in the buffer. "
                  ((keymapp binding)
                   ;;(message "  open %S" (slot-value selected 'name))
                   (let ((open (tty-menu-open-on-pane selected)))
-                    (if (eq open selected)
-                        (select-frame-set-input-focus frame)
-		      (tty-menu-loop-1 binding
-                                       (tty-menu-where selected how)
-                                       :invoking-item selected
-                                       :focus nil))))
+                    (cond ((eq open selected)
+                           (select-frame-set-input-focus frame))
+                          ((null open)
+		           (tty-menu-loop-1 binding
+                                            (tty-menu-where selected how)
+                                            :invoking-item selected
+                                            :focus nil))
+                          (t
+                            ;; If OPEN is not equal to this one, we must
+                            ;; close this one and open another. Deleting
+                            ;; this one means leaving this function so
+                            ;; that frame and pane are deleted. Unless
+                            ;; we replace FRAME.
+                            (tty-menu-delete frame)
+                            (setq frame (tty-menu-create-frame
+                                         binding
+                                         (tty-menu-where selected how)
+                                         selected))
+                            ;; Continue withing outer-loop
+                            ))))
                  (t
 		  (cl-return-from outer-loop selected)))))
              ('nil
