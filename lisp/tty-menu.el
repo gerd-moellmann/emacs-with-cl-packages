@@ -434,8 +434,8 @@ because the actual current selection is in another menu."
       (when parent-pane
         (setf (slot-value parent-pane 'child-pane) nil))))
   ( :method ((frame frame))
-    (let* ((buffer (frame-parameter frame 'tty-menu-buffer))
-           (pane (with-current-buffer buffer tty-menu-pane-drawn)))
+    (when-let* ((buffer (frame-parameter frame 'tty-menu-buffer))
+                (pane (with-current-buffer buffer tty-menu-pane-drawn)))
       (tty-menu-delete pane))))
 
 (defun tty-menu-make-element (pane code item)
