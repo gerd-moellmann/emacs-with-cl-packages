@@ -631,10 +631,10 @@ for determining standlone line."
                              (if treesit-simple-indent-standalone-predicate
                                  (funcall
                                   treesit-simple-indent-standalone-predicate
-                                  parent)
-                               (c-ts-common--standalone-predicate parent)))))
-        (setq node (treesit-node-prev-sibling node 'named))))
-    (if (numberp anchor) anchor (treesit-node-start node))))
+                                  node)
+                               (c-ts-common--standalone-predicate node)))))
+        (setq node (treesit-node-prev-sibling node 'named)))
+      (if (numberp anchor) anchor (treesit-node-start node)))))
 
 (defun c-ts-common-parent-ignore-preproc (node)
   "Return the parent of NODE, skipping preproc nodes."

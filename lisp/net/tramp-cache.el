@@ -482,8 +482,10 @@ used to cache connection properties of the local machine."
 	  (hash (tramp-get-hash-table key))
 	  (cached (and (hash-table-p hash)
 		       (gethash ,property hash tramp-cache-undefined))))
+     (tramp-message key 7 "Saved %s %s" property cached)
      (unwind-protect (progn ,@body)
        ;; Reset PROPERTY.  Recompute hash, it could have been flushed.
+       (tramp-message key 7 "Restored %s %s" property cached)
        (setq hash (tramp-get-hash-table key))
        (if (not (eq cached tramp-cache-undefined))
 	   (puthash ,property cached hash)
@@ -500,9 +502,13 @@ PROPERTIES is a list of file properties (strings)."
 	   (mapcar
 	    (lambda (property)
 	      (cons property (gethash property hash tramp-cache-undefined)))
-	    ,properties)))
+	    ,properties))
+	  ;; Avoid superfluous debug buffers during host name completion.
+	  (tramp-verbose (if minibuffer-completing-file-name 0 tramp-verbose)))
+     (tramp-message key 7 "Saved %s" values)
      (unwind-protect (progn ,@body)
        ;; Reset PROPERTIES.  Recompute hash, it could have been flushed.
+       (tramp-message key 7 "Restored %s" values)
        (setq hash (tramp-get-hash-table key))
        (dolist (value values)
 	 (if (not (eq (cdr value) tramp-cache-undefined))
