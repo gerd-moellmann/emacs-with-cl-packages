@@ -331,6 +331,12 @@ because the actual current selection is in another menu."
        finally (setq layout `(,left-border ,button ,name ,key
                                            ,right-border))))))
 
+(cl-defgeneric tty-menu-frame (thing)
+  ( :method ((pane tty-menu-pane))
+    (slot-value pane 'frame))
+  ( :method ((item tty-menu-item))
+    (tty-menu-frame (slot-value item 'pane))))
+
 ;; When redrawing a pane, we try to arrange things so that the selection
 ;; is retained. At least theoretically, it can happen that in the
 ;; redrawn menu the old selection is no longer selectable. This function
