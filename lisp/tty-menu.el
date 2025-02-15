@@ -922,10 +922,16 @@ buffer, and HEIGHT is the number of lines in the buffer. "
           (guard (numberp x) (numberp y)))
      (list (selected-frame) x y))))
 
-(defun tty-menu-where (how)
+(defun tty-menu-where (selected how)
   (cl-ecase how
-    ((mouse key)
-     (let* ((posn (posn-at-point (pos-eol)))
+    (key
+     (let* ((end (slot-value selected 'draw-end))
+            (posn (posn-at-point (1- end)))
+	    (win (posn-window posn)))
+       (cl-destructuring-bind (x . y) (posn-x-y posn)
+         (tty-menu-position (list (cons (1- x) y) win)))))
+     (mouse
+      (let* ((posn (posn-at-point (pos-eol)))
 	    (win (posn-window posn)))
        (cl-destructuring-bind (x . y) (posn-x-y posn)
          (tty-menu-position (list (cons (- x 3) y) win)))))))
@@ -986,9 +992,10 @@ buffer, and HEIGHT is the number of lines in the buffer. "
              (`(,selected . ,(and (pred symbolp) how))
 	      (with-slots (binding) selected
 	        (if (keymapp binding)
-		    (tty-menu-loop-1 binding (tty-menu-where how)
+		    (tty-menu-loop-1 binding
+                                     (tty-menu-where selected how)
                                      :invoking-item selected
-                                     :focus t)
+                                     :focus nil)
 		  (cl-return-from outer-loop selected))))
              ('nil
 	      (cl-return-from outer-loop nil)))))
