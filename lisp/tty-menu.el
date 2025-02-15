@@ -111,6 +111,8 @@ because the actual current selection is in another menu."
    (binding :initarg :binding :initform nil :type t)
    (key-code :initarg :key-code :initform nil :type t)
    (pane :initarg :pane :type tty-menu-pane)
+   (next-item :init-form nil :type (or null tty-menu-item))
+   (prev-item :init-form nil :type (or null tty-menu-item))
    (draw-start :initform nil :type (or null number))
    (draw-end :initform nil :type (or null number))))
 
@@ -481,25 +483,30 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   (let ((name (last keymap)))
     (and (stringp (car name)) (car name))))
 
-(defun tty-menu-make-pane-buffer (keymap invoking-item)
-  (cl-labels ((pane-buffer-name ()
-	        (if-let* ((name (tty-menu-keymap-name keymap)))
-	            (format " *tty-menu-%s*" name)
-	          (generate-new-buffer-name " *tty-menu--")))
-              (make-pane (keymap)
-                (let ((pane (make-instance
-                             'tty-menu-pane
-                             :keymap keymap
-                             :invoking-item invoking-item
-	                     :buffer (get-buffer-create (pane-buffer-name)))))
-                  (with-slots (items) pane
-                    (setq items
-                          (cl-loop for binding being the key-bindings of keymap
-                                   using (key-codes code)
-		                   collect (tty-menu-make-element
-                                            pane code binding))))
-                  pane)))
-    (tty-menu-create-buffer (make-pane keymap))))
+(defun tty-menu-pane-buffer-name (keymap)
+  (if-let* ((name (tty-menu-keymap-name keymap)))
+      (format " *tty-menu-%s*" name)
+    (generate-new-buffer-name " *tty-menu--")))
+
+(defun tty-menu-make-pane (keymap invoking-item)
+  (let ((pane (make-instance
+               'tty-menu-pane
+               :keymap keymap
+               :invoking-item invoking-item
+	       :buffer (get-buffer-create
+                        (tty-menu-pane-buffer-name keymap)))))
+    (with-slots (items) pane
+      (setq items
+            (cl-loop
+             with prev = nil
+             for binding being the key-bindings of keymap
+             using (key-codes code)
+             for i = (tty-menu-make-element pane code binding)
+             when prev do (setf (slot-value prev 'next-item) i)
+             do (setf (slot-value i 'prev-item) prev)
+             do (setf prev i)
+             collect i)))
+    pane))
 
 (defvar tty-menu-frame-parameters
   `((visibility . nil)
@@ -585,7 +592,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 				,@(tty-menu-frame-parameters))))
 	   (win (frame-root-window frame)))
       (cl-destructuring-bind (buffer width height)
-          (tty-menu-make-pane-buffer keymap invoking-item)
+          (tty-menu-create-buffer (tty-menu-make-pane keymap invoking-item))
 	(modify-frame-parameters frame `((name . ,(buffer-name buffer))
 				         (tty-menu-buffer . ,buffer)))
 	(set-window-buffer win buffer)
