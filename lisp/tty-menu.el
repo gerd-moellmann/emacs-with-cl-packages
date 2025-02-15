@@ -669,7 +669,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
     (goto-char (posn-point end))
     item))
 
-(defun tty-menu-cmd-mouse-select-item (event)
+(defun tty-menu-cmd-mouse-act (event)
   (interactive "e")
   (when-let* ((end (event-end event))
 	      (win (posn-window end))
@@ -683,7 +683,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 (defun tty-menu-item-at (pos)
   (get-text-property pos 'tty-menu-item))
 
-(defun tty-menu-cmd-key-select-item ()
+(defun tty-menu-cmd-key-act ()
   "Select a menu-item with with RET or SPC."
   (interactive)
   (when-let* ((item (tty-menu-item-at (point))))
@@ -847,20 +847,20 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   "C-b" #'tty-menu-cmd-close
   "C-f" #'tty-menu-cmd-open
   "C-g" #'keyboard-quit
-  "C-j" #'tty-menu-cmd-key-select-item
+  "C-j" #'tty-menu-cmd-key-act
   "C-n" #'tty-menu-cmd-next-item
   "C-p" #'tty-menu-cmd-previous-item
   "C-r" #'tty-menu-cmd-isearch-backward
   "C-s" #'tty-menu-cmd-isearch-forward
-  "RET" #'tty-menu-cmd-key-select-item
-  "SPC" #'tty-menu-cmd-key-select-item
-  "<return>" #'tty-menu-cmd-key-select-item
+  "RET" #'tty-menu-cmd-key-act
+  "SPC" #'tty-menu-cmd-key-act
+  "<return>" #'tty-menu-cmd-key-act
   "<mouse-movement>" #'tty-menu-cmd-mouse-moved
   "<menu-bar> <mouse-1>" #'tty-menu-cmd-menu-bar-click
   "<tab-bar> <mouse-1>" #'tty-menu-cmd-close-on-click
   "<vertical-line> <mouse-1>" #'tty-menu-cmd-close-on-click
   "<mode-line> <mouse-1>" #'tty-menu-cmd-close-on-click
-  "<mouse-1>" #'tty-menu-cmd-mouse-select-item)
+  "<mouse-1>" #'tty-menu-cmd-mouse-act)
 
 (defun tty-menu-global-menu ()
   (keymap-lookup global-map "<menu-bar>"))
