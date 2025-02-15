@@ -299,13 +299,10 @@ because the actual current selection is in another menu."
     (let* ((enabled (tty-menu-enabled-p item))
 	   (face (if enabled 'tty-menu-enabled-face
                    'tty-menu-disabled-face)))
-      (put-text-property (pos-bol) (pos-eol) 'tty-menu-selectable
-                         enabled)
       (put-text-property (pos-bol) (pos-eol) 'face face))
     (when-let* ((help (slot-value item 'help)))
       (put-text-property (pos-bol) (pos-eol) 'help-echo help)))
   ( :method ((_item tty-menu-separator) _)
-    (put-text-property (pos-bol) (pos-eol) 'tty-menu-selectable nil)
     (put-text-property (pos-bol) (pos-eol) 'face 'tty-menu-enabled-face)))
 
 (cl-defgeneric tty-menu-layout (pane)
