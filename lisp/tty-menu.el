@@ -178,7 +178,7 @@ because the actual current selection is in another menu."
     (when invoking-item
       (let ((child (slot-value invoking-item 'pane)))
         (setf child-pane child)
-        (setf (slot-value child 'parent-frame) pane)))))
+        (setf (slot-value child 'parent-pane) pane)))))
 
 ;; Bound by an around advice from popup-menu is called for a menu-bar
 ;; menu. If non-nil, it is a (X . Y) of the menu-item.
