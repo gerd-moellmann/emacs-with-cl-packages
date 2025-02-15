@@ -989,78 +989,58 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   (when item
     (tty-menu-delete (slot-value item 'pane))))
 
+(defun tty-menu-command-loop ()
+  (catch 'tty-menu-leave
+    (while t
+      (let* ((track-mouse t)
+	     (key (read-key-sequence nil))
+	     (cmd (lookup-key tty-menu-keymap key)))
+        ;; Entering a character that is self-inserting
+        ;; in global-map searches for a menu-item
+        ;; beginning with that character.
+        (when-let* (((not (commandp cmd)))
+                    (cmd (lookup-key global-map key))
+                    ((eq cmd 'self-insert-command)))
+          (tty-menu-select-item-by-name))
+        ;; Otherwise execute a command, if any.
+        ;; This is for toggling buttons, moving on
+        ;; the menu and so on.
+	(when (commandp cmd)
+	  (call-interactively cmd))))))
+
+(defun tty-menu-after-command-loop (res frame)
+  (pcase-exhaustive res
+    (`(,selected . ,(and (pred symbolp) how))
+     (with-slots (binding) selected
+       (cond
+        ((keymapp binding)
+         ;;(message "  open %S" (slot-value selected 'name))
+         (let ((open (tty-menu-open-on-pane selected)))
+           (cond
+            ((eq open selected)
+             (select-frame-set-input-focus frame))
+            ((null open)
+	     (tty-menu-loop-1 binding
+                              (tty-menu-where selected how)
+                              :invoking-item selected
+                              :focus nil))
+            (t
+             (tty-menu-delete frame)
+             (tty-menu-create-frame binding
+                                    (tty-menu-where selected how)
+                                    selected)))))
+        (t (throw 'tty-menu-item-close selected)))))
+    ('nil (throw 'tty-menu-item-close nil))))
+
 (cl-defun tty-menu-loop-1 (keymap where &key invoking-item (focus t))
   (let ((frame (tty-menu-create-frame keymap where invoking-item)))
     (unwind-protect
-        (progn
+        (catch 'tty-menu-item-close
           (when focus
             (select-frame-set-input-focus frame))
-          (message "-----> enter loop %S" frame)
-          (message "       selected frame %S" (selected-frame))
-	  (cl-loop
-           named outer-loop while t for res =
-           (catch 'tty-menu-leave
-             ;; Loop until a command wants to leave this loop by
-             ;; throwing 'tty-menu-leave.
-             (message "  inner loop %S" frame)
-	     (while t
-	       (let* ((track-mouse t)
-		      (key (read-key-sequence nil))
-		      (cmd (lookup-key tty-menu-keymap key)))
-                 ;; Entering a character that is self-inserting
-                 ;; in global-map searches for a menu-item
-                 ;; beginning with that character.
-                 (when-let* (((not (commandp cmd)))
-                             (cmd (lookup-key global-map key))
-                             ((eq cmd 'self-insert-command)))
-                   (tty-menu-select-item-by-name))
-
-                 ;; Otherwise execute a command, if any.
-                 ;; This is for toggling buttons, moving on
-                 ;; the menu and so on.
-		 (when (commandp cmd)
-		   (call-interactively cmd)))))
-	   do
-           (message "  exit inner loop %S" frame)
-           (message "  selected-frame %S" (selected-frame))
-           ;; Some menu-item action wants to do something outside of the
-           ;; immer loop above. If the action was for opening a
-           ;; sub-menu, call ourselves recursively with the sub-pane.
-           ;; Otherwise leave the outer-loop, closing this menu.
-	   (pcase-exhaustive res
-             (`(,selected . ,(and (pred symbolp) how))
-	      (with-slots (binding) selected
-	        (cond
-                 ((keymapp binding)
-                  ;;(message "  open %S" (slot-value selected 'name))
-                  (let ((open (tty-menu-open-on-pane selected)))
-                    (cond ((eq open selected)
-                           (select-frame-set-input-focus frame))
-                          ((null open)
-		           (tty-menu-loop-1 binding
-                                            (tty-menu-where selected how)
-                                            :invoking-item selected
-                                            :focus nil))
-                          (t
-                            ;; If OPEN is not equal to this one, we must
-                            ;; close this one and open another. Deleting
-                            ;; this one means leaving this function so
-                            ;; that frame and pane are deleted. Unless
-                            ;; we replace FRAME.
-                            (tty-menu-delete frame)
-                            (setq frame (tty-menu-create-frame
-                                         binding
-                                         (tty-menu-where selected how)
-                                         selected))
-                            ;; Continue withing outer-loop
-                            ))))
-                 (t
-		  (cl-return-from outer-loop selected)))))
-             ('nil
-	      (cl-return-from outer-loop nil)))))
-
-      ;; Make sure to alwaysdelete frame and buffer for this menu.
-      (message "<----- exit loop %S" frame)
+          (while t
+            (let* ((res (tty-menu-command-loop)))
+              (setq frame (tty-menu-after-command-loop res frame)))))
       (tty-menu-delete frame))))
 
 (defun tty-menu-loop (keymap where)
