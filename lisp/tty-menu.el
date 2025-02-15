@@ -198,14 +198,15 @@ because the actual current selection is in another menu."
   (with-current-buffer tty-menu-updating-buffer
     (call-interactively fn)))
 
-(defun tty-menu-selectable-p (item)
-  (tty-menu-eval (slot-value item 'enable)))
-
 (defun tty-menu-visible-p (item)
   (tty-menu-eval (slot-value item 'visible)))
 
 (defun tty-menu-enabled-p (item)
   (tty-menu-eval (slot-value item 'enable)))
+
+(defun tty-menu-selectable-p (item)
+  (and (tty-menu-visible-p item)
+       (tty-menu-enabled-p item)))
 
 (defun tty-menu-name (item)
   (tty-menu-eval (slot-value item 'name)))
