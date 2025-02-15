@@ -1020,12 +1020,14 @@ buffer, and HEIGHT is the number of lines in the buffer. "
          (let ((open (tty-menu-open-on-pane selected)))
            (cond
             ((eq open selected)
-             (select-frame-set-input-focus frame))
+             (select-frame-set-input-focus frame)
+             frame)
             ((null open)
 	     (tty-menu-loop-1 binding
                               (tty-menu-where selected how)
                               :invoking-item selected
-                              :focus nil))
+                              :focus nil)
+             frame)
             (t
              (tty-menu-delete frame)
              (tty-menu-create-frame binding
