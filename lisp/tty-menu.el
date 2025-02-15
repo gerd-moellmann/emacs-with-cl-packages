@@ -382,7 +382,21 @@ because the actual current selection is in another menu."
             (setf (cdr last) (list item))
           (setf items (list item)))))))
 
-(cl-defgeneric tty-menu-select-item (item how)
+(cl-defgeneric tty-menu-select (item how)
+  ( :method ((item tty-menu-item) _how)
+    (tty-menu-select (slot-value item 'pane) item))
+  ( :method ((pane tty-menu-pane) (item tty-menu-item))
+    (setf (slot-value pane 'selected-item) item)
+    (with-slots (buffer) pane
+      (with-current-buffer buffer
+        (unless tty-menu-selection-ov
+          (setq tty-menu-selection-ov (make-overlay 1 1 buffer))
+          (overlay-put tty-menu-selection-ov 'face
+                       'tty-menu-selected-face))
+        (with-slots (draw-start draw-end) item
+          (move-overlay tty-menu-selection-ov draw-start draw-end))))))
+
+(cl-defgeneric tty-menu-act (item how)
   ( :method ((item tty-menu-item) how)
     (when-let* ((enabled (tty-menu-enabled-p item)))
       (with-slots (binding) item
@@ -664,7 +678,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
               (item (mouse-posn-property end 'tty-menu-item))
 	      ((tty-menu-selectable-p item)))
     (goto-char (posn-point end))
-    (tty-menu-select-item item 'mouse)))
+    (tty-menu-act item 'mouse)))
 
 (defun tty-menu-item-at (pos)
   (get-text-property pos 'tty-menu-item))
@@ -673,29 +687,38 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   "Select a menu-item with with RET or SPC."
   (interactive)
   (when-let* ((item (tty-menu-item-at (point))))
-    (tty-menu-select-item item 'key)))
+    (tty-menu-act item 'key)))
 
 (defun tty-menu-cmd-next-item ()
-  "Move to next selectable line in menu."
+  "Move to next selectable item in menu."
   (interactive)
-  (cl-loop for next = (next-single-property-change (point) 'tty-menu-item)
-	   then (next-single-property-change next 'tty-menu-item)
-	   while next
-	   for item = (tty-menu-item-at next)
-	   until (tty-menu-selectable-p item)
-	   finally (when next (goto-char next))))
+  (let* ((pane tty-menu-pane-drawn)
+         (items (slot-value pane 'items))
+         (selected (slot-value pane 'selected-item)))
+    (cl-loop
+     for next = (if selected
+                    (slot-value selected 'next-item)
+                  (cl-first items))
+     then (slot-value next 'next-item)
+     while next
+     when (tty-menu-selectable-p next)
+     do (tty-menu-select next nil)
+     and return t)))
 
 (defun tty-menu-cmd-previous-item ()
   "Move to previous selectable line in menu."
   (interactive)
-  (cl-loop for prev = (previous-single-property-change
-		       (point) 'tty-menu-item nil (point-min))
-	   then (previous-single-property-change
-		 prev 'tty-menu-item nil (point-min))
-	   while prev
-	   for item = (tty-menu-item-at prev)
-	   if (tty-menu-selectable-p item) do (goto-char prev) and return t
-	   else if (eq prev (point-min)) return t))
+  (when-let* ((pane tty-menu-pane-drawn)
+              (items (slot-value pane 'items))
+              (selected (slot-value pane 'selected-item)))
+    (cl-loop
+     for prev = (when selected
+                  (slot-value selected 'prev-item))
+     then (slot-value prev 'prev-item)
+     while prev
+     when (tty-menu-selectable-p prev)
+     do (tty-menu-select prev nil)
+     and return t)))
 
 ;; Compute the layout of the items in the menu-bar of buffer BUFFER.
 ;; Value is a list of (KEY-CODE KEYMAP X0 X1) where KEY-CODE Is the
@@ -770,7 +793,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   (when-let* ((item (tty-menu-item-at (point))))
     (with-slots (binding) item
       (when (keymapp binding)
-	(tty-menu-select-item item 'key))))
+	(tty-menu-act item 'key))))
   (tty-menu-move-in-menu-bar nil))
 
 (defun tty-menu-cmd-close ()
@@ -840,12 +863,6 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   "<vertical-line> <mouse-1>" #'tty-menu-cmd-close-on-click
   "<mode-line> <mouse-1>" #'tty-menu-cmd-close-on-click
   "<mouse-1>" #'tty-menu-cmd-mouse-select-item)
-
-(defun tty-menu-show-selected-item ()
-  (unless tty-menu-selection-ov
-    (setq tty-menu-selection-ov (make-overlay 1 1))
-    (overlay-put tty-menu-selection-ov 'face 'tty-menu-selected-face))
-  (move-overlay tty-menu-selection-ov (pos-bol) (pos-eol)))
 
 (defun tty-menu-global-menu ()
   (keymap-lookup global-map "<menu-bar>"))
@@ -943,7 +960,6 @@ buffer, and HEIGHT is the number of lines in the buffer. "
              ;; Loop until a command wants to leave this loop by
              ;; throwing 'tty-menu-leave.
 	     (while t
-	       (tty-menu-show-selected-item)
 	       (let* ((track-mouse t)
 		      (key (read-key-sequence nil))
 		      (cmd (lookup-key tty-menu-keymap key)))
