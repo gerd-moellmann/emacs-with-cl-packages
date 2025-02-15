@@ -694,31 +694,29 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   (interactive)
   (let* ((pane tty-menu-pane-drawn)
          (items (slot-value pane 'items))
-         (selected (slot-value pane 'selected-item)))
-    (cl-loop
-     for next = (if selected
-                    (slot-value selected 'next-item)
-                  (cl-first items))
-     then (slot-value next 'next-item)
-     while next
-     when (tty-menu-selectable-p next)
-     do (tty-menu-select next nil)
-     and return t)))
+         (selected (slot-value pane 'selected-item))
+         (next (if selected
+                   (slot-value selected 'next-item)
+                 (cl-first items))))
+    (while next
+      (if (tty-menu-selectable-p next)
+          (progn
+            (tty-menu-select next nil)
+            (setq next nil))
+        (setq next (slot-value next 'next-item))))))
 
 (defun tty-menu-cmd-previous-item ()
   "Move to previous selectable line in menu."
   (interactive)
-  (when-let* ((pane tty-menu-pane-drawn)
-              (items (slot-value pane 'items))
-              (selected (slot-value pane 'selected-item)))
-    (cl-loop
-     for prev = (when selected
-                  (slot-value selected 'prev-item))
-     then (slot-value prev 'prev-item)
-     while prev
-     when (tty-menu-selectable-p prev)
-     do (tty-menu-select prev nil)
-     and return t)))
+  (let* ((pane tty-menu-pane-drawn)
+         (selected (slot-value pane 'selected-item))
+         (prev (and selected (slot-value selected 'prev-item))))
+    (while prev
+      (if (tty-menu-selectable-p prev)
+          (progn
+            (tty-menu-select prev nil)
+            (setq prev nil))
+        (setq prev (slot-value prev 'prev-item))))))
 
 ;; Compute the layout of the items in the menu-bar of buffer BUFFER.
 ;; Value is a list of (KEY-CODE KEYMAP X0 X1) where KEY-CODE Is the
