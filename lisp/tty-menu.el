@@ -95,6 +95,8 @@ because the actual current selection is in another menu."
    (layout :type list)
    (keymap :initarg :keymap)
    (invoking-item :initarg :invoking-item :type (or null tty-menu-item))
+   (parent-pane :initform nil :type (or null tty-menu-pane))
+   (child-pane :initform nil :type (or null tty-menu-pane))
    (selected-item :initform nil :type (or null tty-menu-item))))
 
 ;; Type t in many places because even the name can be a form that needs
@@ -169,6 +171,13 @@ because the actual current selection is in another menu."
                (zerop (cl-loop for b being the key-codes of binding
                                count b)))
       (setf enable nil))))
+
+(cl-defmethod initialize-instance :after ((pane tty-menu-pane) &rest)
+  (with-slots (invoking-item child-pane) pane
+    (when invoking-item
+      (let ((child (slot-value invoking-item 'pane)))
+        (setf child-pane child)
+        (setf (slot-value child 'parent-frame) pane)))))
 
 ;; Bound by an around advice from popup-menu is called for a menu-bar
 ;; menu. If non-nil, it is a (X . Y) of the menu-item.
@@ -410,6 +419,18 @@ because the actual current selection is in another menu."
 	(tty-menu-call-interactively binding))
       (tty-menu-draw tty-menu-pane-drawn nil))))
 
+(cl-defgeneric tty-menu-delete (thing)
+  ( :method ((pane tty-menu-pane))
+    (with-slots (buffer parent-pane) pane
+      (kill-buffer buffer)
+      (when parent-pane
+        (setf (slot-value parent-pane 'child-pane) nil))))
+  ( :method ((frame frame))
+    (let* ((buffer (frame-parameter frame 'tty-menu-buffer))
+           (pane (with-current-buffer buffer tty-menu-pane-drawn)))
+      (tty-menu-delete pane)
+      (delete-frame frame))))
+
 (defun tty-menu-make-element (pane code item)
   (cl-labels ((separator? (name)
                 (let ((name (tty-menu-eval name)))
@@ -624,12 +645,6 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	(raise-frame frame)
 	frame))))
 
-(defun tty-menu-delete-frame (frame)
-  ;; During development, sometimes the frame can be null.
-  (when frame
-    (kill-buffer (frame-parameter frame 'tty-menu-buffer))
-    (delete-frame frame)))
-
 ;; Debugging aid. Delete all menu frames. Don't delete the buffers, we
 ;; might want to inspect them.
 (defun tty-menu-delete-menu-frames ()
@@ -638,7 +653,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	      (frame-parameter frame 'name)))
     (cl-loop for frame in (frame-list)
 	     when (string-prefix-p " *tty-menu-" (frame-name frame))
-	     do (delete-frame frame))))
+	     do (tty-menu-delete frame))))
 
 (defun tty-menu-cmd-mouse-moved (event)
   (interactive "e")
@@ -1001,7 +1016,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	      (cl-return-from outer-loop nil)))))
 
       ;; Make sure to alwaysdelete frame and buffer for this menu.
-      (tty-menu-delete-frame frame))))
+      (tty-menu-delete frame))))
 
 (defun tty-menu-loop (keymap where)
   (let ((res (catch 'tty-menu-to-top-level
