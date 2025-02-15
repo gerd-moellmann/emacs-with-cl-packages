@@ -692,8 +692,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
               ((eq win (selected-window)))
               (item (mouse-posn-property end 'tty-menu-item))
 	      ((tty-menu-selectable-p item)))
-    (goto-char (posn-point end))
-    item))
+    (tty-menu-select item 'mouse)))
 
 (defun tty-menu-cmd-mouse-act (event)
   (interactive "e")
