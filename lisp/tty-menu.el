@@ -949,9 +949,10 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 (defun tty-menu-where (selected how)
   (cl-ecase how
     (key
-     (let* ((end (slot-value selected 'draw-end))
-            (posn (posn-at-point (1- end)))
-	    (win (posn-window posn)))
+     (let* ((frame (tty-menu-frame selected))
+            (end (slot-value selected 'draw-end))
+	    (win (frame-root-window frame))
+            (posn (posn-at-point (1- end) win)))
        (cl-destructuring-bind (x . y) (posn-x-y posn)
          (tty-menu-position (list (cons (1- x) y) win)))))
      (mouse
