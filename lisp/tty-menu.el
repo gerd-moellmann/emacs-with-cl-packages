@@ -686,8 +686,11 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 (defun tty-menu-cmd-key-act ()
   "Select a menu-item with with RET or SPC."
   (interactive)
-  (when-let* ((item (tty-menu-item-at (point))))
-    (tty-menu-act item 'key)))
+  (let* ((selected (slot-value tty-menu-pane-drawn 'selected-item)))
+    (if selected
+        (tty-menu-act selected 'key)
+      ;; macOS closes the menu if no menu-item is selected.
+      (throw 'tty-menu-leave nil))))
 
 (defun tty-menu-cmd-next-item ()
   "Move to next selectable item in menu."
