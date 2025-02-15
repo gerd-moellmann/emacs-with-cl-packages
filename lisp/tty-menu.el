@@ -94,7 +94,8 @@ because the actual current selection is in another menu."
    (buffer :initarg :buffer :type buffer)
    (layout :type list)
    (keymap :initarg :keymap)
-   (invoking-item :initarg :invoking-item :type (or null tty-menu-item))))
+   (invoking-item :initarg :invoking-item :type (or null tty-menu-item))
+   (selected-item :initform nil :type (or null tty-menu-item))))
 
 ;; Type t in many places because even the name can be a form that needs
 ;; to be evaluated to get the name (Redo is an example in the context
@@ -111,8 +112,8 @@ because the actual current selection is in another menu."
    (binding :initarg :binding :initform nil :type t)
    (key-code :initarg :key-code :initform nil :type t)
    (pane :initarg :pane :type tty-menu-pane)
-   (next-item :init-form nil :type (or null tty-menu-item))
-   (prev-item :init-form nil :type (or null tty-menu-item))
+   (next-item :initform nil :type (or null tty-menu-item))
+   (prev-item :initform nil :type (or null tty-menu-item))
    (draw-start :initform nil :type (or null number))
    (draw-end :initform nil :type (or null number))))
 
