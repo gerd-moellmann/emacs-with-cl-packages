@@ -174,11 +174,11 @@ because the actual current selection is in another menu."
       (setf enable nil))))
 
 (cl-defmethod initialize-instance :after ((pane tty-menu-pane) &rest)
-  (with-slots (invoking-item child-pane) pane
+  (with-slots (invoking-item parent-pane) pane
     (when invoking-item
-      (let ((child (slot-value invoking-item 'pane)))
-        (setf child-pane child)
-        (setf (slot-value child 'parent-pane) pane)))))
+      (let ((invoking-pane (slot-value invoking-item 'pane)))
+        (setf (slot-value invoking-pane 'child-pane) pane)
+        (setf parent-pane invoking-pane)))))
 
 ;; Bound by an around advice from popup-menu is called for a menu-bar
 ;; menu. If non-nil, it is a (X . Y) of the menu-item.
