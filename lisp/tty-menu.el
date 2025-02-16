@@ -129,21 +129,26 @@ because the actual current selection is in another menu."
 (defclass tty-menu-separator (tty-menu-item)
   ((sep :initform "-" :type string :reader tty-menu-sep)))
 
-;; Dynamically bound to the current buffer when a menu is invoked.
-(defvar tty-menu-updating-buffer)
+(defvar tty-menu-updating-buffer nil
+  "Dynamically bound to the current buffer when a menu is invoked.")
 
-;; Evaluate FORM in the context of the menu. ATM, the context consists
-;; of the buffer that was current when the menu was invoked. This buffer
-;; must be current when evaluating various things in the menu because of
-;; local variables.
+(defvar tty-menu-from-menu-bar nil
+  "Non-nil means menu is invoked for a menu-bar.
+Bound by an around advice for `popup-menu' if called for a menu-bar
+menu.  If non-nil, it is a cons (X . Y) of the menu-item.")
+
 (defun tty-menu-eval (form)
+  "Evaluate FORM in the context of the menu.
+The context consists of the buffer that was current when the menu
+was invoked.  This buffer must be current when evaluating various things
+in the menu because of local variables."
   (with-current-buffer tty-menu-updating-buffer
     (eval form)))
 
-;; Determine which separator char to use, depending on NAME which is a
-;; kind of separator type. Value is a string of length 1 for the
-;; separator char.
 (defun tty-menu-get-separator-string (name)
+  "Determine which separator char to use.
+NAME is a separator label, which which is a kind of separator type.
+Value is a string of length 1 for the separator char."
   (cl-multiple-value-bind (ch disp)
       (pcase name
 	("--space" (cl-values ?\s nil))
@@ -156,18 +161,18 @@ because the actual current selection is in another menu."
 	(setq sep slot))
       (make-string 1 sep))))
 
-;; "Constructor" for separators. Computes the actual separator char to
-;; use for a separator.
-(cl-defmethod initialize-instance :after ((item tty-menu-separator)
-                                          &rest)
+(cl-defmethod initialize-instance
+  :after ((item tty-menu-separator) &rest)
+  "Constructor for separator ITEM.
+Computes the actual separator char to use for a separator."
   (with-slots (name sep enable) item
     (setf enable nil)
     (setf sep (tty-menu-get-separator-string name))))
 
-;; Constructor for menu-items. If a menu-item's binding is a keymap with
-;; 0 elements, disable it.
-(cl-defmethod initialize-instance :after ((item tty-menu-item)
-                                          &rest)
+(cl-defmethod initialize-instance
+  :after ((item tty-menu-item) &rest)
+  "Constructor for menu-item ITEM.
+If a menu-item's binding is a keymap with 0 elements, disable it."
   (with-slots (binding filter enable) item
     (when filter
       (setf binding (tty-menu-eval `(,filter (quote ,binding)))))
@@ -178,16 +183,14 @@ because the actual current selection is in another menu."
                                count b)))
       (setf enable nil))))
 
-(cl-defmethod initialize-instance :after ((pane tty-menu-pane) &rest)
+(cl-defmethod initialize-instance
+  :after ((pane tty-menu-pane) &rest)
+  "Constructor for menu pane PANE."
   (with-slots (invoking-item parent-pane) pane
     (when invoking-item
       (let ((invoking-pane (slot-value invoking-item 'pane)))
         (setf (slot-value invoking-pane 'child-pane) pane)
         (setf parent-pane invoking-pane)))))
-
-;; Bound by an around advice from popup-menu is called for a menu-bar
-;; menu. If non-nil, it is a (X . Y) of the menu-item.
-(defvar tty-menu-from-menu-bar nil)
 
 ;; Various format strings for the elements of a menu-item:
 ;;
@@ -1036,12 +1039,6 @@ buffer, and HEIGHT is the number of lines in the buffer. "
       (`(,(pred keymapp _) . ,(pred keymapp _))
        (throw 'tty-menu-leave (cons selected 'key))))))
 
-;;
-;;
-;;  (when selected
-;;    (when (keymapp (slot-value selected 'binding))
-;;      (throw 'tty-menu-leave (>cons selected 'key)))))
-
 (defun tty-menu-command-loop ()
   (catch 'tty-menu-leave
     (let ((previous-selected (tty-menu-selected-item)))
@@ -1112,6 +1109,8 @@ buffer, and HEIGHT is the number of lines in the buffer. "
       (tty-menu-delete frame))))
 
 (defun tty-menu-loop (keymap where)
+  "Event loop for tty menus.
+KEYMAP is a menu keymap, and WHERE specifies where to open the menu."
   (let ((res (catch 'tty-menu-to-top-level
                (save-selected-window
                  (tty-menu-loop-1 keymap where :focus t)))))
@@ -1120,12 +1119,16 @@ buffer, and HEIGHT is the number of lines in the buffer. "
       (`(menu-bar ,x ,y) (cons x y))
       (`(,selected . ,_) selected))))
 
-;; This is the replacement for 'x-popup-menu'.
 (cl-defun tty-menu-popup-menu (position menu)
+  "This is the replacement for `x-popup-menu'.
+It is installed as `x-popup-menu-function' when using
+`tty-menu-mode'."
   (when-let* ((where (tty-menu-position position)))
     (cl-destructuring-bind (menu-updating-frame _ _) where
       (let ((tty-menu-updating-buffer (current-buffer)))
         (cond ((keymapp menu)
+               ;; Run the event loop, and at the end, collect bindings
+               ;; for nested menus involved to form the result event.
                (cl-loop for i = (tty-menu-loop menu where)
                         then (with-slots (pane) i
                                (with-slots (invoking-item) pane
@@ -1142,31 +1145,33 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 		        finally (tty-menu-loop outer where)))
 	      (t (error "Not a menu: %S" menu)))))))
 
-;; A mouse-click in a menu can lead to one or more frames for menu panes
-;; being deleted. Somehow, such a click event survives the frame
-;; deletions, and lands in mouse-set-point with the event containing a
-;; window on such a deleted frame. I couldn't find the reason for that.
-;; So this is an advice added to handle that.
 (defun tty-menu-around-mouse-set-point (old-fun &rest args)
+  "Around advice for `mouse-set-point',
+A mouse-click in a menu can lead to one or more frames for menu panes
+being deleted. Somehow, such a click event survives the frame deletions,
+and lands in mouse-set-point with the event containing a window on such
+a deleted frame. I couldn't find the reason for that.  So this is an
+advice added to handle that."
   (let* ((event (car args))
          (win (posn-window (event-start event))))
     (when (or (not (windowp win)) (window-live-p win))
       (apply old-fun args))))
 
-;; This around advice for 'popup-menu' binds 'tty-menu-from-menu-bar' to
-;; (X . Y) in the menu-bar when invoked for a menu-bar menu, and nil
-;; otherwise. This makes it possible to behave differently for menus in
-;; the menu-bar and others.
 (defun tty-menu-around-popup-menu (old-fun &rest args)
+  "Around advice for `popup-menu'.
+This around advice for `popup-menu' binds `tty-menu-from-menu-bar' to
+(X . Y) in the menu-bar when invoked for a menu-bar menu, and nil
+otherwise. This makes it possible to behave differently for menus in
+the menu-bar and others."
   (let ((tty-menu-from-menu-bar
          (pcase args
            (`(,_ ,pos ,_ ,(and menu-bar (guard menu-bar)))
             (posn-x-y pos)))))
     (apply old-fun args)))
 
-;; Override for 'buffer-menu-open' to open the menu at point instead of
-;; at (0, 0).
 (defun tty-menu-buffer-menu-open ()
+  "Override for `buffer-menu-open'.
+Opens the menu at point instead of at (0, 0)."
   (popup-menu (mouse-buffer-menu-keymap) (posn-at-point)))
 
 ;;;###autoload
