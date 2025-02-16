@@ -754,7 +754,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
       (throw 'tty-menu-leave nil))))
 
 (defun tty-menu-cmd-next-item ()
-  "Move to next selectable item in menu."
+  "Move to next selectable menu-item."
   (interactive)
   (let* ((pane tty-menu-pane-drawn)
          (items (slot-value pane 'items))
@@ -770,7 +770,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
         (setq next (slot-value next 'next-item))))))
 
 (defun tty-menu-cmd-previous-item ()
-  "Move to previous selectable line in menu."
+  "Move to previous selectable menu-item."
   (interactive)
   (let* ((pane tty-menu-pane-drawn)
          (selected (slot-value pane 'selected-item))
@@ -782,11 +782,11 @@ buffer, and HEIGHT is the number of lines in the buffer. "
             (setq prev nil))
         (setq prev (slot-value prev 'prev-item))))))
 
-;; Compute the layout of the items in the menu-bar of buffer BUFFER.
-;; Value is a list of (KEY-CODE KEYMAP X0 X1) where KEY-CODE Is the
-;; KEY-CODE of the menu-item, e.g. 'edit', and KEYMAP is the associated
-;; menu keymap. X0 and X1 are the start end end column of the menu-item.
 (defun tty-menu-bar-layout (buffer)
+  "Compute the layout of the menu-bar of buffer BUFFER.
+Value is a list of (KEY-CODE KEYMAP X0 X1) where KEY-CODE Is the
+KEY-CODE of the menu-item, e.g. `edit', and KEYMAP is the associated
+menu keymap. X0 and X1 are the start end end column of the menu-item."
   (with-current-buffer buffer
     (when-let* ((menu-bar (menu-bar-keymap)))
       (cl-loop
@@ -806,10 +806,10 @@ buffer, and HEIGHT is the number of lines in the buffer. "
             (push (list code cmd start-column column) layout))))
        finally return (nreverse layout)))))
 
-;; Find PANE in the menu-bar layout LAYOUT, and return the index of
-;; of its entry in LAYOUT. Value is nil if not found, but that should
-;; not happen.
 (defun tty-menu-bar-find-pane (layout pane)
+  "Find PANE in the menu-bar layout LAYOUT.
+Return the index of of its entry in LAYOUT. Value is nil if not found,
+but that should not happen."
   (cl-loop
    with keymap = (slot-value pane 'keymap)
    for index from 0
@@ -817,14 +817,8 @@ buffer, and HEIGHT is the number of lines in the buffer. "
    for (_code binding _x0 _x1) = elem
    when (eq binding keymap) return index))
 
-;; Arrange to move to the previous or next item in the
-;; menu-bar. MOVE-LEFT non-nil means move to the previous item.  This
-;; gets the tty-menu-item at (point), and determines the pane it is
-;; in. If that is a top-level pane, not a sub-menu, see where that pane
-;; is in the menu-bar. Then determine the next/previous menu-bar item,
-;; and make us display that menu.
-
 (defun tty-menu-root-pane (item)
+  "Find the root pane of ITEM."
   (cl-loop with pane = (slot-value item 'pane)
            for invoking-item = (slot-value pane 'invoking-item)
            while invoking-item
