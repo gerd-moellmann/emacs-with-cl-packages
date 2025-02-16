@@ -20,8 +20,6 @@
 
 ;;; Todo
 
-;; Make cursor invisible somehow (is cursor-type not supposed to work?)
-
 ;;; Commentary:
 
 ;; CLOS classes, rough overview. Add symbol prefixes in your
