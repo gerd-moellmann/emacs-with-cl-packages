@@ -1069,34 +1069,36 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	    (call-interactively cmd)))))))
 
 (defun tty-menu-after-command-loop (res frame)
-  (pcase-exhaustive res
-    (`(,selected . ,(and (pred symbolp) how))
-     (with-slots (binding) selected
-       (cond
-        ((keymapp binding)
-         ;;(message "  open %S" (slot-value selected 'name))
-         (let ((open (tty-menu-open-on-pane selected)))
-           (cond
-            ((eq open selected)
-             (select-frame-set-input-focus frame)
-             frame)
-            ((null open)
-	     (tty-menu-loop-1 binding
-                              (tty-menu-where selected how)
-                              :invoking-item selected
-                              :focus nil)
-             frame)
-            (t
-             (tty-menu-delete frame)
-             (tty-menu-create-frame binding
-                                    (tty-menu-where selected how)
-                                    selected)))))
-        (t (throw 'tty-menu-item-close selected)))))
-    (`close-sub-menu
-     (when-let* ((child (slot-value tty-menu-pane-drawn 'child-pane)))
-       (tty-menu-delete child)))
-    ('nil
-     (throw 'tty-menu-item-close nil))))
+  (let ((use-frame frame))
+    (pcase-exhaustive res
+      (`(,selected . ,(and (pred symbolp) how))
+       (with-slots (binding) selected
+         (cond
+          ((keymapp binding)
+           ;;(message "  open %S" (slot-value selected 'name))
+           (let ((open (tty-menu-open-on-pane selected)))
+             (cond
+              ((eq open selected)
+               (select-frame-set-input-focus frame))
+              ((null open)
+	       (tty-menu-loop-1 binding
+                                (tty-menu-where selected how)
+                                :invoking-item selected
+                                :focus nil))
+              (t
+               (tty-menu-delete frame)
+               (setq use-frame
+                     (tty-menu-create-frame
+                      binding
+                      (tty-menu-where selected how)
+                      selected))))))
+          (t (throw 'tty-menu-item-close selected)))))
+      (`close-sub-menu
+       (when-let* ((child (slot-value tty-menu-pane-drawn 'child-pane)))
+         (tty-menu-delete child)))
+      ('nil
+       (throw 'tty-menu-item-close nil)))
+    use-frame))
 
 (cl-defun tty-menu-loop-1 (keymap where &key invoking-item (focus t))
   (let ((frame (tty-menu-create-frame keymap where invoking-item)))
