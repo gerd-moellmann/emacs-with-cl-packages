@@ -1043,8 +1043,6 @@ and make us display that menu."
               (open (slot-value pane 'child-pane)))
     (slot-value open 'invoking-item)))
 
-(defvar tty-menu-open-sub-menus-on-selection t)
-
 (defun tty-menu-open-sub-menus-on-selection (previous selected)
   (message "sel %S -> %S"
            (when previous
@@ -1090,11 +1088,10 @@ and make us display that menu."
   (catch 'tty-menu-leave
     (let ((previous-selected (tty-menu-selected-item)))
       (while t
-        (when tty-menu-open-sub-menus-on-selection
-          (let* ((selected (tty-menu-selected-item)))
-            (unless (eq selected previous-selected)
-              (tty-menu-open-sub-menus-on-selection previous-selected selected)
-              (setq previous-selected selected))))
+        (let* ((selected (tty-menu-selected-item)))
+          (unless (eq selected previous-selected)
+            (tty-menu-open-sub-menus-on-selection previous-selected selected)
+            (setq previous-selected selected)))
 
         (let* ((track-mouse t)
 	       (key (read-key-sequence nil))
