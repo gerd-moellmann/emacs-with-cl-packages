@@ -523,11 +523,12 @@ corresponding columns of a menu item."
             (throw 'tty-menu-leave (cons item how))
           (throw 'tty-menu-to-top-level (cons item how))))))
   ( :method ((_item tty-menu-separator) _))
-  ( :method ((item tty-menu-button) _)
+  ( :method ((item tty-menu-button) how)
     (with-slots (binding) item
       (when (commandp binding)
 	(tty-menu-call-interactively binding))
-      (tty-menu-draw tty-menu-pane-drawn nil))))
+      (tty-menu-draw tty-menu-pane-drawn nil)
+      (tty-menu-select item how))))
 
 (cl-defgeneric tty-menu-delete (thing)
   "Delete THING."
