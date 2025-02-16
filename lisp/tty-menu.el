@@ -1001,7 +1001,7 @@ and make us display that menu."
 	    (win (frame-root-window frame))
             (posn (posn-at-point (1- end) win)))
        (cl-destructuring-bind (x . y) (posn-x-y posn)
-         (list frame (1- x) y))))
+         (list frame (- x 3) y))))
      (mouse
       (let* ((posn (posn-at-point (pos-eol)))
 	    (win (posn-window posn)))
