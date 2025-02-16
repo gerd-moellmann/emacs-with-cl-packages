@@ -80,14 +80,32 @@
 
 (require 'cl-lib)
 
-(defface tty-menu-hint-selected-face
-  '((((class color))
-      :background "gray10")
-    (t :inverse-video t))
-  "Face for displaying a hint a menu item is selected.
-This face is used when we don't want to use `tty-menu-selected-face'
-because the actual current selection is in another menu."
-  :group 'basic-faces
+(defgroup tty-menu nil
+  "Group for tty-menus implemented in Lisp."
+  :group 'menu)
+
+(defface tty-menu-face
+  '((t :inherit menu))
+  ""
+  :group 'tty-menu
+  :version "31.1")
+
+(defface tty-menu-face-selected
+  '((t :inherit menu :background "darkblue"))
+  ""
+  :group 'tty-menu
+  :version "31.1")
+
+(defface tty-menu-face-selected-inactive
+  '((t :inherit menu :background "gray10"))
+  ""
+  :group 'tty-menu
+  :version "31.1")
+
+(defface tty-menu-face-disabled
+  '((t :inherit menu :foreground "gray"))
+  ""
+  :group 'tty-menu
   :version "31.1")
 
 (defclass tty-menu-element () ())
@@ -316,13 +334,13 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
 (cl-defgeneric tty-menu-draw-finish (item pane)
   ( :method ((item tty-menu-item) _)
     (let* ((enabled (tty-menu-enabled-p item))
-	   (face (if enabled 'tty-menu-enabled-face
-                   'tty-menu-disabled-face)))
+	   (face (if enabled 'tty-menu-face
+                   'tty-menu-face-disabled)))
       (put-text-property (pos-bol) (pos-eol) 'face face))
     (when-let* ((help (slot-value item 'help)))
       (put-text-property (pos-bol) (pos-eol) 'help-echo help)))
   ( :method ((_item tty-menu-separator) _)
-    (put-text-property (pos-bol) (pos-eol) 'face 'tty-menu-enabled-face)))
+    (put-text-property (pos-bol) (pos-eol) 'face 'tty-menu-face)))
 
 (cl-defgeneric tty-menu-layout (pane)
   ( :method ((pane tty-menu-pane))
@@ -416,7 +434,7 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
         (unless tty-menu-selection-ov
           (setq tty-menu-selection-ov (make-overlay 1 1 buffer))
           (overlay-put tty-menu-selection-ov 'face
-                       'tty-menu-selected-face))
+                       'tty-menu-face-selected))
         (with-slots (draw-start draw-end) item
           (move-overlay tty-menu-selection-ov draw-start draw-end))))))
 
@@ -592,10 +610,10 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 
 (defun tty-menu-frame-parameters ()
   (let ((params (copy-sequence tty-menu-frame-parameters)))
-    (when-let* ((fg (face-attribute 'tty-menu-enabled-face :foreground))
+    (when-let* ((fg (face-attribute 'tty-menu-face :foreground))
                 ((stringp fg)))
       (setf (alist-get 'foreground-color params) fg))
-    (when-let* ((bg (face-attribute 'tty-menu-enabled-face :background))
+    (when-let* ((bg (face-attribute 'tty-menu-face :background))
                 ((stringp bg)))
       (setf (alist-get 'background-color params) bg))
     params))
