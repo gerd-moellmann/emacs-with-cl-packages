@@ -441,7 +441,6 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
                       'tty-menu-face-selected
                     'tty-menu-face-selected-inactive)))))
 
-
 (cl-defgeneric tty-menu-select (item how)
   ( :method ((item tty-menu-item) _how)
     (tty-menu-select (slot-value item 'pane) item))
@@ -1153,7 +1152,8 @@ and make us display that menu."
             (select-frame-set-input-focus frame))
           (while t
             (let* ((res (tty-menu-command-loop)))
-              (setq frame (tty-menu-after-command-loop res frame)))))
+              (setq frame (tty-menu-after-command-loop res frame))
+              (tty-menu-set-overlay-face tty-menu-pane-drawn))))
       (tty-menu-delete frame))))
 
 (defun tty-menu-loop (keymap where)
