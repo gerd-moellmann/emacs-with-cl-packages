@@ -888,7 +888,7 @@ and make us display that menu."
     (while (and sel (not (tty-menu-selectable-p sel)))
       (setf sel (if forward
                     (slot-value sel 'next-item)
-                  (slot-value sel 'previous-item))))
+                  (slot-value sel 'prev-item))))
     (when sel
       (tty-menu-select sel 'key))))
 
