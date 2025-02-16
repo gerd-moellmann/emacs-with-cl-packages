@@ -482,7 +482,7 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
                        (cl-list*  :pane pane :key-code code props))))
     (pcase-exhaustive item
      ;; (menu-item SEPARATOR-NAME ...)
-      (`(menu-item ,(and (pred separator?) name) . ,props)
+      (`(menu-item ,(and (pred separator?) name) ,_ . ,props)
       (make 'tty-menu-separator (cl-list* :name name props)))
 
      ;; (menu-item NAME)
