@@ -402,7 +402,9 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
       (insert (format tty-menu-right-border-format ""))
       (tty-menu-draw-finish item pane)
       (insert ?\n)
-      (setf draw-end (point))))
+      (setf draw-end (point))
+      ;; For move movement
+      (put-text-property draw-start draw-end 'tty-menu-item item)))
   ( :method ((item tty-menu-item) pane)
     (tty-menu-draw-button item pane)
     (tty-menu-draw-name item pane)
@@ -872,7 +874,6 @@ and make us display that menu."
   (when-let* ((item (tty-menu-selected-item)))
     (with-slots (binding) item
       (when (keymapp binding)
-        (message "menu-act")
 	(tty-menu-act item 'key))))
   (tty-menu-move-in-menu-bar nil))
 
@@ -1053,11 +1054,11 @@ invocation takes place."
     (slot-value open 'invoking-item)))
 
 (defun tty-menu-open-sub-menus-on-selection (previous selected)
-  (message "sel %S -> %S"
-           (when previous
-             (slot-value previous 'name))
-           (when selected
-             (slot-value selected 'name)))
+  ;; (message "sel %S -> %S"
+  ;;          (when previous
+  ;;            (slot-value previous 'name))
+  ;;          (when selected
+  ;;            (slot-value selected 'name)))
   (let ((prev (and previous (slot-value previous 'binding)))
         (sel (and selected (slot-value selected 'binding))))
     (pcase-exhaustive (cons prev sel)
