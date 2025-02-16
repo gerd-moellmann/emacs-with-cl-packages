@@ -408,8 +408,8 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
     (tty-menu-draw-name item pane)
     (tty-menu-draw-key item pane)))
 
-;; The tty-menu-pane drawn in a buffer.
-(defvar-local tty-menu-pane-drawn nil)
+(defvar-local tty-menu-pane-drawn nil
+  "The tty-menu-pane drawn in a buffer.")
 
 (cl-defgeneric tty-menu-add (pane item)
   ( :method ((pane tty-menu-pane) (item tty-menu-item))
@@ -568,17 +568,23 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 		(count-lines (point-min) (point-max))))))))
 
 (defun tty-menu-keymap-name (keymap)
+  "Return the name of KEYMAP, if any."
   (when (symbolp keymap)
     (setq keymap (indirect-function keymap)))
   (let ((name (last keymap)))
     (and (stringp (car name)) (car name))))
 
 (defun tty-menu-pane-buffer-name (keymap)
+  "Make a buffer name for KEYMAP."
   (if-let* ((name (tty-menu-keymap-name keymap)))
       (format " *tty-menu-%s*" name)
     (generate-new-buffer-name " *tty-menu--")))
 
 (defun tty-menu-make-pane (keymap invoking-item frame)
+  "Create a `tty-menu-pane'.
+KEYMAP is the menu keymap for the pane. INVOLING-ITEM if non-nil is the
+menu-item that invoked this menu.  FRAME Is the frame to display the
+menu in."
   (let ((pane (make-instance
                'tty-menu-pane
                :keymap keymap
@@ -619,6 +625,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
     (desktop-dont-save . t)))
 
 (defun tty-menu-frame-parameters ()
+  "Return the frame parameters to use for menu child frames."
   (let ((params (copy-sequence tty-menu-frame-parameters)))
     (when-let* ((fg (face-attribute 'tty-menu-face :foreground))
                 ((stringp fg)))
@@ -629,6 +636,9 @@ buffer, and HEIGHT is the number of lines in the buffer. "
     params))
 
 (defun tty-menu-make-fully-visible (f1 f2 x y)
+  "Make frame F2 fully visible in F1,
+Don't obscure point (X, Y) if possible.  Change size and position of F2
+as needed."
   (let* ((f1-edges (frame-edges f1))
 	 (f1-width (frame-width f1))
          (f1-height (frame-height f1))
@@ -646,7 +656,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
     (set-frame-size f2 f2-width f2-height)))
 
 (defun tty-menu-frame-absolute-position (frame x y)
-  "Translate (X, Y) in FRAME to absolute coordinates relative to the root frame."
+  "Translate (X, Y) in FRAME to absolute coordinates."
   (let ((current-frame frame)
         (abs-x x)
         (abs-y y))
@@ -703,12 +713,14 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	     do (tty-menu-delete frame))))
 
 (defun tty-menu-is-child (child parent)
+  "Return t if pane CHILD is a child of PARENT."
   (cl-loop for c = (slot-value parent 'child-pane)
            then (slot-value c 'child-pane)
            while c
            when (eq c child) return t))
 
 (defun tty-menu-cmd-mouse-moved (event)
+  "Handle mouse movement in a menu."
   (interactive "e")
   ;; If we moved the mouse in the menu-bar, and we are displaying a menu
   ;; for a menu-bar, and the menu-bar item moved to is different from
@@ -941,10 +953,8 @@ and make us display that menu."
   "<mode-line> <mouse-1>" #'tty-menu-cmd-close-on-click
   "<mouse-1>" #'tty-menu-cmd-mouse-act)
 
-(defun tty-menu-global-menu ()
-  (keymap-lookup global-map "<menu-bar>"))
-
 (defun tty-menu-position (pos)
+  "Translate position POS to (FRAME X Y)."
   (interactive)
   (pcase-exhaustive pos
     ;; nil
@@ -999,6 +1009,9 @@ and make us display that menu."
      (list (selected-frame) x y))))
 
 (defun tty-menu-where (selected how)
+  "Determine where to display SELECTED,
+HOW is either `key' or `mouse' and specifies how the menu
+invocation takes place."
   (cl-ecase how
     (key
      (let* ((frame (tty-menu-frame selected))
@@ -1014,6 +1027,7 @@ and make us display that menu."
          (tty-menu-position (list (cons (- x 3) y) win)))))))
 
 (defun tty-menu-select-item-by-name ()
+  "Select a menu-item from `this-command-keys'."
   (when-let* ((key (this-command-keys))
               ((stringp key))
               (pane tty-menu-pane-drawn)
@@ -1033,6 +1047,7 @@ and make us display that menu."
                  and return t)))))
 
 (defun tty-menu-open-on-pane (item)
+  "Return t if ITEM's pane has a sub-menu open."
   (when-let* ((pane (slot-value item 'pane))
               (open (slot-value pane 'child-pane)))
     (slot-value open 'invoking-item)))
