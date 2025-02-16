@@ -20,32 +20,51 @@
 
 ;;; Todo
 
+;; - Customization, including Unicode use.
+
 ;;; Commentary:
 
-;; CLOS classes, rough overview. Add symbol prefixes in your
+;; This is a menu implementation for ttys. It uses two changes in the C
+;; code:
+;;
+;; - a new hook `x-popup-menu-function'
+;; - hiding the cursor in frames with (cursor-type . nil) parameter.
+;;
+;; The code uses nothing else of the C code, including parsing menu
+;; keymaps. This would makes it possible to delete portions of the C
+;; code in the future.
+;;
+;; The behavior of the menu is as close as possible like in the macOS
+;; GUI, which is of course because I am a macOS user.
+
+;; Some diagrams, rough overview. Add symbol prefixes in your
 ;; imagination.
 ;;
+;; CLOS class diagram, inheritance.
+;;
 ;;                  +---------------+
-;;        +---------|    element    |
+;;        +-------->|    element    |
 ;;        |         +---------------+
-;;        |                 |
+;;        |                 ^
 ;; +-------------+          |
 ;; |    pane     |          |
 ;; +-------------+          |
 ;;                          |
 ;;                  +---------------+
-;;           +------|      item     |-----+
+;;           +----->|      item     |<----+
 ;;           |      +---------------+     |
 ;;           |                            |
 ;; +-------------------+         +-----------------+
-;; |     separator     |    +----|      button     |---+
+;; |     separator     |    +---->      button     |<--+
 ;; +-------------------+    |    +-----------------+   |
 ;;                          |                          |
 ;;                +----------------+        +------------------+
 ;;                |     radio      |        |     checkbox     |
 ;;                +----------------+        +------------------+
 ;;
-
+;;
+;; More class diagram:
+;;
 ;;   +-parent-+
 ;;   | child  |  +-----selected--------+
 ;;   v        v  |                     v
@@ -67,8 +86,29 @@
 ;;  |               +------------------buffer---+ |
 ;;  +---------------------------------------------+
 ;;
-
-;; Use of slot-value and with-slots in the code:
+;;
+;; Event loop:
+;;
+;; +-------+         +-------+         +---------+
+;; | outer |         | inner |         | command |
+;; +-------+         +-------+         +---------+
+;;     |                 |                  |
+;;     |---------------->|----------------->|
+;;     |                 |                  |
+;;     |                 |<--throw leave----|
+;;     |                 |<----return-------|
+;;     |                 |----------------->|
+;;     |                 |                  |
+;;     |<---------throw to-top-level--------|
+;;     |                 |                  |
+;;     |                 |--recursion--+    |
+;;     |                 |             |    |
+;;     |                 |<------------+    |
+;;     |<----return------|                  |
+;;     |                 |                  |
+;;
+;;
+;; - Use of slot-value and with-slots in the code:
 ;;
 ;; There is a reason for that. Accessors have to obey naming rules,
 ;; which means they should use the `tty-menu-' prefix. That's
