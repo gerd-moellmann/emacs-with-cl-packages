@@ -733,6 +733,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
           (throw 'tty-menu-leave nil))))))
 
 (defun tty-menu-cmd-mouse-act (event)
+  "Perform action on selected menu-item."
   (interactive "e")
   (when-let* ((end (event-end event))
 	      (win (posn-window end))
@@ -880,7 +881,16 @@ and make us display that menu."
 	(if (and (eq cmd #'isearch-printing-char)
 		 (stringp key))
 	    (isearch-printing-char (aref key 0))
-	  (call-interactively cmd))))))
+	  (call-interactively cmd)))))
+  (let* ((items (slot-value tty-menu-pane-drawn 'items))
+         (i (1- (line-number-at-pos (point) t)))
+         (sel (nth i items)))
+    (while (and sel (not (tty-menu-selectable-p sel)))
+      (setf sel (if forward
+                    (slot-value sel 'next-item)
+                  (slot-value sel 'previous-item))))
+    (when sel
+      (tty-menu-select sel 'key))))
 
 (defun tty-menu-cmd-isearch-forward ()
   "Isearch forward in a menu."
