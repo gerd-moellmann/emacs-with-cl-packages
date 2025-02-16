@@ -763,7 +763,7 @@ as needed."
   (when-let* ((end (event-end event))
 	      (win (posn-window end))
               ((or (eq win (selected-window))
-                   (throw 'tty-menu-leave nil)))
+                   (throw 'tty-menu-to-top-level nil)))
               (item (mouse-posn-property end 'tty-menu-item))
 	      ((tty-menu-selectable-p item)))
     (goto-char (posn-point end))
@@ -928,7 +928,7 @@ and make us display that menu."
 (defun tty-menu-cmd-close-on-click (_event)
   "Close one menu-pane."
   (interactive "e")
-  (tty-menu-cmd-close))
+  (throw 'tty-menu-to-top-level nil))
 
 (defvar-keymap tty-menu-keymap
   :doc "Keymap for menu interaction."
