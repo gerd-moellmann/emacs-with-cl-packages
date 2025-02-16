@@ -113,6 +113,7 @@
 (defclass tty-menu-pane (tty-menu-element)
   ((items :initarg :items :initform nil :type t)
    (buffer :initarg :buffer :type buffer)
+   (overlay :initarg nil :type overlay)
    (frame :initarg :frame :type frame)
    (layout :type list)
    (keymap :initarg :keymap)
@@ -204,7 +205,8 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
 (cl-defmethod initialize-instance
   :after ((pane tty-menu-pane) &rest)
   "Constructor for menu pane PANE."
-  (with-slots (invoking-item parent-pane) pane
+  (with-slots (invoking-item parent-pane buffer overlay) pane
+    (setf overlay (make-overlay 1 1 buffer))
     (when invoking-item
       (let ((invoking-pane (slot-value invoking-item 'pane)))
         (setf (slot-value invoking-pane 'child-pane) pane)
@@ -406,9 +408,6 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
     (tty-menu-draw-name item pane)
     (tty-menu-draw-key item pane)))
 
-;; An overlay for the selected item in a menu.
-(defvar-local tty-menu-selection-ov nil)
-
 ;; The tty-menu-pane drawn in a buffer.
 (defvar-local tty-menu-pane-drawn nil)
 
@@ -433,10 +432,8 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
   (cl-loop
    for p = pane then (slot-value p 'parent-pane)
    while p do
-   (when-let* ((buffer (slot-value p 'buffer))
-               (ov (with-current-buffer buffer
-                     tty-menu-selection-ov)))
-     (overlay-put ov 'face
+   (with-slots (overlay) p
+     (overlay-put overlay 'face
                   (if (eq p tty-menu-pane-drawn)
                       'tty-menu-face-selected
                     'tty-menu-face-selected-inactive)))))
@@ -446,13 +443,10 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
     (tty-menu-select (slot-value item 'pane) item))
   ( :method ((pane tty-menu-pane) (item tty-menu-item))
     (setf (slot-value pane 'selected-item) item)
-    (with-slots (buffer) pane
-      (with-current-buffer buffer
-        (unless tty-menu-selection-ov
-          (setq tty-menu-selection-ov (make-overlay 1 1 buffer))))
+    (with-slots (overlay) pane
       (tty-menu-set-overlay-face pane)
       (with-slots (draw-start draw-end) item
-        (move-overlay tty-menu-selection-ov draw-start draw-end)))))
+        (move-overlay overlay draw-start draw-end)))))
 
 (cl-defgeneric tty-menu-act (item how)
   ( :method ((item tty-menu-item) how)
@@ -562,7 +556,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
       (let ((inhibit-modification-hooks t)
             (inhibit-read-only t)
 	    (indent-tabs-mode nil))
-	(setq tty-menu-selection-ov nil tty-menu-pane-drawn pane)
+	(setq tty-menu-pane-drawn pane)
 	(tty-menu-draw pane 0)
 	(cl-flet ((line-width ()
 		    (save-excursion
