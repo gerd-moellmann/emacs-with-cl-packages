@@ -2636,7 +2636,7 @@ eval_sub (Lisp_Object form)
 	  if (backtrace_debug_on_exit (specpdl_ref_to_ptr (count)))
 	    val = call_debugger (list2 (Qexit, val));
 	  SAFE_FREE ();
-	  specpdl_ptr--;
+	  unbind_discard_to (SPECPDL_INDEX_PREV ());
 	  return val;
 	}
       else
@@ -2754,7 +2754,7 @@ eval_sub (Lisp_Object form)
   lisp_eval_depth--;
   if (backtrace_debug_on_exit (specpdl_ref_to_ptr (count)))
     val = call_debugger (list2 (Qexit, val));
-  specpdl_ptr--;
+  unbind_discard_to (SPECPDL_INDEX_PREV ());
 
   return val;
 }
@@ -3164,7 +3164,7 @@ usage: (funcall FUNCTION &rest ARGUMENTS)  */)
   lisp_eval_depth--;
   if (backtrace_debug_on_exit (specpdl_ref_to_ptr (count)))
     val = call_debugger (list2 (Qexit, val));
-  specpdl_ptr--;
+  unbind_discard_to (SPECPDL_INDEX_PREV ());
   return val;
 }
 
@@ -3288,7 +3288,7 @@ apply_lambda (Lisp_Object fun, Lisp_Object args, specpdl_ref count)
   if (backtrace_debug_on_exit (specpdl_ref_to_ptr (count)))
     tem = call_debugger (list2 (Qexit, tem));
   SAFE_FREE ();
-  specpdl_ptr--;
+  unbind_discard_to (SPECPDL_INDEX_PREV ());
   return tem;
 }
 
@@ -3914,6 +3914,23 @@ unbind_to (specpdl_ref count, Lisp_Object value)
     Vquit_flag = quitf;
 
   return value;
+}
+
+/* Pop entries from the specpdl, but do not execute them.  */
+
+Lisp_Object
+unbind_discard_to (specpdl_ref count)
+{
+  while (specpdl_ptr != specpdl_ref_to_ptr (count))
+    {
+      --specpdl_ptr;
+#ifdef HAVE_MPS
+      specpdl_ptr->kind = SPECPDL_FREE;
+      memset (specpdl_ptr, 0, sizeof *specpdl_ptr);
+#endif
+    }
+
+  return Qnil;
 }
 
 DEFUN ("special-variable-p", Fspecial_variable_p, Sspecial_variable_p, 1, 1, 0,
