@@ -302,6 +302,7 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
   (cl-loop repeat n do (insert x)))
 
 (cl-defgeneric tty-menu-button-string (item)
+  "Value is a string for the button part of ITEM."
   ( :method ((_ tty-menu-item))
     "")
   ( :method ((r tty-menu-radio))
@@ -318,12 +319,14 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
     ""))
 
 (cl-defgeneric tty-menu-name-string (item)
+  "Value is a string for the name part of ITEM."
   ( :method ((item tty-menu-item))
     (format tty-menu-name-format (tty-menu-name item)))
   ( :method ((_ tty-menu-separator))
     ""))
 
 (cl-defgeneric tty-menu-key-string (item)
+  "Value is a string for the key part of ITEM."
   ( :method ((item tty-menu-item))
     (format tty-menu-key-format
 	    (with-slots (binding) item
@@ -336,6 +339,7 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
   ( :method ((_ tty-menu-separator)) ""))
 
 (cl-defgeneric tty-menu-draw-button (item pane)
+  "Draw the button part of ITEM on PANE."
   ( :method ((_item tty-menu-item) pane)
     (with-slots (layout) pane
       (cl-destructuring-bind (_ button-width _ _ _) layout
@@ -348,6 +352,7 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
 	(tty-menu-ninsert button-width (tty-menu-sep item))))))
 
 (cl-defgeneric tty-menu-draw-name (item pane)
+  "Draw the name part of ITEM on PANE."
   ( :method ((item tty-menu-item) pane)
     (with-slots (layout) pane
       (cl-destructuring-bind (left-border button name-width _ _) layout
@@ -360,6 +365,7 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
 	(tty-menu-ninsert name-width (tty-menu-sep item))))))
 
 (cl-defgeneric tty-menu-draw-key (item pane)
+  "Draw the key part of ITEM on PANE."
   ( :method ((item tty-menu-item) pane)
     (cl-flet ((right-aligned-p (fmt)
                 (not (string-match-p "%-" fmt))))
@@ -378,6 +384,7 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
 	(tty-menu-ninsert key-width (tty-menu-sep item))))))
 
 (cl-defgeneric tty-menu-draw-finish (item pane)
+  "Finish drawing ITEM on PANE."
   ( :method ((item tty-menu-item) _)
     (let* ((enabled (tty-menu-enabled-p item))
 	   (face (if enabled 'tty-menu-face
@@ -389,6 +396,10 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
     (put-text-property (pos-bol) (pos-eol) 'face 'tty-menu-face)))
 
 (cl-defgeneric tty-menu-layout (pane)
+  "Compute the layout of PANE for drawing items on it.
+This set the `layout' of PANE to a list (LEFT-BORDER BUTTON NAME KEY
+RIGHT-BORDER), all elements giving the widths to use for the
+corresponding columns of a menu item."
   ( :method ((pane tty-menu-pane))
     (with-slots (items layout) pane
       (cl-loop
@@ -404,6 +415,7 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
                                            ,right-border))))))
 
 (cl-defgeneric tty-menu-frame (thing)
+  "Value is the frame associated with THING."
   ( :method ((pane tty-menu-pane))
     (slot-value pane 'frame))
   ( :method ((item tty-menu-item))
@@ -413,6 +425,8 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
 ;; is retained. At least theoretically, it can happen that in the
 ;; redrawn menu the old selection is no longer selectable. This function
 ;; finds an alternative selection in this case.
+;;
+;; Should be removed.
 (defun tty-menu-try-place-point (selectable old-line)
   (goto-char (point-min))
   (if (nth old-line selectable)
@@ -426,6 +440,7 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
 	    (prev (forward-line prev))))))
 
 (cl-defgeneric tty-menu-draw (item pane)
+  "Draw ITEM on PANE."
   ( :method ((pane tty-menu-pane) line)
     (with-slots (buffer items) pane
       (with-current-buffer buffer
@@ -458,6 +473,7 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
   "The tty-menu-pane drawn in a buffer.")
 
 (cl-defgeneric tty-menu-add (pane item)
+  "Add ITEM to PANE."
   ( :method ((pane tty-menu-pane) (item tty-menu-item))
     (with-slots (items) pane
       (let ((last (last items)))
@@ -485,6 +501,7 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
                     'tty-menu-face-selected-inactive)))))
 
 (cl-defgeneric tty-menu-select (item how)
+  "Select ITEM on its pane."
   ( :method ((item tty-menu-item) _how)
     (tty-menu-select (slot-value item 'pane) item))
   ( :method ((pane tty-menu-pane) (item tty-menu-item))
@@ -495,6 +512,7 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
         (move-overlay overlay draw-start draw-end)))))
 
 (cl-defgeneric tty-menu-act (item how)
+  "Perform the action associated with ITEM."
   ( :method ((item tty-menu-item) how)
     (when-let* ((enabled (tty-menu-enabled-p item)))
       (with-slots (binding) item
@@ -509,6 +527,7 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
       (tty-menu-draw tty-menu-pane-drawn nil))))
 
 (cl-defgeneric tty-menu-delete (thing)
+  "Delete THING."
   ( :method ((pane tty-menu-pane))
     (with-slots (buffer frame parent-pane child-pane) pane
       (when child-pane
