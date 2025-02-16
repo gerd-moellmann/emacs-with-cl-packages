@@ -269,30 +269,36 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
 (defvar tty-menu-checkbox-on "✔")
 (defvar tty-menu-checkbox-off "□")
 
-;; Same as above for invoking commands.
 (defun tty-menu-call-interactively (fn)
+  "Call FN interactively in `tty-menu-updating-buffer'."
   (with-current-buffer tty-menu-updating-buffer
     (call-interactively fn)))
 
 (defun tty-menu-visible-p (item)
+  "Value is non-nil if ITEM is visible."
   (tty-menu-eval (slot-value item 'visible)))
 
 (defun tty-menu-enabled-p (item)
+  "Value is non-nil if ITEM is enabled."
   (tty-menu-eval (slot-value item 'enable)))
 
 (defun tty-menu-selectable-p (item)
+  "Value is non-nil if ITEM is selectable by the user."
   (and (tty-menu-visible-p item)
        (tty-menu-enabled-p item)))
 
 (defun tty-menu-name (item)
+  "Value is the name of ITEM."
   (tty-menu-eval (slot-value item 'name)))
 
 (defun tty-menu-button-selected-p (item)
+  "Value is non-nil if button ITEM is selected (on)."
   (with-slots (button) item
     (cl-destructuring-bind (_ . form) button
       (tty-menu-eval form))))
 
 (defun tty-menu-ninsert (n x)
+  "Insert N times X at point."
   (cl-loop repeat n do (insert x)))
 
 (cl-defgeneric tty-menu-button-string (item)
@@ -517,6 +523,10 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
       (tty-menu-delete pane))))
 
 (defun tty-menu-make-element (pane code item)
+  "Construct a new menu element.
+PANE is the pane the menu-element is constructed for.  CODE and ITEM are
+key-code and menu-item definition from a keymap.  Value is the menu
+element constructed."
   (cl-labels ((separator? (name)
                 (let ((name (tty-menu-eval name)))
                   (and (stringp name)
