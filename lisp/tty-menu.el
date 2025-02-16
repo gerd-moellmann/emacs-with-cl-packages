@@ -27,30 +27,14 @@
 ;; CLOS classes, rough overview. Add symbol prefixes in your
 ;; imagination.
 ;;
-;;                    +------------------+
-;;                    |      element     |
-;;                    +------------------+
-;;                              |
-;;          +-------------------+-------+
-;;          |                           |
-;; +---------------+             +---------------+
-;; |     pane      |<---pane-----|    item       |
-;; +---------------+             |               |
-;;      ^   |    |              *|               |
-;;   buffer |    +----items----->|               |----+
-;;      |   |                    |               | draw-start
-;;      |   +---invoking-item--->|               | draw-end
-;;      |                        |               |    |
-;;      |                        +---------------+    |
-;;   pane-drawn     +---------------------------------+
-;;      |           v
-;;      |      +--------+   +--------+      +-------+
-;;      +----->| buffer |<--| window |<---->| frame |
-;;             +--------+   +--------+      +-------+
-;;                  ^                           |
-;;                  +------------------buffer---+
-;;
-;;
+;;                  +---------------+
+;;        +---------|    element    |
+;;        |         +---------------+
+;;        |                 |
+;; +-------------+          |
+;; |    pane     |          |
+;; +-------------+          |
+;;                          |
 ;;                  +---------------+
 ;;           +------|      item     |-----+
 ;;           |      +---------------+     |
@@ -63,12 +47,34 @@
 ;;                |     radio      |        |     checkbox     |
 ;;                +----------------+        +------------------+
 ;;
-;; One could split menu-items into separator, button, command, and
-;; sub-menu, but I don't think it's worth it.
 
-;; Use of slot-value: accessors have to obey naming rules, which means
-;; they should use the `tty-menu-' prefix. That's unreadable and the
-;; reason I prefer with-slots and slot-value.
+;;   +-parent-+
+;;   | child  |  +-----selected--------+
+;;   v        v  |                     v
+;; +---------------+             +---------------+
+;; |     pane      |<---pane-----|    item       |
+;; +---------------+             |               |
+;;  |   ^   |    |              *|               |
+;;  |buffer |    +----items----->|               |----+
+;;  |   |   |                    |               | draw-start
+;;  |   |   +---invoking-item--->|               | draw-end
+;;  |   |                        |               |    |
+;;  |   |                        +---------------+    |
+;;  |pane-drawn     +---------------------------------+
+;;  |   |           v
+;;  |   |      +--------+   +--------+      +-------+
+;;  |   +----->| buffer |<--| window |<---->| frame |
+;;  |          +--------+   +--------+      +-------+
+;; frame            ^                           | ^
+;;  |               +------------------buffer---+ |
+;;  +---------------------------------------------+
+;;
+
+;; Use of slot-value and with-slots in the code:
+;;
+;; There is a reason for that. Accessors have to obey naming rules,
+;; which means they should use the `tty-menu-' prefix. That's
+;; unreadable, and the reason I prefer with-slots and slot-value.
 
 ;;; Code:
 
