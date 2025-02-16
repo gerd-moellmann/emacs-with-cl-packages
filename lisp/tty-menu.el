@@ -852,12 +852,16 @@ buffer, and HEIGHT is the number of lines in the buffer. "
     (cl-destructuring-bind (_ _ x0 _) (nth index layout)
       (throw 'tty-menu-to-top-level `(menu-bar ,x0 0)))))
 
+(defun tty-menu-selected-item ()
+  (slot-value tty-menu-pane-drawn 'selected-item))
+
 (defun tty-menu-cmd-open ()
   "Select a menu-item with <right> if it is for a sub-menu."
   (interactive)
-  (when-let* ((item (tty-menu-item-at (point))))
+  (when-let* ((item (tty-menu-selected-item)))
     (with-slots (binding) item
       (when (keymapp binding)
+        (message "menu-act")
 	(tty-menu-act item 'key))))
   (tty-menu-move-in-menu-bar nil))
 
@@ -1024,9 +1028,6 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   (when-let* ((pane (slot-value item 'pane))
               (open (slot-value pane 'child-pane)))
     (slot-value open 'invoking-item)))
-
-(defun tty-menu-selected-item ()
-  (slot-value tty-menu-pane-drawn 'selected-item))
 
 (defvar tty-menu-open-sub-menus-on-selection t)
 
