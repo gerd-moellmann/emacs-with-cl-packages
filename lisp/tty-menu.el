@@ -86,25 +86,25 @@
 
 (defface tty-menu-face
   '((t :inherit menu))
-  ""
+  "Face for TTY menus."
   :group 'tty-menu
   :version "31.1")
 
 (defface tty-menu-face-selected
-  '((t :inherit menu :background "darkblue"))
-  ""
+  '((t :inherit tty-menu-face :background "darkblue"))
+  "Face for selected menu items."
   :group 'tty-menu
   :version "31.1")
 
 (defface tty-menu-face-selected-inactive
-  '((t :inherit menu :background "gray10"))
-  ""
+  '((t :inherit tty-menu-face :background "gray10"))
+  "Face for inactive selected menu items."
   :group 'tty-menu
   :version "31.1")
 
 (defface tty-menu-face-disabled
-  '((t :inherit menu :foreground "gray"))
-  ""
+  '((t :inherit tty-menu-face :foreground "gray5"))
+  "Face for disabled menu items."
   :group 'tty-menu
   :version "31.1")
 
