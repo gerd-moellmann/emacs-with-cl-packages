@@ -234,8 +234,10 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
   (with-slots (binding filter enable) item
     (when filter
       (setf binding (tty-menu-eval `(,filter (quote ,binding)))))
-    (when (symbolp binding)
-      (setf binding (indirect-function binding)))
+    ;; We cannot do the following because a symbol may have a
+    ;; a function definition of the form (autoload ...), which is
+    ;; itself not callable, and `call-interactively' barfs.
+    ;; (setf binding (indirect-function binding))
     (when (and (keymapp binding)
                (zerop (cl-loop for b being the key-codes of binding
                                count b)))
