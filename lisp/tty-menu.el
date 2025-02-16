@@ -674,6 +674,12 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 	     when (string-prefix-p " *tty-menu-" (frame-name frame))
 	     do (tty-menu-delete frame))))
 
+(defun tty-menu-is-child (child parent)
+  (cl-loop for c = (slot-value parent 'child-pane)
+           then (slot-value c 'child-pane)
+           while c
+           when (eq c child) return t))
+
 (defun tty-menu-cmd-mouse-moved (event)
   (interactive "e")
   ;; If we moved the mouse in the menu-bar, and we are displaying a menu
@@ -698,8 +704,16 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   (when-let* ((end (event-end event))
 	      (win (posn-window end))
               (item (mouse-posn-property end 'tty-menu-item))
-	      ((tty-menu-selectable-p item)))
-    (tty-menu-select item 'mouse)))
+	      ((tty-menu-selectable-p item))
+              (pane (slot-value item 'pane))
+              (frame (slot-value pane 'frame)))
+    (tty-menu-select item 'mouse)
+    (unless (eq pane tty-menu-pane-drawn)
+      (when-let* ((sel (slot-value tty-menu-pane-drawn 'selected-item)))
+        (if (tty-menu-is-child pane tty-menu-pane-drawn)
+            ;; Move to child -> activate child.
+            (tty-menu-act sel 'mouse)
+          (throw 'tty-menu-leave nil))))))
 
 (defun tty-menu-cmd-mouse-act (event)
   (interactive "e")
