@@ -816,13 +816,11 @@ but that should not happen."
    for (_code binding _x0 _x1) = elem
    when (eq binding keymap) return index))
 
-(defun tty-menu-root-pane (item)
-  "Find the root pane of ITEM."
-  (cl-loop with pane = (slot-value item 'pane)
-           for invoking-item = (slot-value pane 'invoking-item)
-           while invoking-item
-           do (setq pane (slot-value invoking-item 'pane))
-           finally return pane))
+(defun tty-menu-root-pane (pane)
+  "Find the root pane of PANE."
+  (while (slot-value pane 'parent-pane)
+    (setq pane (slot-value pane 'parent-pane)))
+  pane)
 
 (defun tty-menu-move-in-menu-bar (move-left)
   "Arrange to move to another item in the menu-bar.
@@ -832,10 +830,9 @@ in. If that is a top-level pane, not a sub-menu, see where that pane
 is in the menu-bar. Then determine the next/previous menu-bar item,
 and make us display that menu."
   (when-let* (((not (null tty-menu-from-menu-bar)))
-              (item (tty-menu-selected-item))
-              (pane (tty-menu-root-pane item))
+              (root-pane (tty-menu-root-pane tty-menu-pane-drawn))
               (layout (tty-menu-bar-layout tty-menu-updating-buffer))
-              (index (tty-menu-bar-find-pane layout pane))
+              (index (tty-menu-bar-find-pane layout root-pane))
               (n (length layout)))
     (cond (move-left
            (cl-decf index)
