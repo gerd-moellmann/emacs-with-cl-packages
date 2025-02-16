@@ -91,13 +91,13 @@
   :version "31.1")
 
 (defface tty-menu-face-selected
-  '((t :inherit tty-menu-face :background "darkblue"))
+  '((t :inherit tty-menu-face :background "roalblue4"))
   "Face for selected menu items."
   :group 'tty-menu
   :version "31.1")
 
 (defface tty-menu-face-selected-inactive
-  '((t :inherit tty-menu-face :background "gray10"))
+  '((t :inherit tty-menu-face :background "grey20"))
   "Face for inactive selected menu items."
   :group 'tty-menu
   :version "31.1")
@@ -423,6 +423,25 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
             (setf (cdr last) (list item))
           (setf items (list item)))))))
 
+(defun tty-menu-root-pane (pane)
+  "Find the root pane of PANE."
+  (while (slot-value pane 'parent-pane)
+    (setq pane (slot-value pane 'parent-pane)))
+  pane)
+
+(defun tty-menu-set-overlay-face (pane)
+  (cl-loop
+   for p = pane then (slot-value p 'parent-pane)
+   while p do
+   (when-let* ((buffer (slot-value p 'buffer))
+               (ov (with-current-buffer buffer
+                     tty-menu-selection-ov)))
+     (overlay-put ov 'face
+                  (if (eq p tty-menu-pane-drawn)
+                      'tty-menu-face-selected
+                    'tty-menu-face-selected-inactive)))))
+
+
 (cl-defgeneric tty-menu-select (item how)
   ( :method ((item tty-menu-item) _how)
     (tty-menu-select (slot-value item 'pane) item))
@@ -431,11 +450,10 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
     (with-slots (buffer) pane
       (with-current-buffer buffer
         (unless tty-menu-selection-ov
-          (setq tty-menu-selection-ov (make-overlay 1 1 buffer))
-          (overlay-put tty-menu-selection-ov 'face
-                       'tty-menu-face-selected))
-        (with-slots (draw-start draw-end) item
-          (move-overlay tty-menu-selection-ov draw-start draw-end))))))
+          (setq tty-menu-selection-ov (make-overlay 1 1 buffer))))
+      (tty-menu-set-overlay-face pane)
+      (with-slots (draw-start draw-end) item
+        (move-overlay tty-menu-selection-ov draw-start draw-end)))))
 
 (cl-defgeneric tty-menu-act (item how)
   ( :method ((item tty-menu-item) how)
@@ -816,12 +834,6 @@ but that should not happen."
    for elem in layout
    for (_code binding _x0 _x1) = elem
    when (eq binding keymap) return index))
-
-(defun tty-menu-root-pane (pane)
-  "Find the root pane of PANE."
-  (while (slot-value pane 'parent-pane)
-    (setq pane (slot-value pane 'parent-pane)))
-  pane)
 
 (defun tty-menu-move-in-menu-bar (move-left)
   "Arrange to move to another item in the menu-bar.
