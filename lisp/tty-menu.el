@@ -744,11 +744,8 @@ buffer, and HEIGHT is the number of lines in the buffer. "
     (goto-char (posn-point end))
     (tty-menu-act item 'mouse)))
 
-(defun tty-menu-item-at (pos)
-  (get-text-property pos 'tty-menu-item))
-
 (defun tty-menu-cmd-key-act ()
-  "Select a menu-item with with RET or SPC."
+  "Perform the action associated with a menu-item."
   (interactive)
   (let* ((selected (slot-value tty-menu-pane-drawn 'selected-item)))
     (if selected
@@ -835,8 +832,14 @@ buffer, and HEIGHT is the number of lines in the buffer. "
            finally return pane))
 
 (defun tty-menu-move-in-menu-bar (move-left)
+  "Arrange to move to another item in the menu-bar.
+MOVE-LEFT non-nil means move to the previous item.  This
+gets the selected tty-menu-item and determines the pane it is
+in. If that is a top-level pane, not a sub-menu, see where that pane
+is in the menu-bar. Then determine the next/previous menu-bar item,
+and make us display that menu."
   (when-let* (((not (null tty-menu-from-menu-bar)))
-              (item (tty-menu-item-at (point)))
+              (item (tty-menu-selected-item))
               (pane (tty-menu-root-pane item))
               (layout (tty-menu-bar-layout tty-menu-updating-buffer))
               (index (tty-menu-bar-find-pane layout pane))
@@ -869,7 +872,7 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   "Close current menu pane with <left>."
   (interactive)
   ;; If this is not a top-level pane, close it.
-  (when-let* ((item (tty-menu-item-at (point)))
+  (when-let* ((item (tty-menu-selected-item))
               (pane (slot-value item 'pane))
               ((slot-value pane 'invoking-item)))
     (throw 'tty-menu-leave nil))
