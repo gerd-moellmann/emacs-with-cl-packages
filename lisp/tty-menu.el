@@ -951,9 +951,10 @@ as needed."
 
 (defun tty-menu-bar-layout (buffer)
   "Compute the layout of the menu-bar of buffer BUFFER.
-Value is a list of (KEY-CODE KEYMAP X0 X1) where KEY-CODE Is the
+Value is a list of (KEY-CODE KEYMAP X0 X1 NAME) where KEY-CODE Is the
 KEY-CODE of the menu-item, e.g. `edit', and KEYMAP is the associated
-menu keymap. X0 and X1 are the start end end column of the menu-item."
+menu keymap. X0 and X1 are the start end end column of the menu-item.
+NAME is the menu name."
   (with-current-buffer buffer
     (when-let* ((menu-bar (menu-bar-keymap)))
       (cl-loop
@@ -974,6 +975,9 @@ menu keymap. X0 and X1 are the start end end column of the menu-item."
        finally return (nreverse layout)))))
 
 (defun tty-menu-bar-find-name-starting-with (prefix)
+  "Find menus with a name starting with PREFIX.
+Value is a list of layouts form `tty-menu-bar-layout' for matching
+menus."
   (cl-loop for layout in (tty-menu-bar-layout tty-menu-updating-buffer)
            for (_ _ _ _ name) = layout
            when (string-prefix-p prefix name t)
@@ -1010,7 +1014,7 @@ and make us display that menu."
            (cl-incf index)
            (when (>= index n)
              (setq index 0))))
-    (cl-destructuring-bind (_ _ x0 &rest _) (nth index layout)
+    (cl-destructuring-bind (_ _ x0 &rest) (nth index layout)
       (throw 'tty-menu-to-top-level `(menu-bar ,x0 0)))))
 
 (defun tty-menu-selected-item ()
@@ -1177,6 +1181,19 @@ invocation takes place."
        (cl-destructuring-bind (x . y) (posn-x-y posn)
          (tty-menu-position (list (cons (- x 3) y) win)))))))
 
+(defun tty-menu-select-menu-bar-item-by-name (key)
+  (when-let* ((pos tty-menu-from-menu-bar)
+              ((string= key "."))
+              (key (read-key-sequence nil))
+              (key (this-command-keys))
+              ((stringp key))
+              (ls (tty-menu-bar-find-name-starting-with key))
+              (sel (cl-first ls)))
+    (cl-destructuring-bind (_ _ x &rest) sel
+      ;; Select the next one with x > the x of the
+      ;; current one.
+      (throw 'tty-menu-to-top-level `(menu-bar ,x 0)))))
+
 (defun tty-menu-select-item-by-name ()
   "Select a menu-item from `this-command-keys'."
   (when-let* ((key (this-command-keys))
@@ -1187,14 +1204,7 @@ invocation takes place."
                 (when (tty-menu-selectable-p i)
                   (let ((name (string-trim-left (slot-value i 'name))))
                     (string-prefix-p key name t)))))
-      (if (string= key "-")
-          (when-let* ((key (read-key-sequence nil))
-                      (key (this-command-keys))
-                      ((stringp key))
-                      (ls (tty-menu-bar-find-name-starting-with key))
-                      (sel (cl-first ls)))
-            (cl-destructuring-bind (_ _ x &rest) sel
-              (throw 'tty-menu-to-top-level `(menu-bar ,x 0))))
+      (unless (tty-menu-select-menu-bar-item-by-name key)
         (let* ((current (slot-value pane 'selected-item))
                (pos (if current (cl-position current items) 0)))
           (cl-loop with n = (length items)
