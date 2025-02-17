@@ -187,6 +187,11 @@
 (defclass tty-menu-separator (tty-menu-item)
   ((sep :initform "-" :type string :reader tty-menu-sep)))
 
+(defvar tty-menu-sub-menu-offset-x -3
+  "Open sub-menus this delta to the left or right.")
+(defvar tty-menu-sub-menu-offset-y -1
+  "Open sub-menus this delta up or down.")
+
 (defvar tty-menu-updating-buffer nil
   "Dynamically bound to the current buffer when a menu is invoked.")
 
@@ -1091,7 +1096,9 @@ invocation takes place."
 	    (win (frame-root-window frame))
             (posn (posn-at-point (1- end) win)))
        (cl-destructuring-bind (x . y) (posn-x-y posn)
-         (list frame (- x 3) y))))
+         (list frame
+               (+ x tty-menu-sub-menu-offset-x)
+               (+ y tty-menu-sub-menu-offset-y)))))
      (mouse
       (let* ((posn (posn-at-point (pos-eol)))
 	    (win (posn-window posn)))
