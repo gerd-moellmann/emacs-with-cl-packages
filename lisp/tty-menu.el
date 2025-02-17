@@ -549,6 +549,11 @@ corresponding columns of a menu item."
     (setq pane (slot-value pane 'parent-pane)))
   pane)
 
+(defun tty-menu-command-p (cmd)
+  (or (commandp cmd)
+      (and-let* ((def (indirect-function cmd))
+                 ((autoloadp def))))))
+
 (defun tty-menu-set-overlay-face (pane)
   (cl-loop
    for p = pane then (slot-value p 'parent-pane)
@@ -581,7 +586,7 @@ corresponding columns of a menu item."
   ( :method ((_item tty-menu-separator) _))
   ( :method ((item tty-menu-button) how)
     (with-slots (binding) item
-      (when (commandp binding)
+      (when (tty-menu-command-p binding)
 	(tty-menu-call-interactively binding))
       (tty-menu-draw tty-menu-pane-drawn nil)
       (tty-menu-select item how))))
@@ -607,12 +612,8 @@ Value is nil if ITEM has no binding.  Value is `command' if the ITEM has
 a command as binding. It is `keymap' is the item's binding is a keymap. "
   (with-slots (binding) item
     (cond ((null binding) nil)
-          ((commandp binding) 'command)
+          ((tty-menu-command-p binding) 'command)
           ((keymapp binding) 'keymap)
-          ((and-let* (((symbolp binding))
-                      (def (indirect-function binding))
-                      ((autoloadp def))))
-           'command)
           (t (error "unknown binding %S" binding)))))
 
 (defun tty-menu-make-element (pane code item)
@@ -1252,14 +1253,14 @@ invocation takes place."
           ;; Entering a character that is self-inserting
           ;; in global-map searches for a menu-item
           ;; beginning with that character.
-          (when-let* (((not (commandp cmd)))
+          (when-let* (((not (tty-menu-command-p cmd)))
                       (cmd (lookup-key global-map key))
                       ((eq cmd 'self-insert-command)))
             (tty-menu-select-item-by-name))
           ;; Otherwise execute a command, if any.
           ;; This is for toggling buttons, moving on
           ;; the menu and so on.
-	  (when (commandp cmd)
+	  (when (tty-menu-command-p cmd)
 	    (call-interactively cmd)))))))
 
 (defun tty-menu-after-command-loop (res frame)
