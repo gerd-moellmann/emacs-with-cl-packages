@@ -952,7 +952,7 @@ as needed."
 (cl-defstruct tty-menu-bar-menu
   name code cmd x0 x1)
 
-(defun tty-menu-bar-layout ()
+(defun tty-menu-bar-info ()
   "Compute the layout of the menu-bar of buffer BUFFER.
 Value is a list of (KEY-CODE KEYMAP X0 X1 NAME) where KEY-CODE Is the
 KEY-CODE of the menu-item, e.g. `edit', and KEYMAP is the associated
@@ -1000,9 +1000,9 @@ is in the menu-bar. Then determine the next/previous menu-bar item,
 and make us display that menu."
   (when-let* (((not (null tty-menu-from-menu-bar)))
               (root-pane (tty-menu-root-pane tty-menu-pane-drawn))
-              (layout (tty-menu-bar-layout))
-              (index (tty-menu-bar-find-pane layout root-pane))
-              (n (length layout)))
+              (menu-bar (tty-menu-bar-info))
+              (index (tty-menu-bar-find-pane menu-bar root-pane))
+              (n (length menu-bar)))
     (cond (move-left
            (cl-decf index)
            (when (< index 0)
@@ -1011,7 +1011,7 @@ and make us display that menu."
            (cl-incf index)
            (when (>= index n)
              (setq index 0))))
-    (let ((x0 (tty-menu-bar-menu-x0 (nth index layout))))
+    (let ((x0 (tty-menu-bar-menu-x0 (nth index menu-bar))))
       (throw 'tty-menu-to-top-level `(menu-bar ,x0 0)))))
 
 (defun tty-menu-selected-item ()
@@ -1184,7 +1184,7 @@ invocation takes place."
               (key (read-key-sequence nil))
               (key (this-command-keys))
               ((stringp key))
-              (menu-bar (tty-menu-bar-layout))
+              (menu-bar (tty-menu-bar-info))
               (start (cl-position-if
                       (lambda (m)
                         (= (tty-menu-bar-menu-x0 m) (car pos)))
