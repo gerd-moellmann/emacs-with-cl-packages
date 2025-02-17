@@ -288,13 +288,13 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
 (defcustom tty-menu-radio-on "●"
   "What to display for a radio button in on state."
   :type 'string)
-(defvar tty-menu-radio-off "◯"
+(defcustom tty-menu-radio-off "◯"
   "What to display for a radio button in off state."
   :type 'string)
-(defvar tty-menu-checkbox-on "✔"
+(defcustom tty-menu-checkbox-on "✔"
   "What to display for a checkbox in on state."
   :type 'string)
-(defvar tty-menu-checkbox-off "□"
+(defcustom tty-menu-checkbox-off "□"
   "What to display for a checkbox in off state."
   :type 'string)
 
