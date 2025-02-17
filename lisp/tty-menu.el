@@ -949,6 +949,9 @@ as needed."
             (setq prev nil))
         (setq prev (slot-value prev 'prev-item))))))
 
+(cl-defstruct tty-menu-bar-menu
+  name code cmd x0 x1)
+
 (defun tty-menu-bar-layout (buffer)
   "Compute the layout of the menu-bar of buffer BUFFER.
 Value is a list of (KEY-CODE KEYMAP X0 X1 NAME) where KEY-CODE Is the
@@ -971,7 +974,10 @@ NAME is the menu name."
                                  (or (null visible) (eval visible)))))))
           (let ((start-column column))
             (cl-incf column (1+ (length name)))
-            (push (list code cmd start-column column name) layout))))
+            (push (make-tty-menu-bar-menu
+                   :code code :cmd cmd :x0 start-column :x1 column
+                   :name name)
+                  layout))))
        finally return (nreverse layout)))))
 
 (defun tty-menu-bar-find-name-starting-with (prefix)
@@ -979,7 +985,7 @@ NAME is the menu name."
 Value is a list of layouts form `tty-menu-bar-layout' for matching
 menus."
   (cl-loop for layout in (tty-menu-bar-layout tty-menu-updating-buffer)
-           for (_ _ _ _ name) = layout
+           for name = (tty-menu-bar-menu-name layout)
            when (string-prefix-p prefix name t)
            collect layout))
 
@@ -1014,7 +1020,7 @@ and make us display that menu."
            (cl-incf index)
            (when (>= index n)
              (setq index 0))))
-    (cl-destructuring-bind (_ _ x0 &rest) (nth index layout)
+    (let ((x0 (tty-menu-bar-menu-x0 (nth index layout))))
       (throw 'tty-menu-to-top-level `(menu-bar ,x0 0)))))
 
 (defun tty-menu-selected-item ()
@@ -1189,10 +1195,8 @@ invocation takes place."
               ((stringp key))
               (ls (tty-menu-bar-find-name-starting-with key))
               (sel (cl-first ls)))
-    (cl-destructuring-bind (_ _ x &rest) sel
-      ;; Select the next one with x > the x of the
-      ;; current one.
-      (throw 'tty-menu-to-top-level `(menu-bar ,x 0)))))
+    (let ((x0 (tty-menu-bar-menu-x0 sel)))
+      (throw 'tty-menu-to-top-level `(menu-bar ,x0 0)))))
 
 (defun tty-menu-select-item-by-name ()
   "Select a menu-item from `this-command-keys'."
