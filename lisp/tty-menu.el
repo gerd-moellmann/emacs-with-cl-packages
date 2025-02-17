@@ -1193,10 +1193,20 @@ invocation takes place."
               (key (read-key-sequence nil))
               (key (this-command-keys))
               ((stringp key))
-              (ls (tty-menu-bar-find-name-starting-with key))
-              (sel (cl-first ls)))
-    (let ((x0 (tty-menu-bar-menu-x0 sel)))
-      (throw 'tty-menu-to-top-level `(menu-bar ,x0 0)))))
+              (menu-bar (tty-menu-bar-layout tty-menu-updating-buffer))
+              (start (cl-position-if
+                      (lambda (m)
+                        (= (tty-menu-bar-menu-x0 m) (car pos)))
+                      menu-bar)))
+    (cl-loop with n = (length menu-bar)
+             repeat n
+             for i = (mod (1+ start) n) then (mod (1+ i) n)
+             for m = (nth i menu-bar)
+             for name = (tty-menu-bar-menu-name m)
+             for x = (tty-menu-bar-menu-x0 m)
+             when (string-prefix-p key name t) do
+             (setq tty-menu-from-menu-bar (cons x 0))
+             (throw 'tty-menu-to-top-level `(menu-bar ,x 0)))))
 
 (defun tty-menu-select-item-by-name ()
   "Select a menu-item from `this-command-keys'."
