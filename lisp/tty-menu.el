@@ -980,15 +980,6 @@ NAME is the menu name."
                   layout))))
        finally return (nreverse layout)))))
 
-(defun tty-menu-bar-find-name-starting-with (prefix)
-  "Find menus with a name starting with PREFIX.
-Value is a list of layouts form `tty-menu-bar-layout' for matching
-menus."
-  (cl-loop for layout in (tty-menu-bar-layout)
-           for name = (tty-menu-bar-menu-name layout)
-           when (string-prefix-p prefix name t)
-           collect layout))
-
 (defun tty-menu-bar-find-pane (layout pane)
   "Find PANE in the menu-bar layout LAYOUT.
 Return the index of of its entry in LAYOUT. Value is nil if not found,
