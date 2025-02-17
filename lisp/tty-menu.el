@@ -374,17 +374,27 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
   ( :method ((_ tty-menu-separator))
     ""))
 
+(defun tty-menu-key-description (item)
+  "Get the key description of the binding of ITEM."
+  (with-current-buffer tty-menu-updating-buffer
+    (with-slots (binding) item
+      (key-description
+       (where-is-internal binding nil t)))))
+
 (cl-defgeneric tty-menu-key-string (item)
   "Value is a string for the key part of ITEM."
   ( :method ((item tty-menu-item))
     (format tty-menu-key-format
-	    (with-slots (binding) item
-	      (cond ((commandp binding)
-		     (key-description
-		      (where-is-internal binding nil t)))
+	    (with-slots (name binding keys key-sequence) item
+	      (cond (keys
+                     (if (stringp keys) keys "??"))
+                    (key-sequence
+                     "??")
+                    ((null binding) "")
 		    ((keymapp binding)
 		     tty-menu-triangle)
-		    (t "")))))
+                    (t
+		     (tty-menu-key-description item))))))
   ( :method ((_ tty-menu-separator)) ""))
 
 (cl-defgeneric tty-menu-draw-button (item pane)
