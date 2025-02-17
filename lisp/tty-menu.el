@@ -611,8 +611,7 @@ a command as binding. It is `keymap' is the item's binding is a keymap. "
           ((keymapp binding) 'keymap)
           ((and-let* (((symbolp binding))
                       (def (indirect-function binding))
-                      ((consp def))
-                      ((eq 'autoload (car def)))))
+                      ((autoloadp def))))
            'command)
           (t (error "unknown binding %S" binding)))))
 
