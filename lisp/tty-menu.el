@@ -591,6 +591,21 @@ corresponding columns of a menu item."
                 (pane (with-current-buffer buffer tty-menu-pane-drawn)))
       (tty-menu-delete pane))))
 
+(defun tty-menu-binding-type (item)
+  "Determine what kind of binding ITEM has.
+Value is nil if ITEM has no binding.  Value is `command' if the ITEM has
+a command as binding. It is `keymap' is the item's binding is a keymap. "
+  (with-slots (binding) item
+    (cond ((null binding) nil)
+          ((commandp binding) 'command)
+          ((keymapp binding) 'keymap)
+          ((and-let* (((symbolp binding))
+                      (def (indirect-function binding))
+                      ((consp def))
+                      ((eq 'autoload (car def)))))
+           'command)
+          (t (error "unknown binding %S" binding)))))
+
 (defun tty-menu-make-element (pane code item)
   "Construct a new menu element.
 PANE is the pane the menu-element is constructed for.  CODE and ITEM are
@@ -1178,39 +1193,39 @@ invocation takes place."
   ;;            (slot-value previous 'name))
   ;;          (when selected
   ;;            (slot-value selected 'name)))
-  (let ((prev (and previous (slot-value previous 'binding)))
-        (sel (and selected (slot-value selected 'binding))))
+  (let ((prev (and previous (tty-menu-binding-type previous)))
+        (sel (and selected (tty-menu-binding-type selected))))
     (pcase-exhaustive (cons prev sel)
       ;; nil -> nil
       (`(nil . nil))
 
       ;; nil -> command
-      (`(nil . ,(pred commandp _)))
+      (`(nil . command))
 
       ;; nil -> keymap
-      (`(nil . ,(pred keymapp _))
+      (`(nil . keymap)
        (throw 'tty-menu-leave (cons selected 'key)))
 
       ;; command -> nil
-      (`(,(pred commandp _) . nil) nil)
+      (`(command . nil))
 
       ;; command -> command
-      (`(,(pred commandp _) . ,(pred commandp _)))
+      (`(command . command))
 
       ;; command -> keymap
-      (`(,(pred commandp _) . ,(pred keymapp _))
+      (`(command . keymap)
        (throw 'tty-menu-leave (cons selected 'key)))
 
       ;; keymap -> nil
-      (`(,(pred keymapp _) . nil)
+      (`(keymap . nil)
        (throw 'tty-menu-leave 'close-sub-menu))
 
       ;; keymap -> command
-      (`(,(pred keymapp _) . ,(pred commandp _))
+      (`(keymap . command)
        (throw 'tty-menu-leave 'close-sub-menu))
 
       ;; keymap -> keymap
-      (`(,(pred keymapp _) . ,(pred keymapp _))
+      (`(keymap . keymap)
        (throw 'tty-menu-leave (cons selected 'key))))))
 
 (defun tty-menu-command-loop ()
