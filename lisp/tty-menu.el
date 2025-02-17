@@ -235,6 +235,17 @@ Computes the actual separator char to use for a separator."
     (setf enable nil)
     (setf sep (tty-menu-get-separator-string name))))
 
+(defun tty-menu-resolve-keymap (obj)
+  (let ((def (indirect-function obj)))
+    (pcase def
+      ('nil nil)
+      (`(keymap . ,_) def)
+      ((and (guard (symbolp obj))
+            `(autoload ,_ ,_ ,_ ,_ keymap . ,_))
+       (autoload-do-load def obj nil)
+       (tty-menu-resolve-keymap obj))
+      (_ nil))))
+
 (cl-defmethod initialize-instance
   :after ((item tty-menu-item) &rest)
   "Constructor for menu-item ITEM.
@@ -242,10 +253,19 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
   (with-slots (binding filter enable) item
     (when filter
       (setf binding (tty-menu-eval `(,filter (quote ,binding)))))
+
+    ;; If binding is a symbol whose function definition is an autoload
+    ;; keymap, resolve that.
+    (when (symbolp binding)
+      (when-let* ((keymap (tty-menu-resolve-keymap binding))
+                  ((keymapp keymap)))
+        (setf binding keymap)))
+
     ;; We cannot do the following because a symbol may have a
     ;; a function definition of the form (autoload ...), which is
     ;; itself not callable, and `call-interactively' barfs.
     ;; (setf binding (indirect-function binding))
+
     (when (and (keymapp binding)
                (zerop (cl-loop for b being the key-codes of binding
                                count b)))
