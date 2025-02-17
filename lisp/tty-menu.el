@@ -970,8 +970,14 @@ menu keymap. X0 and X1 are the start end end column of the menu-item."
                                  (or (null visible) (eval visible)))))))
           (let ((start-column column))
             (cl-incf column (1+ (length name)))
-            (push (list code cmd start-column column) layout))))
+            (push (list code cmd start-column column name) layout))))
        finally return (nreverse layout)))))
+
+(defun tty-menu-bar-find-name-starting-with (prefix)
+  (cl-loop for layout in (tty-menu-bar-layout tty-menu-updating-buffer)
+           for (_ _ _ _ name) = layout
+           when (string-prefix-p prefix name t)
+           collect layout))
 
 (defun tty-menu-bar-find-pane (layout pane)
   "Find PANE in the menu-bar layout LAYOUT.
@@ -1004,7 +1010,7 @@ and make us display that menu."
            (cl-incf index)
            (when (>= index n)
              (setq index 0))))
-    (cl-destructuring-bind (_ _ x0 _) (nth index layout)
+    (cl-destructuring-bind (_ _ x0 &rest _) (nth index layout)
       (throw 'tty-menu-to-top-level `(menu-bar ,x0 0)))))
 
 (defun tty-menu-selected-item ()
@@ -1181,15 +1187,23 @@ invocation takes place."
                 (when (tty-menu-selectable-p i)
                   (let ((name (string-trim-left (slot-value i 'name))))
                     (string-prefix-p key name t)))))
-      (let* ((current (slot-value pane 'selected-item))
-             (pos (if current (cl-position current items) 0)))
-        (cl-loop with n = (length items)
-                 repeat n
-                 for i = (mod (1+ pos) n) then (mod (1+ i) n)
-                 for item = (nth i items)
-                 when (matchp item)
-                 do (tty-menu-select item 'key)
-                 and return t)))))
+      (if (string= key "-")
+          (when-let* ((key (read-key-sequence nil))
+                      (key (this-command-keys))
+                      ((stringp key))
+                      (ls (tty-menu-bar-find-name-starting-with key))
+                      (sel (cl-first ls)))
+            (cl-destructuring-bind (_ _ x &rest) sel
+              (throw 'tty-menu-to-top-level `(menu-bar ,x 0))))
+        (let* ((current (slot-value pane 'selected-item))
+               (pos (if current (cl-position current items) 0)))
+          (cl-loop with n = (length items)
+                   repeat n
+                   for i = (mod (1+ pos) n) then (mod (1+ i) n)
+                   for item = (nth i items)
+                   when (matchp item)
+                   do (tty-menu-select item 'key)
+                   and return t))))))
 
 (defun tty-menu-open-on-pane (item)
   "Return t if ITEM's pane has a sub-menu open."
