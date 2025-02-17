@@ -187,10 +187,13 @@
 (defclass tty-menu-separator (tty-menu-item)
   ((sep :initform "-" :type string :reader tty-menu-sep)))
 
-(defvar tty-menu-sub-menu-offset-x -3
-  "Open sub-menus this delta to the left or right.")
-(defvar tty-menu-sub-menu-offset-y -1
-  "Open sub-menus this delta up or down.")
+(defcustom tty-menu-sub-menu-offset-x -3
+  "Open sub-menus this delta to the left or right."
+  :type 'integer)
+
+(defcustom tty-menu-sub-menu-offset-y -1
+  "Open sub-menus this delta up or down."
+  :type 'integer)
 
 (defvar tty-menu-updating-buffer nil
   "Dynamically bound to the current buffer when a menu is invoked.")
@@ -264,18 +267,36 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
 ;;
 ;; These format strings specify left or right alignment of elements and
 ;; a minimum width.
-(defvar tty-menu-left-border-format "%1s")
-(defvar tty-menu-right-border-format "%1s")
-(defvar tty-menu-button-format "%-2s")
-(defvar tty-menu-key-format "%10s")
-(defvar tty-menu-name-format "%-20s")
-
-;; Characters to use for radio buttons and checkboxes.
-(defvar tty-menu-triangle "▶")
-(defvar tty-menu-radio-on "●")
-(defvar tty-menu-radio-off "◯")
-(defvar tty-menu-checkbox-on "✔")
-(defvar tty-menu-checkbox-off "□")
+(defcustom tty-menu-left-border-format "%1s"
+  "Format string for the left border of menus."
+  :type 'string)
+(defcustom tty-menu-right-border-format "%1s"
+  "Format string for the right border of menus."
+  :type 'string)
+(defcustom tty-menu-button-format "%-2s"
+  "Format string for the button part of menu-items."
+  :type 'string)
+(defcustom tty-menu-key-format "%10s"
+  "Format string for the key part of menu-items."
+  :type 'string)
+(defcustom tty-menu-name-format "%-20s"
+  "Format string for the name part of menu-items."
+  :type 'string)
+(defcustom tty-menu-triangle "▶"
+  "What to display as a sub-menu indicator."
+  :type 'string)
+(defcustom tty-menu-radio-on "●"
+  "What to display for a radio button in on state."
+  :type 'string)
+(defvar tty-menu-radio-off "◯"
+  "What to display for a radio button in off state."
+  :type 'string)
+(defvar tty-menu-checkbox-on "✔"
+  "What to display for a checkbox in on state."
+  :type 'string)
+(defvar tty-menu-checkbox-off "□"
+  "What to display for a checkbox in off state."
+  :type 'string)
 
 (defun tty-menu-call-interactively (fn)
   "Call FN interactively in `tty-menu-updating-buffer'."
