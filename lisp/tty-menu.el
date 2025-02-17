@@ -130,7 +130,7 @@
   :version "31.1")
 
 (defface tty-menu-face-selected
-  '((t :inherit tty-menu-face :background "darkblue"))
+  '((t :inherit tty-menu-face :background "#1f2f3f"))
   "Face for selected menu items."
   :group 'tty-menu
   :version "31.1")
