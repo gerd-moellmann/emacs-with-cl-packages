@@ -385,21 +385,33 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
   (with-current-buffer tm-updating-buffer
     (key-binding key)))
 
+(defun tm-funcall (fn)
+  (with-current-buffer tm-updating-buffer
+    (funcall fn)))
+
 (cl-defgeneric tm-key-string (item)
   "Value is a string for the key part of ITEM."
   ( :method ((item tm-item))
-    (format tm-key-format
-	    (with-slots (name binding keys key-sequence) item
-	      (cond (key-sequence
-                     (tm-key-description
-                      (tm-key-binding key-sequence)))
-                    (keys
-                     (if (stringp keys) keys "??"))
-                    ((null binding) "")
-		    ((keymapp binding)
-		     tm-triangle)
-                    (t
-		     (tm-key-description binding))))))
+    (format
+     tm-key-format
+     (with-slots (name binding keys key-sequence) item
+       (cond
+        (key-sequence
+         (tm-key-description (tm-key-binding key-sequence)))
+        (keys
+         ;; Undocumented: :keys X can specify a function
+         ;; which is called with no arguments. Magit uses
+         ;; that.
+         (let ((s (cond ((functionp keys)
+                         (tm-funcall keys))
+                        ((stringp keys) keys)
+                        (t "??"))))
+           (if (stringp s)
+               (substitute-command-keys s)
+             "??")))
+        ((null binding) "")
+	((keymapp binding) tm-triangle)
+        (t (tm-key-description binding))))))
   ( :method ((_ tm-separator)) ""))
 
 ;; Menu items look like this:
