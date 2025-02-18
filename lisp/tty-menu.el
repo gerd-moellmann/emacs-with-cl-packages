@@ -980,16 +980,14 @@ NAME is the menu name."
                   layout))))
        finally return (nreverse layout)))))
 
-(defun tty-menu-bar-find-pane (layout pane)
-  "Find PANE in the menu-bar layout LAYOUT.
+(defun tty-menu-bar-find-pane (menu-bar pane)
+  "Find PANE in the menu-bar MENU-BAR.
 Return the index of of its entry in LAYOUT. Value is nil if not found,
 but that should not happen."
-  (cl-loop
-   with keymap = (slot-value pane 'keymap)
-   for index from 0
-   for elem in layout
-   for (_code binding _x0 _x1) = elem
-   when (eq binding keymap) return index))
+  (cl-position-if (lambda (m)
+                    (eq (slot-value pane 'keymap)
+                        (tty-menu-bar-menu-cmd m)))
+                  menu-bar))
 
 (defun tty-menu-move-in-menu-bar (move-left)
   "Arrange to move to another item in the menu-bar.
