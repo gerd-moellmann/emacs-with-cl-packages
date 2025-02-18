@@ -195,23 +195,23 @@
   "Open sub-menus this delta up or down."
   :type 'integer)
 
-(defvar tm-updating-buffer nil
+(defvar tm--updating-buffer nil
   "Dynamically bound to the current buffer when a menu is invoked.")
 
-(defvar tm-from-menu-bar nil
+(defvar tm--from-menu-bar nil
   "Non-nil means menu is invoked for a menu-bar.
 Bound by an around advice for `popup-menu' if called for a menu-bar
 menu.  If non-nil, it is a cons (X . Y) of the menu-item.")
 
-(defun tm-eval (form)
+(defun tm--eval (form)
   "Evaluate FORM in the context of the menu.
 The context consists of the buffer that was current when the menu
 was invoked.  This buffer must be current when evaluating various things
 in the menu because of local variables."
-  (with-current-buffer tm-updating-buffer
+  (with-current-buffer tm--updating-buffer
     (eval form)))
 
-(defun tm-get-separator-string (name)
+(defun tm--get-separator-string (name)
   "Determine which separator char to use.
 NAME is a separator label, which which is a kind of separator type.
 Value is a string of length 1 for the separator char."
@@ -233,9 +233,9 @@ Value is a string of length 1 for the separator char."
 Computes the actual separator char to use for a separator."
   (with-slots (name sep enable) item
     (setf enable nil)
-    (setf sep (tm-get-separator-string name))))
+    (setf sep (tm--get-separator-string name))))
 
-(defun tm-resolve-keymap (obj)
+(defun tm--resolve-keymap (obj)
   (let ((def (indirect-function obj)))
     (pcase def
       ('nil nil)
@@ -243,7 +243,7 @@ Computes the actual separator char to use for a separator."
       ((and (guard (symbolp obj))
             `(autoload ,_ ,_ ,_ ,_ keymap . ,_))
        (autoload-do-load def obj nil)
-       (tm-resolve-keymap obj))
+       (tm--resolve-keymap obj))
       (_ nil))))
 
 (cl-defmethod initialize-instance
@@ -252,12 +252,12 @@ Computes the actual separator char to use for a separator."
 If a menu-item's binding is a keymap with 0 elements, disable it."
   (with-slots (binding filter enable) item
     (when filter
-      (setf binding (tm-eval `(,filter (quote ,binding)))))
+      (setf binding (tm--eval `(,filter (quote ,binding)))))
 
     ;; If binding is a symbol whose function definition is an autoload
     ;; keymap, resolve that.
     (when (symbolp binding)
-      (when-let* ((keymap (tm-resolve-keymap binding))
+      (when-let* ((keymap (tm--resolve-keymap binding))
                   ((keymapp keymap)))
         (setf binding keymap)))
 
@@ -319,33 +319,33 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
   "What to display for a checkbox in off state."
   :type 'string)
 
-(defun tm-call-interactively (fn)
-  "Call FN interactively in `tm-updating-buffer'."
-  (with-current-buffer tm-updating-buffer
+(defun tm--call-interactively (fn)
+  "Call FN interactively in `tm--updating-buffer'."
+  (with-current-buffer tm--updating-buffer
     (call-interactively fn)))
 
-(defun tm-visible-p (item)
+(defun tm--visible-p (item)
   "Value is non-nil if ITEM is visible."
-  (tm-eval (slot-value item 'visible)))
+  (tm--eval (slot-value item 'visible)))
 
-(defun tm-enabled-p (item)
+(defun tm--enabled-p (item)
   "Value is non-nil if ITEM is enabled."
-  (tm-eval (slot-value item 'enable)))
+  (tm--eval (slot-value item 'enable)))
 
-(defun tm-selectable-p (item)
+(defun tm--selectable-p (item)
   "Value is non-nil if ITEM is selectable by the user."
-  (and (tm-visible-p item)
-       (tm-enabled-p item)))
+  (and (tm--visible-p item)
+       (tm--enabled-p item)))
 
-(defun tm-name (item)
+(defun tm--name (item)
   "Value is the name of ITEM."
-  (tm-eval (slot-value item 'name)))
+  (tm--eval (slot-value item 'name)))
 
 (defun tm-button-selected-p (item)
   "Value is non-nil if button ITEM is selected (on)."
   (with-slots (button) item
     (cl-destructuring-bind (_ . form) button
-      (tm-eval form))))
+      (tm--eval form))))
 
 (defun tm-ninsert (n x)
   "Insert N times X at point."
@@ -368,28 +368,28 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
   ( :method ((_ tm-separator))
     ""))
 
-(cl-defgeneric tm-name-string (item)
+(cl-defgeneric tm--name-string (item)
   "Value is a string for the name part of ITEM."
   ( :method ((item tm-item))
-    (format tm-name-format (tm-name item)))
+    (format tm-name-format (tm--name item)))
   ( :method ((_ tm-separator))
     ""))
 
-(defun tm-key-description (binding)
+(defun tm--key-description (binding)
   "Get the key description of the binding of ITEM."
-  (with-current-buffer tm-updating-buffer
+  (with-current-buffer tm--updating-buffer
     (key-description
      (where-is-internal binding nil t))))
 
-(defun tm-key-binding (key)
-  (with-current-buffer tm-updating-buffer
+(defun tm--key-binding (key)
+  (with-current-buffer tm--updating-buffer
     (key-binding key)))
 
-(defun tm-funcall (fn)
-  (with-current-buffer tm-updating-buffer
+(defun tm--funcall (fn)
+  (with-current-buffer tm--updating-buffer
     (funcall fn)))
 
-(cl-defgeneric tm-key-string (item)
+(cl-defgeneric tm--key-string (item)
   "Value is a string for the key part of ITEM."
   ( :method ((item tm-item))
     (format
@@ -397,13 +397,13 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
      (with-slots (name binding keys key-sequence) item
        (cond
         (key-sequence
-         (tm-key-description (tm-key-binding key-sequence)))
+         (tm--key-description (tm--key-binding key-sequence)))
         (keys
          ;; Undocumented: :keys X can specify a function
          ;; which is called with no arguments. Magit uses
          ;; that.
          (let ((s (cond ((functionp keys)
-                         (tm-funcall keys))
+                         (tm--funcall keys))
                         ((stringp keys) keys)
                         (t "??"))))
            (if (stringp s)
@@ -411,7 +411,7 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
              "??")))
         ((null binding) "")
 	((keymapp binding) tm-triangle)
-        (t (tm-key-description binding))))))
+        (t (tm--key-description binding))))))
   ( :method ((_ tm-separator)) ""))
 
 ;; Menu items look like this:
@@ -428,7 +428,7 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
 ;;
 ;; All these elements can be customized with format strings.
 
-(cl-defgeneric tm-draw-button (item pane)
+(cl-defgeneric tm--draw-button (item pane)
   "Draw the button part of ITEM on PANE."
   ( :method ((_item tm-item) pane)
     (with-slots (layout) pane
@@ -441,20 +441,20 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
       (cl-destructuring-bind (_ button-width _ _ _) layout
 	(tm-ninsert button-width (tm-sep item))))))
 
-(cl-defgeneric tm-draw-name (item pane)
+(cl-defgeneric tm--draw-name (item pane)
   "Draw the name part of ITEM on PANE."
   ( :method ((item tm-item) pane)
     (with-slots (layout) pane
       (cl-destructuring-bind (left-border button name-width _ _) layout
 	(with-slots (name) item
-	  (insert (tm-name-string item))
+	  (insert (tm--name-string item))
 	  (indent-to (+ left-border button name-width))))))
   ( :method ((item tm-separator) pane)
     (with-slots (layout) pane
       (cl-destructuring-bind (_ _ name-width _ _) layout
 	(tm-ninsert name-width (tm-sep item))))))
 
-(cl-defgeneric tm-draw-key (item pane)
+(cl-defgeneric tm--draw-key (item pane)
   "Draw the key part of ITEM on PANE."
   ( :method ((item tm-item) pane)
     (cl-flet ((right-aligned-p (fmt)
@@ -462,7 +462,7 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
       (with-slots (layout) pane
         (cl-destructuring-bind (left-border button name-width key-width _)
             layout
-          (let ((key (tm-key-string item)))
+          (let ((key (tm--key-string item)))
             (when (and (< (length key) key-width)
                        (right-aligned-p tm-key-format))
               (tm-ninsert (- key-width (length key)) " "))
@@ -473,10 +473,10 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
       (cl-destructuring-bind (_ _ _ key-width _) layout
 	(tm-ninsert key-width (tm-sep item))))))
 
-(cl-defgeneric tm-draw-finish (item pane)
+(cl-defgeneric tm--draw-finish (item pane)
   "Finish drawing ITEM on PANE."
   ( :method ((item tm-item) _)
-    (let* ((enabled (tm-enabled-p item))
+    (let* ((enabled (tm--enabled-p item))
 	   (face (if enabled 'tm-face
                    'tm-face-disabled)))
       (put-text-property (pos-bol) (pos-eol) 'face face))
@@ -485,7 +485,7 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
   ( :method ((_item tm-separator) _)
     (put-text-property (pos-bol) (pos-eol) 'face 'tm-face)))
 
-(cl-defgeneric tm-layout (pane)
+(cl-defgeneric tm--layout (pane)
   "Compute the layout of PANE for drawing items on it.
 This sets the `layout' of PANE to a list (LEFT-BORDER BUTTON NAME KEY
 RIGHT-BORDER), all elements giving the widths to use for the
@@ -499,17 +499,17 @@ corresponding columns of a menu item."
        = (string-width (format tm-right-border-format ""))
        for i in items
        maximize (string-width (tm-button-string i)) into button
-       maximize (string-width (tm-name-string i)) into name
-       maximize (string-width (tm-key-string i)) into key
+       maximize (string-width (tm--name-string i)) into name
+       maximize (string-width (tm--key-string i)) into key
        finally (setq layout `(,left-border ,button ,name ,key
                                            ,right-border))))))
 
-(cl-defgeneric tm-frame (thing)
+(cl-defgeneric tm--frame (thing)
   "Value is the frame associated with THING."
   ( :method ((pane tm-pane))
     (slot-value pane 'frame))
   ( :method ((item tm-item))
-    (tm-frame (slot-value item 'pane))))
+    (tm--frame (slot-value item 'pane))))
 
 ;; When redrawing a pane, we try to arrange things so that the selection
 ;; is retained. At least theoretically, it can happen that in the
@@ -517,7 +517,7 @@ corresponding columns of a menu item."
 ;; finds an alternative selection in this case.
 ;;
 ;; Should be removed.
-(defun tm-try-place-point (selectable old-line)
+(defun tm--try-place-point (selectable old-line)
   (goto-char (point-min))
   (if (nth old-line selectable)
       (forward-line old-line)
@@ -529,40 +529,40 @@ corresponding columns of a menu item."
       (cond (next (forward-line next))
 	    (prev (forward-line prev))))))
 
-(cl-defgeneric tm-draw (item pane)
+(cl-defgeneric tm--draw (item pane)
   "Draw ITEM on PANE."
   ( :method ((pane tm-pane) line)
     (with-slots (buffer items) pane
       (with-current-buffer buffer
 	(let ((old-line (or line (1- (line-number-at-pos)))))
 	  (erase-buffer)
-	  (tm-layout pane)
+	  (tm--layout pane)
 	  (let ((selectable
 		 (cl-loop for i in items
-			  when (tm-visible-p i)
-			  do (tm-draw i pane)
-			  and collect (tm-selectable-p i))))
-	    (tm-try-place-point selectable old-line))))))
+			  when (tm--visible-p i)
+			  do (tm--draw i pane)
+			  and collect (tm--selectable-p i))))
+	    (tm--try-place-point selectable old-line))))))
   ( :method :around ((item tm-item) pane)
     (with-slots (draw-start draw-end) item
       (setf draw-start (point))
       (insert (format tm-left-border-format ""))
       (cl-call-next-method)
       (insert (format tm-right-border-format ""))
-      (tm-draw-finish item pane)
+      (tm--draw-finish item pane)
       (insert ?\n)
       (setf draw-end (point))
       ;; For move movement
       (put-text-property draw-start draw-end 'tm-item item)))
   ( :method ((item tm-item) pane)
-    (tm-draw-button item pane)
-    (tm-draw-name item pane)
-    (tm-draw-key item pane)))
+    (tm--draw-button item pane)
+    (tm--draw-name item pane)
+    (tm--draw-key item pane)))
 
-(defvar-local tm-pane-drawn nil
+(defvar-local tm--pane-drawn nil
   "The tm-pane drawn in a buffer.")
 
-(cl-defgeneric tm-add (pane item)
+(cl-defgeneric tm--add (pane item)
   "Add ITEM to PANE."
   ( :method ((pane tm-pane) (item tm-item))
     (with-slots (items) pane
@@ -574,42 +574,42 @@ corresponding columns of a menu item."
             (setf (cdr last) (list item))
           (setf items (list item)))))))
 
-(defun tm-root-pane (pane)
+(defun tm--root-pane (pane)
   "Find the root pane of PANE."
   (while (slot-value pane 'parent-pane)
     (setq pane (slot-value pane 'parent-pane)))
   pane)
 
-(defun tm-command-p (cmd)
+(defun tm--command-p (cmd)
   (or (commandp cmd)
       (and-let* ((def (indirect-function cmd))
                  ((autoloadp def))))))
 
-(defun tm-set-overlay-face (pane)
+(defun tm--set-overlay-face (pane)
   (cl-loop
    for p = pane then (slot-value p 'parent-pane)
    while p do
    (with-slots (overlay) p
      (overlay-put overlay 'face
-                  (if (eq p tm-pane-drawn)
+                  (if (eq p tm--pane-drawn)
                       'tm-face-selected
                     'tm-face-selected-inactive)))))
 
-(cl-defgeneric tm-select (item how)
+(cl-defgeneric tm--select (item how)
   "Select ITEM on its pane."
   ( :method ((item tm-item) _how)
-    (tm-select (slot-value item 'pane) item))
+    (tm--select (slot-value item 'pane) item))
   ( :method ((pane tm-pane) (item tm-item))
     (setf (slot-value pane 'selected-item) item)
     (with-slots (overlay) pane
-      (tm-set-overlay-face pane)
+      (tm--set-overlay-face pane)
       (with-slots (draw-start draw-end) item
         (move-overlay overlay draw-start draw-end)))))
 
-(cl-defgeneric tm-act (item how)
+(cl-defgeneric tm--act (item how)
   "Perform the action associated with ITEM."
   ( :method ((item tm-item) how)
-    (when-let* ((enabled (tm-enabled-p item)))
+    (when-let* ((enabled (tm--enabled-p item)))
       (with-slots (binding) item
         (if (keymapp binding)
             (throw 'tm-leave (cons item how))
@@ -617,43 +617,43 @@ corresponding columns of a menu item."
   ( :method ((_item tm-separator) _))
   ( :method ((item tm-button) how)
     (with-slots (binding) item
-      (when (tm-command-p binding)
-	(tm-call-interactively binding))
-      (tm-draw tm-pane-drawn nil)
-      (tm-select item how))))
+      (when (tm--command-p binding)
+	(tm--call-interactively binding))
+      (tm--draw tm--pane-drawn nil)
+      (tm--select item how))))
 
-(cl-defgeneric tm-delete (thing)
+(cl-defgeneric tm--delete (thing)
   "Delete THING."
   ( :method ((pane tm-pane))
     (with-slots (buffer frame parent-pane child-pane) pane
       (when child-pane
-        (tm-delete child-pane))
+        (tm--delete child-pane))
       (kill-buffer buffer)
       (delete-frame frame)
       (when parent-pane
         (setf (slot-value parent-pane 'child-pane) nil))))
   ( :method ((frame frame))
     (when-let* ((buffer (frame-parameter frame 'tm-buffer))
-                (pane (with-current-buffer buffer tm-pane-drawn)))
-      (tm-delete pane))))
+                (pane (with-current-buffer buffer tm--pane-drawn)))
+      (tm--delete pane))))
 
-(defun tm-binding-type (item)
+(defun tm--binding-type (item)
   "Determine what kind of binding ITEM has.
 Value is nil if ITEM has no binding.  Value is `command' if the ITEM has
 a command as binding. It is `keymap' is the item's binding is a keymap. "
   (with-slots (binding) item
     (cond ((null binding) nil)
-          ((tm-command-p binding) 'command)
+          ((tm--command-p binding) 'command)
           ((keymapp binding) 'keymap)
           (t (error "unknown binding %S" binding)))))
 
-(defun tm-make-element (pane code item)
+(defun tm--make-element (pane code item)
   "Construct a new menu element and add it to PANE.
 PANE is the pane the menu-element is constructed for.  CODE and ITEM are
 key-code and menu-item definition from a keymap.  Value is the menu
 element constructed."
   (cl-labels ((separator? (name)
-                (let ((name (tm-eval name)))
+                (let ((name (tm--eval name)))
                   (and (stringp name)
                        (string-prefix-p "--" name))))
 	      (button? (props)
@@ -663,7 +663,7 @@ element constructed."
 	      (toggle? (props)
                 (eq (car (button? props)) :toggle))
               (make (class props)
-                (tm-add pane (apply #'make-instance class
+                (tm--add pane (apply #'make-instance class
                                     (cl-list*  :pane pane
                                                :key-code code props)))))
     (pcase-exhaustive item
@@ -706,7 +706,7 @@ element constructed."
      (`(,name . ,binding)
       (make 'tm-item (list :name name :binding binding))))))
 
-(defun tm-create-buffer (pane)
+(defun tm--create-buffer (pane)
   "Create a buffer named BUFFER for DRAW to fill.
 DRAW is called with no arguments and with current buffer being the
 buffer created. Value is (BUFFER WIDTH HEIGHT), where BUFFER is
@@ -735,8 +735,8 @@ buffer, and HEIGHT is the number of lines in the buffer. "
       (let ((inhibit-modification-hooks t)
             (inhibit-read-only t)
 	    (indent-tabs-mode nil))
-	(setq tm-pane-drawn pane)
-	(tm-draw pane 0)
+	(setq tm--pane-drawn pane)
+	(tm--draw pane 0)
 	(cl-flet ((line-width ()
 		    (save-excursion
 		      (goto-char (point-min))
@@ -746,20 +746,20 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 		(line-width)
 		(count-lines (point-min) (point-max))))))))
 
-(defun tm-keymap-name (keymap)
+(defun tm--keymap-name (keymap)
   "Return the name of KEYMAP, if any."
   (when (symbolp keymap)
     (setq keymap (indirect-function keymap)))
   (let ((name (last keymap)))
     (and (stringp (car name)) (car name))))
 
-(defun tm-pane-buffer-name (keymap)
+(defun tm--pane-buffer-name (keymap)
   "Make a buffer name for KEYMAP."
-  (if-let* ((name (tm-keymap-name keymap)))
+  (if-let* ((name (tm--keymap-name keymap)))
       (format " *tm-%s*" name)
     (generate-new-buffer-name " *tm--")))
 
-(defun tm-make-pane (keymap invoking-item frame)
+(defun tm--make-pane (keymap invoking-item frame)
   "Create a `tm-pane'.
 KEYMAP is the menu keymap for the pane. INVOLING-ITEM if non-nil is the
 menu-item that invoked this menu.  FRAME Is the frame to display the
@@ -770,13 +770,13 @@ menu in."
                :invoking-item invoking-item
                :frame frame
 	       :buffer (get-buffer-create
-                        (tm-pane-buffer-name keymap)))))
+                        (tm--pane-buffer-name keymap)))))
     (cl-loop for binding being the key-bindings of keymap
              using (key-codes code)
-             do (tm-make-element pane code binding))
+             do (tm--make-element pane code binding))
     pane))
 
-(defvar tm-frame-parameters
+(defvar tm--frame-parameters
   `((visibility . nil)
     (background-color . "grey20")
     (foreground-color . "white")
@@ -802,9 +802,9 @@ menu in."
     (no-special-glyphs . t)
     (desktop-dont-save . t)))
 
-(defun tm-frame-parameters ()
+(defun tm--frame-parameters ()
   "Return the frame parameters to use for menu child frames."
-  (let ((params (copy-sequence tm-frame-parameters)))
+  (let ((params (copy-sequence tm--frame-parameters)))
     (when-let* ((fg (face-attribute 'tm-face :foreground))
                 ((stringp fg)))
       (setf (alist-get 'foreground-color params) fg))
@@ -813,7 +813,7 @@ menu in."
       (setf (alist-get 'background-color params) bg))
     params))
 
-(defun tm-make-fully-visible (f1 f2 x y)
+(defun tm--make-fully-visible (f1 f2 x y)
   "Make frame F2 fully visible in F1,
 Don't obscure point (X, Y) if possible.  Change size and position of F2
 as needed."
@@ -833,7 +833,7 @@ as needed."
     (set-frame-position f2 new-x new-y)
     (set-frame-size f2 f2-width f2-height)))
 
-(defun tm-frame-absolute-position (frame x y)
+(defun tm--frame-absolute-position (frame x y)
   "Translate (X, Y) in FRAME to absolute coordinates."
   (let ((current-frame frame)
         (abs-x x)
@@ -845,14 +845,14 @@ as needed."
 	(setq current-frame (frame-parent current-frame))))
     (cons abs-x abs-y)))
 
-(defun tm-create-frame (keymap where invoking-item)
+(defun tm--create-frame (keymap where invoking-item)
   (cl-destructuring-bind (parent-frame x y) where
     ;; We want to show the menu using a root frame as parent because
     ;; that doesn't clip the frame. Means that we have to translate
     ;; coordinates to absolute.
     (when (frame-parent parent-frame)
       (cl-destructuring-bind (ax . ay)
-	  (tm-frame-absolute-position parent-frame x y)
+	  (tm--frame-absolute-position parent-frame x y)
 	(setq x ax y ay)
 	(setq parent-frame (frame-root-frame parent-frame))))
     (let* ((minibuffer (minibuffer-window parent-frame))
@@ -861,11 +861,11 @@ as needed."
            (after-make-frame-functions nil)
 	   (frame (make-frame `((parent-frame . ,parent-frame)
 				(minibuffer . ,minibuffer)
-				,@(tm-frame-parameters))))
+				,@(tm--frame-parameters))))
 	   (win (frame-root-window frame)))
-      (let ((pane (tm-make-pane keymap invoking-item frame)))
+      (let ((pane (tm--make-pane keymap invoking-item frame)))
         (cl-destructuring-bind (buffer width height)
-            (tm-create-buffer pane)
+            (tm--create-buffer pane)
 	  (modify-frame-parameters frame `((name . ,(buffer-name buffer))
 				           (tm-buffer . ,buffer)))
 	  (set-window-buffer win buffer)
@@ -875,22 +875,22 @@ as needed."
 			    (round (/ (frame-height parent-frame) 1.6))))
 	  (set-frame-size frame width height)
 	  (set-frame-position frame x y)
-	  (tm-make-fully-visible parent-frame frame x y)
+	  (tm--make-fully-visible parent-frame frame x y)
 	  (make-frame-visible frame)
 	  (raise-frame frame)
 	  frame)))))
 
 ;; Debugging aid. Delete all menu frames. Don't delete the buffers, we
 ;; might want to inspect them.
-(defun tm-delete-menu-frames ()
+(defun tm--delete-menu-frames ()
   (interactive)
   (cl-flet ((frame-name (frame)
 	      (frame-parameter frame 'name)))
     (cl-loop for frame in (frame-list)
 	     when (string-prefix-p " *tm-" (frame-name frame))
-	     do (tm-delete frame))))
+	     do (tm--delete frame))))
 
-(defun tm-is-child (child parent)
+(defun tm--childp (child parent)
   "Return t if pane CHILD is a child of PARENT."
   (cl-loop for c = (slot-value parent 'child-pane)
            then (slot-value c 'child-pane)
@@ -904,33 +904,33 @@ as needed."
   ;; for a menu-bar, and the menu-bar item moved to is different from
   ;; the one we are displaying, close the current menu, and display the
   ;; new one.
-  (when (and tm-from-menu-bar
+  (when (and tm--from-menu-bar
              (eq (posn-area (event-end event)) 'menu-bar))
     (cl-destructuring-bind (x . y) (posn-x-y (event-end event))
       ;; Set current buffer so that we compute things with the right
       ;; menu-bar for that buffer.
-      (with-current-buffer tm-updating-buffer
+      (with-current-buffer tm--updating-buffer
         (when-let* ((new (menu-bar-menu-at-x-y x y menu-updating-frame))
-                  (old (menu-bar-menu-at-x-y (car tm-from-menu-bar)
-                                             (cdr tm-from-menu-bar)
+                  (old (menu-bar-menu-at-x-y (car tm--from-menu-bar)
+                                             (cdr tm--from-menu-bar)
                                              menu-updating-frame))
                   ((and new (not (eq old new))))
                   (start-x (cdr (menu-bar-item-at-x x))))
-          (setq tm-from-menu-bar (posn-x-y (event-end event)))
+          (setq tm--from-menu-bar (posn-x-y (event-end event)))
           (throw 'tm-to-top-level `(menu-bar ,start-x ,y))))))
 
   (when-let* ((end (event-end event))
 	      (win (posn-window end))
               (item (mouse-posn-property end 'tm-item))
-	      ((tm-selectable-p item))
+	      ((tm--selectable-p item))
               (pane (slot-value item 'pane))
               (frame (slot-value pane 'frame)))
-    (tm-select item 'mouse)
-    (unless (eq pane tm-pane-drawn)
-      (when-let* ((sel (slot-value tm-pane-drawn 'selected-item)))
-        (if (tm-is-child pane tm-pane-drawn)
+    (tm--select item 'mouse)
+    (unless (eq pane tm--pane-drawn)
+      (when-let* ((sel (slot-value tm--pane-drawn 'selected-item)))
+        (if (tm--childp pane tm--pane-drawn)
             ;; Move to child -> activate child.
-            (tm-act sel 'mouse)
+            (tm--act sel 'mouse)
           (throw 'tm-leave nil))))))
 
 (defun tm-cmd-mouse-act (event)
@@ -941,58 +941,58 @@ as needed."
               ((or (eq win (selected-window))
                    (throw 'tm-to-top-level nil)))
               (item (mouse-posn-property end 'tm-item))
-	      ((tm-selectable-p item)))
+	      ((tm--selectable-p item)))
     (goto-char (posn-point end))
-    (tm-act item 'mouse)))
+    (tm--act item 'mouse)))
 
 (defun tm-cmd-key-act ()
   "Perform the action associated with a menu-item."
   (interactive)
-  (let* ((selected (slot-value tm-pane-drawn 'selected-item)))
+  (let* ((selected (slot-value tm--pane-drawn 'selected-item)))
     (if selected
-        (tm-act selected 'key)
+        (tm--act selected 'key)
       ;; macOS closes the menu if no menu-item is selected.
       (throw 'tm-leave nil))))
 
 (defun tm-cmd-next-item ()
   "Move to next selectable menu-item."
   (interactive)
-  (let* ((pane tm-pane-drawn)
+  (let* ((pane tm--pane-drawn)
          (items (slot-value pane 'items))
          (selected (slot-value pane 'selected-item))
          (next (if selected
                    (slot-value selected 'next-item)
                  (cl-first items))))
     (while next
-      (if (tm-selectable-p next)
+      (if (tm--selectable-p next)
           (progn
-            (tm-select next nil)
+            (tm--select next nil)
             (setq next nil))
         (setq next (slot-value next 'next-item))))))
 
 (defun tm-cmd-previous-item ()
   "Move to previous selectable menu-item."
   (interactive)
-  (let* ((pane tm-pane-drawn)
+  (let* ((pane tm--pane-drawn)
          (selected (slot-value pane 'selected-item))
          (prev (and selected (slot-value selected 'prev-item))))
     (while prev
-      (if (tm-selectable-p prev)
+      (if (tm--selectable-p prev)
           (progn
-            (tm-select prev nil)
+            (tm--select prev nil)
             (setq prev nil))
         (setq prev (slot-value prev 'prev-item))))))
 
-(cl-defstruct tm-bar-menu
+(cl-defstruct tm--bar-menu
   name code cmd x0 x1)
 
-(defun tm-bar-info ()
+(defun tm--bar-info ()
   "Compute the layout of the menu-bar of buffer BUFFER.
 Value is a list of (KEY-CODE KEYMAP X0 X1 NAME) where KEY-CODE Is the
 KEY-CODE of the menu-item, e.g. `edit', and KEYMAP is the associated
 menu keymap. X0 and X1 are the start end end column of the menu-item.
 NAME is the menu name."
-  (with-current-buffer tm-updating-buffer
+  (with-current-buffer tm--updating-buffer
     (when-let* ((menu-bar (menu-bar-keymap)))
       (cl-loop
        with column = 0 and layout = nil
@@ -1008,32 +1008,32 @@ NAME is the menu name."
                                  (or (null visible) (eval visible)))))))
           (let ((start-column column))
             (cl-incf column (1+ (length name)))
-            (push (make-tm-bar-menu
+            (push (make-tm--bar-menu
                    :code code :cmd cmd :x0 start-column :x1 column
                    :name name)
                   layout))))
        finally return (nreverse layout)))))
 
-(defun tm-bar-find-pane (menu-bar pane)
+(defun tm--bar-find-pane (menu-bar pane)
   "Find PANE in the menu-bar MENU-BAR.
 Return the index of of its entry in LAYOUT. Value is nil if not found,
 but that should not happen."
   (cl-position-if (lambda (m)
                     (eq (slot-value pane 'keymap)
-                        (tm-bar-menu-cmd m)))
+                        (tm--bar-menu-cmd m)))
                   menu-bar))
 
-(defun tm-move-in-menu-bar (move-left)
+(defun tm--move-in-menu-bar (move-left)
   "Arrange to move to another item in the menu-bar.
 MOVE-LEFT non-nil means move to the previous item.  This
 gets the selected tm-item and determines the pane it is
 in. If that is a top-level pane, not a sub-menu, see where that pane
 is in the menu-bar. Then determine the next/previous menu-bar item,
 and make us display that menu."
-  (when-let* (((not (null tm-from-menu-bar)))
-              (root-pane (tm-root-pane tm-pane-drawn))
-              (menu-bar (tm-bar-info))
-              (index (tm-bar-find-pane menu-bar root-pane))
+  (when-let* (((not (null tm--from-menu-bar)))
+              (root-pane (tm--root-pane tm--pane-drawn))
+              (menu-bar (tm--bar-info))
+              (index (tm--bar-find-pane menu-bar root-pane))
               (n (length menu-bar)))
     (cond (move-left
            (cl-decf index)
@@ -1043,35 +1043,35 @@ and make us display that menu."
            (cl-incf index)
            (when (>= index n)
              (setq index 0))))
-    (let ((x0 (tm-bar-menu-x0 (nth index menu-bar))))
+    (let ((x0 (tm--bar-menu-x0 (nth index menu-bar))))
       (throw 'tm-to-top-level `(menu-bar ,x0 0)))))
 
-(defun tm-selected-item ()
-  (slot-value tm-pane-drawn 'selected-item))
+(defun tm--selected-item ()
+  (slot-value tm--pane-drawn 'selected-item))
 
 (defun tm-cmd-open ()
   "Select a menu-item with <right> if it is for a sub-menu."
   (interactive)
-  (when-let* ((item (tm-selected-item)))
+  (when-let* ((item (tm--selected-item)))
     (with-slots (binding) item
       (when (keymapp binding)
-	(tm-act item 'key))))
-  (tm-move-in-menu-bar nil))
+	(tm--act item 'key))))
+  (tm--move-in-menu-bar nil))
 
 (defun tm-cmd-close ()
   "Close current menu pane with <left>."
   (interactive)
   ;; If this is not a top-level pane, close it.
-  (when-let* ((item (tm-selected-item))
+  (when-let* ((item (tm--selected-item))
               (pane (slot-value item 'pane))
               ((slot-value pane 'invoking-item)))
     (throw 'tm-leave nil))
   ;; If it is a top-level plane, either move left in the menu-bar or
   ;; close it.
-  (tm-move-in-menu-bar 'left)
+  (tm--move-in-menu-bar 'left)
   (throw 'tm-leave nil))
 
-(defun tm-isearch (forward)
+(defun tm--isearch (forward)
   "Isearch in a menu, FORWARD t means search forward."
   (isearch-mode forward nil nil)
   (while isearch-mode
@@ -1081,25 +1081,25 @@ and make us display that menu."
 		 (stringp key))
 	    (isearch-printing-char (aref key 0))
 	  (call-interactively cmd)))))
-  (let* ((items (slot-value tm-pane-drawn 'items))
+  (let* ((items (slot-value tm--pane-drawn 'items))
          (i (1- (line-number-at-pos (point) t)))
          (sel (nth i items)))
-    (while (and sel (not (tm-selectable-p sel)))
+    (while (and sel (not (tm--selectable-p sel)))
       (setf sel (if forward
                     (slot-value sel 'next-item)
                   (slot-value sel 'prev-item))))
     (when sel
-      (tm-select sel 'key))))
+      (tm--select sel 'key))))
 
 (defun tm-cmd-isearch-forward ()
   "Isearch forward in a menu."
   (interactive)
-  (tm-isearch t))
+  (tm--isearch t))
 
 (defun tm-cmd-isearch-backward ()
   "Isearch backward in a menu."
   (interactive)
-  (tm-isearch nil))
+  (tm--isearch nil))
 
 (defun tm-cmd-menu-bar-click (_event)
   "Handle click in a menu-bar while a menu is open."
@@ -1135,7 +1135,7 @@ and make us display that menu."
   "<mode-line> <mouse-1>" #'tm-cmd-close-on-click
   "<mouse-1>" #'tm-cmd-mouse-act)
 
-(defun tm-position (pos)
+(defun tm--position (pos)
   "Translate position POS to (FRAME X Y)."
   (interactive)
   (pcase-exhaustive pos
@@ -1190,13 +1190,13 @@ and make us display that menu."
           (guard (numberp x) (numberp y)))
      (list (selected-frame) x y))))
 
-(defun tm-where (selected how)
+(defun tm--where (selected how)
   "Determine where to display SELECTED,
 HOW is either `key' or `mouse' and specifies how the menu
 invocation takes place."
   (cl-ecase how
     (key
-     (let* ((frame (tm-frame selected))
+     (let* ((frame (tm--frame selected))
             (end (slot-value selected 'draw-end))
 	    (win (frame-root-window frame))
             (posn (posn-at-point (1- end) win)))
@@ -1208,39 +1208,39 @@ invocation takes place."
       (let* ((posn (posn-at-point (pos-eol)))
 	    (win (posn-window posn)))
        (cl-destructuring-bind (x . y) (posn-x-y posn)
-         (tm-position (list (cons (- x 3) y) win)))))))
+         (tm--position (list (cons (- x 3) y) win)))))))
 
-(defun tm-select-menu-bar-item-by-name (key)
+(defun tm--select-menu-bar-item-by-name (key)
   "Switch to another menu in the menu-bar.
 KEY is a string determining what menu to look for."
-  (when-let* ((pos tm-from-menu-bar)
+  (when-let* ((pos tm--from-menu-bar)
               ((char-uppercase-p (aref key 0)))
-              (menu-bar (tm-bar-info))
+              (menu-bar (tm--bar-info))
               (start (cl-position-if
                       (lambda (m)
-                        (= (tm-bar-menu-x0 m) (car pos)))
+                        (= (tm--bar-menu-x0 m) (car pos)))
                       menu-bar)))
     (cl-loop with n = (length menu-bar)
              repeat n
              for i = (mod (1+ start) n) then (mod (1+ i) n)
              for m = (nth i menu-bar)
-             for name = (tm-bar-menu-name m)
-             for x = (tm-bar-menu-x0 m)
+             for name = (tm--bar-menu-name m)
+             for x = (tm--bar-menu-x0 m)
              when (string-prefix-p key name t) do
-             (setq tm-from-menu-bar (cons x 0))
+             (setq tm--from-menu-bar (cons x 0))
              (throw 'tm-to-top-level `(menu-bar ,x 0)))))
 
-(defun tm-select-item-by-name ()
+(defun tm--select-item-by-name ()
   "Select a menu-item from `this-command-keys'."
   (when-let* ((key (this-command-keys))
               ((stringp key))
-              (pane tm-pane-drawn)
+              (pane tm--pane-drawn)
               (items (slot-value pane 'items)))
     (cl-flet ((matchp (i)
-                (when (tm-selectable-p i)
+                (when (tm--selectable-p i)
                   (let ((name (string-trim-left (slot-value i 'name))))
                     (string-prefix-p key name t)))))
-      (unless (tm-select-menu-bar-item-by-name key)
+      (unless (tm--select-menu-bar-item-by-name key)
         (let* ((current (slot-value pane 'selected-item))
                (pos (if current (cl-position current items) 0)))
           (cl-loop with n = (length items)
@@ -1248,23 +1248,23 @@ KEY is a string determining what menu to look for."
                    for i = (mod (1+ pos) n) then (mod (1+ i) n)
                    for item = (nth i items)
                    when (matchp item)
-                   do (tm-select item 'key)
+                   do (tm--select item 'key)
                    and return t))))))
 
-(defun tm-open-on-pane (item)
+(defun tm--open-on-pane (item)
   "Return t if ITEM's pane has a sub-menu open."
   (when-let* ((pane (slot-value item 'pane))
               (open (slot-value pane 'child-pane)))
     (slot-value open 'invoking-item)))
 
-(defun tm-open-sub-menus-on-selection (previous selected)
+(defun tm--open-sub-menus-on-selection (previous selected)
   ;; (message "sel %S -> %S"
   ;;          (when previous
   ;;            (slot-value previous 'name))
   ;;          (when selected
   ;;            (slot-value selected 'name)))
-  (let ((prev (and previous (tm-binding-type previous)))
-        (sel (and selected (tm-binding-type selected))))
+  (let ((prev (and previous (tm--binding-type previous)))
+        (sel (and selected (tm--binding-type selected))))
     (pcase-exhaustive (cons prev sel)
       ;; nil -> nil
       (`(nil . nil))
@@ -1298,13 +1298,13 @@ KEY is a string determining what menu to look for."
       (`(keymap . keymap)
        (throw 'tm-leave (cons selected 'key))))))
 
-(defun tm-command-loop ()
+(defun tm--command-loop ()
   (catch 'tm-leave
-    (let ((previous-selected (tm-selected-item)))
+    (let ((previous-selected (tm--selected-item)))
       (while t
-        (let* ((selected (tm-selected-item)))
+        (let* ((selected (tm--selected-item)))
           (unless (eq selected previous-selected)
-            (tm-open-sub-menus-on-selection previous-selected selected)
+            (tm--open-sub-menus-on-selection previous-selected selected)
             (setq previous-selected selected)))
 
         (let* ((track-mouse t)
@@ -1313,17 +1313,17 @@ KEY is a string determining what menu to look for."
           ;; Entering a character that is self-inserting
           ;; in global-map searches for a menu-item
           ;; beginning with that character.
-          (when-let* (((not (tm-command-p cmd)))
+          (when-let* (((not (tm--command-p cmd)))
                       (cmd (lookup-key global-map key))
                       ((eq cmd 'self-insert-command)))
-            (tm-select-item-by-name))
+            (tm--select-item-by-name))
           ;; Otherwise execute a command, if any.
           ;; This is for toggling buttons, moving on
           ;; the menu and so on.
-	  (when (tm-command-p cmd)
+	  (when (tm--command-p cmd)
 	    (call-interactively cmd)))))))
 
-(defun tm-after-command-loop (res frame)
+(defun tm--after-command-loop (res frame)
   (let ((use-frame frame))
     (pcase-exhaustive res
       (`(,selected . ,(and (pred symbolp) how))
@@ -1331,64 +1331,64 @@ KEY is a string determining what menu to look for."
          (cond
           ((keymapp binding)
            ;;(message "  open %S" (slot-value selected 'name))
-           (let ((open (tm-open-on-pane selected)))
+           (let ((open (tm--open-on-pane selected)))
              (cond
               ((eq open selected)
                (select-frame-set-input-focus frame))
               ((null open)
-	       (tm-loop-1 binding
-                                (tm-where selected how)
+	       (tm--loop-1 binding
+                                (tm--where selected how)
                                 :invoking-item selected
                                 :focus nil))
               (t
-               (tm-delete frame)
+               (tm--delete frame)
                (setq use-frame
-                     (tm-create-frame
+                     (tm--create-frame
                       binding
-                      (tm-where selected how)
+                      (tm--where selected how)
                       selected))))))
           (t (throw 'tm-item-close selected)))))
       (`close-sub-menu
-       (when-let* ((child (slot-value tm-pane-drawn 'child-pane)))
-         (tm-delete child)))
+       (when-let* ((child (slot-value tm--pane-drawn 'child-pane)))
+         (tm--delete child)))
       ('nil
        (throw 'tm-item-close nil)))
     use-frame))
 
-(cl-defun tm-loop-1 (keymap where &key invoking-item (focus t))
-  (let ((frame (tm-create-frame keymap where invoking-item)))
+(cl-defun tm--loop-1 (keymap where &key invoking-item (focus t))
+  (let ((frame (tm--create-frame keymap where invoking-item)))
     (unwind-protect
         (catch 'tm-item-close
           (when focus
             (select-frame-set-input-focus frame))
           (while t
-            (let* ((res (tm-command-loop)))
-              (setq frame (tm-after-command-loop res frame))
-              (tm-set-overlay-face tm-pane-drawn))))
-      (tm-delete frame))))
+            (let* ((res (tm--command-loop)))
+              (setq frame (tm--after-command-loop res frame))
+              (tm--set-overlay-face tm--pane-drawn))))
+      (tm--delete frame))))
 
-(defun tm-loop (keymap where)
+(defun tm--loop (keymap where)
   "Event loop for tty menus.
 KEYMAP is a menu keymap, and WHERE specifies where to open the menu."
   (let ((res (catch 'tm-to-top-level
                (save-selected-window
-                 (tm-loop-1 keymap where :focus t)))))
+                 (tm--loop-1 keymap where :focus t)))))
     (pcase-exhaustive res
       ('nil nil)
       (`(menu-bar ,x ,y) (cons x y))
       (`(,selected . ,_) selected))))
 
-(cl-defun tm-popup-menu (position menu)
+(cl-defun tm--popup-menu (position menu)
   "This is the replacement for `x-popup-menu'.
 It is installed as `x-popup-menu-function' when using
 `tm-mode'."
-  (when-let* ((where (tm-position position)))
+  (when-let* ((where (tm--position position)))
     (cl-destructuring-bind (menu-updating-frame _ _) where
-      (let ((tm-updating-buffer (current-buffer)))
+      (let ((tm--updating-buffer (current-buffer)))
         (cond ((keymapp menu)
                ;; Run the event loop, and at the end, collect bindings
                ;; for nested menus involved to form the result event.
-               (cl-loop for i = (tm-loop menu where)
+               (cl-loop for i = (tm--loop menu where)
                         then (with-slots (pane) i
                                (with-slots (invoking-item) pane
                                  invoking-item))
@@ -1399,12 +1399,12 @@ It is installed as `x-popup-menu-function' when using
 	      ((consp menu)
 	       (cl-loop with outer = (make-sparse-keymap "outer")
 		        for keymap in menu
-		        for name = (tm-keymap-name keymap)
+		        for name = (tm--keymap-name keymap)
 		        do (define-key outer (vector (intern name)) keymap)
-		        finally (tm-loop outer where)))
+		        finally (tm--loop outer where)))
 	      (t (error "Not a menu: %S" menu)))))))
 
-(defun tm-around-mouse-set-point (old-fun &rest args)
+(defun tm--around-mouse-set-point (old-fun &rest args)
   "Around advice for `mouse-set-point',
 A mouse-click in a menu can lead to one or more frames for menu panes
 being deleted. Somehow, such a click event survives the frame deletions,
@@ -1416,13 +1416,13 @@ advice added to handle that."
     (when (or (not (windowp win)) (window-live-p win))
       (apply old-fun args))))
 
-(defun tm-around-popup-menu (old-fun &rest args)
+(defun tm--around-popup-menu (old-fun &rest args)
   "Around advice for `popup-menu'.
-This around advice for `popup-menu' binds `tm-from-menu-bar' to
+This around advice for `popup-menu' binds `tm--from-menu-bar' to
 (X . Y) in the menu-bar when invoked for a menu-bar menu, and nil
 otherwise. This makes it possible to behave differently for menus in
 the menu-bar and others."
-  (let ((tm-from-menu-bar
+  (let ((tm--from-menu-bar
          (pcase args
            (`(,_ ,pos ,_ ,(and menu-bar (guard menu-bar)))
             (posn-x-y pos)))))
@@ -1444,13 +1444,13 @@ the start."
   (unless (display-graphic-p)
     (cond (tm-menu-mode
            (advice-add 'buffer-menu-open :override #'tm-buffer-menu-open)
-           (advice-add 'mouse-set-point :around #'tm-around-mouse-set-point)
-           (advice-add 'popup-menu :around #'tm-around-popup-menu)
-           (setq x-popup-menu-function #'tm-popup-menu))
+           (advice-add 'mouse-set-point :around #'tm--around-mouse-set-point)
+           (advice-add 'popup-menu :around #'tm--around-popup-menu)
+           (setq x-popup-menu-function #'tm--popup-menu))
           (t
            (advice-remove 'buffer-menu-open #'tm-buffer-menu-open)
-           (advice-remove 'mouse-set-point #'tm-around-mouse-set-point)
-           (advice-remove 'popup-menu #'tm-around-popup-menu)
+           (advice-remove 'mouse-set-point #'tm--around-mouse-set-point)
+           (advice-remove 'popup-menu #'tm--around-popup-menu)
            (setq x-popup-menu-function nil)))))
 
 (provide 'tm)
