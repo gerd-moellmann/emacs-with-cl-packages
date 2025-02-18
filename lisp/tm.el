@@ -753,11 +753,13 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   (let ((name (last keymap)))
     (and (stringp (car name)) (car name))))
 
+(defconst tm--buffer-name-prefix " *tm--")
+
 (defun tm--pane-buffer-name (keymap)
   "Make a buffer name for KEYMAP."
   (if-let* ((name (tm--keymap-name keymap)))
-      (format " *tm-%s*" name)
-    (generate-new-buffer-name " *tm--")))
+      (format "%s%s*" tm--buffer-name-prefix name)
+    (generate-new-buffer-name tm--buffer-name-prefix)))
 
 (defun tm--make-pane (keymap invoking-item frame)
   "Create a `tm-pane'.
@@ -1428,6 +1430,14 @@ the menu-bar and others."
             (posn-x-y pos)))))
     (apply old-fun args)))
 
+(defun tm--around-frame-list (old-fun &rest args)
+  "Around advice for `frame-list'.
+This removes frames used for menus from the result value."
+  (cl-remove-if (lambda (f)
+                  (let ((name (frame-parameter f 'name)))
+                    (string-prefix-p tm--buffer-name-prefix name)))
+                (apply old-fun args)))
+
 (defun tm-buffer-menu-open ()
   "Override for `buffer-menu-open'.
 Opens the menu at point instead of at (0, 0)."
@@ -1446,11 +1456,13 @@ the start."
            (advice-add 'buffer-menu-open :override #'tm-buffer-menu-open)
            (advice-add 'mouse-set-point :around #'tm--around-mouse-set-point)
            (advice-add 'popup-menu :around #'tm--around-popup-menu)
+           (advice-add 'frame-list :around #'tm--around-frame-list)
            (setq x-popup-menu-function #'tm--popup-menu))
           (t
            (advice-remove 'buffer-menu-open #'tm-buffer-menu-open)
            (advice-remove 'mouse-set-point #'tm--around-mouse-set-point)
            (advice-remove 'popup-menu #'tm--around-popup-menu)
+           (advice-remove 'frame-list #'tm--around-frame-list)
            (setq x-popup-menu-function nil)))))
 
 (provide 'tm)
