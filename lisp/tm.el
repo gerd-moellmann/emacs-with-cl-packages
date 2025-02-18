@@ -375,28 +375,46 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
   ( :method ((_ tm-separator))
     ""))
 
-(defun tm-key-description (item)
+(defun tm-key-description (binding)
   "Get the key description of the binding of ITEM."
   (with-current-buffer tm-updating-buffer
-    (with-slots (binding) item
-      (key-description
-       (where-is-internal binding nil t)))))
+    (key-description
+     (where-is-internal binding nil t))))
+
+(defun tm-key-binding (key)
+  (with-current-buffer tm-updating-buffer
+    (key-binding key)))
 
 (cl-defgeneric tm-key-string (item)
   "Value is a string for the key part of ITEM."
   ( :method ((item tm-item))
     (format tm-key-format
 	    (with-slots (name binding keys key-sequence) item
-	      (cond (keys
+	      (cond (key-sequence
+                     (tm-key-description
+                      (tm-key-binding key-sequence)))
+                    (keys
                      (if (stringp keys) keys "??"))
-                    (key-sequence
-                     "??")
                     ((null binding) "")
 		    ((keymapp binding)
 		     tm-triangle)
                     (t
-		     (tm-key-description item))))))
+		     (tm-key-description binding))))))
   ( :method ((_ tm-separator)) ""))
+
+;; Menu items look like this:
+;;
+;; +--------+--------+-------------+-----+--------+
+;; | left   | button | name        | key | right  |
+;; | border |        |             |     | border |
+;; +--------+--------+-------------+-----+--------+
+;;
+;; Left and right border consist of spaces. BUTTON is either empty or
+;; display a button in on or off state for radio buttons or
+;; checkboxes. NAME is the string to display for the menu item. KEY is
+;; the key combination to display.
+;;
+;; All these elements can be customized with format strings.
 
 (cl-defgeneric tm-draw-button (item pane)
   "Draw the button part of ITEM on PANE."
