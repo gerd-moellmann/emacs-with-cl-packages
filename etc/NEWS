@@ -69,7 +69,7 @@ like tooltips.  Other use-cases of child frames are not supported yet.
 In particular:
 
 - trying to create minibuffer-only child frames on a TTY frame will
-  signal an error.
+  signal an error; and
 - a TTY child frame cannot be converted to a root frame or vice-versa.
 
 To enable tooltips on TTY frames, call 'tty-tip-mode'.
@@ -1134,8 +1134,14 @@ of seconds.  Crossfading can be toggled using the command
 This command displays information about the currently playing song or
 song at point in the "*MPC-Songs*" buffer.  The list of tags to display
 can be customized using the new user option 'mpc-song-viewer-tags' and
-the appearance of the list with the new faces 'mpc-song-viewer-tag',
-'mpc-song-viewer-value', and 'mpc-song-viewer-empty'.
+the appearance of the list with the new faces 'mpc-table-key',
+'mpc-table-value', and 'mpc-table-empty'.
+
+---
+*** New command 'mpc-server-stats'.
+This command displays information about the connected MPD server.  The
+appearance of the list can be customized with the new faces
+'mpc-table-key' and 'mpc-table-value'.
 
 ** VC
 
@@ -1280,8 +1286,19 @@ name.  Previously, Eshell only did this for MS-Windows systems. To
 restore the old behavior, you can set 'eshell-pwd-convert-function' to
 'identity'.
 
+---
+** The rx 'eval' form now uses the current elisp dialect for evaluation.
+Previously, its argument was always evaluated using dynamic binding.
+
 
 * Lisp Changes in Emacs 31.1
+
++++
+** New functions 'plusp' and 'minusp'.
+They return non-nil if a number is positive or negative, respectively,
+and signal an error if they are given a non-number.  The 'cl-lib'
+functions 'cl-plusp' and 'cl-minusp' are now aliases for 'plusp' and
+'minusp'.
 
 +++
 ** New functions 'oddp' and 'evenp'.
@@ -1388,14 +1405,11 @@ language symbol.  For example, 'cpp' is translated to "C++".  A new
 variable 'treesit-language-display-name-alist' holds the translations of
 language symbols where that translation is not trivial.
 
-+++
-++++
 *** New function 'treesit-merge-font-lock-feature-list'.
 This function merges two tree-sitter font-lock feature lists.  Returns a
 new font-lock feature list with no duplicates in the same level.  It can
 be used to merge font-lock feature lists in a multi-language major mode.
 
-+++
 *** New function 'treesit-replace-font-lock-feature-settings'.
 Given two tree-sitter font-lock settings, it replaces the feature in the
 second font-lock settings with the same feature in the first font-lock
@@ -1403,13 +1417,11 @@ settings.  In a multi-language major mode it is sometimes necessary to
 replace features from one of the major modes, with others that are
 better suited to the new multilingual context.
 
-+++
-*** New function 'treesit-modify-indent-rules'.
-Given two tree-sitter indent rules, it replaces, adds, or prepends the
-new rules to the old ones, then returns the new tree-sitter indent
-rules.  In a multi-language major mode it is sometimes necessary to
-modify rules from one of the major modes, with others that are better
-suited to the new multilingual context.
+*** New function 'treesit-simple-indent-modify-rules'.
+Given two tree-sitter indent rules, it replaces, adds, or prepends rules
+in the old rules with new ones, then returns the modified rules.  In a
+multi-language major mode it is sometimes necessary to modify rules from
+one of the major modes to better suit the new multilingual context.
 
 +++
 *** New command 'treesit-explore'.
@@ -1427,7 +1439,7 @@ at point to explore.
 *** New variable 'treesit-aggregated-simple-imenu-settings'.
 This variable allows major modes to setup Imenu for multiple languages.
 
-*** New function 'treesit-add-simple-indent-rules'.
+*** New function 'treesit-simple-indent-add-rules'.
 This new function makes it easier to customize indent rules for
 tree-sitter modes.
 

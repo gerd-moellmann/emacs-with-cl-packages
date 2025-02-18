@@ -1322,7 +1322,7 @@ and leave settings for other languages unchanged."
 Returns a new font lock feature list with no duplicates in the same level.
 It can be used to merge font lock feature lists in a multi-language major mode.
 FEATURES-LIST-1 and FEATURES-LIST-2 are list of lists of feature symbols."
-    (let ((result nil)
+  (let ((result nil)
 	(features-1 (car features-list-1))
 	(features-2 (car features-list-2)))
     (while (or features-1 features-2)
@@ -2508,7 +2508,7 @@ RULES."
                             offset)))))
              (cons lang (mapcar #'optimize-rule indent-rules)))))
 
-(defun treesit-add-simple-indent-rules (language rules &optional where anchor)
+(defun treesit-simple-indent-add-rules (language rules &optional where anchor)
   "Add simple indent RULES for LANGUAGE.
 
 This function only affects `treesit-simple-indent-rules',
@@ -2540,18 +2540,24 @@ end of existing rules."
               (append rules existing-rules)))))
     (setf (alist-get language treesit-simple-indent-rules) new-rules)))
 
-(defun treesit-modify-indent-rules (lang new-rules rules &optional how)
-  "Modify a copy of RULES using NEW-RULES.
-As default replace rules with the same anchor.
-When HOW is :prepend NEW-RULES are prepend to RULES, when
-:append NEW-RULES are appended to RULES, when :replace (the default)
-NEW-RULES replace rule in RULES which the same anchor."
+(defun treesit-simple-indent-modify-rules (lang new-rules rules &optional how)
+  "Pick out rules for LANG in RULES, and modify it according to NEW_RULES.
+
+RULES should have the same form as `treesit-simple-indent-rules', i.e, a
+list of (LANG RULES...).  Return a new modified rules in the form
+of (LANG RULES...).
+
+If HOW is omitted or :replace, for each rule in NEW-RULES, find the old
+rule that has the same matcher, and replace it.
+
+If HOW is :prepend, just prepend NEW-RULES to the old rules; if HOW is
+:append, append NEW-RULES."
   (cond
    ((not (alist-get lang rules))
     (error "No rules for language %s in RULES" lang))
    ((not (alist-get lang new-rules))
     (error "No rules for language %s in NEW-RULES" lang))
-   (t (let* ((copy-of-rules (copy-tree js--treesit-indent-rules))
+   (t (let* ((copy-of-rules (copy-tree rules))
 	     (lang-rules (alist-get lang copy-of-rules))
 	     (lang-new-rules (alist-get lang new-rules)))
 	(cond
