@@ -62,3 +62,12 @@ This has meanwhile landed in master on savannah.
 My Emacs is now beginning to be a DTrace USDT provider. Configure
 `--with-dtrace=no` to disable it. This is only tested on
 macOS. Development is ongoing in slow pace.
+
+## TTY menus in Lisp
+
+This is an implementation of TTY menus that is entirely written in Emacs
+Lisp. See lisp/tm.el. That file can also be used with a current master
+from savannah. Use `M-x tm-menu-mode` to activate. See the doc string of
+that function. The menu's behavior is patterned after what macOS does.
+
+It's unclear at the moment if that will land in GNU.
