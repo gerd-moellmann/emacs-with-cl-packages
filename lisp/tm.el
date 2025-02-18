@@ -636,7 +636,7 @@ a command as binding. It is `keymap' is the item's binding is a keymap. "
           (t (error "unknown binding %S" binding)))))
 
 (defun tm-make-element (pane code item)
-  "Construct a new menu element.
+  "Construct a new menu element and add it to PANE.
 PANE is the pane the menu-element is constructed for.  CODE and ITEM are
 key-code and menu-item definition from a keymap.  Value is the menu
 element constructed."
@@ -651,8 +651,9 @@ element constructed."
 	      (toggle? (props)
                 (eq (car (button? props)) :toggle))
               (make (class props)
-                (apply #'make-instance class
-                       (cl-list*  :pane pane :key-code code props))))
+                (tm-add pane (apply #'make-instance class
+                                    (cl-list*  :pane pane
+                                               :key-code code props)))))
     (pcase-exhaustive item
      ;; (menu-item SEPARATOR-NAME ...)
       (`(menu-item ,(and (pred separator?) name) ,_ . ,props)
@@ -757,8 +758,7 @@ menu in."
                         (tm-pane-buffer-name keymap)))))
     (cl-loop for binding being the key-bindings of keymap
              using (key-codes code)
-             for i = (tm-make-element pane code binding)
-             do (tm-add pane i))
+             do (tm-make-element pane code binding))
     pane))
 
 (defvar tm-frame-parameters
