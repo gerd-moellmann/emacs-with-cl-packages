@@ -457,7 +457,7 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
 
 (cl-defgeneric tm-layout (pane)
   "Compute the layout of PANE for drawing items on it.
-This set the `layout' of PANE to a list (LEFT-BORDER BUTTON NAME KEY
+This sets the `layout' of PANE to a list (LEFT-BORDER BUTTON NAME KEY
 RIGHT-BORDER), all elements giving the widths to use for the
 corresponding columns of a menu item."
   ( :method ((pane tm-pane))
