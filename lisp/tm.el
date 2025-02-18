@@ -655,7 +655,10 @@ element constructed."
                                     (cl-list*  :pane pane
                                                :key-code code props)))))
     (pcase-exhaustive item
-     ;; (menu-item SEPARATOR-NAME ...)
+      ;; Code = remap with item for example (keymap (FROM . TO))
+      ((guard (eq code 'remap)))
+
+      ;; (menu-item SEPARATOR-NAME ...)
       (`(menu-item ,(and (pred separator?) name) ,_ . ,props)
       (make 'tm-separator (cl-list* :name name props)))
 
