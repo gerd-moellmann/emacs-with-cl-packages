@@ -1401,7 +1401,7 @@ Opens the menu at point instead of at (0, 0)."
   (popup-menu (mouse-buffer-menu-keymap) (posn-at-point)))
 
 ;;;###autoload
-(define-minor-mode tm-mode
+(define-minor-mode tm-menu-mode
   "Global minor mode for displaying menus with tty child frames.
 \\{tm-keymap}
 Entering a self-inserting character goes to the next menu-item starting
