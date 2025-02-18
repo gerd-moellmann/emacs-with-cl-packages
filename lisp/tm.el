@@ -302,6 +302,7 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
 (defcustom tm-name-format "%-20s"
   "Format string for the name part of menu-items."
   :type 'string)
+
 (defcustom tm-triangle "▶"
   "What to display as a sub-menu indicator."
   :type 'string)
@@ -1177,11 +1178,10 @@ invocation takes place."
          (tm-position (list (cons (- x 3) y) win)))))))
 
 (defun tm-select-menu-bar-item-by-name (key)
+  "Switch to another menu in the menu-bar.
+KEY is a string determining what menu to look for."
   (when-let* ((pos tm-from-menu-bar)
-              ((string= key "."))
-              (key (read-key-sequence nil))
-              (key (this-command-keys))
-              ((stringp key))
+              ((char-uppercase-p (aref key 0)))
               (menu-bar (tm-bar-info))
               (start (cl-position-if
                       (lambda (m)
