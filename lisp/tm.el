@@ -1427,7 +1427,7 @@ with that character.  When no next items is found, start searching from
 the start."
   :global t :group 'menu
   (unless (display-graphic-p)
-    (cond (tm-mode
+    (cond (tm-menu-mode
            (advice-add 'buffer-menu-open :override #'tm-buffer-menu-open)
            (advice-add 'mouse-set-point :around #'tm-around-mouse-set-point)
            (advice-add 'popup-menu :around #'tm-around-popup-menu)
