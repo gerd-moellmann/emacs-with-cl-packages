@@ -2757,7 +2757,7 @@ and @code{special} declarations are redundant in a fully
 dynamically-scoped Lisp.
 @end ignore
 A few declarations are meaningful when byte compiler optimizations
-are enabled, as they are by the default.  Otherwise these
+are enabled, as they are by default.  Otherwise these
 declarations will effectively be ignored.
 
 @defun cl-proclaim decl-spec
@@ -2784,10 +2784,6 @@ at the beginning of any of the many ``implicit @code{progn}s''
 throughout Lisp syntax, such as function bodies, @code{let} bodies,
 etc.  Currently the only declaration understood by @code{cl-declare}
 is @code{special}.
-@end defmac
-
-@defmac cl-locally declarations@dots{} forms@dots{}
-In this package, @code{cl-locally} is no different from @code{progn}.
 @end defmac
 
 @defmac cl-the type form

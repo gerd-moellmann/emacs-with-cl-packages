@@ -1724,8 +1724,13 @@ Return t if the file exists and loads successfully.  */)
   else
     {
       bool prefixes;
-      if (lisp_file_lexical_cookie (Qget_file_char, &prefixes) == Cookie_Lex)
-        Fset (Qlexical_binding, Qt);
+
+      lexical_cookie_t lexc = lisp_file_lexical_cookie (Qget_file_char, &prefixes);
+      Fset (Qlexical_binding,
+	    (lexc == Cookie_Lex ? Qt
+	     : lexc == Cookie_Dyn ? Qnil
+	     : Fdefault_toplevel_value (Qlexical_binding)));
+
       if (prefixes)
         Fset (Qsymbol_packages, Qt);
 
@@ -2613,9 +2618,11 @@ This function preserves the position of point.  */)
   record_unwind_protect_excursion ();
   BUF_TEMP_SET_PT (XBUFFER (buf), BUF_BEGV (XBUFFER (buf)));
   bool prefixes;
+  lexical_cookie_t lexc = lisp_file_lexical_cookie (buf, &prefixes);
   specbind (Qlexical_binding,
-	    lisp_file_lexical_cookie (buf, &prefixes) == Cookie_Lex ? Qt : Qnil);
-  specbind (Qsymbol_packages, prefixes ? Qt : Qnil);
+	    lexc == Cookie_Lex ? Qt
+	    : lexc == Cookie_Dyn ? Qnil
+	    : Fdefault_toplevel_value (Qlexical_binding));
   BUF_TEMP_SET_PT (XBUFFER (buf), BUF_BEGV (XBUFFER (buf)));
   readevalloop (buf, 0, filename,
 		!NILP (printflag), unibyte, Qnil, Qnil, Qnil);

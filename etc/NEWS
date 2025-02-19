@@ -485,11 +485,23 @@ Emacs 25.1), and gnudoit (obsolete since Emacs 25.1).
 ** CL-Lib
 
 +++
+*** Some cl-lib functions are now built-in.
+The functions 'cl-plusp', 'cl-minusp', 'cl-oddp', and 'cl-evenp', have
+been added to Emacs Lisp, and are thus now aliases for the built-in
+functions 'plusp', 'minusp', 'oddp' and 'evenp'.  The old names are
+considered deprecated, and will be marked as obsolete in some future
+release.
+
++++
 *** 'cl-labels' now also accepts '(FUNC EXP)' bindings, like 'cl-flet'.
 Such bindings make it possible to compute which function to bind to FUNC.
 
 ---
 *** 'cl-block' names are now lexically scoped, as documented.
+
++++
+*** 'cl-locally' is now obsolete.
+It is an alias for the 'progn' special-form.
 
 ** Whitespace
 
@@ -1226,10 +1238,22 @@ This macro adds the current buffer to 'inhibit-auto-revert-buffers',
 runs its body, and removes the current buffer from
 'inhibit-auto-revert-buffers' afterwards.
 
+** Strokes
+
+--
+** 'strokes-mode' no longer demands the presence of a mouse.
+'strokes-mode' now permits itself to be enabled if no mouse is
+connected, to facilitate enabling 'strokes-mode' in sessions where the
+availability of a mouse device varies during execution (as is frequently
+observed on Android).
+
 
 * New Modes and Packages in Emacs 31.1
 
 ** New major modes based on the tree-sitter library
+
+*** New major mode 'markdown-ts-mode'.
+A major mode based on the tree-sitter library for editing Markdown files.
 
 *** New major mode 'mhtml-ts-mode'.
 An optional major mode based on the tree-sitter library for editing HTML
@@ -1293,18 +1317,23 @@ Previously, its argument was always evaluated using dynamic binding.
 
 * Lisp Changes in Emacs 31.1
 
+---
+** You can change the default value of 'lexical-binding'.
+While the default is still the use dynamic binding dialect of ELisp
+in those places that don't explicitly set 'lexical-binding' you can
+change it globally with:
+
+    (set-default-toplevel-value 'lexical-binding t)
+
 +++
 ** New functions 'plusp' and 'minusp'.
 They return non-nil if a number is positive or negative, respectively,
-and signal an error if they are given a non-number.  The 'cl-lib'
-functions 'cl-plusp' and 'cl-minusp' are now aliases for 'plusp' and
-'minusp'.
+and signal an error if they are given a non-number.
 
 +++
 ** New functions 'oddp' and 'evenp'.
 They return non-nil if an integer is odd or even, respectively, and
-signal an error if they are given a non-integer.  The 'cl-lib' functions
-'cl-oddp' and 'cl-evenp' are now aliases for 'oddp' and 'evenp'.
+signal an error if they are given a non-integer.
 
 ** Time & Date
 
