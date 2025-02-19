@@ -1188,7 +1188,7 @@ If OTHER-WINDOW is non-nil, display in another window."
   (when (stringp group)
     (if (string-equal "" group)
 	(setq group 'emacs)
-      (setq group (intern group))))
+      (setq group (string-to-symbol group))))
   (let ((name (format "*Customize Group: %s*"
 		      (custom-unlispify-tag-name group))))
     (cond
