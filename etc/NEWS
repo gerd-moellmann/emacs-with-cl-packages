@@ -841,6 +841,11 @@ This affects calls to 'warn', 'lwarn', 'display-warning', and
 'message-box'.
 
 ---
+*** New user option 'checkdoc-allow-quoting-nil-and-t'.
+Customizing this option to a non-nil value stops checkdoc from warning
+for docstrings where symbols 'nil' and 't' are in quotes.
+
+---
 *** The default of 'checkdoc-verb-check-experimental-flag' is now nil.
 In most cases, having it enabled leads to a large amount of false
 positives.
@@ -1468,6 +1473,11 @@ at point to explore.
 *** New variable 'treesit-aggregated-simple-imenu-settings'.
 This variable allows major modes to setup Imenu for multiple languages.
 
++++
+*** New variable 'treesit-aggregated-outline-predicate'.
+This variable allows major modes to setup 'outline-minor-mode'
+for multiple languages.
+
 *** New function 'treesit-simple-indent-add-rules'.
 This new function makes it easier to customize indent rules for
 tree-sitter modes.
@@ -1623,6 +1633,12 @@ means of the GDI+ library.
 ** Emacs on MS-Windows now supports the ':data' keyword for 'play-sound'.
 In addition to ':file FILE' for playing a sound from a file, ':data
 DATA' can now be used to play a sound from memory.
+
+---
+** The MS-DOS port of Emacs now supports more recent releases of GCC and Binutils.
+Accordingly, we have revised our recommendations for a suitable DJGPP
+toolchain to GCC 14.2.0 and Binutils 2.35.1 in lieu of GCC 3.4.x and
+Binutils 2.26.
 
 
 ----------------------------------------------------------------------
