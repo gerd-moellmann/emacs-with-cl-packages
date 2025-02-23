@@ -1009,7 +1009,7 @@ NAME is the menu name."
                         (guard (let ((visible (plist-get props :visible)))
                                  (or (null visible) (eval visible)))))))
           (let ((start-column column))
-            (cl-incf column (1+ (length name)))
+            (incf column (1+ (length name)))
             (push (make-tm--bar-menu
                    :code code :cmd cmd :x0 start-column :x1 column
                    :name name)
@@ -1038,11 +1038,11 @@ and make us display that menu."
               (index (tm--bar-find-pane menu-bar root-pane))
               (n (length menu-bar)))
     (cond (move-left
-           (cl-decf index)
+           (decf index)
            (when (< index 0)
              (setq index (1- n))))
           (t
-           (cl-incf index)
+           (incf index)
            (when (>= index n)
              (setq index 0))))
     (let ((x0 (tm--bar-menu-x0 (nth index menu-bar))))
