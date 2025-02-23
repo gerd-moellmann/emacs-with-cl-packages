@@ -119,7 +119,7 @@
 
 (defface tm-face
   '((((class color) (min-colors 1000000))
-     :background "#221920" :foreground "#d0d0d0")
+     :background "#252525" :foreground "#d0d0d0")
     (((class color) (min-colors 256))
      :background "#212121" :foreground "while")
     (t :background "white"))
@@ -129,7 +129,7 @@
 
 (defface tm-face-selected
   '((((class color) (min-colors 1000000) (background dark))
-     :inherit tm-face :background "#1f2f3f")
+     :inherit tm-face :background "#2f3f4f")
     (((class color) (min-colors 256) (background dark))
      :inherit tm-face :background "#00007f")
     (t :inherit tm-face :foreground "black" :background "white"))
