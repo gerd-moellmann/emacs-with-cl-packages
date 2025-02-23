@@ -1392,7 +1392,7 @@ It is installed as `x-popup-menu-function' when using `tm-mode'."
   "Around-advice for `mouse-set-point',
 A mouse-click in a menu can lead to one or more frames for menu panes
 being deleted. Somehow, such a click event survives the frame deletions,
-and lands in 'mouse-set-point' with the event containing a window on such
+and lands in `mouse-set-point' with the event containing a window on such
 a deleted frame. I couldn't find the reason for that.  So this is an
 advice added to handle that."
   (let* ((event (car args))
