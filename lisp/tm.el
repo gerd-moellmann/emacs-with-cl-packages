@@ -517,20 +517,38 @@ corresponding columns of a menu item."
   ( :method ((item tm-item))
     (tm--frame (slot-value item 'pane))))
 
+;; When redrawing a pane, we try to arrange things so that the selection
+;; is retained. At least theoretically, it can happen that in the
+;; redrawn menu the old selection is no longer selectable. This function
+;; finds an alternative selection in this case.
+;;
+;; Should be removed.
+(defun tm--try-place-point (selectable old-line)
+  (goto-char (point-min))
+  (if (nth old-line selectable)
+      (forward-line old-line)
+    (let ((next (cl-loop for i from (1+ old-line)
+			 to (1- (length selectable))
+			 when (nth i selectable) return i))
+	  (prev (cl-loop for i downfrom (1- old-line) to 0
+			 when (nth i selectable) return i)))
+      (cond (next (forward-line next))
+	    (prev (forward-line prev))))))
+
 (cl-defgeneric tm--draw (item pane)
   "Draw ITEM on PANE."
-  ( :method ((pane tm-pane) _)
-    (with-slots (buffer items selected-item) pane
+  ( :method ((pane tm-pane) line)
+    (with-slots (buffer items) pane
       (with-current-buffer buffer
-	(erase-buffer)
-	(tm--layout pane)
-        (dolist (i items)
-          (when (tm--visible-p i)
-	    (tm--draw i pane)))
-        (when selected-item
-          (if (tm--selectable-p selected-item)
-              (tm--select selected-item nil)
-            (setf selected-item nil))))))
+	(let ((old-line (or line (1- (line-number-at-pos)))))
+	  (erase-buffer)
+	  (tm--layout pane)
+	  (let ((selectable
+		 (cl-loop for i in items
+			  when (tm--visible-p i)
+			  do (tm--draw i pane)
+			  and collect (tm--selectable-p i))))
+	    (tm--try-place-point selectable old-line))))))
   ( :method :around ((item tm-item) pane)
     (with-slots (draw-start draw-end) item
       (setf draw-start (point))
