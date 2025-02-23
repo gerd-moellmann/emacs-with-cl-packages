@@ -63,22 +63,6 @@
   (should (equal (cl-multiple-value-list nil) nil))
   (should (equal (cl-multiple-value-list (list 1 2 3)) '(1 2 3))))
 
-(ert-deftest cl-lib-test-incf ()
-  (let ((var 0))
-    (should (= (cl-incf var) 1))
-    (should (= var 1)))
-  (let ((alist))
-    (should (= (cl-incf (alist-get 'a alist 0)) 1))
-    (should (= (alist-get 'a alist 0) 1))))
-
-(ert-deftest cl-lib-test-decf ()
-  (let ((var 1))
-    (should (= (cl-decf var) 0))
-    (should (= var 0)))
-  (let ((alist))
-    (should (= (cl-decf (alist-get 'a alist 0)) -1))
-    (should (= (alist-get 'a alist 0) -1))))
-
 (ert-deftest cl-digit-char-p ()
   (should (eql 3 (cl-digit-char-p ?3)))
   (should (eql 10 (cl-digit-char-p ?a 11)))

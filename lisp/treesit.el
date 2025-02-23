@@ -49,7 +49,7 @@
 ;; so there will be more than one parser for each language in a buffer.
 ;; We can also have local parser of the same language as the host
 ;; parser.  All of which means we can't equalize language and parser,
-;; and create paresr for a language willy-nilly anymore.  Major mode
+;; and create parser for a language willy-nilly anymore.  Major mode
 ;; will manage their parsers.
 
 ;;; Code:
@@ -1843,7 +1843,7 @@ but not in this case:
     }
 
 The value of this variable affects the `standalone-parent' indent preset
-for treesit-simple-indent.  If the value is nil, the standlone condition
+for treesit-simple-indent.  If the value is nil, the standalone condition
 is as described.  Some major mode might want to relax the condition a
 little bit, so that it ignores some punctuation like \".\".  For
 example, a Javascript mode might want to consider the method call below
@@ -2516,7 +2516,7 @@ This function only affects `treesit-simple-indent-rules',
 
 WHERE can be either :before or :after, which means adding RULES before
 or after the existing rules in `treesit-simple-indent-rules'.  If
-ommited, default to adding the rules before (so it overrides existing
+omitted, default to adding the rules before (so it overrides existing
 rules).
 
 If ANCHOR is non-nil, add RULES before/after the rules in
@@ -2838,6 +2838,15 @@ ARG is described in the docstring of `up-list'."
                                            (treesit-node-end parent)
                                          (treesit-node-start parent))))
           (setq parent (treesit-parent-until parent pred)))
+
+        (when-let* ((_ (null parent))
+                    (parser (treesit-node-parser (treesit-node-at (point))))
+                    (_ (not (eq parser treesit-primary-parser)))
+                    (guest-root-node (treesit-parser-root-node parser)))
+          ;; Continue from the host node that contains the guest parser.
+          (setq parent (treesit-thing-at
+                        (- (treesit-node-start guest-root-node) 2) pred)))
+
         (or (when (and default-pos
                        (or (null parent)
                            (if (> arg 0)
@@ -3367,7 +3376,7 @@ function is called recursively."
                 ;; Normal case.
                 (setq pos (funcall advance (or prev parent))))))
           ;; A successful step! Decrement counter.
-          (cl-decf counter))))
+          (decf counter))))
     ;; Counter equal to 0 means we successfully stepped ARG steps.
     (if (eq counter 0) pos nil)))
 
@@ -3716,7 +3725,7 @@ For BOUND, MOVE, BACKWARD, LOOKING-AT, see the descriptions in
   "Return the depth of the current outline heading."
   (let* ((node (treesit-outline--at-point))
          (level 1)
-         (parser (when treesit-aggregated-outline-predicate
+         (parser (when (and treesit-aggregated-outline-predicate node)
                    (treesit-node-parser node)))
          (pred (if treesit-aggregated-outline-predicate
                    (alist-get (treesit-language-at (point))
@@ -3724,13 +3733,12 @@ For BOUND, MOVE, BACKWARD, LOOKING-AT, see the descriptions in
                  treesit-outline-predicate)))
     (while (setq node (treesit-parent-until node pred))
       (setq level (1+ level)))
-    (when-let* ((_ parser)
+    (when-let* ((_ (and parser (not (eq parser treesit-primary-parser))))
+                (guest-root-node (treesit-parser-root-node parser))
                 (host-lang (treesit-parser-language treesit-primary-parser))
-                (_ (not (eq (treesit-language-at (point)) host-lang)))
                 (host-pred (alist-get host-lang treesit-aggregated-outline-predicate)))
-      ;; Now need to break out of embedded confinement
-      ;; and get the host node that contains the guest ranges
-      (setq node (treesit-parser-root-node parser))
+      ;; Continue from the host node that contains the guest parser.
+      (setq node (treesit-node-at (- (treesit-node-start guest-root-node) 2)))
       (while (setq node (treesit-parent-until node host-pred))
         (setq level (1+ level))))
     level))

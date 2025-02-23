@@ -348,7 +348,7 @@ This input method has support for polytonic and archaic Greek
 characters.
 
 ---
-*** New language-environment and input method for Tifinagh.
+*** New language environment and input method for Tifinagh.
 The Tifinagh script is used to write the Berber languages.
 
 ---
@@ -432,6 +432,12 @@ set to 'title'.
 When non-nil, buffer sizes are shown in human readable format.
 
 ---
+*** 'define-ibuffer-op' prompts can now be functions.
+The prompts 'opstring' and 'active-opstring' can now either be strings
+or functions.  This is useful when your prompts can benefit from dynamic
+content.
+
+---
 ** Buffer Menu
 
 *** New user option 'Buffer-menu-human-readable-sizes'.
@@ -467,8 +473,8 @@ a web browser to load them.  For example, it could be used like this:
     (add-to-list 'browse-url-transform-alist
                  '("www.google.com" . "www.duckduckgo.com"))
 
-*** New function 'browse-url-qutebrowser' for the Qutebrowser.
-For better integration with the Qutebrowser, set
+*** New function 'browse-url-qutebrowser' for Qutebrowser.
+For better integration with Qutebrowser, set
 'browse-url(-secondary)-browser-function' to 'browse-url-qutebrowser'.
 
 *** New GTK-native launch mode.
@@ -485,12 +491,18 @@ Emacs 25.1), and gnudoit (obsolete since Emacs 25.1).
 ** CL-Lib
 
 +++
-*** Some cl-lib functions are now built-in.
-The functions 'cl-plusp', 'cl-minusp', 'cl-oddp', and 'cl-evenp', have
-been added to Emacs Lisp, and are thus now aliases for the built-in
-functions 'plusp', 'minusp', 'oddp' and 'evenp'.  The old names are
-considered deprecated, and will be marked as obsolete in some future
-release.
+*** Some cl-lib functions and macros are now built-in.
+These functions or macros have been added to Emacs Lisp, and the old
+names are now aliases for the built-in equivalents:
+ - 'cl-incf'   renamed to 'incf'
+ - 'cl-decf'   renamed to 'decf'
+ - 'cl-oddp'   renamed to 'oddp'
+ - 'cl-evenp'  renamed to 'evenp'
+ - 'cl-plusp'  renamed to 'plusp'
+ - 'cl-minusp' renamed to 'minusp'
+
+The old names are considered deprecated, and will be marked as obsolete
+in some future release.
 
 +++
 *** 'cl-labels' now also accepts '(FUNC EXP)' bindings, like 'cl-flet'.
@@ -524,6 +536,13 @@ Bookmark names are now saved uniquely.
 This user option controls the width of the type column on the bookmark
 menu 'bookmark-bmenu-list'.  The default value is 8 which is backwards
 compatible.
+
+** Recentf
+
+---
+*** New user option 'recentf-show-messages'.
+'recentf-save-list' can print a message when saving the recentf list.
+The new option, if set to nil, suppresses this message.
 
 ** Saveplace
 
@@ -1252,6 +1271,14 @@ connected, to facilitate enabling 'strokes-mode' in sessions where the
 availability of a mouse device varies during execution (as is frequently
 observed on Android).
 
+** Yank media
+
++++
+*** 'yank-media' now auto-selects the most preferred MIME type.
+Major-mode authors can customize the variables
+'yank-media-autoselect-function' and/or 'yank-media-preferred-types' to
+change the selection rules.
+
 
 * New Modes and Packages in Emacs 31.1
 
@@ -1284,6 +1311,11 @@ An old alternative name (without the first 'e') has been removed.
 
 +++
 ** 'read-directory-name' now accepts an optional PREDICATE argument.
+
++++
+** 'text-property-default-nonsticky' is now buffer-local.
+This variable now becomes buffer-local when set.  Use 'setq-default' in
+(the unlikely) case you want to change the global value.
 
 ---
 ** All the digit characters now have the 'digit' category.
@@ -1329,6 +1361,11 @@ in those places that don't explicitly set 'lexical-binding' you can
 change it globally with:
 
     (set-default-toplevel-value 'lexical-binding t)
+
++++
+*** New functions 'incf' and 'decf'.
+They increment or decrement the value stored in a variable (a symbol),
+or in a generalized variable.
 
 +++
 ** New functions 'plusp' and 'minusp'.
