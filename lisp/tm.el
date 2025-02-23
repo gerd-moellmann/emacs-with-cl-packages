@@ -112,6 +112,7 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'eieio)
 
 (defgroup tm nil
   "Group for terminal menus implemented in Lisp."
