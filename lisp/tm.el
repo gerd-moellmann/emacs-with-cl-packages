@@ -108,12 +108,6 @@
 ;;     |                 |                  |
 ;;
 ;;
-;; - Use of slot-value and with-slots in the code:
-;;
-;; There is a reason for that. Accessors have to obey naming rules,
-;; which means they should use the `tm-' prefix. That's unreadable, and
-;; the reason I prefer with-slots and slot-value. It's a sad state of
-;; affairs.
 
 ;;; Code:
 
