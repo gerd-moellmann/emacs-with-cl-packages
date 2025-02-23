@@ -200,6 +200,11 @@ deleted implicitly by functions like 'kill-buffer', 'bury-buffer' and
 'quit-restore-window'.
 
 +++
+*** New user option 'quit-window-kill-buffer'.
+This option specifies whether 'quit-window' should preferably kill or
+bury the buffer shown by the window to quit.
+
++++
 *** New user option 'kill-buffer-quit-windows'.
 This option has 'kill-buffer' call 'quit-restore-window' to handle the
 further destiny of any window showing the buffer to be killed.
@@ -248,6 +253,12 @@ behavior to try to split vertically first.
 *** New function 'frame-deletable-p'.
 Calling this function before 'delete-frame' is useful to avoid that the
 latter throws an error when the argument FRAME cannot be deleted.
+
++++
+*** New value 'force' for option `frame-inhibit-implied-resize'.
+This will inhibit implied resizing while a new frame is made and can be
+useful on tiling window managers where the initial frame size should be
+specified by external means.
 
 ** Tab Bars and Tab Lines
 
@@ -1279,6 +1290,15 @@ Major-mode authors can customize the variables
 'yank-media-autoselect-function' and/or 'yank-media-preferred-types' to
 change the selection rules.
 
+** Miscellaneous
+
+---
+*** cdl.el is now obsolete.
+Use 'shell-command' and 'shell-command-on-region' instead.
+
+---
+*** kermit.el is now obsolete.
+
 
 * New Modes and Packages in Emacs 31.1
 
@@ -1363,7 +1383,7 @@ change it globally with:
     (set-default-toplevel-value 'lexical-binding t)
 
 +++
-*** New functions 'incf' and 'decf'.
+*** New macros 'incf' and 'decf'.
 They increment or decrement the value stored in a variable (a symbol),
 or in a generalized variable.
 
