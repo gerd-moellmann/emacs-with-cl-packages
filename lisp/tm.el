@@ -1248,11 +1248,6 @@ KEY is a string determining what menu to look for."
     (slot-value open 'invoking-item)))
 
 (defun tm--open-sub-menus-on-selection (previous selected)
-  ;; (message "sel %S -> %S"
-  ;;          (when previous
-  ;;            (slot-value previous 'name))
-  ;;          (when selected
-  ;;            (slot-value selected 'name)))
   (let ((prev (and previous (tm--binding-type previous)))
         (sel (and selected (tm--binding-type selected))))
     (pcase-exhaustive (cons prev sel)
@@ -1370,8 +1365,7 @@ KEYMAP is a menu keymap, and WHERE specifies where to open the menu."
 
 (cl-defun tm--popup-menu (position menu)
   "This is the replacement for `x-popup-menu'.
-It is installed as `x-popup-menu-function' when using
-`tm-mode'."
+It is installed as `x-popup-menu-function' when using `tm-mode'."
   (when-let* ((where (tm--position position)))
     (cl-destructuring-bind (menu-updating-frame _ _) where
       (let ((tm--updating-buffer (current-buffer)))
@@ -1395,10 +1389,10 @@ It is installed as `x-popup-menu-function' when using
 	      (t (error "Not a menu: %S" menu)))))))
 
 (defun tm--around-mouse-set-point (old-fun &rest args)
-  "Around advice for `mouse-set-point',
+  "Around-advice for `mouse-set-point',
 A mouse-click in a menu can lead to one or more frames for menu panes
 being deleted. Somehow, such a click event survives the frame deletions,
-and lands in mouse-set-point with the event containing a window on such
+and lands in 'mouse-set-point' with the event containing a window on such
 a deleted frame. I couldn't find the reason for that.  So this is an
 advice added to handle that."
   (let* ((event (car args))
@@ -1407,8 +1401,8 @@ advice added to handle that."
       (apply old-fun args))))
 
 (defun tm--around-popup-menu (old-fun &rest args)
-  "Around advice for `popup-menu'.
-This around advice for `popup-menu' binds `tm--from-menu-bar' to
+  "Around-advice for `popup-menu'.
+This around-advice for `popup-menu' binds `tm--from-menu-bar' to
 (X . Y) in the menu-bar when invoked for a menu-bar menu, and nil
 otherwise. This makes it possible to behave differently for menus in
 the menu-bar and others."
@@ -1419,7 +1413,7 @@ the menu-bar and others."
     (apply old-fun args)))
 
 (defun tm--around-frame-list (old-fun &rest args)
-  "Around advice for `frame-list'.
+  "Around-advice for `frame-list'.
 This removes frames used for menus from the result value."
   (cl-remove-if (lambda (f)
                   (let ((name (frame-parameter f 'name)))
