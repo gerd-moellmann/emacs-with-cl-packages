@@ -112,6 +112,7 @@
 ;;; Code:
 
 (require 'cl-lib)
+;; Required for with emacs -Q, adding autoloads doesn't cut it.
 (require 'eieio)
 
 (defgroup tm nil
@@ -119,13 +120,21 @@
   :group 'menu)
 
 (defface tm-face
-  '((t :inherit menu))
+  '((((class color) (min-colors 1000000))
+     :background "#221920" :foreground "#d0d0d0")
+    (((class color) (min-colors 256))
+     :background "#212121" :foreground "while")
+    (t :background "white"))
   "Face for TTY menus."
   :group 'tm
   :version "31.1")
 
 (defface tm-face-selected
-  '((t :inherit tm-face :background "#1f2f3f"))
+  '((((class color) (min-colors 1000000) (background dark))
+     :inherit tm-face :background "#1f2f3f")
+    (((class color) (min-colors 256) (background dark))
+     :inherit tm-face :background "#00007f")
+    (t :inherit tm-face :foreground "black" :background "white"))
   "Face for selected menu items."
   :group 'tm
   :version "31.1")
@@ -137,7 +146,11 @@
   :version "31.1")
 
 (defface tm-face-disabled
-  '((t :inherit tm-face :foreground "gray5"))
+  '((((class color) (min-colors 1000000) (background dark))
+     :inherit tm-face :foreground "grey5")
+    (((class color) (min-colors 256) (background dark))
+     :inherit tm-face :foreground "#5f5f5f")
+    (t :inherit tm-face :foreground "gray5"))
   "Face for disabled menu items."
   :group 'tm
   :version "31.1")
