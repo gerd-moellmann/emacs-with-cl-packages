@@ -1265,7 +1265,17 @@ KEY is a string determining what menu to look for."
               (open (slot-value pane 'child-pane)))
     (slot-value open 'invoking-item)))
 
-(defun tm--open-sub-menus-on-selection (previous selected)
+(defun tm--open/close-menu-on-selection (previous selected)
+  "Open or close a sub-menu on selection.
+
+PREVIOUS is the previously selected menu-item, SELECTED is the currently
+selected menu-item.  This function either returns normally, in which
+case nothing has to be done, or it throws `tm--leave' with a value.
+Throwing `tm-leave' leaves the innermost command loop.
+
+If the value thrown is (SELECTED . key), this means to open the sub-menu
+of SELECTED.  If the value thrown is `close-sub-menu' this means to
+close a previously open sub-menu."
   (let ((prev (and previous (tm--binding-type previous)))
         (sel (and selected (tm--binding-type selected))))
     (pcase-exhaustive (cons prev sel)
@@ -1302,63 +1312,84 @@ KEY is a string determining what menu to look for."
        (throw 'tm-leave (cons selected 'key))))))
 
 (defun tm--command-loop ()
+  "Innermost command loop.
+This reads events with `read-key-sequence' until something uses `throw'
+to leave the loop."
   (catch 'tm-leave
     (let ((previous-selected (tm--selected-item)))
       (while t
+        ;; Open or close sub-menus on selection change.  This throws out
+        ;; of this loop if needed to open or close a sub-menu.
         (let* ((selected (tm--selected-item)))
           (unless (eq selected previous-selected)
-            (tm--open-sub-menus-on-selection previous-selected selected)
+            (tm--open/close-menu-on-selection previous-selected selected)
             (setq previous-selected selected)))
 
         (let* ((track-mouse t)
 	       (key (read-key-sequence nil))
 	       (cmd (lookup-key tm-keymap key)))
-          ;; Entering a character that is self-inserting
-          ;; in global-map searches for a menu-item
-          ;; beginning with that character.
+          ;; Entering a character that is self-inserting in global-map
+          ;; searches for a menu-item beginning with that character.
           (when-let* (((not (tm--command-p cmd)))
                       (cmd (lookup-key global-map key))
                       ((eq cmd 'self-insert-command)))
             (tm--select-item-by-name))
-          ;; Otherwise execute a command, if any.
-          ;; This is for toggling buttons, moving on
-          ;; the menu and so on.
+          ;; Otherwise execute a command, if any.  This is for toggling
+          ;; buttons, moving on the menu and so on.
 	  (when (tm--command-p cmd)
 	    (call-interactively cmd)))))))
 
 (defun tm--after-command-loop (res frame)
+  "Perform actions after `tm--command-loop' has been left.
+RES is what `tm--command-loop' returned.  FRAME is current menu frame
+being used.  Value is the menu frame to use in the future. "
   (let ((use-frame frame))
     (pcase-exhaustive res
+      ;; (SELECTED . HOW) - we want to open the sub-menu of SELECTED
+      ;; if not already open, or we want to activate it.
       (`(,selected . ,(and (pred symbolp) how))
        (with-slots (binding) selected
          (cond
           ((keymapp binding)
-           ;;(message "  open %S" (slot-value selected 'name))
            (let ((open (tm--open-on-pane selected)))
              (cond
+              ;; Is already open -> set the focus to it.
               ((eq open selected)
                (select-frame-set-input-focus frame))
+              ;; Not open -> open it and process events recursively.
               ((null open)
 	       (tm--loop-1 binding
-                                (tm--where selected how)
-                                :invoking-item selected
-                                :focus nil))
+                           (tm--where selected how)
+                           :invoking-item selected
+                           :focus nil))
+              ;; We are on the same level.  Close our current menu, and
+              ;; replace it with the new one.
               (t
                (tm--delete frame)
-               (setq use-frame
-                     (tm--create-frame
-                      binding
-                      (tm--where selected how)
-                      selected))))))
+               (setq use-frame (tm--create-frame
+                                binding
+                                (tm--where selected how)
+                                selected))))))
+
+          ;; We want to close the current menu.
           (t (throw 'tm-item-close selected)))))
+
+      ;; close-sub-menu - we want to close a currently open sub-menu.
       (`close-sub-menu
        (when-let* ((child (slot-value tm--pane-drawn 'child-pane)))
          (tm--delete child)))
+
+      ;; We want to close the current menu.
       ('nil
        (throw 'tm-item-close nil)))
     use-frame))
 
 (cl-defun tm--loop-1 (keymap where &key invoking-item (focus t))
+  "Second level of the event loop.
+KEYMAP is the keymap to open as a menu. WHERE is where on the display to
+open the menu. INVOKING-ITEM, if non-nil is a menu item for which to
+display a sub-menu.  FOCUS non-nil means to set the input focus to the
+new menu."
   (let ((frame (tm--create-frame keymap where invoking-item)))
     (unwind-protect
         (catch 'tm-item-close
