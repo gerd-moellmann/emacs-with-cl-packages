@@ -1470,7 +1470,9 @@ This removes frames used for menus from the result value."
                 (apply old-fun args)))
 
 (defvar tm--yank-menu-index 0)
-(defvar tm--yank-menu-keys "1234567890abcdefghijklmnopqrstuvwxyz")
+(defcustom tm--yank-menu-keys "1234567890abcdefghijklmnopqrstuvwxyz"
+  "Characters to use for yank menu entries."
+  :type 'string)
 
 (defun tm--around-menu-bar-update-yank-menu (old-fun &rest args)
   "Around-advice for `menu-bar-update-yank-menu'.
