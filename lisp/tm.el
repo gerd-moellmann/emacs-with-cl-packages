@@ -1469,12 +1469,21 @@ This removes frames used for menus from the result value."
                     (string-prefix-p tm--buffer-name-prefix name)))
                 (apply old-fun args)))
 
+(defvar tm--yank-menu-index 0)
+(defvar tm--yank-menu-keys "1234567890abcdefghijklmnopqrstuvwxyz")
+
 (defun tm--around-menu-bar-update-yank-menu (old-fun &rest args)
   "Around-advice for `menu-bar-update-yank-menu'.
 Display that a little bit nicer."
   (cl-destructuring-bind (string old) args
     (when (string-match "\n" string)
       (setq string (string-replace "\n" "\\n" string)))
+    (setq string (format "%c: %s" (aref tm--yank-menu-keys
+                                        tm--yank-menu-index)
+                         string))
+    (setq tm--yank-menu-index
+          (mod (1+ tm--yank-menu-index)
+               (length tm--yank-menu-keys)))
     (funcall old-fun string old)))
 
 (defun tm-buffer-menu-open ()
