@@ -3902,7 +3902,7 @@ arena_step (void)
 	    interval = 0.05;
 	}
 
-      if (mps_arena_step (global_igc->arena, interval, 0))
+      if (mps_arena_step (global_igc->arena, interval, 1.0))
 	return true;
     }
 
