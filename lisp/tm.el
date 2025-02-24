@@ -1469,6 +1469,14 @@ This removes frames used for menus from the result value."
                     (string-prefix-p tm--buffer-name-prefix name)))
                 (apply old-fun args)))
 
+(defun tm--around-menu-bar-update-yank-menu (old-fun &rest args)
+  "Around-advice for `menu-bar-update-yank-menu'.
+Display that a little bit nicer."
+  (cl-destructuring-bind (string old) args
+    (when (string-match "\n" string)
+      (setq string (string-replace "\n" "\\n" string)))
+    (funcall old-fun string old)))
+
 (defun tm-buffer-menu-open ()
   "Override for `buffer-menu-open'.
 Opens the menu at point instead of at (0, 0)."
@@ -1484,12 +1492,16 @@ the start."
   :global t :group 'menu
   (unless (display-graphic-p)
     (cond (tm-menu-mode
+           (advice-add 'menu-bar-update-yank-menu :around
+                       #'tm--around-menu-bar-update-yank-menu)
            (advice-add 'buffer-menu-open :override #'tm-buffer-menu-open)
            (advice-add 'mouse-set-point :around #'tm--around-mouse-set-point)
            (advice-add 'popup-menu :around #'tm--around-popup-menu)
            (advice-add 'frame-list :around #'tm--around-frame-list)
            (setq x-popup-menu-function #'tm--popup-menu))
           (t
+           (advice-remove 'menu-bar-update-yank-menu
+                          #'tm--around-menu-bar-update-yank-menu)
            (advice-remove 'buffer-menu-open #'tm-buffer-menu-open)
            (advice-remove 'mouse-set-point #'tm--around-mouse-set-point)
            (advice-remove 'popup-menu #'tm--around-popup-menu)
