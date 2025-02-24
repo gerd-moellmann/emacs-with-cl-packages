@@ -64,6 +64,13 @@ b mps_lib_assert_fail
 b emacs_abort
 b die
 
+# Print with children provider, depth 2.
+command alias xprint frame variable -P 2
+
+# For tty Emacs
+process handle SIGWINCH --pass true --stop false --notify false
+process handle SIGINT --pass true --stop false --notify false
+
 #watchpoint set expression --size 8 --watch write -- (char*) pkg->symbols
 
 # To find out from where macOS prints stuff to stderr, like
