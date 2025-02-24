@@ -855,9 +855,6 @@ as needed."
 
 (defun tm--create-frame (keymap where invoking-item)
   (cl-destructuring-bind (parent-frame x y) where
-    ;; We want to show the menu using a root frame as parent because
-    ;; that doesn't clip the frame. Means that we have to translate
-    ;; coordinates to absolute.
     (when (frame-parent parent-frame)
       (cl-destructuring-bind (ax . ay)
 	  (tm--frame-absolute-position parent-frame x y)
