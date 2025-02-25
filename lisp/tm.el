@@ -673,6 +673,9 @@ element constructed."
                                     (cl-list*  :pane pane
                                                :key-code code props)))))
     (pcase-exhaustive item
+      ;; NIL -> ignore
+      ('nil)
+
       ;; Code = remap with item for example (keymap (FROM . TO))
       ((guard (eq code 'remap)))
 
