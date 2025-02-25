@@ -988,43 +988,46 @@ as needed."
             (setq prev nil))
         (setq prev (slot-value prev 'prev-item))))))
 
-(cl-defstruct tm--bar-menu
-  name code cmd x0 x1)
+(cl-defstruct (tm--bar-menu
+               (:constructor nil)
+               (:constructor tm--make-bar-menu (name key cmd)))
+  name key cmd x0 x1)
+
+(defun tm--bar-info-2 ()
+  "Get keys and bindings of the menu-bar.
+Value is a list of (KEY . BINDING) where duplicate keys and definitions
+to `undefined' have been removed.  See function `menu_bar_item' in C why
+that is done."
+  (cl-loop with keys-seen = () and result = ()
+           for key being the key-codes of (menu-bar-keymap)
+           using (key-bindings binding) do
+           (if (eq binding 'undefined)
+               (setq result (cl-remove key result :key #'car))
+             (unless (memq key keys-seen)
+               (push (cons key binding) result)))
+           finally return (nreverse result)))
 
 (defun tm--bar-info-1 ()
   "Compute the layout of the menu-bar of buffer BUFFER.
-Value is a list of (KEY-CODE KEYMAP X0 X1 NAME) where KEY-CODE Is the
-KEY-CODE of the menu-item, e.g. `edit', and KEYMAP is the associated
-menu keymap. X0 and X1 are the start end end column of the menu-item.
-NAME is the menu name."
+Value is a list of `tm--bar-menu' structures containing the needed info."
   (with-current-buffer tm--updating-buffer
-    (when-let* ((menu-bar (menu-bar-keymap)))
+    (when-let* ((menu-bar (tm--bar-info-2)))
       (cl-loop
-       with layout = () and keys = ()
-       for code being the key-codes of menu-bar
-       using (key-bindings binding)
-       do
-       ;; See function menu_item in keyboard.c for why this is done.
-       (unless (memq code keys)
-         (push code keys)
-         (when (eq binding 'undefined)
-           (setq layout
-                 (cl-remove-if (lambda (m)
-                                 (eq code (tm--bar-menu-code m)))
-                               layout)))
-         ;; This is something like ("Edit" . KEYMAP)
-         (pcase binding
-           ((or `(,(and (pred stringp) name) . ,cmd)
-                `(menu-item
-                  ,name ,cmd
-                  . ,(and props
-                          (guard (let ((visible (plist-get props :visible)))
-                                   (or (null visible) (eval visible)))))))
-            (push (make-tm--bar-menu :code code :cmd cmd :name name)
-                  layout))))
+       with layout = ()
+       for (key . binding) in menu-bar do
+       (pcase binding
+         ((or `(,(and (pred stringp) name) . ,cmd)
+              `(menu-item
+                ,name ,cmd
+                . ,(and props
+                        (guard (let ((visible (plist-get props :visible)))
+                                 (or (null visible) (eval visible)))))))
+          (push (tm--make-bar-menu name key cmd) layout)))
        finally return (nreverse layout)))))
 
 (defun tm--bar-info ()
+  "Compute the layout of the menu-bar of buffer BUFFER.
+Value is a list of `tm--bar-menu' structures containing the needed info."
   (let ((info (tm--bar-info-1))
         (column 0))
     (dolist (i info info)
