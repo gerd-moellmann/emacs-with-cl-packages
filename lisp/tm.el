@@ -918,12 +918,16 @@ as needed."
       ;; Set current buffer so that we compute things with the right
       ;; menu-bar for that buffer.
       (with-current-buffer tm--updating-buffer
-        (when-let* ((new (menu-bar-menu-at-x-y x y menu-updating-frame))
-                  (old (menu-bar-menu-at-x-y (car tm--from-menu-bar)
-                                             (cdr tm--from-menu-bar)
-                                             menu-updating-frame))
-                  ((and new (not (eq old new))))
-                  (start-x (cdr (menu-bar-item-at-x x))))
+        ;; For a strange reason which I could not find out yet,
+        ;; `menu-updating-frame' is not set right in daemon mode, so
+        ;; I'm using the root frame of the selected frame instead.
+        ;; It is still right in `tm--popup-menu'.
+        (when-let* ((new (menu-bar-menu-at-x-y x y (frame-root-frame)))
+                    (old (menu-bar-menu-at-x-y (car tm--from-menu-bar)
+                                               (cdr tm--from-menu-bar)
+                                               (frame-root-frame)))
+                    ((and new (not (eq old new))))
+                    (start-x (cdr (menu-bar-item-at-x x))))
           (setq tm--from-menu-bar (posn-x-y (event-end event)))
           (throw 'tm-to-top-level `(menu-bar ,start-x ,y))))))
 
