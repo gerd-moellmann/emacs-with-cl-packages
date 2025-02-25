@@ -1243,7 +1243,8 @@ KEY is a string determining what menu to look for."
               (menu-bar (tm--bar-info))
               (start (cl-position-if
                       (lambda (m)
-                        (= (tm--bar-menu-x0 m) (car pos)))
+                        (and (>= (tm--bar-menu-x0 m) (car pos))
+                             (< (car pos) (tm--bar-menu-x1 m))))
                       menu-bar)))
     (cl-loop with n = (length menu-bar)
              repeat n
