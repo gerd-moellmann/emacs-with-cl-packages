@@ -243,7 +243,8 @@ automatically)."
   ;; those entries can be simplified, but we keep them for when
   ;; `eglot.el' is installed via GNU ELPA in an older Emacs.
   `(((rust-ts-mode rust-mode) . ("rust-analyzer"))
-    ((cmake-mode cmake-ts-mode) . ("cmake-language-server"))
+    ((cmake-mode cmake-ts-mode)
+     . ,(eglot-alternatives '(("neocmakelsp" "cmake-language-server"))))
     (vimrc-mode . ("vim-language-server" "--stdio"))
     ((python-mode python-ts-mode)
      . ,(eglot-alternatives
@@ -880,7 +881,7 @@ Honor `eglot-strict-mode'."
   "Function of args CL-LAMBDA-LIST for processing INTERFACE objects.
 Honor `eglot-strict-mode'."
   (declare (indent 1) (debug (sexp &rest form)))
-  (let ((e (cl-gensym "jsonrpc-lambda-elem")))
+  (let ((e (gensym "jsonrpc-lambda-elem")))
     `(lambda (,e) (cl-block nil (eglot--dbind ,cl-lambda-list ,e ,@body)))))
 
 (cl-defmacro eglot--dcase (obj &rest clauses)
@@ -926,12 +927,12 @@ treated as in `eglot--dbind'."
 
 (cl-defmacro eglot--when-live-buffer (buf &rest body)
   "Check BUF live, then do BODY in it." (declare (indent 1) (debug t))
-  (let ((b (cl-gensym)))
+  (let ((b (gensym)))
     `(let ((,b ,buf)) (if (buffer-live-p ,b) (with-current-buffer ,b ,@body)))))
 
 (cl-defmacro eglot--when-buffer-window (buf &body body)
   "Check BUF showing somewhere, then do BODY in it." (declare (indent 1) (debug t))
-  (let ((b (cl-gensym)))
+  (let ((b (gensym)))
     `(let ((,b ,buf))
        ;;notice the exception when testing with `ert'
        (when (or (get-buffer-window ,b) (ert-running-test))
@@ -1831,6 +1832,62 @@ Unless IMMEDIATE, send pending changes before making request."
                             (jsonrpc-notify server '$/cancelRequest `(:id ,id))))
                          (cancel-on-input))
                    :cancel-on-input-retval cancel-on-input-retval))
+
+(defvar-local eglot--inflight-async-requests nil
+  "An plist of symbols to lists of JSONRPC ids.
+The ids designate in-flight asynchronous requests that may be cancelled
+according to `eglot-advertise-cancellation'.")
+
+(cl-defun eglot--cancel-inflight-async-requests
+    (&optional (hints '(:textDocument/signatureHelp
+                        :textDocument/hover
+                        :textDocument/documentHighlight
+                        :textDocument/codeAction)))
+  (when-let* ((server (and hints
+                           eglot-advertise-cancellation
+                           (eglot-current-server))))
+    (dolist (hint hints)
+      (dolist (id (plist-get eglot--inflight-async-requests hint))
+        ;; FIXME: in theory, as `jsonrpc-async-request' explains, this
+        ;; request may never have been sent at all.  But that's rare, and
+        ;; it's only a problem if the server borks on cancellation of
+        ;; never-sent requests.
+        (jsonrpc-notify server '$/cancelRequest `(:id ,id)))
+      (cl-remf eglot--inflight-async-requests hint))))
+
+(cl-defun eglot--async-request (server
+                                method
+                                params
+                                &key
+                                (success-fn nil success-fn-supplied-p)
+                                (error-fn nil error-fn-supplied-p)
+                                (timeout-fn nil timeout-fn-supplied-p)
+                                (timeout nil timeout-supplied-p)
+                                hint
+                                &aux moreargs)
+  "Like `jsonrpc-async-request', but for Eglot LSP requests.
+HINT argument is a symbol passed as DEFERRED to `jsonrpc-async-request'
+and also used as a hint of the request cancellation mechanism (see
+`eglot-advertise-cancellation')."
+  (cl-labels ((clearing-fn (fn)
+                (lambda (&rest args)
+                  (when fn (apply fn args))
+                  (cl-remf eglot--inflight-async-requests hint))))
+    (eglot--cancel-inflight-async-requests (list hint))
+    (when timeout-supplied-p
+      (setq moreargs (nconc `(:timeout ,timeout) moreargs)))
+    (when hint
+      (setq moreargs (nconc `(:deferred ,hint) moreargs)))
+    (let ((id
+           (car (apply #'jsonrpc-async-request
+                       server method params
+                       :success-fn (clearing-fn success-fn)
+                       :error-fn (clearing-fn error-fn)
+                       :timeout-fn (clearing-fn timeout-fn)
+                       moreargs))))
+      (when (and hint eglot-advertise-cancellation)
+        (push id
+              (plist-get eglot--inflight-async-requests hint))))))
 
 
 ;;; Encoding fever
@@ -2799,8 +2856,9 @@ buffer."
   "Cache of `workspace/Symbol' results  used by `xref-find-definitions'.")
 
 (defun eglot--pre-command-hook ()
-  "Reset some temporary variables."
+  "Reset some state."
   (clrhash eglot--workspace-symbols-cache)
+  (eglot--cancel-inflight-async-requests)
   (setq eglot--last-inserted-char nil))
 
 (defun eglot--CompletionParams ()
@@ -3084,7 +3142,7 @@ may be called multiple times (respecting the protocol of
 (cl-defmacro eglot--collecting-xrefs ((collector) &rest body)
   "Sort and handle xrefs collected with COLLECTOR in BODY."
   (declare (indent 1) (debug (sexp &rest form)))
-  (let ((collected (cl-gensym "collected")))
+  (let ((collected (gensym "collected")))
     `(unwind-protect
          (let (,collected)
            (cl-flet ((,collector (xref) (push xref ,collected)))
@@ -3644,7 +3702,7 @@ for which LSP on-type-formatting should be requested."
   "A member of `eldoc-documentation-functions', for signatures."
   (when (eglot-server-capable :signatureHelpProvider)
     (let ((buf (current-buffer)))
-      (jsonrpc-async-request
+      (eglot--async-request
        (eglot--current-server-or-lose)
        :textDocument/signatureHelp (eglot--TextDocumentPositionParams)
        :success-fn
@@ -3661,14 +3719,14 @@ for which LSP on-type-formatting should be requested."
                                                  nil))
                               signatures "\n")
                 :echo (eglot--sig-info active-sig activeParameter t))))))
-       :deferred :textDocument/signatureHelp))
+       :hint :textDocument/signatureHelp))
     t))
 
 (defun eglot-hover-eldoc-function (cb &rest _ignored)
   "A member of `eldoc-documentation-functions', for hover."
   (when (eglot-server-capable :hoverProvider)
     (let ((buf (current-buffer)))
-      (jsonrpc-async-request
+      (eglot--async-request
        (eglot--current-server-or-lose)
        :textDocument/hover (eglot--TextDocumentPositionParams)
        :success-fn (eglot--lambda ((Hover) contents range)
@@ -3677,7 +3735,7 @@ for which LSP on-type-formatting should be requested."
                                      (eglot--hover-info contents range))))
                          (funcall cb info
                                   :echo (and info (string-match "\n" info))))))
-       :deferred :textDocument/hover))
+       :hint :textDocument/hover))
     t))
 
 (defun eglot-highlight-eldoc-function (_cb &rest _ignored)
@@ -3687,7 +3745,7 @@ for which LSP on-type-formatting should be requested."
   ;; ignore cb and return nil to say "no doc".
   (when (eglot-server-capable :documentHighlightProvider)
     (let ((buf (current-buffer)))
-      (jsonrpc-async-request
+      (eglot--async-request
        (eglot--current-server-or-lose)
        :textDocument/documentHighlight (eglot--TextDocumentPositionParams)
        :success-fn
@@ -3705,7 +3763,7 @@ for which LSP on-type-formatting should be requested."
                                      `(,(lambda (o &rest _) (delete-overlay o))))
                         ov)))
                   highlights))))
-       :deferred :textDocument/documentHighlight)
+       :hint :textDocument/documentHighlight)
       nil)))
 
 (defun eglot--imenu-SymbolInformation (res)
@@ -4031,7 +4089,7 @@ at point.  With prefix argument, prompt for ACTION-KIND."
           (bounds (eglot--code-action-bounds))
           (use-text-p (memq 'eldoc-hint eglot-code-action-indications))
           tooltip blurb)
-      (jsonrpc-async-request
+      (eglot--async-request
        (eglot--current-server-or-lose)
        :textDocument/codeAction
        (eglot--code-action-params :beg (car bounds) :end (cadr bounds)
@@ -4071,7 +4129,7 @@ at point.  With prefix argument, prompt for ACTION-KIND."
                                        ,tooltip)))))
                  (setq eglot--suggestion-overlay ov)))))
          (when use-text-p (funcall cb blurb)))
-       :deferred :textDocument/codeAction)
+       :hint :textDocument/codeAction)
       (and use-text-p t))))
 
 
@@ -4163,7 +4221,7 @@ at point.  With prefix argument, prompt for ACTION-KIND."
      collect (cl-loop
               for (_token regexp emitter) in grammar
               thereis (and (re-search-forward (concat "\\=" regexp) nil t)
-                           (list (cl-gensym "state-") emitter (match-string 0)))
+                           (list (gensym "state-") emitter (match-string 0)))
               finally (error "Glob '%s' invalid at %s" (buffer-string) (point))))))
 
 (cl-defun eglot--glob-fsm (states &key (exit 'eobp) noerror)

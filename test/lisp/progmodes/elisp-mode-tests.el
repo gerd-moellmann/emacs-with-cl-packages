@@ -1051,7 +1051,7 @@ evaluation of BODY."
 
 (ert-deftest elisp-shorthand-read-buffer ()
   :expected-result (if (featurep 'symbol-packages) :failed :passed)
-  (let* ((gsym (downcase (symbol-name (cl-gensym "sh-"))))
+  (let* ((gsym (downcase (symbol-name (gensym "sh-"))))
          (shorthand-sname (format "s-%s" gsym))
          (expected (intern (format "shorthand-longhand-%s" gsym))))
     (cl-assert (not (intern-soft shorthand-sname)))
@@ -1066,7 +1066,7 @@ evaluation of BODY."
 
 (ert-deftest elisp-shorthand-read-from-string ()
   :expected-result (if (featurep 'symbol-packages) :failed :passed)
-  (let* ((gsym (downcase (symbol-name (cl-gensym "sh-"))))
+  (let* ((gsym (downcase (symbol-name (gensym "sh-"))))
          (shorthand-sname (format "s-%s" gsym))
          (expected (intern (format "shorthand-longhand-%s" gsym))))
     (cl-assert (not (intern-soft shorthand-sname)))
