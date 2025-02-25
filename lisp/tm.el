@@ -1000,23 +1000,29 @@ NAME is the menu name."
   (with-current-buffer tm--updating-buffer
     (when-let* ((menu-bar (menu-bar-keymap)))
       (cl-loop
-       with column = 0 and layout = nil
+       with column = 0 and layout = () and keys = ()
        for code being the key-codes of menu-bar
-       using (key-bindings binding) do
-       ;; This is something like ("Edit" . KEYMAP)
-       (pcase binding
-         ((or `(,(and (pred stringp) name) . ,cmd)
-              `(menu-item
-                ,name ,cmd
-                . ,(and props
-                        (guard (let ((visible (plist-get props :visible)))
-                                 (or (null visible) (eval visible)))))))
-          (let ((start-column column))
-            (incf column (1+ (length name)))
-            (push (make-tm--bar-menu
-                   :code code :cmd cmd :x0 start-column :x1 column
-                   :name name)
-                  layout))))
+       using (key-bindings binding)
+       do
+       ;; See function menu_item in keyboard.c. This should actually
+       ;; remove all existing items for `code' if binding is
+       ;; `undefined'.
+       (unless (memq code keys)
+         (push code keys)
+         ;; This is something like ("Edit" . KEYMAP)
+         (pcase binding
+           ((or `(,(and (pred stringp) name) . ,cmd)
+                `(menu-item
+                  ,name ,cmd
+                  . ,(and props
+                          (guard (let ((visible (plist-get props :visible)))
+                                   (or (null visible) (eval visible)))))))
+            (let ((start-column column))
+              (incf column (1+ (length name)))
+              (push (make-tm--bar-menu
+                     :code code :cmd cmd :x0 start-column :x1 column
+                     :name name)
+                    layout)))))
        finally return (nreverse layout)))))
 
 (defun tm--bar-find-pane (menu-bar pane)
@@ -1350,7 +1356,9 @@ being used.  Value is the menu frame to use in the future. "
           ((keymapp binding)
            (let ((open (tm--open-on-pane selected)))
              (cond
-              ;; Is already open -> set the focus to it.
+              ;; Is already open -> set the focus to it.  FIXME:
+              ;; if it lands on a menu-item that has a sub-menu,
+              ;; open that sub-menu.
               ((eq open selected)
                (select-frame-set-input-focus frame))
               ;; Not open -> open it and process events recursively.
