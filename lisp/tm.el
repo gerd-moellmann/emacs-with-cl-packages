@@ -110,6 +110,7 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'mwheel)
 ;; Required for with emacs -Q, adding autoloads doesn't cut it.
 (require 'eieio)
 
