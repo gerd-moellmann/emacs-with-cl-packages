@@ -1005,6 +1005,7 @@ that is done."
                (setq result (cl-remove key result :key #'car))
              (unless (memq key keys-seen)
                (push (cons key binding) result)))
+           (push key keys-seen)
            finally return (nreverse result)))
 
 (defun tm--bar-info-1 ()
