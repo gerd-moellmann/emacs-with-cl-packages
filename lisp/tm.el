@@ -685,39 +685,43 @@ element constructed."
 
       ;; (menu-item SEPARATOR-NAME ...)
       (`(menu-item ,(and (pred separator?) name) ,_ . ,props)
-      (make 'tm-separator (cl-list* :name name props)))
+       (make 'tm-separator (cl-list* :name name props)))
 
-     ;; (menu-item NAME)
-     (`(menu-item ,name)
-      (make 'tm-item (list :name name :enable nil)))
+      ;; (menu-item SEPARATOR-NAME ...)
+      (`(menu-item ,(and (pred separator?) name))
+       (make 'tm-separator (list :name name)))
 
-     ;; (menu-item NAME BINDING ... :button (:radio ...) ...)
-     (`(menu-item ,name ,binding . ,(and (pred radio?) props))
-      (make 'tm-radio (cl-list* :name name :binding binding props)))
+      ;; (menu-item NAME)
+      (`(menu-item ,name)
+       (make 'tm-item (list :name name :enable nil)))
 
-     ;; (menu-item NAME BINDING ... :button (:toggle ...) ...)
-     (`(menu-item ,name ,binding . ,(and (pred toggle?) props))
-      (make 'tm-checkbox (cl-list* :name name :binding binding props)))
+      ;; (menu-item NAME BINDING ... :button (:radio ...) ...)
+      (`(menu-item ,name ,binding . ,(and (pred radio?) props))
+       (make 'tm-radio (cl-list* :name name :binding binding props)))
 
-     ;; (menu-item NAME BINDING ...)
-     (`(menu-item ,name ,binding . ,props)
-      (make 'tm-item (cl-list* :name name :binding binding props)))
+      ;; (menu-item NAME BINDING ... :button (:toggle ...) ...)
+      (`(menu-item ,name ,binding . ,(and (pred toggle?) props))
+       (make 'tm-checkbox (cl-list* :name name :binding binding props)))
 
-     ;; (SEPARATOR-NAME ...)
-     (`(,(and (pred separator?) name) . ,_)
-      (make 'tm-separator (list :name name)))
+      ;; (menu-item NAME BINDING ...)
+      (`(menu-item ,name ,binding . ,props)
+       (make 'tm-item (cl-list* :name name :binding binding props)))
 
-     ;; (NAME KEYMAP)
-     (`(,name ,(and (pred keymapp) keymap))
-      (make 'tm-item (list :name name :binding keymap)))
+      ;; (SEPARATOR-NAME ...)
+      (`(,(and (pred separator?) name) . ,_)
+       (make 'tm-separator (list :name name)))
 
-     ;; (NAME HELP BINDING)
-     (`(,name ,help ,binding)
-      (make 'tm-item (list :name name :binding binding :help help)))
+      ;; (NAME KEYMAP)
+      (`(,name ,(and (pred keymapp) keymap))
+       (make 'tm-item (list :name name :binding keymap)))
 
-     ;; (NAME . BINDING)
-     (`(,name . ,binding)
-      (make 'tm-item (list :name name :binding binding))))))
+      ;; (NAME HELP BINDING)
+      (`(,name ,help ,binding)
+       (make 'tm-item (list :name name :binding binding :help help)))
+
+      ;; (NAME . BINDING)
+      (`(,name . ,binding)
+       (make 'tm-item (list :name name :binding binding))))))
 
 (defun tm--create-buffer (pane)
   "Create a buffer named BUFFER for DRAW to fill.
