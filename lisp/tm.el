@@ -905,6 +905,9 @@ as needed."
            while c
            when (eq c child) return t))
 
+(defvar tm--menu-updating-frame nil
+  "Dynamically bound to the frame updating a menu.")
+
 (defun tm-cmd-mouse-moved (event)
   "Handle mouse movement in a menu."
   (interactive "e")
@@ -918,14 +921,10 @@ as needed."
       ;; Set current buffer so that we compute things with the right
       ;; menu-bar for that buffer.
       (with-current-buffer tm--updating-buffer
-        ;; For a strange reason which I could not find out yet,
-        ;; `menu-updating-frame' is not set right in daemon mode, so
-        ;; I'm using the root frame of the selected frame instead.
-        ;; It is still right in `tm--popup-menu'.
-        (when-let* ((new (menu-bar-menu-at-x-y x y (frame-root-frame)))
+        (when-let* ((new (menu-bar-menu-at-x-y x y tm--menu-updating-frame))
                     (old (menu-bar-menu-at-x-y (car tm--from-menu-bar)
                                                (cdr tm--from-menu-bar)
-                                               (frame-root-frame)))
+                                               tm--menu-updating-frame))
                     ((and new (not (eq old new))))
                     (start-x (cdr (menu-bar-item-at-x x))))
           (setq tm--from-menu-bar (posn-x-y (event-end event)))
@@ -1440,7 +1439,7 @@ KEYMAP is a menu keymap, and WHERE specifies where to open the menu."
   "This is the replacement for `x-popup-menu'.
 It is installed as `x-popup-menu-function' when using `tm-mode'."
   (when-let* ((where (tm--position position)))
-    (cl-destructuring-bind (menu-updating-frame _ _) where
+    (cl-destructuring-bind (tm--menu-updating-frame _ _) where
       (let ((tm--updating-buffer (current-buffer)))
         (cond ((keymapp menu)
                ;; Run the event loop, and at the end, collect bindings
