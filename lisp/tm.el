@@ -991,7 +991,7 @@ as needed."
 (cl-defstruct tm--bar-menu
   name code cmd x0 x1)
 
-(defun tm--bar-info ()
+(defun tm--bar-info-1 ()
   "Compute the layout of the menu-bar of buffer BUFFER.
 Value is a list of (KEY-CODE KEYMAP X0 X1 NAME) where KEY-CODE Is the
 KEY-CODE of the menu-item, e.g. `edit', and KEYMAP is the associated
@@ -1000,15 +1000,18 @@ NAME is the menu name."
   (with-current-buffer tm--updating-buffer
     (when-let* ((menu-bar (menu-bar-keymap)))
       (cl-loop
-       with column = 0 and layout = () and keys = ()
+       with layout = () and keys = ()
        for code being the key-codes of menu-bar
        using (key-bindings binding)
        do
-       ;; See function menu_item in keyboard.c. This should actually
-       ;; remove all existing items for `code' if binding is
-       ;; `undefined'.
+       ;; See function menu_item in keyboard.c for why this is done.
        (unless (memq code keys)
          (push code keys)
+         (when (eq binding 'undefined)
+           (setq layout
+                 (cl-remove-if (lambda (m)
+                                 (eq code (tm--bar-menu-code m)))
+                               layout)))
          ;; This is something like ("Edit" . KEYMAP)
          (pcase binding
            ((or `(,(and (pred stringp) name) . ,cmd)
@@ -1017,13 +1020,17 @@ NAME is the menu name."
                   . ,(and props
                           (guard (let ((visible (plist-get props :visible)))
                                    (or (null visible) (eval visible)))))))
-            (let ((start-column column))
-              (incf column (1+ (length name)))
-              (push (make-tm--bar-menu
-                     :code code :cmd cmd :x0 start-column :x1 column
-                     :name name)
-                    layout)))))
+            (push (make-tm--bar-menu :code code :cmd cmd :name name)
+                  layout))))
        finally return (nreverse layout)))))
+
+(defun tm--bar-info ()
+  (let ((info (tm--bar-info-1))
+        (column 0))
+    (dolist (i info info)
+      (setf (tm--bar-menu-x0 i) column)
+      (incf column (1+ (length (tm--bar-menu-name i))))
+      (setf (tm--bar-menu-x1 i) column))))
 
 (defun tm--bar-find-pane (menu-bar pane)
   "Find PANE in the menu-bar MENU-BAR.
