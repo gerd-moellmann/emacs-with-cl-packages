@@ -614,6 +614,7 @@ corresponding columns of a menu item."
     (with-slots (overlay) pane
       (tm--set-overlay-face pane)
       (with-slots (draw-start draw-end) item
+        (goto-char draw-start)
         (move-overlay overlay draw-start draw-end)))))
 
 (cl-defgeneric tm--act (item how)
