@@ -1150,6 +1150,8 @@ and make us display that menu."
 
 (defvar-keymap tm-keymap
   :doc "Keymap for menu interaction."
+  "<wheel-up>" #'mwheel-scroll
+  "<wheel-down>" #'mwheel-scroll
   "<up>" #'tm-cmd-previous-item
   "<down>" #'tm-cmd-next-item
   "<left>" #'tm-cmd-close
