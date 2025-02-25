@@ -1236,11 +1236,14 @@ invocation takes place."
      (let* ((frame (tm--frame selected))
             (end (slot-value selected 'draw-end))
 	    (win (frame-root-window frame))
-            (posn (posn-at-point (1- end) win)))
-       (cl-destructuring-bind (x . y) (posn-x-y posn)
-         (list frame
-               (+ x tm-sub-menu-offset-x)
-               (+ y tm-sub-menu-offset-y)))))
+            (posn (posn-at-point (1- end) win))
+            (xy (posn-x-y posn)))
+       (if (null xy)
+           (list frame 0 0)
+         (cl-destructuring-bind (x . y) (posn-x-y posn)
+           (list frame
+                 (+ x tm-sub-menu-offset-x)
+                 (+ y tm-sub-menu-offset-y))))))
      (mouse
       (let* ((posn (posn-at-point (pos-eol)))
 	    (win (posn-window posn)))
