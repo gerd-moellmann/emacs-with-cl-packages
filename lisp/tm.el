@@ -487,6 +487,9 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
                    'tm-face-disabled)))
       (put-text-property (pos-bol) (pos-eol) 'face face))
     (when-let* ((help (slot-value item 'help)))
+      ;; No need to check for text properties of the help string
+      ;; help-echo is displayed "normally" like it would be in any other
+      ;; buffer.  This includes `help-echo-inhibit-substitution'.
       (put-text-property (pos-bol) (pos-eol) 'help-echo help)))
   ( :method ((_item tm-separator) _)
     (put-text-property (pos-bol) (pos-eol) 'face 'tm-face)))
