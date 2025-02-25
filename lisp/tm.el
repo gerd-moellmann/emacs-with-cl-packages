@@ -336,7 +336,8 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
 
 (defun tm--enabled-p (item)
   "Value is non-nil if ITEM is enabled."
-  (tm--eval (slot-value item 'enable)))
+  (or enable-disabled-menus-and-buttons
+      (tm--eval (slot-value item 'enable))))
 
 (defun tm--selectable-p (item)
   "Value is non-nil if ITEM is selectable by the user."
