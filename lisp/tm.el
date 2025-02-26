@@ -110,8 +110,8 @@
 ;;; Code:
 
 (require 'cl-lib)
-(require 'mwheel)
-;; Required for with emacs -Q, adding autoloads doesn't cut it.
+
+;; Required for emacs -Q, adding autoloads didn't suffice.
 (require 'eieio)
 
 (defgroup tm nil
@@ -1149,10 +1149,18 @@ and make us display that menu."
   (interactive "e")
   (throw 'tm-to-top-level nil))
 
+(defun tm-cmd-wheel-up (_e)
+  (interactive "e")
+  (tm-cmd-next-item))
+
+(defun tm-cmd-wheel-down (_e)
+  (interactive "e")
+  (tm-cmd-previous-item))
+
 (defvar-keymap tm-keymap
   :doc "Keymap for menu interaction."
-  "<wheel-up>" #'mwheel-scroll
-  "<wheel-down>" #'mwheel-scroll
+  "<wheel-up>" #'tm-cmd-wheel-up
+  "<wheel-down>" #'tm-cmd-wheel-down
   "<up>" #'tm-cmd-previous-item
   "<down>" #'tm-cmd-next-item
   "<left>" #'tm-cmd-close
