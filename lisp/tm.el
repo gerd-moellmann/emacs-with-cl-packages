@@ -504,17 +504,19 @@ RIGHT-BORDER), all elements giving the widths to use for the
 corresponding columns of a menu item."
   ( :method ((pane tm-pane))
     (with-slots (items layout) pane
-      (cl-loop
-       with left-border
-       = (string-width (format tm-left-border-format ""))
-       with right-border
-       = (string-width (format tm-right-border-format ""))
-       for i in items
-       maximize (string-width (tm-button-string i)) into button
-       maximize (string-width (tm--name-string i)) into name
-       maximize (string-width (tm--key-string i)) into key
-       finally (setq layout `(,left-border ,button ,name ,key
-                                           ,right-border))))))
+      ;; Menu items can be multiple lines.
+      (cl-flet ((width (s)
+                  (apply #'max (mapcar #'string-width
+                                       (string-lines s)))))
+        (cl-loop
+         with left-border = (width (format tm-left-border-format ""))
+         with right-border = (width (format tm-right-border-format ""))
+         for i in items
+         maximize (width (tm-button-string i)) into button
+         maximize (width (tm--name-string i)) into name
+         maximize (width (tm--key-string i)) into key
+         finally (setq layout `( ,left-border ,button ,name ,key
+                                 ,right-border)))))))
 
 (cl-defgeneric tm--frame (thing)
   "Value is the frame associated with THING."
