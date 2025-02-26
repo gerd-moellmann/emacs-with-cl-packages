@@ -313,8 +313,14 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
   "Format string for the name part of menu-items."
   :type 'string)
 
-(defcustom tm-triangle "▶"
+(defcustom tm-right-triangle "▶"
   "What to display as a sub-menu indicator."
+  :type 'string)
+(defcustom tm-up-triangle "▲"
+  "What to display as an up-scroll indicator."
+  :type 'string)
+(defcustom tm-down-triangle "▼"
+  "What to display as a down-scroll indicator."
   :type 'string)
 (defcustom tm-radio-on "●"
   "What to display for a radio button in on state."
@@ -421,7 +427,7 @@ If a menu-item's binding is a keymap with 0 elements, disable it."
                (substitute-command-keys s)
              "??")))
         ((null binding) "")
-	((keymapp binding) tm-triangle)
+	((keymapp binding) tm-right-triangle)
         (t (tm--key-description binding))))))
   ( :method ((_ tm-separator)) ""))
 
@@ -910,7 +916,9 @@ as needed."
             ;; Put an indicator that there is something to scroll.
             (when (< (frame-height frame) buffer-height)
               (with-current-buffer buffer
-                (let ((s (tm--center-string "▼ ▲" buffer-width)))
+                (let ((s (tm--center-string tm-up-triangle buffer-width)))
+                  (setq header-line-format `(:propertize (,s) face tm-face)))
+                (let ((s (tm--center-string tm-down-triangle buffer-width)))
                   (setq mode-line-format `(:propertize (,s) face tm-face))))))
 
 	  (make-frame-visible frame)
