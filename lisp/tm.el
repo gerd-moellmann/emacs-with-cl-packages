@@ -1177,6 +1177,22 @@ and make us display that menu."
   (interactive "e")
   (throw 'tm-to-top-level nil))
 
+(defun tm-cmd-mode/header-line-click (event)
+  "Click on mode-line or header-line."
+  (interactive "e")
+  (if-let* ((end (event-end event))
+            (area (posn-area end))
+            ((or (eq area 'mode-line)
+                 (eq area 'header-line)))
+            (win (posn-window end))
+            (frame (window-frame win))
+            ((frame-parameter frame 'tm-buffer)))
+      (progn
+        (if (eq area 'mode-line)
+            (tm-cmd-next-item)
+          (tm-cmd-previous-item)))
+    (throw 'tm-to-top-level nil)))
+
 (defun tm-cmd-wheel-up (_e)
   (interactive "e")
   (tm-cmd-next-item))
@@ -1208,7 +1224,8 @@ and make us display that menu."
   "<menu-bar> <mouse-1>" #'tm-cmd-menu-bar-click
   "<tab-bar> <mouse-1>" #'tm-cmd-close-on-click
   "<vertical-line> <mouse-1>" #'tm-cmd-close-on-click
-  "<mode-line> <mouse-1>" #'tm-cmd-close-on-click
+  "<header-line> <mouse-1>" #'tm-cmd-mode/header-line-click
+  "<mode-line> <mouse-1>" #'tm-cmd-mode/header-line-click
   "<mouse-1>" #'tm-cmd-mouse-act)
 
 (defun tm--position (pos)
