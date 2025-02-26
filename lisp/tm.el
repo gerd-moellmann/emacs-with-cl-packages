@@ -166,6 +166,7 @@
    (invoking-item :initarg :invoking-item :type (or null tm-item))
    (parent-pane :initform nil :type (or null tm-pane))
    (child-pane :initform nil :type (or null tm-pane))
+   (previous-selected-item :initform nil :type (or null tm-item))
    (selected-item :initform nil :type (or null tm-item))))
 
 ;; Type t in many places because even the name can be a form that needs
@@ -611,12 +612,13 @@ corresponding columns of a menu item."
   ( :method ((item tm-item) _how)
     (tm--select (slot-value item 'pane) item))
   ( :method ((pane tm-pane) (item tm-item))
-    (setf (slot-value pane 'selected-item) item)
-    (with-slots (overlay) pane
-      (tm--set-overlay-face pane)
-      (with-slots (draw-start draw-end) item
-        (goto-char draw-start)
-        (move-overlay overlay draw-start draw-end)))))
+    (with-slots (selected-item overlay) pane
+      (unless (eq item selected-item)
+        (setf selected-item item)
+        (tm--set-overlay-face pane)
+        (with-slots (draw-start draw-end) item
+          (goto-char draw-start)
+          (move-overlay overlay draw-start draw-end))))))
 
 (cl-defgeneric tm--act (item how)
   "Perform the action associated with ITEM."
@@ -1360,28 +1362,28 @@ close a previously open sub-menu."
 This reads events with `read-key-sequence' until something uses `throw'
 to leave the loop."
   (catch 'tm-leave
-    (let ((previous-selected (tm--selected-item)))
-      (while t
-        ;; Open or close sub-menus on selection change.  This throws out
-        ;; of this loop if needed to open or close a sub-menu.
-        (let* ((selected (tm--selected-item)))
-          (unless (eq selected previous-selected)
-            (tm--open/close-menu-on-selection previous-selected selected)
-            (setq previous-selected selected)))
+    (while t
+      ;; Open or close sub-menus on selection change.  This throws out
+      ;; of this loop if needed to open or close a sub-menu.
+      (with-slots (selected-item previous-selected-item) tm--pane-drawn
+        (unless (eq selected-item previous-selected-item)
+          (let ((prev previous-selected-item))
+            (setf previous-selected-item selected-item)
+            (tm--open/close-menu-on-selection prev selected-item))))
 
-        (let* ((track-mouse t)
-	       (key (read-key-sequence nil))
-	       (cmd (lookup-key tm-keymap key)))
-          ;; Entering a character that is self-inserting in global-map
-          ;; searches for a menu-item beginning with that character.
-          (when-let* (((not (tm--command-p cmd)))
-                      (cmd (lookup-key global-map key))
-                      ((eq cmd 'self-insert-command)))
-            (tm--select-item-by-name))
-          ;; Otherwise execute a command, if any.  This is for toggling
-          ;; buttons, moving on the menu and so on.
-	  (when (tm--command-p cmd)
-	    (call-interactively cmd)))))))
+      (let* ((track-mouse t)
+	     (key (read-key-sequence nil))
+	     (cmd (lookup-key tm-keymap key)))
+        ;; Entering a character that is self-inserting in global-map
+        ;; searches for a menu-item beginning with that character.
+        (when-let* (((not (tm--command-p cmd)))
+                    (cmd (lookup-key global-map key))
+                    ((eq cmd 'self-insert-command)))
+          (tm--select-item-by-name))
+        ;; Otherwise execute a command, if any.  This is for toggling
+        ;; buttons, moving on the menu and so on.
+	(when (tm--command-p cmd)
+	  (call-interactively cmd))))))
 
 (defun tm--after-command-loop (res frame)
   "Perform actions after `tm--command-loop' has been left.
