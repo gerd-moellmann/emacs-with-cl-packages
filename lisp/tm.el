@@ -203,6 +203,8 @@
   "Open sub-menus this delta up or down."
   :type 'integer)
 
+(defvar tm--all-frames nil)
+
 (defvar tm--updating-buffer nil
   "Dynamically bound to the current buffer when a menu is invoked.")
 
@@ -906,11 +908,12 @@ as needed."
 ;; might want to inspect them.
 (defun tm--delete-menu-frames ()
   (interactive)
-  (cl-flet ((frame-name (frame)
-	      (frame-parameter frame 'name)))
-    (cl-loop for frame in (frame-list)
-	     when (string-prefix-p " *tm-" (frame-name frame))
-	     do (tm--delete frame))))
+  (let ((tm--all-frames t))
+    (cl-flet ((frame-name (frame)
+	        (frame-parameter frame 'name)))
+      (cl-loop for frame in (frame-list)
+	       when (string-prefix-p " *tm-" (frame-name frame))
+	       do (tm--delete frame)))))
 
 (defun tm--childp (child parent)
   "Return t if pane CHILD is a child of PARENT."
@@ -1514,10 +1517,12 @@ the menu-bar and others."
 (defun tm--around-frame-list (old-fun &rest args)
   "Around-advice for `frame-list'.
 This removes frames used for menus from the result value."
-  (cl-remove-if (lambda (f)
-                  (let ((name (frame-parameter f 'name)))
-                    (string-prefix-p tm--buffer-name-prefix name)))
-                (apply old-fun args)))
+  (if tm--all-frames
+      (apply old-fun args)
+    (cl-remove-if (lambda (f)
+                    (let ((name (frame-parameter f 'name)))
+                      (string-prefix-p tm--buffer-name-prefix name)))
+                  (apply old-fun args))))
 
 (defvar tm--yank-menu-index 0)
 (defcustom tm--yank-menu-keys "1234567890abcdefghijklmnopqrstuvwxyz"
