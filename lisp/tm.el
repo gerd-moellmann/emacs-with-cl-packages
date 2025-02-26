@@ -203,7 +203,12 @@
   "Open sub-menus this delta up or down."
   :type 'integer)
 
-(defvar tm--all-frames nil)
+(defcustom tm-max-frame-height-percent 66
+  "Percent of frame height to use for menu frames."
+  :type 'integer)
+
+(defvar tm--all-frames nil
+  "Bind to t to let `frame-list' return all frames.")
 
 (defvar tm--updating-buffer nil
   "Dynamically bound to the current buffer when a menu is invoked.")
@@ -908,12 +913,13 @@ as needed."
 	  (set-window-dedicated-p win t)
           ;; Don't make the frame absurdly large.
           (let ((height (min buffer-height
-			     (round (/ (frame-height parent-frame) 1.6)))))
+			     (round (* (frame-height parent-frame)
+                                       (/ tm-max-frame-height-percent 100.0))))))
 	    (set-frame-size frame buffer-width height)
 	    (set-frame-position frame x y)
 	    (tm--make-fully-visible parent-frame frame x y)
 
-            ;; Put an indicator that there is something to scroll.
+            ;; Put indicators that there is something to scroll.
             (when (< (frame-height frame) buffer-height)
               (with-current-buffer buffer
                 (let ((s (tm--center-string tm-up-triangle buffer-width)))
