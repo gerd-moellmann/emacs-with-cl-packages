@@ -872,6 +872,12 @@ as needed."
 	(setq current-frame (frame-parent current-frame))))
     (cons abs-x abs-y)))
 
+(defun tm--center-string (s len)
+  (let ((extra (max 0 (- len (length s)))))
+    (concat (make-string (ceiling extra 2) ?\s)
+            s
+            (make-string (floor extra 2) ?\s))))
+
 (defun tm--create-frame (keymap where invoking-item)
   (cl-destructuring-bind (parent-frame x y) where
     (when (frame-parent parent-frame)
@@ -888,18 +894,25 @@ as needed."
 				,@(tm--frame-parameters))))
 	   (win (frame-root-window frame)))
       (let ((pane (tm--make-pane keymap invoking-item frame)))
-        (cl-destructuring-bind (buffer width height)
+        (cl-destructuring-bind (buffer buffer-width buffer-height)
             (tm--create-buffer pane)
 	  (modify-frame-parameters frame `((name . ,(buffer-name buffer))
 				           (tm-buffer . ,buffer)))
 	  (set-window-buffer win buffer)
 	  (set-window-dedicated-p win t)
           ;; Don't make the frame absurdly large.
-          (setq height (min height
-			    (round (/ (frame-height parent-frame) 1.6))))
-	  (set-frame-size frame width height)
-	  (set-frame-position frame x y)
-	  (tm--make-fully-visible parent-frame frame x y)
+          (let ((height (min buffer-height
+			     (round (/ (frame-height parent-frame) 1.6)))))
+	    (set-frame-size frame buffer-width height)
+	    (set-frame-position frame x y)
+	    (tm--make-fully-visible parent-frame frame x y)
+
+            ;; Put an indicator that there is something to scroll.
+            (when (< (frame-height frame) buffer-height)
+              (with-current-buffer buffer
+                (let ((s (tm--center-string "▼ ▲" buffer-width)))
+                  (setq mode-line-format `(:propertize (,s) face tm-face))))))
+
 	  (make-frame-visible frame)
 	  (raise-frame frame)
 	  frame)))))
