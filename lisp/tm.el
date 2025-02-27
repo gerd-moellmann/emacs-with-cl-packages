@@ -110,6 +110,7 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'mwheel)
 
 ;; Required for emacs -Q, adding autoloads didn't suffice.
 (require 'eieio)
@@ -1202,13 +1203,23 @@ and make us display that menu."
           (tm-cmd-previous-item)))
     (throw 'tm-to-top-level nil)))
 
-(defun tm-cmd-wheel-up (_e)
-  (interactive "e")
-  (tm-cmd-next-item))
+(defun tm--last-item-in-window (event)
+  "Return the last visible item in the window of EVENT."
+  (when-let* ((end (event-end event))
+              (window (posn-window end))
+              (buffer (window-buffer window))
+              (window-end (window-end window t)))
+    (get-text-property window-end 'tm-item buffer)))
 
-(defun tm-cmd-wheel-down (_e)
+(defun tm-cmd-wheel-down (event)
   (interactive "e")
-  (tm-cmd-previous-item))
+  (let ((last (tm--last-item-in-window event)))
+    (when (and last (slot-value last 'next-item))
+      (mwheel-scroll event))))
+
+(defun tm-cmd-wheel-up (event)
+  (interactive "e")
+  (mwheel-scroll event))
 
 (defvar-keymap tm-keymap
   :doc "Keymap for menu interaction."
