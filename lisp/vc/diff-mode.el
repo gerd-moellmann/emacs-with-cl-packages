@@ -926,7 +926,7 @@ data such as \"Index: ...\" and such."
   (save-excursion
     (let ((n 0))
       (goto-char start)
-      (while (re-search-forward re end t) (cl-incf n))
+      (while (re-search-forward re end t) (incf n))
       n)))
 
 (defun diff-splittable-p ()
@@ -1431,17 +1431,17 @@ else cover the whole buffer."
 			    "\\|[-*][-*][-*] [0-9,]+ [-*][-*][-*][-*]$"
 			    "\\|--- .+\n\\+\\+\\+ ")))
 	      (pcase (char-after)
-		(?\s (cl-incf space))
-		(?+ (cl-incf plus))
+                (?\s (incf space))
+                (?+ (incf plus))
 		(?- (unless ;; In git format-patch "^-- $" signifies
                             ;; the end of the patch.
 			(and (eq diff-buffer-type 'git)
 			     (looking-at "^-- $"))
-		      (cl-incf minus)))
-		(?! (cl-incf bang))
+                      (incf minus)))
+                (?! (incf bang))
 		((or ?\\ ?#) nil)
 		(?\n (if diff-valid-unified-empty-line
-			 (cl-incf space)
+                         (incf space)
 		       (setq space 0 plus 0 minus 0 bang 0)))
 		(_  (setq space 0 plus 0 minus 0 bang 0)))
 	    (cond
@@ -2663,7 +2663,8 @@ are relative to the root directory of the VC repository."
                         (if other-buf (set-buffer other-buf)
                           (set-buffer (generate-new-buffer " *diff-other-text*"))
                           (insert (if applied old-text new-text))
-                          (funcall (buffer-local-value 'major-mode buf))
+                          (let ((delay-mode-hooks t))
+                            (funcall (buffer-local-value 'major-mode buf)))
                           (setq other-buf (current-buffer)))
                         (goto-char (point-min))
                         (forward-line (+ =lines -1
@@ -2692,9 +2693,9 @@ are relative to the root directory of the VC repository."
                             (< (point) hunk-end))
                 (let ((patch-char (char-after)))
                   (pcase patch-char
-                    (?+ (cl-incf +lines))
-                    (?- (cl-incf -lines))
-                    (?\s (cl-incf =lines)))
+                    (?+ (incf +lines))
+                    (?- (incf -lines))
+                    (?\s (incf =lines)))
                   (save-current-buffer
                     (funcall =ck-eodefun)
                     (funcall +ck-eodefun)

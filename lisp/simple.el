@@ -10269,7 +10269,7 @@ The optional argument PT defaults to (point)."
   (when (cond
          ((and (/= pt (point-max))
                (get-text-property pt 'completion--string))
-          (cl-incf pt))
+          (incf pt))
          ((and (/= pt (point-min))
                (get-text-property (1- pt) 'completion--string))))
     (setq pt (or (previous-single-property-change pt 'completion--string) pt))
