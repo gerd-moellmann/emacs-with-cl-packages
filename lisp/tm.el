@@ -1310,11 +1310,15 @@ invocation takes place."
      (let* ((frame (tm--frame selected))
             (end (slot-value selected 'draw-end))
 	    (win (frame-root-window frame))
+            ;; If an item has just been scrolled in, for example at the
+            ;; top of the menu window with <up>, `posn-x-y' sometimes
+            ;; doesn't get that without calling `redisplay'.
+            (_ (progn (redisplay) t))
             (posn (posn-at-point (1- end) win))
             (xy (posn-x-y posn)))
-       (if (null xy)
-           (list frame 0 0)
-         (cl-destructuring-bind (x . y) (posn-x-y posn)
+       (if (null xy)            ; safety belt
+           (list frame 30 0)
+         (cl-destructuring-bind (x . y) xy
            (list frame
                  (+ x tm-sub-menu-offset-x)
                  (+ y tm-sub-menu-offset-y))))))
