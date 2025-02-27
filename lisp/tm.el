@@ -1585,19 +1585,42 @@ This removes frames used for menus from the result value."
   "Characters to use for yank menu entries."
   :type 'string)
 
-(defun tm--around-menu-bar-update-yank-menu (old-fun &rest args)
+(defun tm--around-menu-bar-update-yank-menu (_old-fun &rest args)
   "Around-advice for `menu-bar-update-yank-menu'.
 Display that a little bit nicer."
   (cl-destructuring-bind (string old) args
-    (when (string-match "\n" string)
-      (setq string (string-replace "\n" "\\n" string)))
-    (setq string (format "%c: %s" (aref tm--yank-menu-keys
-                                        tm--yank-menu-index)
-                         string))
-    (setq tm--yank-menu-index
-          (mod (1+ tm--yank-menu-index)
-               (length tm--yank-menu-keys)))
-    (funcall old-fun string old)))
+    (let ((name string))
+      ;; Replace newlines.
+      (when (string-match "\n" name)
+        (setq name (string-replace "\n" "\\n" name)))
+      ;; Shorten the menu item.
+      (when (> (length name) yank-menu-length)
+        (let ((half (/ yank-menu-length 2)))
+	  (setq name
+                (concat (substring name 0 half) "..."
+                        (substring name (- half))))))
+      ;; Make it searchable.
+      (setq name
+            (format "%c: %s"
+                    (aref tm--yank-menu-keys tm--yank-menu-index)
+                    name))
+      (let ((front (car (cdr yank-menu))))
+        (if (and old
+                 (or (eq old (car front))
+		     (string= old (car front))))
+	    (progn
+	      (setcar front string)
+	      (setcar (cdr front) name))
+          (setq tm--yank-menu-index
+                (mod (1+ tm--yank-menu-index)
+                     (length tm--yank-menu-keys)))
+          (setcdr yank-menu
+	          (cons (cons string
+                              (cons name 'menu-bar-select-yank))
+	                (cdr yank-menu)))))
+      (let ((max-items (min yank-menu-max-items kill-ring-max)))
+        (if (> (length (cdr yank-menu)) max-items)
+            (setcdr (nthcdr max-items yank-menu) nil))))))
 
 (defun tm-buffer-menu-open ()
   "Override for `buffer-menu-open'.
