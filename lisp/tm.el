@@ -1203,19 +1203,17 @@ and make us display that menu."
           (tm-cmd-previous-item)))
     (throw 'tm-to-top-level nil)))
 
-(defun tm--last-item-in-window (event)
-  "Return the last visible item in the window of EVENT."
+(defun tm-cmd-wheel-down (event)
+  (interactive "e")
+  ;; Scroll only if there is another item following the last
+  ;; one in the window.
   (when-let* ((end (event-end event))
               (window (posn-window end))
               (buffer (window-buffer window))
-              (window-end (window-end window t)))
-    (get-text-property window-end 'tm-item buffer)))
-
-(defun tm-cmd-wheel-down (event)
-  (interactive "e")
-  (let ((last (tm--last-item-in-window event)))
-    (when (and last (slot-value last 'next-item))
-      (mwheel-scroll event))))
+              (window-end (window-end window t))
+              (last (get-text-property (1- window-end) 'tm-item buffer))
+              ((slot-value last 'next-item)))
+    (mwheel-scroll event)))
 
 (defun tm-cmd-wheel-up (event)
   (interactive "e")
