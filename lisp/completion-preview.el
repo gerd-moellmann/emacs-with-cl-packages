@@ -226,8 +226,26 @@ affect the background color, for example with `hl-line-mode'."
                  (const :tag "Disable" nil))
   :version "31.1")
 
-(defvar completion-preview-sort-function #'minibuffer--sort-by-length-alpha
-  "Sort function to use for choosing a completion candidate to preview.")
+(defcustom completion-preview-sort-function #'minibuffer--sort-by-length-alpha
+  "Sort function to use for choosing a completion candidate to preview.
+
+Completion Preview mode calls the function that this option specifies to
+sort completion candidates.  The function takes one argument, the list
+of candidates, and returns the list sorted.
+
+The default sort function sorts first by length, then alphabetically.
+To disable sorting, set this option to `identity'.
+
+If the completion table that produces the candidates already specifies a
+sort function, it takes precedence over this option."
+  :type '(choice
+          (function-item :tag "Sort alphabetically"
+                         minibuffer-sort-alphabetically)
+          (function-item :tag "First by length, then alphabetically"
+                         minibuffer--sort-by-length-alpha)
+          (function-item :tag "Disable sorting" identity)
+          (function :tag "Custom sort function"))
+  :version "31.1")
 
 (defface completion-preview
   '((t :inherit shadow))

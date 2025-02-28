@@ -537,7 +537,11 @@ ARGS is a list of the first N arguments to pass to FUN.
 The result is a new function which does the same as FUN, except that
 the first N arguments are fixed at the values with which this function
 was called."
-  (declare (side-effect-free error-free))
+  (declare (side-effect-free error-free)
+           (compiler-macro
+            (lambda (_)
+              `(lambda (&rest args2)
+                 ,`(apply ,fun ,@args args2)))))
   (lambda (&rest args2)
     (apply fun (append args args2))))
 
@@ -7653,14 +7657,20 @@ and return the value found in PLACE instead."
   ;; cc-search-directories, semantic-c-dependency-system-include-path,
   ;; semantic-gcc-setup
   (delete-dups
-   (let ((base '("/usr/include" "/usr/local/include")))
-     (cond ((or (internal--gcc-is-clang-p)
-                (and (executable-find "clang")
-                     (not (executable-find "gcc"))))
-            ;; This is either macOS, or a system with clang only.
+   ;; We treat MS-Windows/MS-DOS specially, since there's no
+   ;; widely-accepted canonical directory for C include files.
+   (let ((base (if (not (memq system-type '(windows-nt ms-dos)))
+                   '("/usr/include" "/usr/local/include")))
+         (call-clang-p (or (internal--gcc-is-clang-p)
+                           (and (executable-find "clang")
+                                (not (executable-find "gcc"))))))
+     (cond ((or call-clang-p
+                (memq system-type '(windows-nt ms-dos)))
+            ;; This is either macOS, or MS-Windows/MS-DOS, or a system
+            ;; with clang only.
             (with-temp-buffer
               (ignore-errors
-                (call-process (if (internal--gcc-is-clang-p) "gcc" "clang")
+                (call-process (if call-clang-p "clang" "gcc")
                               nil t nil
                               "-v" "-E" "-"))
               (goto-char (point-min))
@@ -7674,10 +7684,15 @@ and return the value found in PLACE instead."
                  (pos-bol)))
               (while (search-forward "(framework directory)" nil t)
                 (delete-line))
-              (append base
-                      (reverse
-                       (split-string (buffer-substring-no-properties
-                                      (point-min) (point-max)))))))
+              ;; "gcc -v" reports file names with many "..", so we
+              ;; normalize it.
+              (or (mapcar #'expand-file-name
+                          (append base
+                                  (split-string (buffer-substring-no-properties
+                                                 (point-min) (point-max)))))
+                  ;; Fallback for whedn the compiler is not available.
+                  (list (expand-file-name "/usr/include")
+                        (expand-file-name "/usr/local/include")))))
            ;; Prefer GCC.
            ((let ((arch (with-temp-buffer
                           (when (eq 0 (ignore-errors

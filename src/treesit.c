@@ -1367,6 +1367,8 @@ make_treesit_parser (Lisp_Object buffer, TSParser *parser,
   lisp_parser->after_change_functions = Qnil;
   lisp_parser->tag = tag;
   lisp_parser->last_set_ranges = Qnil;
+  lisp_parser->embed_level = Qnil;
+  lisp_parser->parent_node = Qnil;
   lisp_parser->buffer = buffer;
   lisp_parser->parser = parser;
   lisp_parser->tree = tree;
@@ -1817,6 +1819,71 @@ DEFUN ("treesit-parser-tag",
   treesit_check_parser (parser);
   return XTS_PARSER (parser)->tag;
 }
+
+DEFUN ("treesit-parser-embed-level",
+       Ftreesit_parser_embed_level, Streesit_parser_embed_level,
+       1, 1, 0,
+       doc: /* Return PARSER's embed level.
+
+The embed level can be either nil or a non-negative integer.  A value of
+nil means the parser isn't part of the embedded parser tree.  The
+primary parser has embed level 0, and each additional layer of parser
+embedding increments the embed level by 1.  */)
+  (Lisp_Object parser)
+{
+  treesit_check_parser (parser);
+  return XTS_PARSER (parser)->embed_level;
+}
+
+/* TODO: Mention in manual, once the API stabilizes.  */
+DEFUN ("treesit-parser-set-embed-level",
+       Ftreesit_parser_set_embed_level, Streesit_parser_set_embed_level,
+       2, 2, 0,
+       doc: /* Set the embed level for PARSER to LEVEL.
+LEVEL can be nil, for a parser that is not part of an embedded parser
+tree; otherwise it must be a non-negative integer.  */)
+  (Lisp_Object parser, Lisp_Object level)
+{
+  treesit_check_parser (parser);
+  if (!NILP (level))
+    {
+      CHECK_NUMBER (level);
+      if (XFIXNUM (level) < 0)
+	xsignal (Qargs_out_of_range, list1 (level));
+    }
+
+  XTS_PARSER (parser)->embed_level = level;
+  return level;
+}
+
+DEFUN ("treesit-parser-parent-node",
+       Ftreesit_parser_parent_node, Streesit_parser_parent_node,
+       1, 1, 0,
+       doc: /* Return PARSER's parent node, if one exists.
+
+Only embeded local parsers can have parent node.  When Emacs uses a node
+in the host parser to create this local parser, that node is considered
+the parent node of the local parser.  */)
+  (Lisp_Object parser)
+{
+  treesit_check_parser (parser);
+  return XTS_PARSER (parser)->parent_node;
+}
+
+DEFUN ("treesit-parser-set-parent-node",
+       Ftreesit_parser_set_parent_node, Streesit_parser_set_parent_node,
+       2, 2, 0,
+       doc: /* Make NODE be the parent node of PARSER.  */)
+  (Lisp_Object parser, Lisp_Object node)
+{
+  treesit_check_parser (parser);
+  if (!NILP (node))
+    CHECK_TS_NODE (node);
+
+  XTS_PARSER (parser)->parent_node = node;
+  return node;
+}
+
 
 /* Return true if PARSER is not deleted and its buffer is live.  */
 static bool
@@ -3209,7 +3276,7 @@ treesit_initialize_query (Lisp_Object query, const TSLanguage *lang,
 
 DEFUN ("treesit-query-capture",
        Ftreesit_query_capture,
-       Streesit_query_capture, 2, 5, 0,
+       Streesit_query_capture, 2, 6, 0,
        doc: /* Query NODE with patterns in QUERY.
 
 Return a list of (CAPTURE_NAME . NODE).  CAPTURE_NAME is the name
@@ -3226,7 +3293,12 @@ in which the query is executed.  Any matching node whose span overlaps
 with the region between BEG and END are captured, it doesn't have to
 be completely in the region.
 
-If NODE-ONLY is non-nil, return a list of nodes.
+If GROUPED is non-nil, ther function groups the returned list of
+captures into matches and return a list of MATCH, where each MATCH is
+a list of the form (CAPTURE_NAME . NODE).
+
+If NODE-ONLY is non-nil, return nodes only, and don't include
+CAPTURE_NAME.
 
 Besides a node, NODE can be a parser, in which case the root node of
 that parser is used.  NODE can also be a language symbol, in which case
@@ -3237,7 +3309,8 @@ Signal `treesit-query-error' if QUERY is malformed or something else
 goes wrong.  You can use `treesit-query-validate' to validate and debug
 the query.  */)
   (Lisp_Object node, Lisp_Object query,
-   Lisp_Object beg, Lisp_Object end, Lisp_Object node_only)
+   Lisp_Object beg, Lisp_Object end, Lisp_Object node_only,
+   Lisp_Object grouped)
 {
   if (!(TS_COMPILED_QUERY_P (query)
 	|| CONSP (query) || STRINGP (query)))
@@ -3322,8 +3395,22 @@ the query.  */)
 
   while (ts_query_cursor_next_match (cursor, &match))
     {
-      /* Record the checkpoint that we may roll back to.  */
+      /* Depends on the value of GROUPED, we have two modes of
+         operation.
+
+         If GROUPED is nil (mode 1), we return a list of captures; in
+         this case, we append the captures first, and revert back if the
+         captures don't match.
+
+         If GROUPED is non-nil (mode 2), we return a list of match
+         groups; in this case, we collect captures into a list first,
+         and append to the results after verifying that the group
+         matches.  */
+
+      /* Mode 1: Record the checkpoint that we may roll back to.  */
       prev_result = result;
+      /* Mode 2: Create a list storing captures of this match group.  */
+      Lisp_Object match_group = Qnil;
       /* 1. Get captured nodes.  */
       const TSQueryCapture *captures = match.captures;
       for (int idx = 0; idx < match.capture_count; idx++)
@@ -3345,7 +3432,10 @@ the query.  */)
 	  else
 	    cap = captured_node;
 
-	  result = Fcons (cap, result);
+	  if (NILP (grouped))
+	    result = Fcons (cap, result); /* Mode 1. */
+	  else
+	    match_group = Fcons (cap, match_group); /* Mode 2. */
 	}
       /* 2. Get predicates and check whether this match can be
          included in the result list.  */
@@ -3358,15 +3448,27 @@ the query.  */)
 	}
 
       /* captures_lisp = Fnreverse (captures_lisp); */
+      /* Mode 1.  */
       struct capture_range captures_range = { result, prev_result };
-      bool match = treesit_eval_predicates (captures_range, predicates,
-					    &predicate_signal_data);
+      /* Mode 2.  */
+      if (!NILP (grouped))
+	{
+	  captures_range.start = match_group;
+	  captures_range.end = Qnil;
+	}
+      bool match
+	= treesit_eval_predicates (captures_range, predicates,
+				   &predicate_signal_data);
+
       if (!NILP (predicate_signal_data))
 	break;
 
-      /* Predicates didn't pass, roll back.  */
-      if (!match)
+      /* Mode 1: Predicates didn't pass, roll back.  */
+      if (!match && NILP (grouped))
 	result = prev_result;
+      /* Mode 2: Predicates pass, add this match group.  */
+      if (match && !NILP (grouped))
+	result = Fcons (Fnreverse (match_group), result);
     }
 
   /* Final clean up.  */
@@ -4540,6 +4642,10 @@ applies to LANGUAGE-A will be redirected to LANGUAGE-B instead.  */);
   defsubr (&Streesit_parser_buffer);
   defsubr (&Streesit_parser_language);
   defsubr (&Streesit_parser_tag);
+  defsubr (&Streesit_parser_embed_level);
+  defsubr (&Streesit_parser_set_embed_level);
+  defsubr (&Streesit_parser_parent_node);
+  defsubr (&Streesit_parser_set_parent_node);
 
   defsubr (&Streesit_parser_root_node);
   defsubr (&Streesit_parse_string);
