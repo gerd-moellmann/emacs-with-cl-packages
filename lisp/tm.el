@@ -220,7 +220,7 @@ Bound by an around advice for `popup-menu' if called for a menu-bar
 menu.  If non-nil, it is a cons (X . Y) of the menu-item.")
 
 (defvar-local tm--pane-drawn nil
-  "The 'tm-pane' drawn in a buffer.")
+  "The `tm-pane' drawn in a buffer.")
 
 (defun tm--eval (form)
   "Evaluate FORM in the context of the menu.
