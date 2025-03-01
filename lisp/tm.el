@@ -903,15 +903,7 @@ as needed."
                                        (/ tm-max-frame-height-percent 100.0))))))
 	    (set-frame-size frame buffer-width height)
 	    (set-frame-position frame x y)
-	    (tm--make-fully-visible parent-frame frame x y)
-
-            ;; Put indicators that there is something to scroll.
-            (when (< (frame-height frame) buffer-height)
-              (with-current-buffer buffer
-                (let ((s (tm--center-string tm-up-triangle buffer-width)))
-                  (setq header-line-format `(:propertize (,s) face tm-face)))
-                (let ((s (tm--center-string tm-down-triangle buffer-width)))
-                  (setq mode-line-format `(:propertize (,s) face tm-face))))))
+	    (tm--make-fully-visible parent-frame frame x y))
 
 	  (make-frame-visible frame)
 	  (raise-frame frame)
@@ -1404,15 +1396,32 @@ close a previously open sub-menu."
       (`(keymap . keymap)
        (throw 'tm-leave (cons selected 'key))))))
 
+(defun tm--show/hide-scrollers (frame)
+  (let ((window (frame-root-window frame)))
+    (if (> (window-start window) (point-min))
+        (unless header-line-format
+          (let ((s (tm--center-string tm-up-triangle (window-width window))))
+            (setq header-line-format `(:propertize (,s) face tm-face))))
+      (setq header-line-format nil))
+    (if (pos-visible-in-window-p (1- (point-max)) window)
+        (setq mode-line-format nil)
+      (unless mode-line-format
+        (let ((s (tm--center-string tm-down-triangle (window-width window))))
+          (setq mode-line-format `(:propertize (,s) face tm-face)))))))
+
 (defun tm--command-loop ()
   "Innermost command loop.
 This reads events with `read-key-sequence' until something uses `throw'
 to leave the loop."
   (catch 'tm-leave
     (while t
-      ;; Open or close sub-menus on selection change.  This throws out
-      ;; of this loop if needed to open or close a sub-menu.
-      (with-slots (selected-item previous-selected-item) tm--pane-drawn
+      (with-slots (selected-item previous-selected-item frame)
+          tm--pane-drawn
+        ;; Show/hide scroll indicators.
+        (tm--show/hide-scrollers frame)
+
+        ;; Open or close sub-menus on selection change.  This throws out
+        ;; of this loop if needed to open or close a sub-menu.
         (unless (eq selected-item previous-selected-item)
           (let ((prev previous-selected-item))
             (setf previous-selected-item selected-item)
