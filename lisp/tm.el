@@ -1428,17 +1428,16 @@ close a previously open sub-menu."
        (throw 'tm-leave (cons selected 'key))))))
 
 (defun tm--show/hide-scrollers (frame)
+  "Show or hide scroll indicators."
   (let ((window (frame-root-window frame)))
     (if (> (window-start window) (point-min))
-        (unless header-line-format
-          (let ((s (tm--center-string tm-up-triangle (window-width window))))
-            (setq header-line-format `(:propertize (,s) face tm-face))))
+        (let ((s (tm--center-string tm-up-triangle (window-width window))))
+          (setq header-line-format `(:propertize (,s) face tm-face)))
       (setq header-line-format nil))
     (if (pos-visible-in-window-p (1- (point-max)) window)
         (setq mode-line-format nil)
-      (unless mode-line-format
-        (let ((s (tm--center-string tm-down-triangle (window-width window))))
-          (setq mode-line-format `(:propertize (,s) face tm-face)))))))
+      (let ((s (tm--center-string tm-down-triangle (window-width window))))
+        (setq mode-line-format `(:propertize (,s) face tm-face))))))
 
 (defun tm--command-loop ()
   "Innermost command loop.
