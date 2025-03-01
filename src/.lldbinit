@@ -120,7 +120,3 @@ process handle SIGINT --pass true --stop false --notify false
 #process attach --waitfor --name emacs (--continue)
 
 # Attach to future Emacs
-
-target create temacs
-settings set -- target.run-args --batch  -l loadup --temacs=pbootstrap 	--bin-dest '/Users/gerd/.local/bin/' --eln-dest '/Users/gerd/.local/lib/emacs/31.0.50/'
-command alias go process launch --working-dir .
