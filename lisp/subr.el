@@ -601,10 +601,10 @@ If COUNT is negative, shifting is actually to the right.
 In this case, if VALUE is a negative fixnum treat it as unsigned,
 i.e., subtract 2 * `most-negative-fixnum' from VALUE before shifting it.
 
-Most uses of this function turn out to be mistakes.  We recommend
-to use `ash' instead, unless COUNT could ever be negative, and
-if, when COUNT is negative, your program really needs the special
-treatment of negative COUNT provided by this function."
+Most uses of this function turn out to be mistakes.  We recommend using
+`ash' instead, unless COUNT could ever be negative, in which case your
+program should only use this function if it specifically requires the
+special handling of negative COUNT."
   (declare (ftype (function (integer integer) integer))
            (compiler-macro
             (lambda (form)
@@ -2145,6 +2145,9 @@ instead; it will indirectly limit the specpdl stack size as well.")
   "Add to the value of HOOK the function FUNCTION.
 FUNCTION is not added if already present.
 
+HOOK should be a symbol.  If HOOK is void, or if HOOK's value is a
+single function, it is changed to a list of functions.
+
 The place where the function is added depends on the DEPTH
 parameter.  DEPTH defaults to 0.  By convention, it should be
 a number between -100 and 100 where 100 means that the function
@@ -2162,10 +2165,6 @@ the hook's buffer-local value rather than its global value.
 This makes the hook buffer-local, and it makes t a member of the
 buffer-local value.  That acts as a flag to run the hook
 functions of the global value as well as in the local value.
-
-HOOK should be a symbol.  If HOOK is void, it is first set to
-nil.  If HOOK's value is a single function, it is changed to a
-list of functions.
 
 FUNCTION may be any valid function, but it's recommended to use a
 function symbol and not a lambda form.  Using a symbol will
@@ -2231,10 +2230,11 @@ performance impact when running `add-hook' and `remove-hook'."
       (set-default hook hook-value))))
 
 (defun remove-hook (hook function &optional local)
-  "Remove from the value of HOOK the function FUNCTION.
-HOOK should be a symbol, and FUNCTION may be any valid function.  If
-FUNCTION isn't the value of HOOK, or, if FUNCTION doesn't appear in the
-list of hooks to run in HOOK, then nothing is done.  See `add-hook'.
+  "Remove FUNCTION from HOOK's functions.
+HOOK should be a symbol, and FUNCTION may be any valid function.
+Do nothing if HOOK does not currently contain FUNCTION.
+Compare functions with `equal`, which means that it can be
+slow if FUNCTION is not a symbol.  See `add-hook'.
 
 The optional third argument, LOCAL, if non-nil, says to modify
 the hook's buffer-local value rather than its default value.
@@ -3112,7 +3112,7 @@ This is to `put' what `defalias' is to `fset'."
 (declare-function comp-el-to-eln-rel-filename "comp.c")
 
 (defun locate-eln-file (eln-file)
-  "Locate a natively-compiled ELN-FILE by searching its load path.
+  "Locate a native-compiled ELN-FILE by searching its load path.
 This function looks in directories named by `native-comp-eln-load-path'."
   (declare (important-return-value t))
   (or (locate-file-internal (concat comp-native-version-dir "/" eln-file)
@@ -3330,13 +3330,19 @@ process."
 
 (defun process-get (process propname)
   "Return the value of PROCESS' PROPNAME property.
-This is the last value stored with `(process-put PROCESS PROPNAME VALUE)'."
+This is the last value stored with `(process-put PROCESS PROPNAME VALUE)'.
+
+Together with `process-put', this can be used to store and retrieve
+miscellaneous values associated with the process."
   (declare (side-effect-free t))
   (plist-get (process-plist process) propname))
 
 (defun process-put (process propname value)
   "Change PROCESS' PROPNAME property to VALUE.
-It can be retrieved with `(process-get PROCESS PROPNAME)'."
+It can be retrieved with `(process-get PROCESS PROPNAME)'.
+
+Together with `process-get', this can be used to store and retrieve
+miscellaneous values associated with the process."
   (set-process-plist process
 		     (plist-put (process-plist process) propname value)))
 
@@ -7637,71 +7643,5 @@ and return the value found in PLACE instead."
             `(progn
                ,(funcall setter val)
                ,val)))))
-
-(defun internal--gcc-is-clang-p ()
-  "Return non-nil if the `gcc' command actually runs the Clang compiler."
-  ;; Recent macOS machines run llvm when you type gcc by default.  (!)
-  ;; We can't even check if it's a symlink; it's a binary placed in
-  ;; "/usr/bin/gcc".  So we need to check the output.
-  (when-let* ((out (ignore-errors
-                     (with-temp-buffer
-                       (call-process "gcc" nil t nil "--version")
-                       (buffer-string)))))
-    (string-match "Apple \\(LLVM\\|[Cc]lang\\)\\|Xcode\\.app" out)))
-
-(defun internal--c-header-file-path ()
-  "Return search path for C header files (a list of strings)."
-  ;; FIXME: It's not clear that this is a good place to put this, or
-  ;; even that this should necessarily be internal.
-  ;; See also (Bug#10702):
-  ;; cc-search-directories, semantic-c-dependency-system-include-path,
-  ;; semantic-gcc-setup
-  (delete-dups
-   ;; We treat MS-Windows/MS-DOS specially, since there's no
-   ;; widely-accepted canonical directory for C include files.
-   (let ((base (if (not (memq system-type '(windows-nt ms-dos)))
-                   '("/usr/include" "/usr/local/include")))
-         (call-clang-p (or (internal--gcc-is-clang-p)
-                           (and (executable-find "clang")
-                                (not (executable-find "gcc"))))))
-     (cond ((or call-clang-p
-                (memq system-type '(windows-nt ms-dos)))
-            ;; This is either macOS, or MS-Windows/MS-DOS, or a system
-            ;; with clang only.
-            (with-temp-buffer
-              (ignore-errors
-                (call-process (if call-clang-p "clang" "gcc")
-                              nil t nil
-                              "-v" "-E" "-"))
-              (goto-char (point-min))
-              (narrow-to-region
-               (save-excursion
-                 (re-search-forward
-                  "^#include <\\.\\.\\.> search starts here:\n" nil t)
-                 (point))
-               (save-excursion
-                 (re-search-forward "^End of search list.$" nil t)
-                 (pos-bol)))
-              (while (search-forward "(framework directory)" nil t)
-                (delete-line))
-              ;; "gcc -v" reports file names with many "..", so we
-              ;; normalize it.
-              (or (mapcar #'expand-file-name
-                          (append base
-                                  (split-string (buffer-substring-no-properties
-                                                 (point-min) (point-max)))))
-                  ;; Fallback for whedn the compiler is not available.
-                  (list (expand-file-name "/usr/include")
-                        (expand-file-name "/usr/local/include")))))
-           ;; Prefer GCC.
-           ((let ((arch (with-temp-buffer
-                          (when (eq 0 (ignore-errors
-                                        (call-process "gcc" nil '(t nil) nil
-                                                      "-print-multiarch")))
-                            (goto-char (point-min))
-                            (buffer-substring (point) (line-end-position))))))
-              (if (zerop (length arch))
-                  base
-                (append base (list (expand-file-name arch "/usr/include"))))))))))
 
 ;;; subr.el ends here
