@@ -917,7 +917,8 @@ as needed."
     (cl-flet ((frame-name (frame)
 	        (frame-parameter frame 'name)))
       (cl-loop for frame in (frame-list)
-	       when (string-prefix-p " *tm-" (frame-name frame))
+	       when (string-prefix-p tm--buffer-name-prefix
+                                     (frame-name frame))
 	       do (tm--delete frame)))))
 
 (defun tm--childp (child parent)
