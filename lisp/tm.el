@@ -18,14 +18,10 @@
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
-;;; Todo
-
-;; - Customization, including Unicode use.
-
 ;;; Commentary:
 
 ;; This is a menu implementation for ttys. It uses two changes in the C
-;; code:
+;; code in Emacs' master branch (Emacs 31):
 ;;
 ;; - a new hook `x-popup-menu-function'
 ;; - hiding the cursor in frames with (cursor-type . nil) parameter.
@@ -36,7 +32,39 @@
 ;;
 ;; The behavior of the menu is as close as possible like in the macOS
 ;; GUI, which is of course because I am a macOS user.
+;;
+;; There are a number of places where Emacs displays menus on
+;; <down-mouse-N> events, both built-in and in third-party packages.
+;; This is less than ideal for operating menus with keys or mouse, for
+;; example for people using track pads and tap-to-click. I am using
+;; something like the following to change these keymaps:
+;;
+;;  (defun my-keymap-value (key map)
+;;    (cl-flet ((lookup (event map)
+;;		(catch 'found
+;;                  (map-keymap (lambda (e d)
+;;				(when (eq event e)
+;;                                  (throw 'found d)))
+;;                              map))))
+;;      (cl-loop for k across (kbd key)
+;;	       for nmap = (lookup k map)
+;;               do (setq map nmap)
+;;	       finally return map)))
+;;
+;;  (defun my-keymap-replace (map from to)
+;;    (let ((def (my-keymap-value from map)))
+;;      (keymap-unset map from)
+;;      (keymap-set map to def)))
+;;
+;;  (defun my-fix-mode-line-map (map)
+;;    (my-keymap-replace map "<mode-line> <down-mouse-1>"
+;;		     "<mode-line> <mouse-1>"))
+;;
+;;  (my-fix-mode-line-map mode-line-major-mode-keymap)
+;;  (my-fix-mode-line-map mode-line-minor-mode-keymap)
+;;  (my-fix-mode-line-map minions-mode-line-minor-modes-map)
 
+;; ------------------------------------------------------------------------
 ;; Some diagrams, rough overview. Add symbol prefixes in your
 ;; imagination.
 ;;
