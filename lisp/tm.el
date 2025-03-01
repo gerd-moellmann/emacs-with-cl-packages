@@ -931,6 +931,25 @@ as needed."
 (defvar tm--menu-updating-frame nil
   "Dynamically bound to the frame updating a menu.")
 
+(defvar tm-scroll-repeat 0.5)
+
+(defvar tm--scroll-timer nil)
+(defvar tm-count 0)
+
+(defun tm--on-timer (frame area)
+  (message "timer %S %S %d" frame area (incf tm-count)))
+
+(defun tm--cancel-timer ()
+  (when tm--scroll-timer
+    (cancel-timer tm--scroll-timer)
+    (setq tm--scroll-timer nil)))
+
+(defun tm--start-timer (frame area)
+  (unless tm--scroll-timer
+    (setq tm--scroll-timer
+          (run-with-timer tm-scroll-repeat tm-scroll-repeat
+                          #'tm--on-timer frame area))))
+
 (defun tm-cmd-mouse-moved (event)
   "Handle mouse movement in a menu."
   (interactive "e")
@@ -953,6 +972,16 @@ as needed."
           (setq tm--from-menu-bar (posn-x-y (event-end event)))
           (throw 'tm-to-top-level `(menu-bar ,start-x ,y))))))
 
+  (if-let* ((end (event-end event))
+            (area (posn-area end))
+            ((or (eq area 'mode-line)
+                 (eq area 'header-line)))
+            (win (posn-window end))
+            (frame (window-frame win))
+            ((frame-parameter frame 'tm-buffer)))
+      (tm--start-timer frame area)
+    (tm--cancel-timer))
+
   (when-let* ((end (event-end event))
 	      (win (posn-window end))
               (item (mouse-posn-property end 'tm-item))
@@ -960,6 +989,7 @@ as needed."
               (pane (slot-value item 'pane))
               (frame (slot-value pane 'frame)))
     (tm--select item 'mouse)
+    ;; Moved to another menu pane.
     (unless (eq pane tm--pane-drawn)
       (when-let* ((sel (slot-value tm--pane-drawn 'selected-item)))
         (if (tm--childp pane tm--pane-drawn)
