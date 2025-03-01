@@ -970,10 +970,12 @@ as needed."
            while c
            when (eq c child) return t))
 
-(defun tm--automatic-scroll (_frame area)
+(defun tm--automatic-scroll (frame area)
   (if (eq area 'mode-line)
-      (tm-cmd-next-item)
-    (tm-cmd-previous-item)))
+      (unless (pos-visible-in-window-p (1- (point-max))
+                                       (frame-root-window frame))
+        (scroll-up 1))
+    (scroll-down 1)))
 
 (defun tm--cancel-timer ()
   (when tm--scroll-timer
