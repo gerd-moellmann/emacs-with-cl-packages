@@ -219,6 +219,9 @@
 Bound by an around advice for `popup-menu' if called for a menu-bar
 menu.  If non-nil, it is a cons (X . Y) of the menu-item.")
 
+(defvar-local tm--pane-drawn nil
+  "The 'tm-pane' drawn in a buffer.")
+
 (defun tm--eval (form)
   "Evaluate FORM in the context of the menu.
 The context consists of the buffer that was current when the menu
@@ -567,9 +570,6 @@ corresponding columns of a menu item."
     (tm--draw-button item pane)
     (tm--draw-name item pane)
     (tm--draw-key item pane)))
-
-(defvar-local tm--pane-drawn nil
-  "The tm-pane drawn in a buffer.")
 
 (cl-defgeneric tm--add (pane item)
   "Add ITEM to PANE."
