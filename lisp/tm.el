@@ -208,6 +208,14 @@
   "Percent of frame height to use for menu frames."
   :type 'integer)
 
+(defcustom tm-scroll-delay 0.3
+  "Delay automatic scrolling for this many seconds."
+  :type 'number)
+
+(defcustom tm-scroll-repeat 0.1
+  "Repeat interval for automatic scrolling."
+  :type 'number)
+
 (defvar tm--all-frames nil
   "Bind to t to let `frame-list' return all frames.")
 
@@ -221,6 +229,12 @@ menu.  If non-nil, it is a cons (X . Y) of the menu-item.")
 
 (defvar-local tm--pane-drawn nil
   "The `tm-pane' drawn in a buffer.")
+
+(defvar tm--menu-updating-frame nil
+  "Dynamically bound to the frame updating a menu.")
+
+(defvar tm--scroll-timer nil
+  "Timer used for automatic scrolling.")
 
 (defun tm--eval (form)
   "Evaluate FORM in the context of the menu.
@@ -928,16 +942,10 @@ as needed."
            while c
            when (eq c child) return t))
 
-(defvar tm--menu-updating-frame nil
-  "Dynamically bound to the frame updating a menu.")
-
-(defvar tm-scroll-repeat 0.5)
-
-(defvar tm--scroll-timer nil)
-(defvar tm-count 0)
-
-(defun tm--on-timer (frame area)
-  (message "timer %S %S %d" frame area (incf tm-count)))
+(defun tm--automatic-scroll (_frame area)
+  (if (eq area 'mode-line)
+      (tm-cmd-next-item)
+    (tm-cmd-previous-item)))
 
 (defun tm--cancel-timer ()
   (when tm--scroll-timer
@@ -947,8 +955,8 @@ as needed."
 (defun tm--start-timer (frame area)
   (unless tm--scroll-timer
     (setq tm--scroll-timer
-          (run-with-timer tm-scroll-repeat tm-scroll-repeat
-                          #'tm--on-timer frame area))))
+          (run-with-timer tm-scroll-delay tm-scroll-repeat
+                          #'tm--automatic-scroll frame area))))
 
 (defun tm-cmd-mouse-moved (event)
   "Handle mouse movement in a menu."
