@@ -609,13 +609,14 @@ corresponding columns of a menu item."
   ( :method ((item tm-item) _how)
     (tm--select (slot-value item 'pane) item))
   ( :method ((pane tm-pane) (item tm-item))
-    (with-slots (selected-item overlay) pane
+    (with-slots (selected-item overlay buffer) pane
       (unless (eq item selected-item)
-        (setf selected-item item)
-        (tm--set-overlay-face pane)
-        (with-slots (draw-start draw-end) item
-          (goto-char draw-start)
-          (move-overlay overlay draw-start draw-end))))))
+        (with-current-buffer buffer
+          (setf selected-item item)
+          (tm--set-overlay-face pane)
+          (with-slots (draw-start draw-end) item
+            (goto-char draw-start)
+            (move-overlay overlay draw-start draw-end)))))))
 
 (cl-defgeneric tm--act (item how)
   "Perform the action associated with ITEM."
