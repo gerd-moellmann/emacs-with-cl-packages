@@ -700,8 +700,8 @@ a command as binding. It is `keymap' is the item's binding is a keymap. "
     (cond ((null binding) nil)
           ((tm--command-p binding) 'command)
           ((keymapp binding) 'keymap)
-          ;; eglot--managed-mode is defined with define-minor-mode,
-          ;; but is not interactive.
+          ;; 'eglot--managed-mode' is defined with define-minor-mode,
+          ;; but is not interactive. It appears in the Minions menu.
           ((functionp binding) 'command)
           (t (error "unknown binding %S" binding)))))
 
