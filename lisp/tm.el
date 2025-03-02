@@ -20,24 +20,24 @@
 
 ;;; Commentary:
 
-;; This is a menu implementation for ttys. It uses two changes in the C
-;; code in Emacs' master branch (Emacs 31):
+;; This is a menu implementation for ttys, entirely written in Lisp
+;; using tty child frames. It requires a recent master (Emacs 31),
+;; 2025-023-01 or younger.
 ;;
-;; - a new hook `x-popup-menu-function'
-;; - hiding the cursor in frames with (cursor-type . nil) parameter.
+;; The behavior of the menus is as close as I could get to the macOS
+;; GUI, which is because I am a macOS user, and for some nerdy
+;; satisfaction :-).
 ;;
-;; The code uses nothing else of the C code, including parsing menu
-;; keymaps. This would makes it possible to delete portions of the C
-;; code in the future.
+;; I am a trackpad user using tap-to-click, and Emacs is not a
+;; particularly friendly environment for such users, IMO. There are a
+;; lot of places binding menu display to down-mouse events, both
+;; built-in and in third-party packages. Which means one has to press
+;; and hold a trackpad button to interact with a menu because, as soon
+;; as you release the button, the menu disappears.
 ;;
-;; The behavior of the menu is as close as possible like in the macOS
-;; GUI, which is of course because I am a macOS user.
-;;
-;; There are a number of places where Emacs displays menus on
-;; <down-mouse-N> events, both built-in and in third-party packages.
-;; This is less than ideal for operating menus with keys or mouse, for
-;; example for people using track pads and tap-to-click. I am using
-;; something like the following to change these keymaps:
+;; I find this super annoying, but alas Emacs doesn't provide a
+;; ready-made alternative at the moment. As a workaround, I'm using
+;; code like below to remap some of these mouse-bindings.
 ;;
 ;;  (defun my-keymap-value (key map)
 ;;    (cl-flet ((lookup (event map)
@@ -63,6 +63,7 @@
 ;;  (my-fix-mode-line-map mode-line-major-mode-keymap)
 ;;  (my-fix-mode-line-map mode-line-minor-mode-keymap)
 ;;  (my-fix-mode-line-map minions-mode-line-minor-modes-map)
+;;  ...
 
 ;; ------------------------------------------------------------------------
 ;; Some diagrams, rough overview. Add symbol prefixes in your
