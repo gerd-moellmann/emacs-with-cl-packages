@@ -1594,14 +1594,16 @@ KEYMAP is a menu keymap, and WHERE specifies where to open the menu."
      (define-key keymap (vector (intern name))
                  `(menu-item ,name ,value :enable t)))
     (name
-     (define-key keymap name nil))))
+     (define-key keymap (vector (intern name))
+                 `(menu-item ,name nil :enable nil)))))
 
 (defun tm--make-old-pane-keymap (pane)
   (pcase pane
     (`(,title . ,items)
-     (let ((keymap (make-sparse-keymap title)))
-       (cl-loop for item in items do (tm--define keymap item))
-       keymap))))
+     (cl-loop with keymap = (make-sparse-keymap title)
+              for item in (reverse items)
+              do (tm--define keymap item)
+              finally return keymap))))
 
 (cl-defun tm--popup-menu (position menu)
   "This is the replacement for `x-popup-menu'.
