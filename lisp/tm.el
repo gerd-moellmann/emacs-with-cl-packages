@@ -1626,7 +1626,7 @@ It is installed as `x-popup-menu-function' when using `tm-mode'."
                     finally return (nreverse codes)))
 
           ;; (KEYMAP ...)
-          (`(,(and (pred keymapp) menu) . ,_)
+          (`(,(and (pred keymapp) _menu) . ,_)
            (error "List of keymaps not yet implemented"))
 
           ;; Alternatively, you can specify a menu of multiple panes
@@ -1637,12 +1637,18 @@ It is installed as `x-popup-menu-function' when using `tm-mode'."
           ;; non-selectable line in the menu.  With this form of
           ;; menu, the return value is VALUE from the chosen item.
 	  (`(,(and (pred stringp) title) . ,panes)
-           (let ((keymap (make-sparse-keymap title)))
-             (cl-loop for pane in panes
-                      for pane-keymap = (tm--make-old-pane-keymap pane)
-                      if pane-keymap
-                      do (tm--loop pane-keymap where))))
-
+           (when-let* ((maps (mapcar #'tm--make-old-pane-keymap panes))
+                       (maps (delq nil maps)))
+             (cond ((cdr maps)
+                    (cl-loop with outer = (make-sparse-keymap title)
+                             for m in (nreverse maps)
+                             for pane-name = (tm--keymap-name m)
+                             do
+                             (define-key outer (vector (intern pane-name))
+                                         `(menu-item ,pane-name ,m))
+                             finally return (tm--loop outer where)))
+                   (t
+                    (tm--loop (car maps) where)))))
 
           (_ (error "Not a menu: %S" menu)))))))
 
