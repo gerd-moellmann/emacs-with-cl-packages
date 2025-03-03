@@ -703,7 +703,8 @@ a command as binding. It is `keymap' is the item's binding is a keymap. "
           ;; 'eglot--managed-mode' is defined with define-minor-mode,
           ;; but is not interactive. It appears in the Minions menu.
           ((functionp binding) 'command)
-          (t (error "unknown binding %S" binding)))))
+          ;; Could be a string value from a dialog.
+          (t 'command))))
 
 (defun tm--make-element (pane code item)
   "Construct a new menu element and add it to PANE.
