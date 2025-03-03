@@ -1587,6 +1587,21 @@ KEYMAP is a menu keymap, and WHERE specifies where to open the menu."
       (`(menu-bar ,x ,y) (cons x y))
       (`(,selected . ,_) selected))))
 
+(defun tm--define (keymap item)
+  (pcase item
+    (`(,name . ,value)
+     (define-key keymap (vector (intern name))
+                 `(menu-item ,name ,value :enable t)))
+    (name
+     (define-key keymap name nil))))
+
+(defun tm--make-old-pane-keymap (pane)
+  (pcase pane
+    (`(,title . ,items)
+     (let ((keymap (make-sparse-keymap title)))
+       (cl-loop for item in items do (tm--define keymap item))
+       keymap))))
+
 (cl-defun tm--popup-menu (position menu)
   "This is the replacement for `x-popup-menu'.
 It is installed as `x-popup-menu-function' when using `tm-mode'."
@@ -1618,13 +1633,13 @@ It is installed as `x-popup-menu-function' when using `tm-mode'."
           ;; a string can appear as an item--that makes a
           ;; non-selectable line in the menu.  With this form of
           ;; menu, the return value is VALUE from the chosen item.
-	  (`(,(and (pred stringp) title) . ,_)
-           (message "menu = %S" menu)
-	   (cl-loop with outer = (make-sparse-keymap "outer")
-		    for keymap in menu
-		    for name = (tm--keymap-name keymap)
-		    do (define-key outer (vector (intern name)) keymap)
-		    finally (tm--loop outer where)))
+	  (`(,(and (pred stringp) title) . ,panes)
+           (let ((keymap (make-sparse-keymap title)))
+             (cl-loop for pane in panes
+                      for pane-keymap = (tm--make-old-pane-keymap pane)
+                      if pane-keymap
+                      do (tm--loop pane-keymap where))))
+
 
           (_ (error "Not a menu: %S" menu)))))))
 
