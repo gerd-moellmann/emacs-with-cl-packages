@@ -3,10 +3,10 @@
 ;; Copyright (C) 2003-2025 Free Software Foundation, Inc.
 
 ;; Author: Fabián E. Gallina <fgallina@gnu.org>
-;; URL: https://github.com/fgallina/python.el
-;; Version: 0.28
-;; Package-Requires: ((emacs "24.4") (compat "29.1.1.0") (seq "2.23"))
 ;; Maintainer: emacs-devel@gnu.org
+;; URL: https://github.com/fgallina/python.el
+;; Version: 0.29
+;; Package-Requires: ((emacs "29.1") (compat "29.1.1.0") (seq "2.23") (project "0.1") (flymake "1.0"))
 ;; Created: Jul 2010
 ;; Keywords: languages
 
@@ -7233,7 +7233,8 @@ implementations: `python-mode' and `python-ts-mode'."
     (add-to-list 'auto-mode-alist (cons python--auto-mode-alist-regexp 'python-ts-mode))
     (add-to-list 'interpreter-mode-alist '("python[0-9.]*" . python-ts-mode))))
 
-(derived-mode-add-parents 'python-ts-mode '(python-mode))
+(when (fboundp 'derived-mode-add-parents) ; Emacs 30.1
+  (derived-mode-add-parents 'python-ts-mode '(python-mode)))
 
 ;;; Completion predicates for M-x
 ;; Commands that only make sense when editing Python code.

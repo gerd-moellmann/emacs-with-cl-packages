@@ -30,10 +30,21 @@
                                  "My Name")))
       (should (eq (widget-get widget :size) 13))
       (should (equal (widget-get widget :format) "Name: %v "))
-      (widget-put widget :size 1)
-      (widget-put widget :format "foo")
+      (should (eq (widget-put widget :size 1) 1))
+      (should (equal (widget-put widget :format "foo") "foo"))
       (should (eq (widget-get widget :size) 1))
-      (should (equal (widget-get widget :format) "foo")))))
+      (should (equal (widget-get widget :format) "foo"))
+
+      ;; test get/put for inherited properties
+      (should-not (plist-member (cdr widget) :validate))
+      (should (eq (widget-get widget :validate) 'widget-field-validate))
+      (should (eq (widget-put widget :validate 'my-silly-validate)
+                  'my-silly-validate))
+      (should (plist-member (cdr widget) :validate))
+      (should (eq (widget-get widget :validate) 'my-silly-validate))
+      (should (eq (widget-get (get (widget-type widget) 'widget-type)
+                              :validate)
+                  'widget-field-validate)))))
 
 (ert-deftest widget-at ()
   (with-temp-buffer

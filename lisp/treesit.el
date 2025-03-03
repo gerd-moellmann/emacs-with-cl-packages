@@ -906,6 +906,9 @@ is nil."
                          (null (treesit-parser-embed-level parser)))))
               parsers))
 
+(declare-function treesit-parser-set-embed-level "treesit.c")
+(declare-function treesit-parser-embed-level "treesit.c")
+
 (defun treesit--update-ranges-non-local
     ( host-parser query embed-lang embed-level
       &optional beg end offset range-fn)
@@ -1056,19 +1059,25 @@ embedded language parsers.
 EMBED-LEVEL is the embed level for the embedded parser being created or
 updated.  When looking for existing embedded parsers, only look for
 parsers of this level; when creating new parsers, set their level to
-this level."
+this level.
+
+Function range settings in SETTINGS are ignored."
   (let ((touched-parsers nil)
         (modified-tick (buffer-chars-modified-tick)))
     (dolist (setting settings)
       (let* ((query (nth 0 setting))
-             (query-lang (treesit-query-language query))
+             (query-lang (if (functionp query)
+                             'never
+                           (treesit-query-language query)))
              (embed-lang (nth 1 setting))
              (local (nth 2 setting))
              (offset (nth 3 setting))
              (range-fn (nth 4 setting)))
         (when (eq query-lang (treesit-parser-language host-parser))
           (cond
-           ((functionp query) (funcall query beg end))
+           ;; Function range settings don't participate in the recursive
+           ;; update, they're handled by `treesit--update-range'.
+           ((functionp query) nil)
            (local
             (setq touched-parsers
                   (append touched-parsers
@@ -1097,6 +1106,11 @@ region."
         (end (or end (point-max)))
         (host-parsers (list treesit-primary-parser))
         (embed-level 0))
+    ;; Handle function range settings here once. They don't participate
+    ;; in the recursive update below.
+    (dolist (setting treesit-range-settings)
+      (when (functionp (car setting))
+        (funcall (car setting) beg end)))
     (while (and host-parsers (< embed-level 4))
       (cl-incf embed-level)
       (let ((next-round-of-host-parsers nil))
