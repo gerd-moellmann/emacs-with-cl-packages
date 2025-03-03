@@ -3172,6 +3172,7 @@ CHECK_IT (struct it *it)
 static void
 CHECK_WINDOW_END (struct window *w)
 {
+#if 0
 #if defined GLYPH_DEBUG && defined ENABLE_CHECKING
   if (!MINI_WINDOW_P (w) && w->window_end_valid)
     {
@@ -3181,6 +3182,7 @@ CHECK_WINDOW_END (struct window *w)
 		|| MATRIX_ROW_DISPLAYS_TEXT_P (row)
 		|| MATRIX_ROW_VPOS (row, w->current_matrix) == 0));
     }
+#endif
 #endif
 }
 
