@@ -816,7 +816,9 @@ buffer, and HEIGHT is the number of lines in the buffer. "
   (when (symbolp keymap)
     (setq keymap (indirect-function keymap)))
   (let ((name (last keymap)))
-    (and (stringp (car name)) (car name))))
+    (and (consp name)
+         (stringp (car name))
+         (car name))))
 
 (defconst tm--buffer-name-prefix " *tm--")
 
