@@ -1593,24 +1593,40 @@ It is installed as `x-popup-menu-function' when using `tm-mode'."
   (when-let* ((where (tm--position position)))
     (cl-destructuring-bind (tm--menu-updating-frame _ _) where
       (let ((tm--updating-buffer (current-buffer)))
-        (cond ((keymapp menu)
-               ;; Run the event loop, and at the end, collect bindings
-               ;; for nested menus involved to form the result event.
-               (cl-loop for i = (tm--loop menu where)
-                        then (with-slots (pane) i
-                               (with-slots (invoking-item) pane
-                                 invoking-item))
-                        while i
-                        when (consp i) return i
-                        collect (slot-value i 'key-code) into codes
-                        finally return (nreverse codes)))
-	      ((consp menu)
-	       (cl-loop with outer = (make-sparse-keymap "outer")
-		        for keymap in menu
-		        for name = (tm--keymap-name keymap)
-		        do (define-key outer (vector (intern name)) keymap)
-		        finally (tm--loop outer where)))
-	      (t (error "Not a menu: %S" menu)))))))
+        (pcase menu
+          ;; A single keymap
+          ((guard (keymapp menu))
+           ;; Run the event loop, and at the end, collect bindings
+           ;; for nested menus involved to form the result event.
+           (cl-loop for i = (tm--loop menu where)
+                    then (with-slots (pane) i
+                           (with-slots (invoking-item) pane
+                             invoking-item))
+                    while i
+                    when (consp i) return i
+                    collect (slot-value i 'key-code) into codes
+                    finally return (nreverse codes)))
+
+          ;; (KEYMAP ...)
+          (`(,(and (pred keymapp) menu) . ,_)
+           (error "List of keymaps not yet implemented"))
+
+          ;; Alternatively, you can specify a menu of multiple panes
+          ;; with a list of the form (TITLE PANE1 PANE2...), where
+          ;; each pane is a list of form (TITLE ITEM1 ITEM2...).
+          ;; Each ITEM is normally a cons cell (STRING . VALUE); but
+          ;; a string can appear as an item--that makes a
+          ;; non-selectable line in the menu.  With this form of
+          ;; menu, the return value is VALUE from the chosen item.
+	  (`(,(and (pred stringp) title) . ,_)
+           (message "menu = %S" menu)
+	   (cl-loop with outer = (make-sparse-keymap "outer")
+		    for keymap in menu
+		    for name = (tm--keymap-name keymap)
+		    do (define-key outer (vector (intern name)) keymap)
+		    finally (tm--loop outer where)))
+
+          (_ (error "Not a menu: %S" menu)))))))
 
 (defun tm--around-mouse-set-point (old-fun &rest args)
   "Around-advice for `mouse-set-point',
