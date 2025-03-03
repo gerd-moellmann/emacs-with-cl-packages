@@ -1639,16 +1639,18 @@ It is installed as `x-popup-menu-function' when using `tm-mode'."
 	  (`(,(and (pred stringp) title) . ,panes)
            (when-let* ((maps (mapcar #'tm--make-old-pane-keymap panes))
                        (maps (delq nil maps)))
-             (cond ((cdr maps)
-                    (cl-loop with outer = (make-sparse-keymap title)
-                             for m in (nreverse maps)
-                             for pane-name = (tm--keymap-name m)
-                             do
-                             (define-key outer (vector (intern pane-name))
-                                         `(menu-item ,pane-name ,m))
-                             finally return (tm--loop outer where)))
-                   (t
-                    (tm--loop (car maps) where)))))
+             (let (selected)
+               (cond ((cdr maps)
+                      (cl-loop with outer = (make-sparse-keymap title)
+                               for m in (nreverse maps)
+                               for pane-name = (tm--keymap-name m)
+                               do
+                               (define-key outer (vector (intern pane-name))
+                                           `(menu-item ,pane-name ,m))
+                               finally (setq selected (tm--loop outer where))))
+                     (t
+                      (setq selected (tm--loop (car maps) where))))
+               (and selected (slot-value selected 'binding)))))
 
           (_ (error "Not a menu: %S" menu)))))))
 
