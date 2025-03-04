@@ -245,6 +245,10 @@
   "Repeat interval for automatic scrolling."
   :type 'number)
 
+(defcustom tm-display-menu-titles t
+  "Whether or not to display menu prompts, if available."
+  :type 'boolean)
+
 (defvar tm--all-frames nil
   "Bind to t to let `frame-list' return all frames.")
 
