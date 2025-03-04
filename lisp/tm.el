@@ -1621,6 +1621,9 @@ It is installed as `x-popup-menu-function' when using `tm-mode'."
                            (with-slots (invoking-item) pane
                              invoking-item))
                     while i
+                    ;; `tm--loop' returns a cons (X . Y) in case we
+                    ;; detected a click or mouse movement to another
+                    ;; item in the menu bar.
                     when (consp i) return i
                     collect (slot-value i 'key-code) into codes
                     finally return (nreverse codes)))
