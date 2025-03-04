@@ -812,20 +812,11 @@ buffer, and HEIGHT is the number of lines in the buffer. "
 		(line-width)
 		(count-lines (point-min) (point-max))))))))
 
-(defun tm--keymap-name (keymap)
-  "Return the name of KEYMAP, if any."
-  (when (symbolp keymap)
-    (setq keymap (indirect-function keymap)))
-  (let ((name (last keymap)))
-    (and (consp name)
-         (stringp (car name))
-         (car name))))
-
 (defconst tm--buffer-name-prefix " *tm--")
 
 (defun tm--pane-buffer-name (keymap)
   "Make a buffer name for KEYMAP."
-  (if-let* ((name (tm--keymap-name keymap)))
+  (if-let* ((name (keymap-prompt keymap)))
       (format "%s%s*" tm--buffer-name-prefix name)
     (generate-new-buffer-name tm--buffer-name-prefix)))
 
@@ -1646,7 +1637,7 @@ It is installed as `x-popup-menu-function' when using `tm-mode'."
                (cond ((cdr maps)
                       (cl-loop with outer = (make-sparse-keymap title)
                                for m in (nreverse maps)
-                               for pane-name = (tm--keymap-name m)
+                               for pane-name = (keymap-prompt m)
                                do
                                (define-key outer (vector (intern pane-name))
                                            `(menu-item ,pane-name ,m))
