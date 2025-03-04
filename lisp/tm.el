@@ -1579,7 +1579,7 @@ KEYMAP is a menu keymap, and WHERE specifies where to open the menu."
       (`(menu-bar ,x ,y) (cons x y))
       (`(,selected . ,_) selected))))
 
-(defun tm--define (keymap item)
+(defun tm--define-menu-item (keymap item)
   (pcase item
     (`(,name . ,value)
      (define-key keymap (vector (intern name))
@@ -1593,69 +1593,64 @@ KEYMAP is a menu keymap, and WHERE specifies where to open the menu."
     (`(,title . ,items)
      (cl-loop with keymap = (make-sparse-keymap title)
               for item in (reverse items)
-              do (tm--define keymap item)
+              do (tm--define-menu-item keymap item)
               finally return keymap))))
+
+(defun tm--collect-key-codes (selected)
+  (nreverse (cl-loop for i = selected
+                     then (with-slots (pane) i
+                            (with-slots (invoking-item) pane
+                              invoking-item))
+                     while i
+                     collect (slot-value i 'key-code))))
+
+(defun tm--construct-keymap (maps)
+  (if (null (cdr maps))
+      (car maps)
+    (let ((outer (make-sparse-keymap "Outer")))
+      (cl-loop for m in (reverse maps)
+               for pane-name = (keymap-prompt m)
+               do (define-key outer (vector (intern pane-name))
+                              `(menu-item ,pane-name ,m)))
+      outer)))
 
 (cl-defun tm--popup-menu (position menu)
   "This is the replacement for `x-popup-menu'.
 It is installed as `x-popup-menu-function' when using `tm-mode'."
   (when-let* ((where (tm--position position)))
     (cl-destructuring-bind (tm--menu-updating-frame _ _) where
-      (let ((tm--updating-buffer (current-buffer)))
+      (let* ((tm--updating-buffer (current-buffer)))
         (pcase menu
           ;; A single keymap
           ((guard (keymapp menu))
-           ;; Run the event loop, and at the end, collect bindings
-           ;; for nested menus involved to form the result event.
-           (cl-loop for i = (tm--loop menu where)
-                    then (with-slots (pane) i
-                           (with-slots (invoking-item) pane
-                             invoking-item))
-                    while i
-                    ;; `tm--loop' returns a cons (X . Y) in case we
-                    ;; detected a click or mouse movement to another
-                    ;; item in the menu bar.
-                    when (consp i) return i
-                    collect (slot-value i 'key-code) into codes
-                    finally return (nreverse codes)))
+           (when-let* ((selected (tm--loop menu where)))
+             (if (consp selected)
+                 selected
+               (tm--collect-key-codes selected))))
 
           ;; (KEYMAP ...) - list of keymaps
-          (`(,(and (pred keymapp) map) . ,maps)
-             (let (selected)
-               (cond (maps
-                      (cl-loop with outer = (make-sparse-keymap "outer")
-                               for m in (reverse menu)
-                               for pane-name = (keymap-prompt m)
-                               do
-                               (define-key outer (vector (intern pane-name))
-                                           `(menu-item ,pane-name ,m))
-                               finally (setq selected (tm--loop outer where))))
-                     (t
-                      (setq selected (tm--loop map where))))
-               (and selected (slot-value selected 'binding))))
+          (`(,(and (pred keymapp) _map) . ,_maps)
+           (when-let* ((map (tm--construct-keymap menu))
+                       (selected (tm--loop map where)))
+             (if (consp selected)
+                 selected
+               (tm--collect-key-codes selected))))
 
-          ;; Alternatively, you can specify a menu of multiple panes
-          ;; with a list of the form (TITLE PANE1 PANE2...), where
-          ;; each pane is a list of form (TITLE ITEM1 ITEM2...).
-          ;; Each ITEM is normally a cons cell (STRING . VALUE); but
-          ;; a string can appear as an item--that makes a
-          ;; non-selectable line in the menu.  With this form of
-          ;; menu, the return value is VALUE from the chosen item.
-	  (`(,(and (pred stringp) title) . ,panes)
-           (when-let* ((maps (mapcar #'tm--make-old-pane-keymap panes))
-                       (maps (delq nil maps)))
-             (let (selected)
-               (cond ((cdr maps)
-                      (cl-loop with outer = (make-sparse-keymap title)
-                               for m in (nreverse maps)
-                               for pane-name = (keymap-prompt m)
-                               do
-                               (define-key outer (vector (intern pane-name))
-                                           `(menu-item ,pane-name ,m))
-                               finally (setq selected (tm--loop outer where))))
-                     (t
-                      (setq selected (tm--loop (car maps) where))))
-               (and selected (slot-value selected 'binding)))))
+          ;; Alternatively, you can specify a menu of multiple
+          ;; panes with a list of the form (TITLE PANE1 PANE2...),
+          ;; where each pane is a list of form (TITLE ITEM1
+          ;; ITEM2...).  Each ITEM is normally a cons cell (STRING
+          ;; . VALUE); but a string can appear as an item--that
+          ;; makes a non-selectable line in the menu.  With this
+          ;; form of menu, the return value is VALUE from the
+          ;; chosen item.
+	  (`(,(and (pred stringp) _title) . ,panes)
+           (when-let* ((menu (mapcar #'tm--make-old-pane-keymap panes))
+                       (map (tm--construct-keymap (delq nil menu)))
+                       (selected (tm--loop map where)))
+             (if (consp selected)
+                 selected
+               (slot-value selected 'binding))))
 
           (_ (error "Not a menu: %S" menu)))))))
 
