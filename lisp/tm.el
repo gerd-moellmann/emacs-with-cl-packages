@@ -1648,7 +1648,10 @@ It is installed as `x-popup-menu-function' when using `tm-mode'."
                        (selected (tm--loop map where)))
              (if (consp selected)
                  selected
-               (tm--collect-key-codes selected))))
+               (if (null (cdr menu))
+                   (tm--collect-key-codes selected)
+                 ;; Drop outer map that we added.
+                 (cdr (tm--collect-key-codes selected))))))
 
           ;; Alternatively, you can specify a menu of multiple
           ;; panes with a list of the form (TITLE PANE1 PANE2...),
