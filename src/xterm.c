@@ -18917,7 +18917,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 #endif
 		   int *finish, struct input_event *hold_quit)
 {
-  struct input_event inev;
+  union buffered_input_event inev;
   int count = 0;
   int do_help = 0;
 #ifdef HAVE_XINPUT2
@@ -18960,9 +18960,9 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 
   *finish = X_EVENT_NORMAL;
 
-  EVENT_INIT (inev);
-  inev.kind = NO_EVENT;
-  inev.arg = Qnil;
+  EVENT_INIT (inev.ie);
+  inev.ie.kind = NO_EVENT;
+  inev.ie.arg = Qnil;
 #ifdef HAVE_XINPUT2
   gen_help_device = NULL;
 #endif
@@ -19293,9 +19293,9 @@ handle_one_xevent (struct x_display_info *dpyinfo,
                 if (!f)
 		  goto OTHER; /* May be a dialog that is to be removed  */
 
-		inev.kind = DELETE_WINDOW_EVENT;
-		inev.timestamp = event->xclient.data.l[1];
-		XSETFRAME (inev.frame_or_window, f);
+		inev.ie.kind = DELETE_WINDOW_EVENT;
+		inev.ie.timestamp = event->xclient.data.l[1];
+		XSETFRAME (inev.ie.frame_or_window, f);
 		goto done;
               }
 
@@ -19449,7 +19449,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	    /* Convert the scroll bar event to an input event using
 	       the first window entered into the scroll bar event
 	       queue. */
-	    x_scroll_bar_to_input_event (dpyinfo, event, &inev);
+            x_scroll_bar_to_input_event (dpyinfo, event, &inev.ie);
 
 	    *finish = X_EVENT_GOTO_OUT;
             goto done;
@@ -19459,7 +19459,8 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	    /* Convert the horizontal scroll bar event to an input
 	       event using the first window entered into the scroll
 	       bar event queue. */
-	    x_horizontal_scroll_bar_to_input_event (dpyinfo, event, &inev);
+            x_horizontal_scroll_bar_to_input_event (dpyinfo, event,
+						    &inev.ie);
 
 	    *finish = X_EVENT_GOTO_OUT;
             goto done;
@@ -19471,7 +19472,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
           {
 	    enum xembed_message msg = event->xclient.data.l[1];
 	    if (msg == XEMBED_FOCUS_IN || msg == XEMBED_FOCUS_OUT)
-	      x_detect_focus_change (dpyinfo, any, event, &inev);
+	      x_detect_focus_change (dpyinfo, any, event, &inev.ie);
 
 	    *finish = X_EVENT_GOTO_OUT;
             goto done;
@@ -19510,7 +19511,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	rc = x_coords_from_dnd_message (dpyinfo, (XEvent *) event,
 					&dx, &dy);
 
-	if (x_handle_dnd_message (f, &event->xclient, dpyinfo, &inev,
+	if (x_handle_dnd_message (f, &event->xclient, dpyinfo, &inev.ie,
 				  rc, dx, dy))
 	  *finish = X_EVENT_DROP;
       }
@@ -19546,18 +19547,15 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 		|| dpyinfo->motif_drag_atom_time <= eventp->time))
 	  dpyinfo->motif_drag_atom = None;
 
-	struct selection_input_event sinev = {0};
-	sinev.kind = SELECTION_CLEAR_EVENT;
-	SELECTION_EVENT_DPYINFO (&sinev) = dpyinfo;
-	SELECTION_EVENT_SELECTION (&sinev) = eventp->selection;
-	SELECTION_EVENT_TIME (&sinev) = eventp->time;
+        inev.sie.kind = SELECTION_CLEAR_EVENT;
+        SELECTION_EVENT_DPYINFO (&inev.sie) = dpyinfo;
+        SELECTION_EVENT_SELECTION (&inev.sie) = eventp->selection;
+        SELECTION_EVENT_TIME (&inev.sie) = eventp->time;
 
 	if (x_use_pending_selection_requests)
-	  x_push_selection_request (&sinev);
-	else
 	  {
-	    kbd_buffer_store_selection_event_hold (&sinev, hold_quit);
-	    count++;
+	    x_push_selection_request (&inev.sie);
+	    EVENT_INIT (inev.ie);
 	  }
       }
       break;
@@ -19573,25 +19571,22 @@ handle_one_xevent (struct x_display_info *dpyinfo,
       {
 	const XSelectionRequestEvent *eventp = &event->xselectionrequest;
 
-	struct selection_input_event sinev;
-	sinev.kind = SELECTION_REQUEST_EVENT;
-	SELECTION_EVENT_DPYINFO (&sinev) = dpyinfo;
-	SELECTION_EVENT_REQUESTOR (&sinev) = eventp->requestor;
-	SELECTION_EVENT_SELECTION (&sinev) = eventp->selection;
-	SELECTION_EVENT_TARGET (&sinev) = eventp->target;
-	SELECTION_EVENT_PROPERTY (&sinev) = eventp->property;
-	SELECTION_EVENT_TIME (&sinev) = eventp->time;
+	inev.sie.kind = SELECTION_REQUEST_EVENT;
+	SELECTION_EVENT_DPYINFO (&inev.sie) = dpyinfo;
+	SELECTION_EVENT_REQUESTOR (&inev.sie) = eventp->requestor;
+	SELECTION_EVENT_SELECTION (&inev.sie) = eventp->selection;
+	SELECTION_EVENT_TARGET (&inev.sie) = eventp->target;
+	SELECTION_EVENT_PROPERTY (&inev.sie) = eventp->property;
+	SELECTION_EVENT_TIME (&inev.sie) = eventp->time;
 
 	/* If drag-and-drop or another modal dialog/menu is in
 	   progress, handle SelectionRequest events immediately, by
 	   pushing it onto the selection queue.  */
 
 	if (x_use_pending_selection_requests)
-	  x_push_selection_request (&sinev);
-	else
 	  {
-	    kbd_buffer_store_selection_event_hold (&sinev, hold_quit);
-	    count++;
+	    x_push_selection_request (&inev.sie);
+	    EVENT_INIT (inev.ie);
 	  }
 
 	if (x_dnd_waiting_for_finish
@@ -19690,7 +19685,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	      SET_FRAME_ICONIFIED (f, false);
 
 	      f->output_data.x->has_been_visible = true;
-	      inev.kind = DEICONIFY_EVENT;
+	      inev.ie.kind = DEICONIFY_EVENT;
 #if defined USE_GTK && defined HAVE_GTK3
 	      /* If GTK3 wants to impose some old size here (Bug#24526),
 		 tell it that the current size is what we want.  */
@@ -19701,7 +19696,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 		  f->was_invisible = false;
 		}
 #endif
-	      XSETFRAME (inev.frame_or_window, f);
+	      XSETFRAME (inev.ie.frame_or_window, f);
 	    }
 	  else if (!not_hidden && !FRAME_ICONIFIED_P (f))
 	    {
@@ -19711,8 +19706,8 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 
 	      SET_FRAME_VISIBLE (f, 0);
 	      SET_FRAME_ICONIFIED (f, true);
-	      inev.kind = ICONIFY_EVENT;
-	      XSETFRAME (inev.frame_or_window, f);
+	      inev.ie.kind = ICONIFY_EVENT;
+	      XSETFRAME (inev.ie.frame_or_window, f);
 	    }
 	}
 
@@ -19727,7 +19722,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	   set.  Handling UnmapNotify also checks for
 	   _NET_WM_STATE_HIDDEN, and thus suffers from the same
 	   problem.  */
-	x_handle_wm_state (f, &inev);
+	x_handle_wm_state (f, &inev.ie);
 
       if (f && FRAME_X_OUTPUT (f)->alpha_identical_p
 	  && (event->xproperty.atom
@@ -20129,8 +20124,8 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 		  (f, build_string ("UnmapNotify, visible | iconified"));
 
               SET_FRAME_ICONIFIED (f, true);
-	      inev.kind = ICONIFY_EVENT;
-	      XSETFRAME (inev.frame_or_window, f);
+	      inev.ie.kind = ICONIFY_EVENT;
+              XSETFRAME (inev.ie.frame_or_window, f);
             }
 	  else if (CONSP (frame_size_history))
 	    frame_size_history_plain
@@ -20239,8 +20234,8 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 
           if ((not_hidden || FRAME_X_EMBEDDED_P (f)) && iconified)
             {
-	      inev.kind = DEICONIFY_EVENT;
-	      XSETFRAME (inev.frame_or_window, f);
+              inev.ie.kind = DEICONIFY_EVENT;
+              XSETFRAME (inev.ie.frame_or_window, f);
             }
         }
       goto OTHER;
@@ -20506,17 +20501,18 @@ handle_one_xevent (struct x_display_info *dpyinfo,
           orig_keysym = keysym;
 
 	  /* Common for all keysym input events.  */
-	  XSETFRAME (inev.frame_or_window, f);
-	  inev.modifiers = x_x_to_emacs_modifiers (dpyinfo, modifiers);
-	  inev.timestamp = xkey.time;
+	  XSETFRAME (inev.ie.frame_or_window, f);
+	  inev.ie.modifiers
+	    = x_x_to_emacs_modifiers (dpyinfo, modifiers);
+	  inev.ie.timestamp = xkey.time;
 
 	  /* First deal with keysyms which have defined
 	     translations to characters.  */
 	  if (keysym >= 32 && keysym < 128)
 	    /* Avoid explicitly decoding each ASCII character.  */
 	    {
-	      inev.kind = ASCII_KEYSTROKE_EVENT;
-	      inev.code = keysym;
+	      inev.ie.kind = ASCII_KEYSTROKE_EVENT;
+	      inev.ie.code = keysym;
 
 #ifdef HAVE_XINPUT2
 	      if (event->xkey.time == pending_keystroke_time)
@@ -20525,7 +20521,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 					      dpyinfo->pending_keystroke_source);
 
 		  if (source)
-		    inev.device = source->name;
+		    inev.ie.device = source->name;
 		}
 #endif
 
@@ -20536,10 +20532,10 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	  if (keysym >= 0x01000000 && keysym <= 0x0110FFFF)
 	    {
 	      if (keysym < 0x01000080)
-		inev.kind = ASCII_KEYSTROKE_EVENT;
+		inev.ie.kind = ASCII_KEYSTROKE_EVENT;
 	      else
-		inev.kind = MULTIBYTE_CHAR_KEYSTROKE_EVENT;
-	      inev.code = keysym & 0xFFFFFF;
+		inev.ie.kind = MULTIBYTE_CHAR_KEYSTROKE_EVENT;
+	      inev.ie.code = keysym & 0xFFFFFF;
 
 #ifdef HAVE_XINPUT2
 	      if (event->xkey.time == pending_keystroke_time)
@@ -20548,7 +20544,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 					      dpyinfo->pending_keystroke_source);
 
 		  if (source)
-		    inev.device = source->name;
+		    inev.ie.device = source->name;
 		}
 #endif
 
@@ -20562,10 +20558,10 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 				Qnil),
 		  FIXNATP (c)))
 	    {
-	      inev.kind = (SINGLE_BYTE_CHAR_P (XFIXNAT (c))
-			   ? ASCII_KEYSTROKE_EVENT
-			   : MULTIBYTE_CHAR_KEYSTROKE_EVENT);
-	      inev.code = XFIXNAT (c);
+	      inev.ie.kind = (SINGLE_BYTE_CHAR_P (XFIXNAT (c))
+                              ? ASCII_KEYSTROKE_EVENT
+                              : MULTIBYTE_CHAR_KEYSTROKE_EVENT);
+	      inev.ie.code = XFIXNAT (c);
 
 #ifdef HAVE_XINPUT2
 	      if (event->xkey.time == pending_keystroke_time)
@@ -20574,7 +20570,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 					      dpyinfo->pending_keystroke_source);
 
 		  if (source)
-		    inev.device = source->name;
+		    inev.ie.device = source->name;
 		}
 #endif
 
@@ -20680,8 +20676,8 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	      STORE_KEYSYM_FOR_DEBUG (keysym);
 	      /* make_lispy_event will convert this to a symbolic
 		 key.  */
-	      inev.kind = NON_ASCII_KEYSTROKE_EVENT;
-	      inev.code = keysym;
+	      inev.ie.kind = NON_ASCII_KEYSTROKE_EVENT;
+	      inev.ie.code = keysym;
 
 #ifdef HAVE_XINPUT2
 	      if (event->xkey.time == pending_keystroke_time)
@@ -20690,7 +20686,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 					      dpyinfo->pending_keystroke_source);
 
 		  if (source)
-		    inev.device = source->name;
+		    inev.ie.device = source->name;
 		}
 #endif
 
@@ -20707,11 +20703,11 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 
 	    if (nbytes)
 	      {
-		inev.kind = MULTIBYTE_CHAR_KEYSTROKE_EVENT;
-		inev.arg = make_unibyte_string ((char *) copy_bufptr, nbytes);
+		inev.ie.kind = MULTIBYTE_CHAR_KEYSTROKE_EVENT;
+		inev.ie.arg = make_unibyte_string ((char *) copy_bufptr, nbytes);
 
 		Fput_text_property (make_fixnum (0), make_fixnum (nbytes),
-				    Qcoding, coding, inev.arg);
+				    Qcoding, coding, inev.ie.arg);
 
 #ifdef HAVE_XINPUT2
 		if (event->xkey.time == pending_keystroke_time
@@ -20725,7 +20721,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 						dpyinfo->pending_keystroke_source);
 
 		    if (source)
-		      inev.device = source->name;
+		      inev.ie.device = source->name;
 		  }
 #endif
 	      }
@@ -20800,7 +20796,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	 to treat implicit focus correctly.  (bug#65919) */
 #if defined USE_X_TOOLKIT || (defined USE_GTK && !defined HAVE_GTK3)
       if (x_top_window_to_frame (dpyinfo, event->xcrossing.window))
-	x_detect_focus_change (dpyinfo, any, event, &inev);
+	x_detect_focus_change (dpyinfo, any, event, &inev.ie);
 #endif /* defined USE_X_TOOLKIT || (defined USE_GTK && !defined HAVE_GTK3) */
 
 #ifdef HAVE_XINPUT2
@@ -20819,7 +20815,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	 builds.  */
 #if !defined USE_X_TOOLKIT || (!defined USE_GTK || defined HAVE_GTK3)
       if (x_top_window_to_frame (dpyinfo, event->xcrossing.window))
-	x_detect_focus_change (dpyinfo, any, event, &inev);
+	x_detect_focus_change (dpyinfo, any, event, &inev.ie);
 #endif /* !defined USE_X_TOOLKIT || (!defined USE_GTK || defined HAVE_GTK3) */
 
       f = any;
@@ -20893,12 +20889,12 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	      SET_FRAME_VISIBLE (f, 1);
 	      SET_FRAME_ICONIFIED (f, false);
 	      f->output_data.x->has_been_visible = true;
-	      inev.kind = DEICONIFY_EVENT;
-	      XSETFRAME (inev.frame_or_window, f);
+	      inev.ie.kind = DEICONIFY_EVENT;
+	      XSETFRAME (inev.ie.frame_or_window, f);
 	    }
 	}
 
-      x_detect_focus_change (dpyinfo, any, event, &inev);
+      x_detect_focus_change (dpyinfo, any, event, &inev.ie);
       goto OTHER;
 
     case LeaveNotify:
@@ -20910,7 +20906,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	 to treat implicit focus correctly.  */
 #if defined USE_X_TOOLKIT || (defined USE_GTK && !defined HAVE_GTK3)
       if (x_top_window_to_frame (dpyinfo, event->xcrossing.window))
-	x_detect_focus_change (dpyinfo, any, event, &inev);
+	x_detect_focus_change (dpyinfo, any, event, &inev.ie);
 #endif /* defined USE_X_TOOLKIT || (defined USE_GTK && !defined HAVE_GTK3) */
 
 #ifdef HAVE_XINPUT2
@@ -20942,7 +20938,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	 builds.  */
 #if !defined USE_X_TOOLKIT || (!defined USE_GTK || defined HAVE_GTK3)
       if (x_top_window_to_frame (dpyinfo, event->xcrossing.window))
-	x_detect_focus_change (dpyinfo, any, event, &inev);
+	x_detect_focus_change (dpyinfo, any, event, &inev.ie);
 #endif /* !defined USE_X_TOOLKIT || (!defined USE_GTK || defined HAVE_GTK3) */
 
 #ifdef HAVE_XWIDGETS
@@ -21043,7 +21039,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
       if (dpyinfo->supports_xi2)
 	goto OTHER;
 #endif
-      x_detect_focus_change (dpyinfo, any, event, &inev);
+      x_detect_focus_change (dpyinfo, any, event, &inev.ie);
       goto OTHER;
 
     case MotionNotify:
@@ -21353,8 +21349,8 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 		    && !EQ (window, last_mouse_window)
 		    && !EQ (window, selected_window))
 		  {
-		    inev.kind = SELECT_WINDOW_EVENT;
-		    inev.frame_or_window = window;
+		    inev.ie.kind = SELECT_WINDOW_EVENT;
+		    inev.ie.frame_or_window = window;
 		  }
 
 		/* Remember the last window where we saw the mouse.  */
@@ -21445,13 +21441,13 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 		 hook.  */
 	      if (!x_find_monitors_changed_event (dpyinfo))
 		{
-		  inev.kind = MONITORS_CHANGED_EVENT;
-		  XSETTERMINAL (inev.arg, dpyinfo->terminal);
+		  inev.ie.kind = MONITORS_CHANGED_EVENT;
+		  XSETTERMINAL (inev.ie.arg, dpyinfo->terminal);
 
-		  /* Store this event now since inev.type could be set to
+		  /* Store this event now since inev.ie.type could be set to
 		     MOVE_FRAME_EVENT later.  */
-		  kbd_buffer_store_event (&inev);
-		  inev.kind = NO_EVENT;
+		  kbd_buffer_store_event (&inev.ie);
+		  inev.ie.kind = NO_EVENT;
 		}
 
 	      /* Also update the position of the drag-and-drop
@@ -21718,8 +21714,8 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	      if (!FRAME_TOOLTIP_P (f)
 		  && (old_left != f->left_pos || old_top != f->top_pos))
 		{
-		  inev.kind = MOVE_FRAME_EVENT;
-		  XSETFRAME (inev.frame_or_window, f);
+		  inev.ie.kind = MOVE_FRAME_EVENT;
+		  XSETFRAME (inev.ie.frame_or_window, f);
 		}
 	    }
 
@@ -21785,8 +21781,8 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 
             if (!EQ (selected_window, xvw->w) && (event->xbutton.button < 4))
               {
-		inev.kind = SELECT_WINDOW_EVENT;
-		inev.frame_or_window = xvw->w;
+		inev.ie.kind = SELECT_WINDOW_EVENT;
+		inev.ie.frame_or_window = xvw->w;
 	      }
 
 	    *finish = X_EVENT_DROP;
@@ -22042,14 +22038,14 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 			&& event->xbutton.time > ignore_next_mouse_click_timeout)
 		      {
 			ignore_next_mouse_click_timeout = 0;
-			x_construct_mouse_click (&inev, &event->xbutton,
+			x_construct_mouse_click (&inev.ie, &event->xbutton,
 			                         f, false);
 		      }
 		    if (event->type == ButtonRelease)
 		      ignore_next_mouse_click_timeout = 0;
 		  }
 		else
-		  x_construct_mouse_click (&inev, &event->xbutton, f, false);
+		  x_construct_mouse_click (&inev.ie, &event->xbutton, f, false);
 
 		*finish = X_EVENT_DROP;
 		goto OTHER;
@@ -22119,18 +22115,18 @@ handle_one_xevent (struct x_display_info *dpyinfo,
                           && event->xbutton.time > ignore_next_mouse_click_timeout)
                         {
                           ignore_next_mouse_click_timeout = 0;
-			  x_construct_mouse_click (&inev, &event->xbutton,
+                          x_construct_mouse_click (&inev.ie, &event->xbutton,
                                                    f, false);
                         }
                       if (event->type == ButtonRelease)
                         ignore_next_mouse_click_timeout = 0;
                     }
                   else
-		    x_construct_mouse_click (&inev, &event->xbutton,
+                    x_construct_mouse_click (&inev.ie, &event->xbutton,
                                              f, false);
 
 		  if (!NILP (tab_bar_arg))
-		    inev.arg = tab_bar_arg;
+		    inev.ie.arg = tab_bar_arg;
                 }
 
             if (FRAME_X_EMBEDDED_P (f)
@@ -22149,12 +22145,12 @@ handle_one_xevent (struct x_display_info *dpyinfo,
                scroll bars.  */
             if (bar && event->xbutton.state & ControlMask)
               {
-		x_scroll_bar_handle_click (bar, event, &inev, Qnil);
+                x_scroll_bar_handle_click (bar, event, &inev.ie, Qnil);
                 *finish = X_EVENT_DROP;
               }
 #else /* not USE_TOOLKIT_SCROLL_BARS */
             if (bar)
-	      x_scroll_bar_handle_click (bar, event, &inev, Qnil);
+              x_scroll_bar_handle_click (bar, event, &inev.ie, Qnil);
 #endif /* not USE_TOOLKIT_SCROLL_BARS */
           }
 
@@ -22211,8 +22207,8 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 		if (!f->output_data.x->saved_menu_event)
 		  f->output_data.x->saved_menu_event = xmalloc (sizeof *event);
 		*f->output_data.x->saved_menu_event = *event;
-		inev.kind = MENU_BAR_ACTIVATE_EVENT;
-		XSETFRAME (inev.frame_or_window, f);
+		inev.ie.kind = MENU_BAR_ACTIVATE_EVENT;
+		XSETFRAME (inev.ie.frame_or_window, f);
 		*finish = X_EVENT_DROP;
 #ifdef USE_MOTIF
 	      }
@@ -22363,8 +22359,8 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 		      SET_FRAME_VISIBLE (f, 1);
 		      SET_FRAME_ICONIFIED (f, false);
 		      f->output_data.x->has_been_visible = true;
-		      inev.kind = DEICONIFY_EVENT;
-		      XSETFRAME (inev.frame_or_window, f);
+		      inev.ie.kind = DEICONIFY_EVENT;
+		      XSETFRAME (inev.ie.frame_or_window, f);
 		    }
 		}
 
@@ -22914,36 +22910,36 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 
 		      if (fabs (total_x) > 0 || fabs (total_y) > 0)
 			{
-			  inev.kind = (fabs (total_y) >= fabs (total_x)
-				       ? WHEEL_EVENT : HORIZ_WHEEL_EVENT);
-			  inev.timestamp = xev->time;
+			  inev.ie.kind = (fabs (total_y) >= fabs (total_x)
+					  ? WHEEL_EVENT : HORIZ_WHEEL_EVENT);
+			  inev.ie.timestamp = xev->time;
 
-			  XSETINT (inev.x, lrint (real_x));
-			  XSETINT (inev.y, lrint (real_y));
-			  XSETFRAME (inev.frame_or_window, f);
+			  XSETINT (inev.ie.x, lrint (real_x));
+			  XSETINT (inev.ie.y, lrint (real_y));
+			  XSETFRAME (inev.ie.frame_or_window, f);
 
-			  inev.modifiers = (signbit (fabs (total_y) >= fabs (total_x)
-						     ? total_y : total_x)
-					    ? down_modifier : up_modifier);
-			  inev.modifiers
+			  inev.ie.modifiers = (signbit (fabs (total_y) >= fabs (total_x)
+							? total_y : total_x)
+					       ? down_modifier : up_modifier);
+			  inev.ie.modifiers
 			    |= x_x_to_emacs_modifiers (dpyinfo,
 						       xev->mods.effective);
-			  inev.arg = list3 (Qnil,
-					    make_float (total_x),
-					    make_float (total_y));
+			  inev.ie.arg = list3 (Qnil,
+					       make_float (total_x),
+					       make_float (total_y));
 			}
 		      else
 			{
-			  inev.kind = TOUCH_END_EVENT;
-			  inev.timestamp = xev->time;
+			  inev.ie.kind = TOUCH_END_EVENT;
+			  inev.ie.timestamp = xev->time;
 
-			  XSETINT (inev.x, lrint (real_x));
-			  XSETINT (inev.y, lrint (real_y));
-			  XSETFRAME (inev.frame_or_window, f);
+			  XSETINT (inev.ie.x, lrint (real_x));
+			  XSETINT (inev.ie.y, lrint (real_y));
+			  XSETFRAME (inev.ie.frame_or_window, f);
 			}
 
 		      if (source && !NILP (source->name))
-			inev.device = source->name;
+			inev.ie.device = source->name;
 
 		      if (!other_valuators_found)
 			goto XI_OTHER;
@@ -23284,11 +23280,11 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 			  && !EQ (window, last_mouse_window)
 			  && !EQ (window, selected_window))
 			{
-			  inev.kind = SELECT_WINDOW_EVENT;
-			  inev.frame_or_window = window;
+			  inev.ie.kind = SELECT_WINDOW_EVENT;
+			  inev.ie.frame_or_window = window;
 
 			  if (source)
-			    inev.device = source->name;
+			    inev.ie.device = source->name;
 			}
 
 		      /* Remember the last window where we saw the mouse.  */
@@ -23676,11 +23672,11 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 
 		  if (!EQ (selected_window, xvw->w) && (xev->detail < 4))
 		    {
-		      inev.kind = SELECT_WINDOW_EVENT;
-		      inev.frame_or_window = xvw->w;
+		      inev.ie.kind = SELECT_WINDOW_EVENT;
+		      inev.ie.frame_or_window = xvw->w;
 
 		      if (source)
-			inev.device = source->name;
+			inev.ie.device = source->name;
 		    }
 
 		  *finish = X_EVENT_DROP;
@@ -23779,24 +23775,24 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 						     &real_x, &real_y);
 
 			  if (xev->detail <= 5)
-			    inev.kind = WHEEL_EVENT;
+			    inev.ie.kind = WHEEL_EVENT;
 			  else
-			    inev.kind = HORIZ_WHEEL_EVENT;
+			    inev.ie.kind = HORIZ_WHEEL_EVENT;
 
 			  if (source)
-			    inev.device = source->name;
+			    inev.ie.device = source->name;
 
-			  inev.timestamp = xev->time;
+			  inev.ie.timestamp = xev->time;
 
-			  XSETINT (inev.x, real_x);
-			  XSETINT (inev.y, real_y);
-			  XSETFRAME (inev.frame_or_window, f);
+			  XSETINT (inev.ie.x, real_x);
+			  XSETINT (inev.ie.y, real_y);
+			  XSETFRAME (inev.ie.frame_or_window, f);
 
-			  inev.modifiers
+			  inev.ie.modifiers
 			    |= x_x_to_emacs_modifiers (dpyinfo,
 						       xev->mods.effective);
 
-			  inev.modifiers |= xev->detail % 2 ? down_modifier : up_modifier;
+			  inev.ie.modifiers |= xev->detail % 2 ? down_modifier : up_modifier;
 			}
 
 		      *finish = X_EVENT_DROP;
@@ -23817,24 +23813,24 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 		      if (xev->evtype == XI_ButtonRelease)
 			{
 			  if (xev->detail <= 5)
-			    inev.kind = WHEEL_EVENT;
+			    inev.ie.kind = WHEEL_EVENT;
 			  else
-			    inev.kind = HORIZ_WHEEL_EVENT;
+			    inev.ie.kind = HORIZ_WHEEL_EVENT;
 
 			  if (source)
-			    inev.device = source->name;
+			    inev.ie.device = source->name;
 
-			  inev.timestamp = xev->time;
+			  inev.ie.timestamp = xev->time;
 
-			  XSETINT (inev.x, lrint (xev->event_x));
-			  XSETINT (inev.y, lrint (xev->event_y));
-			  XSETFRAME (inev.frame_or_window, f);
+			  XSETINT (inev.ie.x, lrint (xev->event_x));
+			  XSETINT (inev.ie.y, lrint (xev->event_y));
+			  XSETFRAME (inev.ie.frame_or_window, f);
 
-			  inev.modifiers
+			  inev.ie.modifiers
 			    |= x_x_to_emacs_modifiers (dpyinfo,
 						       xev->mods.effective);
 
-			  inev.modifiers |= xev->detail % 2 ? down_modifier : up_modifier;
+			  inev.ie.modifiers |= xev->detail % 2 ? down_modifier : up_modifier;
 			}
 
 		      goto XI_OTHER;
@@ -23903,16 +23899,16 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 				&& xev->time > ignore_next_mouse_click_timeout)
 			      {
 				ignore_next_mouse_click_timeout = 0;
-				x_construct_mouse_click (&inev, &bv, f, true);
+				x_construct_mouse_click (&inev.ie, &bv, f, true);
 			      }
 			    if (xev->evtype == XI_ButtonRelease)
 			      ignore_next_mouse_click_timeout = 0;
 			  }
 			else
-			  x_construct_mouse_click (&inev, &bv, f, true);
+			  x_construct_mouse_click (&inev.ie, &bv, f, true);
 
 			if (!NILP (tab_bar_arg))
-			  inev.arg = tab_bar_arg;
+			  inev.ie.arg = tab_bar_arg;
 		      }
 
 		  if (FRAME_X_EMBEDDED_P (f)
@@ -23928,14 +23924,14 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 
 #ifndef USE_TOOLKIT_SCROLL_BARS
 		  if (bar)
-		    x_scroll_bar_handle_click (bar, (XEvent *) &bv, &inev,
+		    x_scroll_bar_handle_click (bar, (XEvent *) &bv, &inev.ie,
 					       source ? source->name : Qnil);
 #else
 		  /* Make the "Ctrl-Mouse-2 splits window" work for toolkit
 		     scroll bars.  */
 		  if (bar && xev->mods.effective & ControlMask)
 		    {
-		      x_scroll_bar_handle_click (bar, (XEvent *) &bv, &inev,
+		      x_scroll_bar_handle_click (bar, (XEvent *) &bv, &inev.ie,
 						 source ? source->name : Qnil);
 		      *finish = X_EVENT_DROP;
 		    }
@@ -23961,8 +23957,8 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 		  device->grab &= ~(1 << xev->detail);
 		}
 
-	      if (source && inev.kind != NO_EVENT)
-		inev.device = source->name;
+	      if (source && inev.ie.kind != NO_EVENT)
+		inev.ie.device = source->name;
 
 	      if (f)
 		f->mouse_moved = false;
@@ -24283,8 +24279,8 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 		  *finish = X_EVENT_DROP;
 #endif /* USE_GTK */
 
-		  XSETFRAME (inev.frame_or_window, f);
-		  inev.timestamp = xev->time;
+		  XSETFRAME (inev.ie.frame_or_window, f);
+		  inev.ie.timestamp = xev->time;
 
 #ifdef HAVE_X_I18N
 		  if (FRAME_XIC (f))
@@ -24396,7 +24392,7 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 			}
 		    }
 
-		  inev.modifiers = x_x_to_emacs_modifiers (dpyinfo, state);
+		  inev.ie.modifiers = x_x_to_emacs_modifiers (dpyinfo, state);
 
 #ifdef XK_F1
 		  if (x_dnd_in_progress
@@ -24434,11 +24430,11 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 		  if (keysym >= 32 && keysym < 128)
 		    /* Avoid explicitly decoding each ASCII character.  */
 		    {
-		      inev.kind = ASCII_KEYSTROKE_EVENT;
-		      inev.code = keysym;
+		      inev.ie.kind = ASCII_KEYSTROKE_EVENT;
+		      inev.ie.code = keysym;
 
 		      if (source)
-			inev.device = source->name;
+			inev.ie.device = source->name;
 
 		      goto xi_done_keysym;
 		    }
@@ -24447,14 +24443,14 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 		  if (keysym >= 0x01000000 && keysym <= 0x0110FFFF)
 		    {
 		      if (keysym < 0x01000080)
-			inev.kind = ASCII_KEYSTROKE_EVENT;
+			inev.ie.kind = ASCII_KEYSTROKE_EVENT;
 		      else
-			inev.kind = MULTIBYTE_CHAR_KEYSTROKE_EVENT;
+			inev.ie.kind = MULTIBYTE_CHAR_KEYSTROKE_EVENT;
 
 		      if (source)
-			inev.device = source->name;
+			inev.ie.device = source->name;
 
-		      inev.code = keysym & 0xFFFFFF;
+		      inev.ie.code = keysym & 0xFFFFFF;
 		      goto xi_done_keysym;
 		    }
 
@@ -24465,13 +24461,13 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 					Qnil),
 			  FIXNATP (c)))
 		    {
-		      inev.kind = (SINGLE_BYTE_CHAR_P (XFIXNAT (c))
+		      inev.ie.kind = (SINGLE_BYTE_CHAR_P (XFIXNAT (c))
 				      ? ASCII_KEYSTROKE_EVENT
 				      : MULTIBYTE_CHAR_KEYSTROKE_EVENT);
-		      inev.code = XFIXNAT (c);
+		      inev.ie.code = XFIXNAT (c);
 
 		      if (source)
-			inev.device = source->name;
+			inev.ie.device = source->name;
 
 		      goto xi_done_keysym;
 		    }
@@ -24575,11 +24571,11 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 		      STORE_KEYSYM_FOR_DEBUG (keysym);
 		      /* make_lispy_event will convert this to a symbolic
 			 key.  */
-		      inev.kind = NON_ASCII_KEYSTROKE_EVENT;
-		      inev.code = keysym;
+		      inev.ie.kind = NON_ASCII_KEYSTROKE_EVENT;
+		      inev.ie.code = keysym;
 
 		      if (source)
-			inev.device = source->name;
+			inev.ie.device = source->name;
 
 		      goto xi_done_keysym;
 		    }
@@ -24591,14 +24587,14 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 
 		  if (nbytes)
 		    {
-		      inev.kind = MULTIBYTE_CHAR_KEYSTROKE_EVENT;
-		      inev.arg = make_unibyte_string (copy_bufptr, nbytes);
+		      inev.ie.kind = MULTIBYTE_CHAR_KEYSTROKE_EVENT;
+		      inev.ie.arg = make_unibyte_string (copy_bufptr, nbytes);
 
 		      Fput_text_property (make_fixnum (0), make_fixnum (nbytes),
-					  Qcoding, coding, inev.arg);
+					  Qcoding, coding, inev.ie.arg);
 
 		      if (source)
-			inev.device = source->name;
+			inev.ie.device = source->name;
 		    }
 		  goto xi_done_keysym;
 		}
@@ -24957,15 +24953,15 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 						   xev->event_x,
 						   xev->event_y, f);
 
-			  inev.kind = TOUCHSCREEN_BEGIN_EVENT;
-			  inev.timestamp = xev->time;
-			  XSETFRAME (inev.frame_or_window, f);
-			  XSETINT (inev.x, lrint (xev->event_x));
-			  XSETINT (inev.y, lrint (xev->event_y));
-			  XSETINT (inev.arg, local_detail);
+			  inev.ie.kind = TOUCHSCREEN_BEGIN_EVENT;
+			  inev.ie.timestamp = xev->time;
+			  XSETFRAME (inev.ie.frame_or_window, f);
+			  XSETINT (inev.ie.x, lrint (xev->event_x));
+			  XSETINT (inev.ie.y, lrint (xev->event_y));
+			  XSETINT (inev.ie.arg, local_detail);
 
 			  if (source)
-			    inev.device = source->name;
+			    inev.ie.device = source->name;
 			}
 
 		      x_uncatch_errors ();
@@ -25071,9 +25067,9 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 
 	      if (f && device->direct_p)
 		{
-		  inev.kind = TOUCHSCREEN_UPDATE_EVENT;
-		  inev.timestamp = xev->time;
-		  XSETFRAME (inev.frame_or_window, f);
+		  inev.ie.kind = TOUCHSCREEN_UPDATE_EVENT;
+		  inev.ie.timestamp = xev->time;
+		  XSETFRAME (inev.ie.frame_or_window, f);
 
 		  for (touchpoint = device->touchpoints;
 		       touchpoint; touchpoint = touchpoint->next)
@@ -25085,9 +25081,9 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 		    }
 
 		  if (source)
-		    inev.device = source->name;
+		    inev.ie.device = source->name;
 
-		  inev.arg = arg;
+		  inev.ie.arg = arg;
 		}
 
 	      goto XI_OTHER;
@@ -25122,17 +25118,17 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 
 		  if (f && device->direct_p)
 		    {
-		      inev.kind = TOUCHSCREEN_END_EVENT;
-		      inev.timestamp = xev->time;
-		      inev.modifiers = state != 2;
+		      inev.ie.kind = TOUCHSCREEN_END_EVENT;
+		      inev.ie.timestamp = xev->time;
+		      inev.ie.modifiers = state != 2;
 
-		      XSETFRAME (inev.frame_or_window, f);
-		      XSETINT (inev.x, lrint (xev->event_x));
-		      XSETINT (inev.y, lrint (xev->event_y));
-		      XSETINT (inev.arg, local_detail);
+		      XSETFRAME (inev.ie.frame_or_window, f);
+		      XSETINT (inev.ie.x, lrint (xev->event_x));
+		      XSETINT (inev.ie.y, lrint (xev->event_y));
+		      XSETINT (inev.ie.arg, local_detail);
 
 		      if (source)
-			inev.device = source->name;
+			inev.ie.device = source->name;
 		    }
 		}
 
@@ -25201,20 +25197,20 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 		  if (pev->event == FRAME_X_WINDOW (any))
 		    xi_compute_root_window_offset_pinch (any, pev);
 
-		  inev.kind = PINCH_EVENT;
-		  inev.modifiers
+		  inev.ie.kind = PINCH_EVENT;
+		  inev.ie.modifiers
 		    = x_x_to_emacs_modifiers (dpyinfo, pev->mods.effective);
 
-		  XSETINT (inev.x, lrint (pev->event_x));
-		  XSETINT (inev.y, lrint (pev->event_y));
-		  XSETFRAME (inev.frame_or_window, any);
-		  inev.arg = list4 (make_float (pev->delta_x),
-				    make_float (pev->delta_y),
-				    make_float (pev->scale),
-				    make_float (pev->delta_angle));
+		  XSETINT (inev.ie.x, lrint (pev->event_x));
+		  XSETINT (inev.ie.y, lrint (pev->event_y));
+		  XSETFRAME (inev.ie.frame_or_window, any);
+		  inev.ie.arg = list4 (make_float (pev->delta_x),
+				       make_float (pev->delta_y),
+				       make_float (pev->scale),
+				       make_float (pev->delta_angle));
 
 		  if (source)
-		    inev.device = source->name;
+		    inev.ie.device = source->name;
 		}
 
 	      /* Once again GTK seems to crash when confronted by
@@ -25569,26 +25565,26 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 	       already an undelivered event on the queue.  */
 	    goto OTHER;
 
-	  inev.kind = MONITORS_CHANGED_EVENT;
-	  inev.timestamp = timestamp;
-	  XSETTERMINAL (inev.arg, dpyinfo->terminal);
+	  inev.ie.kind = MONITORS_CHANGED_EVENT;
+	  inev.ie.timestamp = timestamp;
+	  XSETTERMINAL (inev.ie.arg, dpyinfo->terminal);
 
 	  /* Also don't do anything if the monitor configuration
 	     didn't really change.  */
 
 	  current_monitors
-	    = Fx_display_monitor_attributes_list (inev.arg);
+	    = Fx_display_monitor_attributes_list (inev.ie.arg);
 
 	  if (!NILP (Fequal (current_monitors,
 			     dpyinfo->last_monitor_attributes_list)))
-	    inev.kind = NO_EVENT;
+	    inev.ie.kind = NO_EVENT;
 
 	  dpyinfo->last_monitor_attributes_list = current_monitors;
 
 	  if (x_dnd_in_progress && x_dnd_update_tooltip)
 	    x_dnd_monitors = current_monitors;
 
-	  if (inev.kind != NO_EVENT)
+	  if (inev.ie.kind != NO_EVENT)
 	    x_dnd_update_tooltip_now ();
 	}
 #endif
@@ -25636,9 +25632,9 @@ handle_one_xevent (struct x_display_info *dpyinfo,
     }
 
  done:
-  if (inev.kind != NO_EVENT)
+  if (inev.ie.kind != NO_EVENT)
     {
-      kbd_buffer_store_event_hold (&inev, hold_quit);
+      kbd_buffer_store_buffered_event (&inev, hold_quit);
       count++;
     }
 
