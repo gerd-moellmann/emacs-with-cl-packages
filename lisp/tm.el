@@ -1619,9 +1619,20 @@ It is installed as `x-popup-menu-function' when using `tm-mode'."
                     collect (slot-value i 'key-code) into codes
                     finally return (nreverse codes)))
 
-          ;; (KEYMAP ...)
-          (`(,(and (pred keymapp) _menu) . ,_)
-           (error "List of keymaps not yet implemented"))
+          ;; (KEYMAP ...) - list of keymaps
+          (`(,(and (pred keymapp) map) . ,maps)
+             (let (selected)
+               (cond (maps
+                      (cl-loop with outer = (make-sparse-keymap "outer")
+                               for m in (reverse menu)
+                               for pane-name = (keymap-prompt m)
+                               do
+                               (define-key outer (vector (intern pane-name))
+                                           `(menu-item ,pane-name ,m))
+                               finally (setq selected (tm--loop outer where))))
+                     (t
+                      (setq selected (tm--loop map where))))
+               (and selected (slot-value selected 'binding))))
 
           ;; Alternatively, you can specify a menu of multiple panes
           ;; with a list of the form (TITLE PANE1 PANE2...), where
