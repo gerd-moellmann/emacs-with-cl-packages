@@ -1580,6 +1580,10 @@ KEYMAP is a menu keymap, and WHERE specifies where to open the menu."
       (`(,selected . ,_) selected))))
 
 (defun tm--define-menu-item (keymap item)
+  "Define a menu-item in KEYMAP for ITEM.
+ITEM can be a string which constructs a disabled menu-item, or it can be
+a cons (NAME . VALUE) where NAME is the menu-item name and VALUE is
+set as its binding."
   (pcase item
     (`(,name . ,value)
      (define-key keymap (vector (intern name))
@@ -1589,6 +1593,10 @@ KEYMAP is a menu keymap, and WHERE specifies where to open the menu."
                  `(menu-item ,name nil :enable nil)))))
 
 (defun tm--make-old-pane-keymap (pane)
+  "Construct a keymap from PANE.
+PANE must be of the form (TITLE ITEM1 ...) where TITLE is the keymap
+prompt and each ITEM are  is a either a string for a disabled menu-item
+or a cons (NAME . VALUE) for an enabled menu-item."
   (pcase pane
     (`(,title . ,items)
      (cl-loop with keymap = (make-sparse-keymap title)
@@ -1597,6 +1605,7 @@ KEYMAP is a menu keymap, and WHERE specifies where to open the menu."
               finally return keymap))))
 
 (defun tm--collect-key-codes (selected)
+  "Collect the list of key codes by which SELECTED has been selected."
   (nreverse (cl-loop for i = selected
                      then (with-slots (pane) i
                             (with-slots (invoking-item) pane
@@ -1605,6 +1614,7 @@ KEYMAP is a menu keymap, and WHERE specifies where to open the menu."
                      collect (slot-value i 'key-code))))
 
 (defun tm--construct-keymap (maps)
+  "Construct a keymap for a list of keymaps MAPS."
   (if (null (cdr maps))
       (car maps)
     (let ((outer (make-sparse-keymap "Outer")))
