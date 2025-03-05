@@ -1617,16 +1617,22 @@ or a cons (NAME . VALUE) for an enabled menu-item."
                      while i
                      collect (slot-value i 'key-code))))
 
-(defun tm--construct-keymap (maps)
-  "Construct a keymap for a list of keymaps MAPS."
-  (if (null (cdr maps))
-      (car maps)
-    (let ((outer (make-sparse-keymap "Outer")))
-      (cl-loop for m in (reverse maps)
-               for pane-name = (keymap-prompt m)
-               do (define-key outer (vector (intern pane-name))
-                              `(menu-item ,pane-name ,m)))
-      outer)))
+(defun tm--construct-keymap (title maps)
+  "Construct a keymap with TITLE for a list of keymaps MAPS."
+  (let ((map (if (null (cdr maps))
+                 (car maps)
+               (let ((outer (make-sparse-keymap "Outer")))
+                 (cl-loop for m in (reverse maps)
+                          for pane-name = (keymap-prompt m)
+                          do (define-key outer (vector (intern pane-name))
+                                         `(menu-item ,pane-name ,m)))
+                 outer))))
+    (when (and title
+               tm-display-menu-titles
+               (not tm--from-menu-bar))
+      (setq map (copy-keymap map))
+      (define-key map (vector 'prompt) `(menu-item ,title nil :enable nil)))
+    map))
 
 (cl-defun tm--popup-menu (position menu)
   "This is the replacement for `x-popup-menu'.
@@ -1644,7 +1650,7 @@ It is installed as `x-popup-menu-function' when using `tm-mode'."
 
           ;; (KEYMAP ...) - list of keymaps
           (`(,(and (pred keymapp) _map) . ,_maps)
-           (when-let* ((map (tm--construct-keymap menu))
+           (when-let* ((map (tm--construct-keymap nil menu))
                        (selected (tm--loop map where)))
              (if (consp selected)
                  selected
@@ -1661,9 +1667,9 @@ It is installed as `x-popup-menu-function' when using `tm-mode'."
           ;; makes a non-selectable line in the menu.  With this
           ;; form of menu, the return value is VALUE from the
           ;; chosen item.
-	  (`(,(and (pred stringp) _title) . ,panes)
+	  (`(,(and (pred stringp) title) . ,panes)
            (when-let* ((menu (mapcar #'tm--make-old-pane-keymap panes))
-                       (map (tm--construct-keymap (delq nil menu)))
+                       (map (tm--construct-keymap title (delq nil menu)))
                        (selected (tm--loop map where)))
              (if (consp selected)
                  selected
