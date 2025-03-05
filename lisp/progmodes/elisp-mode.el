@@ -1057,7 +1057,7 @@ namespace but with lower confidence."
 
 (cl-defmethod xref-backend-definitions ((_backend (eql 'elisp)) identifier)
   (require 'find-func)
-  (let ((sym (intern-soft identifier)))
+  (let ((sym (string-to-symbol identifier)))
     (when sym
       (let* ((pos (get-text-property 0 'pos identifier))
              (namespace (if (and pos
