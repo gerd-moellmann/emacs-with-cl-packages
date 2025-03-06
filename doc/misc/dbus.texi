@@ -10,7 +10,7 @@
 @syncodeindex fn cp
 
 @copying
-Copyright @copyright{} 2007--2024 Free Software Foundation, Inc.
+Copyright @copyright{} 2007--2025 Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -41,7 +41,7 @@ modify this GNU manual.''
 @contents
 
 
-@node Top, Overview, (dir), (dir)
+@node Top
 @top D-Bus integration in Emacs
 
 This manual documents an API for usage of D-Bus in Emacs.  D-Bus is a
@@ -75,9 +75,12 @@ another.  An overview of D-Bus can be found at
 @cindex overview
 
 D-Bus is an inter-process communication mechanism for applications
-residing on the same host.  The communication is based on
-@dfn{messages}.  Data in the messages is carried in a structured way,
-it is not just a byte stream.
+residing on the same host.  Emacs uses it when it is compiled with the
+respective library, see configuration option @option{--with-dbus}.  At
+runtime, the form @code{(featurep 'dbusbind)} indicates D-Bus support.
+
+D-Bus communication is based on @dfn{messages}.  Data in the messages is
+carried in a structured way, it is not just a byte stream.
 
 The communication is connection oriented to two kinds of message
 buses: a so called @dfn{system bus}, and a @dfn{session bus}.  On a
@@ -1083,8 +1086,8 @@ elements of this array.  Example:
 
 @defun dbus-string-to-byte-array string
 Sometimes, D-Bus methods require as input parameter an array of bytes,
-instead of a string.  If it is guaranteed, that @var{string} is a
-UTF-8 string, this function performs the conversion.  Example:
+instead of a string.  This function converts @var{string} into an array
+of bytes of the UTF-8 encoding of @var{string}.  Example:
 
 @lisp
 (dbus-string-to-byte-array "/etc/hosts")
@@ -1154,11 +1157,11 @@ The signal @code{PropertyModified}, discussed as an example in
 (@var{integer} ((@var{string} @var{bool} @var{bool}) (@var{string} @var{bool} @var{bool}) @dots{}))
 @end lisp
 
-@defun dbus-byte-array-to-string byte-array &optional multibyte
+@defun dbus-byte-array-to-string byte-array
 If a D-Bus method or signal returns an array of bytes, which are known
-to represent a UTF-8 string, this function converts @var{byte-array}
-to the corresponding string.  The string is unibyte encoded, unless
-@var{multibyte} is non-@code{nil}.  Example:
+to represent a UTF-8 string, this function converts @var{byte-array} to
+the corresponding Lisp string.  The contents of @var{byte-array} should
+be the byte sequence of a UTF-8 encoded string.  Example:
 
 @lisp
 (dbus-byte-array-to-string '(47 101 116 99 47 104 111 115 116 115))
@@ -1255,7 +1258,7 @@ object.  Example:
 @end lisp
 
 With the @code{dbus-introspect} function it is possible to explore the
-interfaces of @samp{org.freedesktop.Hal} service. It offers the
+interfaces of @samp{org.freedesktop.Hal} service.  It offers the
 interfaces @samp{org.freedesktop.Hal.Manager} for the object at the
 path @samp{/org/freedesktop/Hal/Manager} as well as the interface
 @samp{org.freedesktop.Hal.Device} for all objects prefixed with the
@@ -1420,7 +1423,7 @@ We are not an owner of the name @var{service}.
 @end table
 
 When @var{service} is not a known name but a unique name, the function
-returns nil.
+returns @code{nil}.
 @end defun
 
 When a name has been chosen, Emacs can offer its own methods, which
@@ -1970,7 +1973,7 @@ If this variable is non-@code{nil}, D-Bus specific debug messages are raised.
 Input parameters of @code{dbus-call-method},
 @code{dbus-call-method-asynchronously}, @code{dbus-send-signal},
 @code{dbus-register-method}, @code{dbus-register-property} and
-@code{dbus-register-signal} are checked for correct D-Bus types. If
+@code{dbus-register-signal} are checked for correct D-Bus types.  If
 there is a type mismatch, the Lisp error @code{wrong-type-argument}
 @code{D-Bus @var{arg}} is raised.
 

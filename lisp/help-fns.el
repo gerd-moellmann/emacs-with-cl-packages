@@ -1,6 +1,6 @@
 ;;; help-fns.el --- Complex help functions -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1986, 1993-1994, 1998-2024 Free Software
+;; Copyright (C) 1985-1986, 1993-1994, 1998-2025 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -152,6 +152,17 @@ edited even if this option is enabled."
   :group 'help
   :version "28.1")
 
+(defcustom help-display-function-type t
+  "Whether to display type specifiers of functions in \"*Help*\" buffers.
+
+The type specifier of a function is returned by `comp-function-type-spec',
+which see.  When this variable is non-nil, \\[describe-function] will \
+display the function's
+type specifier when available."
+  :type 'boolean
+  :group 'help
+  :version "30.1")
+
 (defun help--symbol-class (s)
   "Return symbol class characters for symbol S."
   (when (stringp s)
@@ -229,11 +240,11 @@ interactive command."
                (lambda (f) (if want-command
                           (commandp f)
                         (or (fboundp f) (get f 'function-documentation))))
-               ;; We use 'confirm' here, unlike in other describe-*
-               ;; commands, for cases like a function that is advised
-               ;; but not yet defined (e.g., if 'advice-add' is called
-               ;; before defining the function).
-               'confirm nil nil
+               ;; We used `confirm' for a while because we may want to see the
+               ;; meta-info about a function even if the function itself is not
+               ;; defined, but this use case is too marginal and rarely tested,
+               ;; not worth the trouble (bug#64902).
+               t nil nil
                (and fn (symbol-name fn)))))
     (unless (equal val "")
       (setq fn (intern val)))
@@ -286,6 +297,15 @@ handling of autoloaded functions."
         (with-current-buffer standard-output
           ;; Return the text we displayed.
           (buffer-string))))))
+
+;;;###autoload
+(defun help-find-source ()
+  "Switch to a buffer visiting the source of what is being described in *Help*."
+  (interactive)
+  (if-let ((help-buffer (get-buffer "*Help*")))
+      (with-current-buffer help-buffer
+          (help-view-source))
+    (error "No *Help* buffer found")))
 
 ;;;###autoload
 (defun describe-command (command)
@@ -351,14 +371,18 @@ if the variable `help-downcase-arguments' is non-nil."
   (propertize (if help-downcase-arguments (downcase arg) arg)
 	      'face 'help-argument-name))
 
-(defun help-do-arg-highlight (doc args)
+(defun help-do-arg-highlight (doc args &optional usage-p)
   (with-syntax-table (make-syntax-table emacs-lisp-mode-syntax-table)
     (modify-syntax-entry ?\- "w")
     (dolist (arg args)
       (setq doc (replace-regexp-in-string
                  ;; This is heuristic, but covers all common cases
                  ;; except ARG1-ARG2
-                 (concat "\\<"                   ; beginning of word
+                 (concat (when usage-p
+                           ;; Skip function name in usage string
+                           ;; (Bug#65580).
+                           "([^ ]+ .*")
+                         "\\<"                   ; beginning of word
                          "\\(?:[a-z-]*-\\)?"     ; for xxx-ARG
                          "\\("
                          (regexp-quote arg)
@@ -392,7 +416,7 @@ if the variable `help-downcase-arguments' is non-nil."
               (search-backward "(")
               (goto-char (scan-sexps (point) 1)))))
         ;; Highlight arguments in the USAGE string
-        (setq usage (help-do-arg-highlight (buffer-string) args))
+        (setq usage (help-do-arg-highlight (buffer-string) args t))
         ;; Highlight arguments in the DOC string
         (setq doc (and doc (help-do-arg-highlight doc args))))))
   ;; Return value is like the one from help-split-fundoc, but highlighted
@@ -463,7 +487,7 @@ the C sources, too."
     (cond
      ((and (not file-name)
            (subrp type)
-           (not (subr-native-elisp-p type)))
+           (not (native-comp-function-p type)))
       ;; A built-in function.  The form is from `describe-function-1'.
       (if (or (get-buffer " *DOC*")
               (and also-c-source
@@ -646,16 +670,14 @@ the C sources, too."
           (progn
             (insert (format-message " `%s'" handler))
             (save-excursion
-              (re-search-backward (substitute-command-keys "`\\([^`']+\\)'")
-                                  nil t)
+              (re-search-backward (substitute-command-keys "`\\([^`']+\\)'"))
               (help-xref-button 1 'help-function handler)))
         ;; FIXME: Obsolete since 24.4.
         (let ((lib (get function 'compiler-macro-file)))
           (when (stringp lib)
             (insert (format-message " in `%s'" lib))
             (save-excursion
-              (re-search-backward (substitute-command-keys "`\\([^`']+\\)'")
-                                  nil t)
+              (re-search-backward (substitute-command-keys "`\\([^`']+\\)'"))
               (help-xref-button 1 'help-function-cmacro function lib)))))))
   (unless (bolp)
     (insert ".  See "
@@ -714,23 +736,43 @@ the C sources, too."
               (high-doc (cdr high)))
           (unless (and (symbolp function)
                        (get function 'reader-construct))
-            (insert high-usage "\n"))
+            (insert high-usage "\n")
+            (when-let* ((gate help-display-function-type)
+                        (res (comp-function-type-spec function))
+                        (type-spec (car res))
+                        (kind (cdr res)))
+              (insert (format
+                       (if (eq kind 'inferred)
+                           "\nInferred type: %s\n"
+                         "\nDeclared type: %s\n")
+                       type-spec))))
           (fill-region fill-begin (point))
           high-doc)))))
 
 (defun help-fns--parent-mode (function)
   ;; If this is a derived mode, link to the parent.
-  (let ((parent-mode (and (symbolp function)
-                          (get function
-                               'derived-mode-parent))))
+  (when (symbolp function)
+    (let ((parent-mode (get function 'derived-mode-parent))
+          (extra-parents (get function 'derived-mode-extra-parents)))
     (when parent-mode
       (insert (substitute-quotes "  Parent mode: `"))
       (let ((beg (point)))
-        (insert (format "%s" parent-mode))
+        (insert (format "%S" parent-mode))
         (make-text-button beg (point)
                           'type 'help-function
                           'help-args (list parent-mode)))
-      (insert (substitute-quotes "'.\n")))))
+      (insert (substitute-quotes "'.\n")))
+    (when extra-parents
+      (insert (format "  Extra parent mode%s:" (if (cdr extra-parents) "s" "")))
+      (dolist (parent extra-parents)
+        (insert (substitute-quotes " `"))
+        (let ((beg (point)))
+          (insert (format "%S" parent))
+          (make-text-button beg (point)
+                            'type 'help-function
+                            'help-args (list parent)))
+        (insert (substitute-quotes "'")))
+      (insert ".\n")))))
 
 (defun help-fns--obsolete (function)
   ;; Ignore lambda constructs, keyboard macros, etc.
@@ -746,7 +788,7 @@ the C sources, too."
 	      " is obsolete")
       (when (nth 2 obsolete)
         (insert (format " since %s" (nth 2 obsolete))))
-      (insert (cond ((stringp use) (concat "; " use))
+      (insert (cond ((stringp use) (concat "; " (substitute-quotes use)))
                     (use (format-message "; use `%s' instead." use))
                     (t "."))
               "\n")
@@ -772,7 +814,7 @@ the C sources, too."
   (and (symbolp function)
        (not (eq (car-safe (symbol-function function)) 'macro))
        (let* ((interactive-only
-               (or (get function 'interactive-only)
+               (or (function-get function 'interactive-only)
                    (if (boundp 'byte-compile-interactive-only-functions)
                        (memq function
                              byte-compile-interactive-only-functions)))))
@@ -781,7 +823,7 @@ the C sources, too."
                    ;; Cf byte-compile-form.
                    (cond ((stringp interactive-only)
                           (format ";\n  in Lisp code %s" interactive-only))
-                         ((and (symbolp 'interactive-only)
+                         ((and (symbolp interactive-only)
                                (not (eq interactive-only t)))
                           (format-message ";\n  in Lisp code use `%s' instead."
                                           interactive-only))
@@ -999,7 +1041,7 @@ Returns a list of the form (REAL-FUNCTION DEF ALIASED REAL-DEF)."
                                               (symbol-name function)))))))
 	 (real-def (cond
                     ((and aliased (not (subrp def)))
-                     (or (car (function-alias-p real-function t))
+                     (or (car (function-alias-p real-function))
                          real-function))
 		    ((subrp def) (intern (subr-name def)))
                     (t def))))
@@ -1029,10 +1071,10 @@ Returns a list of the form (REAL-FUNCTION DEF ALIASED REAL-DEF)."
                         (concat
                          "an autoloaded " (if (commandp def)
                                               "interactive "))
-                      (if (commandp def) "an interactive " "a "))))
-
-    ;; Print what kind of function-like object FUNCTION is.
-    (princ (cond ((or (stringp def) (vectorp def))
+                      (if (commandp def) "an interactive " "a ")))
+               ;; Print what kind of function-like object FUNCTION is.
+               (description
+		(cond ((or (stringp def) (vectorp def))
 		  "a keyboard macro")
 		 ((and (symbolp function)
                        (get function 'reader-construct))
@@ -1041,12 +1083,6 @@ Returns a list of the form (REAL-FUNCTION DEF ALIASED REAL-DEF)."
 		 ;; aliases before functions.
 		 (aliased
 		  (format-message "an alias for `%s'" real-def))
-                 ((subr-native-elisp-p def)
-                  (concat beg "native-compiled Lisp function"))
-		 ((subrp def)
-		  (concat beg (if (eq 'unevalled (cdr (subr-arity def)))
-		                  "special form"
-                                "built-in function")))
 		 ((autoloadp def)
 		  (format "an autoloaded %s"
                           (cond
@@ -1060,14 +1096,6 @@ Returns a list of the form (REAL-FUNCTION DEF ALIASED REAL-DEF)."
 		      ;; need to check macros before functions.
 		      (macrop function))
 		  (concat beg "Lisp macro"))
-		 ((byte-code-function-p def)
-		  (concat beg "byte-compiled Lisp function"))
-                 ((module-function-p def)
-                  (concat beg "module function"))
-		 ((eq (car-safe def) 'lambda)
-		  (concat beg "Lisp function"))
-		 ((eq (car-safe def) 'closure)
-		  (concat beg "Lisp closure"))
 		 ((keymapp def)
 		  (let ((is-full nil)
 			(elts (cdr-safe def)))
@@ -1077,7 +1105,18 @@ Returns a list of the form (REAL-FUNCTION DEF ALIASED REAL-DEF)."
 				elts nil))
 		      (setq elts (cdr-safe elts)))
 		    (concat beg (if is-full "keymap" "sparse keymap"))))
-		 (t "")))
+		 (t
+		  (concat beg (format "%s"
+		                      (if (and (consp def) (symbolp (car def)))
+		                          (car def)
+		                        (let ((type (or (oclosure-type def)
+		                                        (cl-type-of def))))
+		                          (make-text-button
+		                           (symbol-name type) nil
+		                           'type 'help-type
+		                           'help-args (list type))))))))))
+    (with-current-buffer standard-output
+      (insert description))
 
     (if (and aliased (not (fboundp real-def)))
 	(princ ",\nwhich is not defined.")
@@ -1103,8 +1142,7 @@ Returns a list of the form (REAL-FUNCTION DEF ALIASED REAL-DEF)."
           (setq help-mode--current-data (list :symbol function
                                               :file file-name))
 	  (save-excursion
-	    (re-search-backward (substitute-command-keys "`\\([^`']+\\)'")
-                                nil t)
+            (re-search-backward (substitute-command-keys "`\\([^`']+\\)'"))
 	    (help-xref-button 1 'help-function-def function file-name))))
       (princ "."))))
 
@@ -1142,7 +1180,7 @@ Returns a list of the form (REAL-FUNCTION DEF ALIASED REAL-DEF)."
     ;; key substitution constructs, load the library.
     (and (autoloadp real-def) doc-raw
          help-enable-autoload
-         (string-match "\\([^\\]=\\|[^=]\\|\\`\\)\\\\[[{<]" doc-raw)
+         (string-match "\\([^\\]=\\|[^=]\\|\\`\\)\\\\[[{<]\\|`.*'" doc-raw)
          (autoload-do-load real-def))
 
     (help-fns--key-bindings function)
@@ -1303,8 +1341,7 @@ it is displayed along with the global value."
                                          :file file-name))
                              (save-excursion
 			       (re-search-backward (substitute-command-keys
-                                                    "`\\([^`']+\\)'")
-                                                   nil t)
+                                                    "`\\([^`']+\\)'"))
 			       (help-xref-button 1 'help-variable-def
 					         variable file-name)))
 		           (if valvoid
@@ -1520,6 +1557,8 @@ This cancels value editing without updating the value."
   (interactive nil help-fns--edit-value-mode)
   (help-fns-edit-mode-done t))
 
+(autoload 'shortdoc-help-fns-examples-function "shortdoc")
+
 (defun help-fns--run-describe-functions (functions &rest args)
   (with-current-buffer standard-output
     (unless (bolp)
@@ -1543,8 +1582,7 @@ This cancels value editing without updating the value."
       (princ (concat "  You can " customize-label (or text " this variable.")))
       (with-current-buffer standard-output
 	(save-excursion
-	  (re-search-backward
-	   (concat "\\(" customize-label "\\)") nil t)
+          (re-search-backward (concat "\\(" customize-label "\\)"))
 	  (help-xref-button 1 'help-customize-variable variable)))
       (terpri))))
 
@@ -1731,8 +1769,7 @@ If FRAME is omitted or nil, use the selected frame."
 		     (called-interactively-p 'interactive))
     (unless face
       (setq face 'default))
-    (if (not (listp face))
-        (setq face (list face)))
+    (setq face (ensure-list face))
     (with-help-window (help-buffer)
       (with-current-buffer standard-output
         (dolist (f face (buffer-string))
@@ -1770,14 +1807,12 @@ If FRAME is omitted or nil, use the selected frame."
                            alias)
                         ""))))
 		  (insert "\nDocumentation:\n"
-                          (substitute-command-keys
-                           (or (face-documentation face)
-                               "Not documented as a face."))
+                          (or (face-documentation face)
+                              "Not documented as a face.")
 			  "\n\n"))
 	        (with-current-buffer standard-output
 		  (save-excursion
-		    (re-search-backward
-		     (concat "\\(" customize-label "\\)") nil t)
+                    (re-search-backward (concat "\\(" customize-label "\\)"))
 		    (help-xref-button 1 'help-customize-face f)))
 	        (setq file-name (find-lisp-object-file-name f 'defface))
 	        (if (not file-name)
@@ -1790,7 +1825,7 @@ If FRAME is omitted or nil, use the selected frame."
 		  ;; Make a hyperlink to the library.
 		  (save-excursion
 		    (re-search-backward
-                     (substitute-command-keys "`\\([^`']+\\)'") nil t)
+                     (substitute-command-keys "`\\([^`']+\\)'"))
 		    (help-xref-button 1 'help-face-def f file-name))
 		  (princ ".")
 		  (terpri)
@@ -1837,7 +1872,7 @@ If FRAME is omitted or nil, use the selected frame."
 		 (not (eq attr 'unspecified)))
 	    ;; Make a hyperlink to the parent face.
 	    (save-excursion
-	      (re-search-backward ": \\([^:]+\\)" nil t)
+              (re-search-backward ": \\([^:]+\\)")
 	      (help-xref-button 1 'help-face attr)))
 	(insert "\n")))
     (terpri)))
@@ -2008,8 +2043,8 @@ variable with value KEYMAP."
                   (mapatoms (lambda (symb)
                               (when (and (boundp symb)
                                          (eq (symbol-value symb) keymap)
-                                         (not (eq symb 'keymap))
-                                         (throw 'found-keymap symb)))))
+                                         (not (eq symb 'keymap)))
+                                (throw 'found-keymap symb))))
                   nil)))
       ;; Follow aliasing.
       (or (ignore-errors (indirect-variable name)) name))))
@@ -2063,11 +2098,9 @@ keymap value."
         (if (symbolp keymap)
             (error "Not a keymap variable: %S" keymap)
           (error "Not a keymap")))
-      (let ((sym nil))
-        (unless sym
-          (setq sym (cl-gentemp "KEYMAP OBJECT (no variable) "))
-          (setq used-gentemp t)
-          (set sym keymap))
+      (let ((sym (cl-gentemp "KEYMAP OBJECT (no variable) ")))
+        (setq used-gentemp t)
+        (set sym keymap)
         (setq keymap sym)))
     ;; Follow aliasing.
     (setq keymap (or (ignore-errors (indirect-variable keymap)) keymap))
@@ -2090,9 +2123,7 @@ keymap value."
                           "C source code"
                         (help-fns-short-filename file-name))))
               (save-excursion
-                (re-search-backward (substitute-command-keys
-                                     "`\\([^`']+\\)'")
-                                    nil t)
+                (re-search-backward (substitute-command-keys "`\\([^`']+\\)'"))
                 (setq help-mode--current-data (list :symbol keymap
                                                     :file file-name))
                 (help-xref-button 1 'help-variable-def
@@ -2107,6 +2138,12 @@ keymap value."
     (when used-gentemp
       (makunbound keymap))))
 
+(defcustom describe-mode-outline t
+  "Non-nil enables outlines in the output buffer of `describe-mode'."
+  :type 'boolean
+  :group 'help
+  :version "30.1")
+
 ;;;###autoload
 (defun describe-mode (&optional buffer)
   "Display documentation of current major mode and minor modes.
@@ -2119,7 +2156,10 @@ variable \(listed in `minor-mode-alist') must also be a function
 whose documentation describes the minor mode.
 
 If called from Lisp with a non-nil BUFFER argument, display
-documentation for the major and minor modes of that buffer."
+documentation for the major and minor modes of that buffer.
+
+When `describe-mode-outline' is non-nil, Outline minor mode
+is enabled in the Help buffer."
   (interactive "@")
   (unless buffer
     (setq buffer (current-buffer)))
@@ -2133,13 +2173,20 @@ documentation for the major and minor modes of that buffer."
       (with-current-buffer (help-buffer)
         ;; Add the local minor modes at the start.
         (when local-minors
-          (insert (format "Minor mode%s enabled in this buffer:"
-                          (if (length> local-minors 1)
-                              "s" "")))
+          (unless describe-mode-outline
+            (insert (format "Minor mode%s enabled in this buffer:"
+                            (if (length> local-minors 1)
+                                "s" ""))))
           (describe-mode--minor-modes local-minors))
 
         ;; Document the major mode.
         (let ((major (buffer-local-value 'major-mode buffer)))
+          (when describe-mode-outline
+            (goto-char (point-min))
+            (put-text-property
+             (point) (progn (insert (format "Major mode %S" major)) (point))
+             'outline-level 1)
+            (insert "\n\n"))
           (insert "The major mode is "
                   (buttonize
                    (propertize (format-mode-line
@@ -2163,36 +2210,56 @@ documentation for the major and minor modes of that buffer."
 
           ;; Insert the global minor modes after the major mode.
           (when global-minor-modes
-            (insert (format "Global minor mode%s enabled:"
-                            (if (length> global-minor-modes 1)
-                                "s" "")))
-            (describe-mode--minor-modes global-minor-modes)
-            (when (re-search-forward "^\f")
-              (beginning-of-line)
-              (ensure-empty-lines 1)))
+            (unless describe-mode-outline
+              (insert (format "Global minor mode%s enabled:"
+                              (if (length> global-minor-modes 1)
+                                  "s" ""))))
+            (describe-mode--minor-modes global-minor-modes t)
+            (unless describe-mode-outline
+              (when (re-search-forward "^\f")
+                (beginning-of-line)
+                (ensure-empty-lines 1))))
+
+          (when describe-mode-outline
+            (setq-local outline-search-function #'outline-search-level)
+            (setq-local outline-level (lambda () 1))
+            (setq-local outline-minor-mode-cycle t
+                        outline-minor-mode-highlight t
+                        outline-minor-mode-use-buttons 'insert)
+            (outline-minor-mode 1))
+
           ;; For the sake of IELM and maybe others
           nil)))))
 
-(defun describe-mode--minor-modes (modes)
+(defun describe-mode--minor-modes (modes &optional global)
   (dolist (mode (seq-sort #'string< modes))
     (let ((pretty-minor-mode
            (capitalize
             (replace-regexp-in-string
              "\\(\\(-minor\\)?-mode\\)?\\'" ""
              (symbol-name mode)))))
-      (insert
-       " "
-       (buttonize
-        pretty-minor-mode
-        (lambda (mode)
-          (goto-char (point-min))
-          (text-property-search-forward
-           'help-minor-mode mode t)
-          (beginning-of-line))
-        mode))
+      (if (not describe-mode-outline)
+          (insert
+           " "
+           (buttonize
+            pretty-minor-mode
+            (lambda (mode)
+              (goto-char (point-min))
+              (text-property-search-forward
+               'help-minor-mode mode t)
+              (beginning-of-line))
+            mode))
+        (goto-char (point-max))
+        (put-text-property
+         (point) (progn (insert (if global "Global" "Local")
+                                (format " minor mode %S" mode))
+                        (point))
+         'outline-level 1)
+        (insert "\n\n"))
       (save-excursion
-	(goto-char (point-max))
-	(insert "\n\n\f\n")
+	(unless describe-mode-outline
+          (goto-char (point-max))
+	  (insert "\n\n\f\n"))
 	;; Document the minor modes fully.
         (insert (buttonize
                  (propertize pretty-minor-mode 'help-minor-mode mode)
@@ -2206,11 +2273,14 @@ documentation for the major and minor modes of that buffer."
 			    (format "indicator%s"
 				    indicator)))))
 	(insert (or (help-split-fundoc (documentation mode) nil 'doc)
-	            "No docstring")))))
-  (forward-line -1)
-  (fill-paragraph nil)
-  (forward-paragraph 1)
-  (ensure-empty-lines 1))
+	            "No docstring"))
+        (when describe-mode-outline
+          (insert "\n\n")))))
+  (unless describe-mode-outline
+    (forward-line -1)
+    (fill-paragraph nil)
+    (forward-paragraph 1)
+    (ensure-empty-lines 1)))
 
 (defun help-fns--list-local-commands ()
   (let ((functions nil))
@@ -2223,7 +2293,7 @@ documentation for the major and minor modes of that buffer."
                   (not (get sym 'byte-obsolete-info))
                   ;; Ignore everything bound.
                   (not (where-is-internal sym nil t))
-                  (apply #'derived-mode-p (command-modes sym)))
+                  (derived-mode-p (command-modes sym)))
          (push sym functions))))
     (with-temp-buffer
       (when functions
@@ -2382,6 +2452,81 @@ one of them returns non-nil."
             "@bye\n")
     (setq buffer-undo-list nil)
     (texinfo-mode)))
+
+(defconst help-fns--function-numbers
+  (make-hash-table :test 'equal :weakness 'value))
+(defconst help-fns--function-names (make-hash-table :weakness 'key))
+
+(defun help-fns--display-function (function)
+  (cond
+   ((subr-primitive-p function)
+    (describe-function function))
+   ((and (compiled-function-p function)
+         (not (and (fboundp 'kmacro-p) (kmacro-p function))))
+    (disassemble function))
+   (t
+    ;; FIXME: Use cl-print!
+    (pp-display-expression function "*Help Source*" (consp function)))))
+
+;;;###autoload
+(defun help-fns-function-name (function)
+  "Return a short buttonized string representing FUNCTION.
+The string is propertized with a button; clicking on that
+provides further details about FUNCTION.
+FUNCTION can be a function, a built-in, a keyboard macro,
+or a compile function.
+This function is intended to be used to display various
+callable symbols in buffers in a way that allows the user
+to find out more details about the symbols."
+  ;; FIXME: For kmacros, should we print the key-sequence?
+  (cond
+   ((symbolp function)
+    (let ((name (if (eq (intern-soft (symbol-name function)) function)
+                    (symbol-name function)
+                  (concat "#:" (symbol-name function)))))
+      (if (not (fboundp function))
+          name
+        (make-text-button name nil
+                          'type 'help-function
+                          'help-args (list function)))))
+   ((gethash function help-fns--function-names))
+   ((subrp function)
+    (let ((name (subr-name function)))
+      ;; FIXME: For native-elisp-functions, should we use `help-function'
+      ;; or `disassemble'?
+      (format "#<%s %s>"
+              (cl-type-of function)
+              (make-text-button name nil
+                                'type 'help-function
+                                ;; Let's hope the subr hasn't been redefined!
+                                'help-args (list (intern name))))))
+   (t
+    (let ((type (or (oclosure-type function)
+                    (if (consp function)
+                        (car function) (cl-type-of function))))
+          (hash (sxhash-eq function))
+          ;; Use 3 digits minimum.
+          (mask #xfff)
+          name)
+      (while
+          (let* ((hex (format (concat "%0"
+                                      (number-to-string (1+ (/ (logb mask) 4)))
+                                      "X")
+                              (logand mask hash)))
+                 ;; FIXME: For kmacros, we don't want to `disassemble'!
+                 (button (buttonize
+                          hex #'help-fns--display-function function
+                          ;; FIXME: Shouldn't `buttonize' add
+                          ;; the "mouse-2, RET:" prefix?
+                          "mouse-2, RET: Display the function's body")))
+            (setq name (format "#<%s %s>" type button))
+            (and (< mask (abs hash))    ; We can add more digits.
+                 (gethash name help-fns--function-numbers)))
+        ;; Add a digit.
+        (setq mask (+ (ash mask 4) #x0f)))
+      (puthash name function help-fns--function-numbers)
+      (puthash function name help-fns--function-names)
+      name))))
 
 (provide 'help-fns)
 

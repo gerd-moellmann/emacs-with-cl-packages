@@ -1,6 +1,6 @@
 ;;; reftex-ref.el --- code to create labels and references with RefTeX  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1997-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2025 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <dominik@science.uva.nl>
 ;; Maintainer: auctex-devel@gnu.org
@@ -495,7 +495,7 @@ When called with 2 \\[universal-argument] prefix args, disable magic word recogn
               sep1 (cdr (assoc sep reftex-multiref-punctuation))
               labels (cdr labels))
         (when cut
-          (backward-delete-char cut)
+          (delete-char (- cut))
           (setq cut nil))
 
         ;; remove ~ if we do already have a space
@@ -781,10 +781,9 @@ When called with 2 \\[universal-argument] prefix args, disable magic word recogn
         (funcall errorf "Label %s not found" label))
       found)))
 
-(defvar font-lock-mode)
 (defun reftex-show-entry (beg-hlt end-hlt)
   ;; Show entry if point is hidden
-  (let* ((n (/ (reftex-window-height) 2))
+  (let* ((n (/ (window-height) 2))
          (beg (save-excursion
                (re-search-backward "[\n\r]" nil 1 n) (point)))
          (end (save-excursion

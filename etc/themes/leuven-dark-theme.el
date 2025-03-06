@@ -1,11 +1,12 @@
 ;;; leuven-dark-theme.el --- Awesome Emacs color theme on dark background  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2003-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2025 Free Software Foundation, Inc.
 
 ;; Author: Fabrice Niessen <(concat "fniessen" at-sign "pirilampo.org")>
 ;; Contributor: Thibault Polge <(concat "thibault" at-sign "thb.lt")>
-;; URL: https://github.com/fniessen/emacs-leuven-dark-theme
-;; Version: 20221010.1208
+;; URL: https://github.com/fniessen/emacs-leuven-theme
+;; Version: 1.2.0
+;; Last-Updated: 2022-10-04 01:15
 ;; Keywords: color theme
 
 ;; This file is part of GNU Emacs.
@@ -33,9 +34,6 @@
 ;;   (load-theme 'leuven-dark t)
 ;;
 ;; Requirements: Emacs 24+.
-;;
-;; NOTE -- Would you like implement a version of this for dark backgrounds,
-;; please do so!  I'm willing to integrate it...
 
 ;;; Code:
 
@@ -107,7 +105,7 @@ more..."
 
       ;; Leuven generic colors.
       (cancel '(:slant italic :strike-through t :foreground "#5b5660"))
-      ;; (clock-line '(:box (:line-width 1 :color "#cfa161") :foreground "#ffffff" :background "#1636ff"))
+      (clock-line '(:box (:line-width 1 :color "#cfa161") :foreground "#ffffff" :background "#1636ff"))
       (code-block '(:foreground "#ffff7f" :background "#252046"))
       (code-inline '(:foreground "#ff9bff" :background "#262031"))
       (column '(:height 1.0 :weight normal :slant normal :underline nil :strike-through nil :foreground "#1e52b8" :background "#252c48"))
@@ -128,10 +126,10 @@ more..."
       (grep-file-name '(:weight bold :foreground "#d8b76b")) ; Used for grep hits.
       (grep-line-number '(:weight bold :foreground "#5fca5b"))
       (highlight-blue '(:background "#3c312a"))
-      ;; (highlight-blue2 '(:background "#3e2d2f"))
+      (highlight-blue2 '(:background "#3e2d2f"))
       (highlight-gray '(:background "#3e3944"))
-      ;; (highlight-green '(:background "#2f0e3a"))
-      ;; (highlight-red '(:background "#063741"))
+      (highlight-green '(:background "#2f0e3a"))
+      (highlight-red '(:background "#063741"))
       (highlight-yellow '(:background "#2d2058"))
       (link '(:weight normal :underline t :foreground "#ff925a"))
       (link-no-underline '(:weight normal :foreground "#ff925a"))
@@ -168,7 +166,7 @@ more..."
       (xml-attribute '(:foreground "#119cd0"))
       (xml-tag '(:foreground "#56e46f"))
       (highlight-current-tag '(:background "#3a352a")) ; #342b32 or #0614df
-  )
+      )
 
   (custom-theme-set-faces
    'leuven-dark
@@ -463,7 +461,7 @@ more..."
    `(compilation-mode-line-run ((,class (:weight bold :foreground "#065aff")))) ; :run
    `(css-property ((,class (:foreground "#ff55ff"))))
    `(css-selector ((,class (:weight bold :foreground "#ffff0b"))))
-   `(custom-button ((,class (:box (:line-width 2 :style released-button) :foreground "gray20" :background "lightgrey"))))
+   `(custom-button ((,class (:box (:line-width 2 :style released-button) :foreground "#ffffff" :background "lightgrey"))))
    `(custom-button-mouse ((,class (:box (:line-width 2 :style released-button) :foreground "#ffffff" :background "#3d3842"))))
    `(custom-button-pressed ((,class (:box (:line-width 2 :style pressed-button) :foreground "#ffffff" :background "#312c36"))))
    `(custom-button-pressed-unraised ((,class (:underline t :foreground "#78ff7c"))))
@@ -621,11 +619,11 @@ more..."
    `(helm-source-header ((,class (:weight bold :box (:line-width 1 :color "#3d3842") :background "#433e48" :foreground "#ffffff"))))
    `(helm-swoop-target-line-block-face ((,class (:background "#3833ff" :foreground "#e0dde3"))))
    `(helm-swoop-target-line-face ((,class (:background "#38330b"))))
-   `(helm-swoop-target-word-face ((,class (:weight bold :foreground nil :background "#0742d2"))))
+   `(helm-swoop-target-word-face ((,class (:weight bold :foreground unspecified :background "#0742d2"))))
    `(helm-visible-mark ((,class ,marked-line)))
    `(helm-w3m-bookmarks-face ((,class (:underline t :foreground "#ff010b"))))
-   `(highlight-changes ((,class (:foreground nil)))) ;; blue "#d4f754"
-   `(highlight-changes-delete ((,class (:strike-through nil :foreground nil)))) ;; red "#4ff7d7"
+   `(highlight-changes ((,class (:foreground unspecified)))) ;; blue "#d4f754"
+   `(highlight-changes-delete ((,class (:strike-through nil :foreground unspecified)))) ;; red "#4ff7d7"
    `(highlight-symbol-face ((,class (:background "#252080"))))
    `(hl-line ((,class ,highlight-yellow))) ; Highlight current line.
    `(hl-tags-face ((,class ,highlight-current-tag))) ; ~ Pair highlighting (matching tags).
@@ -643,7 +641,7 @@ more..."
    `(info-file ((,class (:family "Sans Serif" :height 1.8 :weight bold :box (:line-width 1 :color "#ffff3d") :foreground "#9f6a1c" :background "#563c2a"))))
    `(info-header-node ((,class (:underline t :foreground "#065aff")))) ; nodes in header
    `(info-header-xref ((,class (:underline t :foreground "#e46f0b")))) ; cross references in header
-   `(info-index-match ((,class (:weight bold :foreground nil :background "#0742d2")))) ; when using `i'
+   `(info-index-match ((,class (:weight bold :foreground unspecified :background "#0742d2")))) ; when using `i'
    `(info-menu-header ((,class ,ol2))) ; menu titles (headers) -- major topics
    `(info-menu-star ((,class (:foreground "#ffffff")))) ; every 3rd menu item
    `(info-node ((,class (:underline t :foreground "#ffff0b")))) ; node names
@@ -1092,8 +1090,8 @@ more..."
 ;; This is for the sake of Emacs.
 ;; Local Variables:
 ;; time-stamp-end: "$"
-;; time-stamp-format: "%:y%02m%02d.%02H%02M"
-;; time-stamp-start: "Version: "
+;; time-stamp-format: "%Y-%02m-%02d %02H:%02M"
+;; time-stamp-start: "Last-Updated: "
 ;; End:
 
 ;;; leuven-dark-theme.el ends here

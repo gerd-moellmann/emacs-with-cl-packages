@@ -1,6 +1,6 @@
 ;;; dunnet.el --- text adventure for Emacs -*- lexical-binding: t -*-
 
-;; Copyright (C) 1992-1993, 2001-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1992-1993, 2001-2025 Free Software Foundation, Inc.
 
 ;; Author: Ron Schnell <ronnie@driver-aces.com>
 ;; Created: 25 Jul 1992
@@ -1132,9 +1132,14 @@ treasures for points?" "4" "four")
 
 ;;;; Mode definitions for interactive mode
 
+;; Actually defined in textconv.c.
+(defvar text-conversion-style)
+
 (define-derived-mode dun-mode text-mode "Dungeon"
   "Major mode for running dunnet."
   :interactive nil
+  ;; Make sure RET is processed by Emacs.
+  (setq text-conversion-style 'action)
   (setq-local scroll-step 2))
 
 (defun dun-parse (_arg)

@@ -1,6 +1,6 @@
 ;;; typescript-ts-mode.el --- tree sitter support for TypeScript  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2025 Free Software Foundation, Inc.
 
 ;; Author     : Theodor Thornhill <theo@thornhill.no>
 ;; Maintainer : Theodor Thornhill <theo@thornhill.no>
@@ -32,6 +32,7 @@
 (eval-when-compile (require 'rx))
 (require 'c-ts-common) ; For comment indent and filling.
 
+(declare-function treesit-node-child "treesit.c")
 (declare-function treesit-node-start "treesit.c")
 (declare-function treesit-node-end "treesit.c")
 (declare-function treesit-parser-create "treesit.c")
@@ -91,6 +92,17 @@ Check if a node type is available, then return the right indent rules."
      `(((match "<" "jsx_text") parent 0)
        ((parent-is "jsx_text") parent typescript-ts-mode-indent-offset)))))
 
+(defun typescript-ts-mode--anchor-decl (_n parent &rest _)
+  "Return the position after the declaration keyword before PARENT.
+
+This anchor allows aligning variable_declarators in variable and lexical
+declarations, accounting for the length of keyword (var, let, or const)."
+  (let* ((declaration (treesit-parent-until
+                       parent (rx (or "variable" "lexical") "_declaration") t))
+         (decl (treesit-node-child declaration 0)))
+    (+ (treesit-node-start declaration)
+       (- (treesit-node-end decl) (treesit-node-start decl)))))
+
 (defun typescript-ts-mode--indent-rules (language)
   "Rules used for indentation.
 Argument LANGUAGE is either `typescript' or `tsx'."
@@ -113,7 +125,9 @@ Argument LANGUAGE is either `typescript' or `tsx'."
      ((parent-is "switch_case") parent-bol typescript-ts-mode-indent-offset)
      ((parent-is "switch_default") parent-bol typescript-ts-mode-indent-offset)
      ((parent-is "type_arguments") parent-bol typescript-ts-mode-indent-offset)
-     ((parent-is "variable_declarator") parent-bol typescript-ts-mode-indent-offset)
+     ((parent-is "type_parameters") parent-bol typescript-ts-mode-indent-offset)
+     ((parent-is ,(rx (or "variable" "lexical") "_" (or "declaration" "declarator")))
+      typescript-ts-mode--anchor-decl 1)
      ((parent-is "arguments") parent-bol typescript-ts-mode-indent-offset)
      ((parent-is "array") parent-bol typescript-ts-mode-indent-offset)
      ((parent-is "formal_parameters") parent-bol typescript-ts-mode-indent-offset)
@@ -392,6 +406,52 @@ Argument LANGUAGE is either `typescript' or `tsx'."
      :override t
      '((escape_sequence) @font-lock-escape-face))))
 
+(defvar typescript-ts-mode--sentence-nodes
+  '("import_statement"
+    "debugger_statement"
+    "expression_statement"
+    "if_statement"
+    "switch_statement"
+    "for_statement"
+    "for_in_statement"
+    "while_statement"
+    "do_statement"
+    "try_statement"
+    "with_statement"
+    "break_statement"
+    "continue_statement"
+    "return_statement"
+    "throw_statement"
+    "empty_statement"
+    "labeled_statement"
+    "variable_declaration"
+    "lexical_declaration"
+    "property_signature")
+  "Nodes that designate sentences in TypeScript.
+See `treesit-thing-settings' for more information.")
+
+(defvar typescript-ts-mode--sexp-nodes
+  '("expression"
+    "pattern"
+    "array"
+    "function"
+    "string"
+    "escape"
+    "template"
+    "regex"
+    "number"
+    "identifier"
+    "this"
+    "super"
+    "true"
+    "false"
+    "null"
+    "undefined"
+    "arguments"
+    "pair")
+  "Nodes that designate sexps in TypeScript.
+See `treesit-thing-settings' for more information.")
+
 ;;;###autoload
 (define-derived-mode typescript-ts-base-mode prog-mode "TypeScript"
   "Generic major mode for editing TypeScript.
@@ -415,6 +475,14 @@ This mode is intended to be inherited by concrete major modes."
                             "function_declaration"
                             "lexical_declaration")))
   (setq-local treesit-defun-name-function #'js--treesit-defun-name)
+
+  (setq-local treesit-thing-settings
+              `((typescript
+                 (sexp ,(regexp-opt typescript-ts-mode--sexp-nodes))
+                 (sentence ,(regexp-opt
+                             typescript-ts-mode--sentence-nodes))
+                 (text ,(regexp-opt '("comment"
+                                      "template_string"))))))
 
   ;; Imenu (same as in `js-ts-mode').
   (setq-local treesit-simple-imenu-settings
@@ -451,6 +519,8 @@ This mode is intended to be inherited by concrete major modes."
 
     (treesit-major-mode-setup)))
 
+(derived-mode-add-parents 'typescript-ts-mode '(typescript-mode))
+
 (if (treesit-ready-p 'typescript)
     (add-to-list 'auto-mode-alist '("\\.ts\\'" . typescript-ts-mode)))
 
@@ -486,6 +556,18 @@ at least 3 (which is the default value)."
     (setq-local treesit-simple-indent-rules
                 (typescript-ts-mode--indent-rules 'tsx))
 
+    (setq-local treesit-thing-settings
+                `((tsx
+                   (sexp ,(regexp-opt
+                           (append typescript-ts-mode--sexp-nodes
+                                   '("jsx"))))
+                   (sentence ,(regexp-opt
+                               (append typescript-ts-mode--sentence-nodes
+                                       '("jsx_element"
+                                         "jsx_self_closing_element"))))
+                   (text ,(regexp-opt '("comment"
+                                        "template_string"))))))
+
     ;; Font-lock.
     (setq-local treesit-font-lock-settings
                 (typescript-ts-mode--font-lock-settings 'tsx))
@@ -497,6 +579,8 @@ at least 3 (which is the default value)."
     (setq-local syntax-propertize-function #'tsx-ts--syntax-propertize)
 
     (treesit-major-mode-setup)))
+
+(derived-mode-add-parents 'tsx-ts-mode '(tsx-mode))
 
 (defvar typescript-ts--s-p-query
   (when (treesit-available-p)

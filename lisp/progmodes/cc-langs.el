@@ -1,6 +1,6 @@
 ;;; cc-langs.el --- language specific settings for CC Mode -*- lexical-binding: t; coding: utf-8 -*-
 
-;; Copyright (C) 1985, 1987, 1992-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1985, 1987, 1992-2025 Free Software Foundation, Inc.
 
 ;; Authors:    2002- Alan Mackenzie
 ;;             1998- Martin Stjernholm
@@ -455,19 +455,29 @@ so that all identifiers are recognized as words.")
   c++ '(c-extend-region-for-CPP
 	c-depropertize-CPP
 	c-before-change-check-ml-strings
+	c-unmark-<>-around-region
 	c-before-change-check-<>-operators
 	c-before-after-change-check-c++-modules
 	c-truncate-bs-cache
 	c-before-change-check-unbalanced-strings
 	c-parse-quotes-before-change
 	c-before-change-fix-comment-escapes)
-  (c objc) '(c-extend-region-for-CPP
-	     c-depropertize-CPP
-	     c-truncate-bs-cache
-	     c-before-change-check-unbalanced-strings
-	     c-parse-quotes-before-change
-	     c-before-change-fix-comment-escapes)
+  c '(c-extend-region-for-CPP
+      c-depropertize-CPP
+      c-truncate-bs-cache
+      c-before-change-check-unbalanced-strings
+      c-parse-quotes-before-change
+      c-before-change-fix-comment-escapes)
+  objc '(c-extend-region-for-CPP
+	 c-depropertize-CPP
+	 c-truncate-bs-cache
+	 c-before-change-check-unbalanced-strings
+	 c-unmark-<>-around-region
+	 c-before-change-check-<>-operators
+	 c-parse-quotes-before-change
+	 c-before-change-fix-comment-escapes)
   java '(c-parse-quotes-before-change
+	 c-unmark-<>-around-region
 	 c-before-change-check-unbalanced-strings
 	 c-before-change-check-<>-operators)
   pike '(c-before-change-check-ml-strings
@@ -502,20 +512,31 @@ parameters \(point-min) and \(point-max).")
       c-after-change-escape-NL-in-string
       c-after-change-mark-abnormal-strings
       c-change-expand-fl-region)
-  (c objc) '(c-depropertize-new-text
-	     c-after-change-fix-comment-escapes
-	     c-after-change-escape-NL-in-string
-	     c-parse-quotes-after-change
-	     c-after-change-mark-abnormal-strings
-	     c-extend-font-lock-region-for-macros
-	     c-neutralize-syntax-in-CPP
-	     c-change-expand-fl-region)
+  c '(c-depropertize-new-text
+      c-after-change-fix-comment-escapes
+      c-after-change-escape-NL-in-string
+      c-parse-quotes-after-change
+      c-after-change-mark-abnormal-strings
+      c-extend-font-lock-region-for-macros
+      c-neutralize-syntax-in-CPP
+      c-change-expand-fl-region)
+  objc '(c-depropertize-new-text
+	 c-after-change-fix-comment-escapes
+	 c-after-change-escape-NL-in-string
+	 c-parse-quotes-after-change
+	 c-after-change-mark-abnormal-strings
+	 c-unmark-<>-around-region
+	 c-extend-font-lock-region-for-macros
+	 c-neutralize-syntax-in-CPP
+	 c-restore-<>-properties
+	 c-change-expand-fl-region)
   c++ '(c-depropertize-new-text
 	c-after-change-fix-comment-escapes
 	c-after-change-escape-NL-in-string
 	c-after-change-unmark-ml-strings
 	c-parse-quotes-after-change
 	c-after-change-mark-abnormal-strings
+	c-unmark-<>-around-region
 	c-extend-font-lock-region-for-macros
 	c-before-after-change-check-c++-modules
 	c-neutralize-syntax-in-CPP
@@ -524,6 +545,7 @@ parameters \(point-min) and \(point-max).")
   java '(c-depropertize-new-text
 	 c-after-change-escape-NL-in-string
 	 c-parse-quotes-after-change
+	 c-unmark-<>-around-region
 	 c-after-change-mark-abnormal-strings
 	 c-restore-<>-properties
 	 c-change-expand-fl-region)
@@ -586,7 +608,8 @@ Such a function takes one optional parameter, a buffer position (defaults to
 point), and returns nil or t.  This variable contains nil for languages which
 don't have EOL terminated statements. "
   t nil
-  (c c++ objc) 'c-at-macro-vsemi-p
+  (c objc) 'c-at-macro-vsemi-p
+  c++ 'c-c++-vsemi-p
   awk 'c-awk-at-vsemi-p)
 (c-lang-defvar c-at-vsemi-p-fn (c-lang-const c-at-vsemi-p-fn))
 
@@ -738,11 +761,11 @@ When non-nil, this variable should end in \"\\\\\\==\".  Note that
 such a backward search will match a minimal string, so a
 \"context character\" is probably needed at the start of the
 regexp.  The value for csharp-mode would be something like
-\"\\\\(:?\\\\`\\\\|[^\\\"]\\\\)\\\"*\\\\\\==\"."
+\"\\\\(?:\\\\`\\\\|[^\\\"]\\\\)\\\"*\\\\\\==\"."
   t nil
-  pike "\\(:?\\`\\|[^\\\"]\\)\\(:?\\\\.\\)*\\="
+  pike "\\(?:\\`\\|[^\\\"]\\)\\(?:\\\\.\\)*\\="
   ;;pike ;; 2
-  ;;    "\\(:?\\`\\|[^\"]\\)\"*\\="
+  ;;    "\\(?:\\`\\|[^\"]\\)\"*\\="
   )
 (c-lang-defvar c-ml-string-back-closer-re
 	       (c-lang-const c-ml-string-back-closer-re))
@@ -794,7 +817,7 @@ there be copies of the opener contained in the multi-line string."
 
 (c-lang-defconst c-cpp-or-ml-match-offset
   ;; The offset to be added onto match numbers for a multi-line string in
-  ;; matches for `c-cpp-or-ml-string-opener-re'.
+  ;; matches for `c-ml-string-cpp-or-opener-re'.
   t (if (c-lang-const c-anchored-cpp-prefix)
 	(+ 2 (regexp-opt-depth (c-lang-const c-anchored-cpp-prefix)))
       2))
@@ -829,8 +852,9 @@ which `c-backward-sexp' needs to be called twice to move backwards over."
 keyword.  It's unspecified how far it matches.  Does not contain a \\|
 operator at the top level."
   t    (concat "[" c-alpha "_]")
+  (c c++) (concat "[" c-alpha "_$]")
   java (concat "[" c-alpha "_@]")
-  objc (concat "[" c-alpha "_@]")
+  objc (concat "[" c-alpha "_@$]")
   pike (concat "[" c-alpha "_`]"))
 (c-lang-defvar c-symbol-start (c-lang-const c-symbol-start))
 
@@ -843,6 +867,10 @@ This is of the form that fits inside [ ] in a regexp."
   objc (concat c-alnum "_$@"))
 (c-lang-defvar c-symbol-chars (c-lang-const c-symbol-chars))
 
+(c-lang-defconst c-dollar-in-ids
+  "Non-nil when a dollar (can be) a non-standard constituent of an identifier."
+  t (string-match (c-lang-const c-symbol-start) "$"))
+
 (c-lang-defconst c-symbol-char-key
   "Regexp matching a sequence of at least one identifier character."
   t (concat "[" (c-lang-const c-symbol-chars) "]+"))
@@ -854,9 +882,9 @@ to match if `c-symbol-start' matches on the same position."
   t    (concat (c-lang-const c-symbol-start)
 	       "[" (c-lang-const c-symbol-chars) "]\\{,1000\\}")
   pike (concat
-	;; Use the value from C here since the operator backquote is
+	;; Use the value from AWK here since the operator backquote is
 	;; covered by the other alternative.
-	(c-lang-const c-symbol-key c)
+	(c-lang-const c-symbol-key awk)
 	"\\|"
 	(c-make-keywords-re nil
 	  (c-lang-const c-overloadable-operators))))
@@ -1043,14 +1071,6 @@ Currently (2022-09) just C++ Mode uses this."
   ;; matched.
   t nil)
 
-(c-lang-defconst c-string-escaped-newlines
-  "Set if the language support backslash escaped newlines inside string
-literals."
-  t nil
-  (c c++ objc pike) t)
-(c-lang-defvar c-string-escaped-newlines
-  (c-lang-const c-string-escaped-newlines))
-
 (c-lang-defconst c-multiline-string-start-char
   "Set if the language supports multiline string literals without escaped
 newlines.  If t, all string literals are multiline.  If a character,
@@ -1067,6 +1087,18 @@ further directions."
 (c-lang-defvar c-multiline-string-start-char
   (c-lang-const c-multiline-string-start-char))
 
+(c-lang-defconst c-escaped-newline-takes-precedence
+  "Set if the language resolves escaped newlines first.
+This makes a difference in a string like \"...\\\\\n\".  When
+this variable is nil, the first backslash escapes the second,
+leaving an unterminated string.  When it's non-nil, the string is
+continued onto the next line, and the first backslash escapes
+whatever begins that next line."
+  t nil
+  (c c++ objc pike) t)
+(c-lang-defvar c-escaped-newline-takes-precedence
+  (c-lang-const c-escaped-newline-takes-precedence))
+
 (c-lang-defconst c-string-innards-re-alist
   ;; An alist of regexps matching the innards of a string, the key being the
   ;; string's delimiter.
@@ -1077,9 +1109,12 @@ further directions."
   t (mapcar (lambda (delim)
 	      (cons
 	       delim
-	       (concat "\\(\\\\\\(.\\|\n\\)\\|[^\\\n\r"
-		       (string delim)
-		       "]\\)*")))
+	       (concat
+		(if (c-lang-const c-escaped-newline-takes-precedence)
+		    "\\(\\\\\\(\\\\?\n\\|.\\)\\|[^\\\n\r"
+		  "\\(\\\\\\(\n\\|.\\)\\|[^\\\n\r")
+		(string delim)
+		"]\\)*")))
 	    (and
 	     (or (null (c-lang-const c-multiline-string-start-char))
 		 (c-characterp (c-lang-const c-multiline-string-start-char)))
@@ -1564,6 +1599,12 @@ operators."
 (c-lang-defvar c-assignment-op-regexp
   (c-lang-const c-assignment-op-regexp))
 
+(c-lang-defconst c-negation-op-re
+  ;; Regexp matching the negation operator.
+  t "!\\([^=]\\|$\\)")
+
+(c-lang-defvar c-negation-op-re (c-lang-const c-negation-op-re))
+
 (c-lang-defconst c-arithmetic-operators
   "List of all arithmetic operators, including \"+=\", etc."
   ;; Note: in the following, there are too many operators for AWK and IDL.
@@ -1913,7 +1954,7 @@ ender."
 ;; The following is no longer used (2020-02-16).
 ;; (c-lang-defconst c-last-open-c-comment-start-on-line-re
 ;;   "Regexp which matches the last block comment start on the
-;; current ine, if any, or nil in those languages without block
+;; current one, if any, or nil in those languages without block
 ;; comments.  When a match is found, submatch 1 contains the comment
 ;; starter."
 ;;   t "\\(/\\*\\)\\([^*]\\|\\*+\\([^*/]\\|$\\)\\)*$"
@@ -2635,9 +2676,12 @@ clause.  An arglist may or may not follow such a keyword."
   c++ '("requires"))
 
 (c-lang-defconst c-fun-name-substitute-key
-  ;; An adorned regular expression which matches any member of
+  ;; An unadorned regular expression which matches any member of
   ;; `c-fun-name-substitute-kwds'.
-  t (c-make-keywords-re t (c-lang-const c-fun-name-substitute-kwds)))
+  t (c-make-keywords-re 'appendable (c-lang-const c-fun-name-substitute-kwds)))
+;; We use 'appendable, so that we get "\\>" on the regexp, but without a further
+;; character, which would mess up backward regexp search from just after the
+;; keyword.  If only XEmacs had \\_>.  ;-(
 (c-lang-defvar c-fun-name-substitute-key
 	       (c-lang-const c-fun-name-substitute-key))
 
@@ -3086,6 +3130,17 @@ Keywords here should also be in `c-block-stmt-1-kwds'."
   t (c-make-keywords-re t (c-lang-const c-block-stmt-2-kwds)))
 (c-lang-defvar c-block-stmt-2-key (c-lang-const c-block-stmt-2-key))
 
+(c-lang-defconst c-generic-kwds
+  "The keyword \"_Generic\" which introduces a C11 generic statement."
+  t nil
+  c '("_Generic"))
+
+(c-lang-defconst c-generic-key
+  ;; Regexp matching the keyword(s) in `c-generic-kwds'.
+  t (if (c-lang-const c-generic-kwds)
+	(c-make-keywords-re t (c-lang-const c-generic-kwds))))
+(c-lang-defvar c-generic-key (c-lang-const c-generic-key))
+
 (c-lang-defconst c-block-stmt-kwds
   ;; Union of `c-block-stmt-1-kwds' and `c-block-stmt-2-kwds'.
   t (c--delete-duplicates (append (c-lang-const c-block-stmt-1-kwds)
@@ -3113,6 +3168,30 @@ Keywords here should also be in `c-block-stmt-1-kwds'."
 	  (append (c-lang-const c-block-stmt-1-kwds)
 		  (c-lang-const c-block-stmt-2-kwds)))))
 (c-lang-defvar c-opt-block-stmt-key (c-lang-const c-opt-block-stmt-key))
+
+(c-lang-defconst c-paren-clause-kwds
+  "Keywords which can stand in the place of paren sexps in conditionals.
+This applies only to conditionals in `c-block-stmt-with-kwds'."
+  t nil
+  c++ '("consteval"))
+
+(c-lang-defconst c-paren-clause-key
+  ;; Regexp matching a keyword in `c-paren-clause-kwds'.
+  t (c-make-keywords-re t
+      (c-lang-const c-paren-clause-kwds)))
+(c-lang-defvar c-paren-clause-key (c-lang-const c-paren-clause-key))
+
+(c-lang-defconst c-block-stmt-with-kwds
+  "Statement keywords which can be followed by a keyword instead of a parens.
+Such a keyword is a member of `c-paren-clause-kwds."
+  t nil
+  c++ '("if"))
+
+(c-lang-defconst c-block-stmt-with-key
+  ;; Regexp matching a keyword in `c-block-stmt-with-kwds'.
+  t (c-make-keywords-re t
+      (c-lang-const c-block-stmt-with-kwds)))
+(c-lang-defvar c-block-stmt-with-key (c-lang-const c-block-stmt-with-key))
 
 (c-lang-defconst c-simple-stmt-kwds
   "Statement keywords followed by an expression or nothing."
@@ -3462,7 +3541,7 @@ Note that Java specific rules are currently applied to tell this from
 
   (let* ((alist (c-lang-const c-keyword-member-alist))
 	 kwd lang-const-list
-	 (obarray (make-vector (* (length alist) 2) 0)))
+	 (obarray (obarray-make (* (length alist) 2))))
     (while alist
       (setq kwd (caar alist)
 	    lang-const-list (cdar alist)
@@ -4317,10 +4396,9 @@ a label construct.  This catches C++'s inheritance construct \"class foo
 
 (c-lang-defconst c-opt-extra-label-key
   "Optional regexp matching labels.
-Normally, labels are detected according to `c-nonlabel-token-key',
-`c-decl-prefix-re' and `c-nonlabel-decl-prefix-re'.  This regexp can
-be used if there are additional labels that aren't recognized that
-way."
+Normally, labels are detected according to `c-nonlabel-token-key' and
+`c-decl-prefix-re'.  This regexp can be used if there are additional
+labels that aren't recognized that way."
   t    nil
   objc (c-make-keywords-re t (c-lang-const c-protection-kwds)))
 (c-lang-defvar c-opt-extra-label-key (c-lang-const c-opt-extra-label-key))

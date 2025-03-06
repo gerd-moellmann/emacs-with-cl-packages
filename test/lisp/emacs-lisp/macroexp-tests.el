@@ -1,6 +1,6 @@
 ;;; macroexp-tests.el --- Tests for macroexp.el      -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2021-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2025 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Keywords:
@@ -123,5 +123,21 @@
                      (dyn dyn dyn lex lex)
                      (dyn dyn dyn dyn)
                      (dyn dyn dyn lex))))))
+
+(defmacro macroexp--test-macro1 ()
+  (declare (obsolete "new-replacement" nil))
+  1)
+
+(defmacro macroexp--test-macro2 ()
+  '(macroexp--test-macro1))
+
+(ert-deftest macroexp--test-obsolete-macro ()
+  (should
+   (let ((res
+          (cl-letf (((symbol-function 'message) #'user-error))
+            (condition-case err
+                (macroexpand-all '(macroexp--test-macro2))
+              (user-error (error-message-string err))))))
+     (should (and (stringp res) (string-match "new-replacement" res))))))
 
 ;;; macroexp-tests.el ends here

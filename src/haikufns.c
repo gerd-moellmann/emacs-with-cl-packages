@@ -1,5 +1,5 @@
 /* Haiku window system support
-   Copyright (C) 2021-2024 Free Software Foundation, Inc.
+   Copyright (C) 2021-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -72,9 +72,6 @@ static Lisp_Object tip_last_parms;
 
 static void haiku_explicitly_set_name (struct frame *, Lisp_Object, Lisp_Object);
 static void haiku_set_title (struct frame *, Lisp_Object, Lisp_Object);
-
-/* The number of references to an image cache.  */
-static ptrdiff_t image_cache_refcount;
 
 static Lisp_Object
 get_geometry_from_preferences (struct haiku_display_info *dpyinfo,
@@ -184,6 +181,11 @@ haiku_change_tab_bar_height (struct frame *f, int height)
      leading to the tab bar height being incorrectly set upon the next
      call to x_set_font.  (bug#59285) */
   int lines = height / unit;
+
+  /* Even so, HEIGHT might be less than unit if the tab bar face is
+     not so tall as the frame's font height; which if true lines will
+     be set to 0 and the tab bar will thus vanish.  */
+
   if (lines == 0 && height != 0)
     lines = 1;
 
@@ -256,6 +258,33 @@ haiku_set_tool_bar_lines (struct frame *f, Lisp_Object value, Lisp_Object oldval
     nlines = 0;
 
   haiku_change_tool_bar_height (f, nlines * FRAME_LINE_HEIGHT (f));
+}
+
+static void
+haiku_set_tool_bar_position (struct frame *f,
+			     Lisp_Object new_value,
+			     Lisp_Object old_value)
+{
+  if (!EQ (new_value, Qtop) && !EQ (new_value, Qbottom))
+    error ("Tool bar position must be either `top' or `bottom'");
+
+  if (EQ (new_value, old_value))
+    return;
+
+  /* Set the tool bar position.  */
+  fset_tool_bar_position (f, new_value);
+
+  /* Now reconfigure frame glyphs to place the tool bar at the bottom.
+     While the inner height has not changed, call
+     `resize_frame_windows' to place each of the windows at its new
+     position.  */
+
+  adjust_frame_size (f, -1, -1, 3, false, Qtool_bar_position);
+  adjust_frame_glyphs (f);
+  SET_FRAME_GARBAGED (f);
+
+  if (FRAME_HAIKU_WINDOW (f))
+    haiku_clear_under_internal_border (f);
 }
 
 static void
@@ -595,29 +624,8 @@ unwind_create_frame (Lisp_Object frame)
   /* If frame is ``official'', nothing to do.  */
   if (NILP (Fmemq (frame, Vframe_list)))
     {
-#if defined GLYPH_DEBUG && defined ENABLE_CHECKING
-      struct haiku_display_info *dpyinfo = FRAME_DISPLAY_INFO (f);
-#endif
-
-      /* If the frame's image cache refcount is still the same as our
-	 private shadow variable, it means we are unwinding a frame
-	 for which we didn't yet call init_frame_faces, where the
-	 refcount is incremented.  Therefore, we increment it here, so
-	 that free_frame_faces, called in free_frame_resources later,
-	 will not mistakenly decrement the counter that was not
-	 incremented yet to account for this new frame.  */
-      if (FRAME_IMAGE_CACHE (f) != NULL
-	  && FRAME_IMAGE_CACHE (f)->refcount == image_cache_refcount)
-	FRAME_IMAGE_CACHE (f)->refcount++;
-
       haiku_free_frame_resources (f);
       free_glyphs (f);
-
-#if defined GLYPH_DEBUG && defined ENABLE_CHECKING
-      /* Check that reference counts are indeed correct.  */
-      if (dpyinfo->terminal->image_cache)
-	eassert (dpyinfo->terminal->image_cache->refcount == image_cache_refcount);
-#endif
     }
 }
 
@@ -774,9 +782,6 @@ haiku_create_frame (Lisp_Object parms)
 #endif
 #endif
   register_font_driver (&haikufont_driver, f);
-
-  image_cache_refcount =
-    FRAME_IMAGE_CACHE (f) ? FRAME_IMAGE_CACHE (f)->refcount : 0;
 
   gui_default_parameter (f, parms, Qfont_backend, Qnil,
                          "fontBackend", "FontBackend", RES_TYPE_STRING);
@@ -1065,9 +1070,6 @@ haiku_create_tip_frame (Lisp_Object parms)
 #endif
 #endif
   register_font_driver (&haikufont_driver, f);
-
-  image_cache_refcount =
-    FRAME_IMAGE_CACHE (f) ? FRAME_IMAGE_CACHE (f)->refcount : 0;
 
   gui_default_parameter (f, parms, Qfont_backend, Qnil,
                          "fontBackend", "FontBackend", RES_TYPE_STRING);
@@ -1420,10 +1422,11 @@ haiku_set_menu_bar_lines (struct frame *f, Lisp_Object value, Lisp_Object oldval
 }
 
 /* Return geometric attributes of FRAME.  According to the value of
-   ATTRIBUTES return the outer edges of FRAME (Qouter_edges), the inner
-   edges of FRAME, the root window edges of frame (Qroot_edges).  Any
-   other value means to return the geometry as returned by
+   ATTRIBUTES return the outer edges of FRAME (Qouter_edges), the
+   inner edges of FRAME, the root window edges of frame (Qroot_edges).
+   Any other value means to return the geometry as returned by
    Fx_frame_geometry.  */
+
 static Lisp_Object
 frame_geometry (Lisp_Object frame, Lisp_Object attribute)
 {
@@ -1432,6 +1435,9 @@ frame_geometry (Lisp_Object frame, Lisp_Object attribute)
   int outer_x, outer_y, outer_width, outer_height;
   int right_off, bottom_off, top_off;
   int native_x, native_y;
+  int inner_left, inner_top, inner_right, inner_bottom;
+  int internal_border_width, tab_bar_height;
+  int tool_bar_height, tab_bar_width;
 
   f = decode_window_system_frame (frame);
   parent = FRAME_PARENT_FRAME (f);
@@ -1457,6 +1463,31 @@ frame_geometry (Lisp_Object frame, Lisp_Object attribute)
       native_y -= FRAME_OUTPUT_DATA (parent)->frame_y;
     }
 
+  internal_border_width = FRAME_INTERNAL_BORDER_WIDTH (f);
+  inner_left = native_x + internal_border_width;
+  inner_top = native_y + internal_border_width;
+  inner_right = (native_x + FRAME_PIXEL_WIDTH (f)
+		 - internal_border_width);
+  inner_bottom = (native_y + FRAME_PIXEL_HEIGHT (f)
+		  - internal_border_width);
+
+  tab_bar_height = FRAME_TAB_BAR_HEIGHT (f);
+  tab_bar_width = (tab_bar_height
+		   ? (FRAME_PIXEL_WIDTH (f) - 2
+		      * internal_border_width)
+		   : 0);
+  inner_top += tab_bar_height;
+
+  tool_bar_height = FRAME_TOOL_BAR_HEIGHT (f);
+
+  /* Subtract or add to the inner dimensions based on the tool bar
+     position.  */
+
+  if (EQ (FRAME_TOOL_BAR_POSITION (f), Qtop))
+    inner_top += tool_bar_height;
+  else
+    inner_bottom -= tool_bar_height;
+
   if (EQ (attribute, Qouter_edges))
     return list4i (outer_x, outer_y,
 		   outer_x + outer_width,
@@ -1466,14 +1497,7 @@ frame_geometry (Lisp_Object frame, Lisp_Object attribute)
 		   native_x + FRAME_PIXEL_WIDTH (f),
 		   native_y + FRAME_PIXEL_HEIGHT (f));
   else if (EQ (attribute, Qinner_edges))
-    return list4i (native_x + FRAME_INTERNAL_BORDER_WIDTH (f),
-		   native_y + FRAME_INTERNAL_BORDER_WIDTH (f)
-		   + FRAME_MENU_BAR_HEIGHT (f) + FRAME_TOOL_BAR_HEIGHT (f),
-		   native_x - FRAME_INTERNAL_BORDER_WIDTH (f)
-		   + FRAME_PIXEL_WIDTH (f),
-		   native_y + FRAME_PIXEL_HEIGHT (f)
-		   - FRAME_INTERNAL_BORDER_WIDTH (f));
-
+    return list4i (inner_left, inner_top, inner_right, inner_bottom);
   else
     return list (Fcons (Qouter_position,
 			Fcons (make_fixnum (outer_x),
@@ -1490,13 +1514,18 @@ frame_geometry (Lisp_Object frame, Lisp_Object attribute)
 		 Fcons (Qmenu_bar_external, Qnil),
 		 Fcons (Qmenu_bar_size,
 			Fcons (make_fixnum (FRAME_PIXEL_WIDTH (f)
-					    - (FRAME_INTERNAL_BORDER_WIDTH (f) * 2)),
+					    - (FRAME_INTERNAL_BORDER_WIDTH (f)
+					       * 2)),
 			       make_fixnum (FRAME_MENU_BAR_HEIGHT (f)))),
+		 Fcons (Qtab_bar_size,
+			Fcons (make_fixnum (tab_bar_width),
+			       make_fixnum (tab_bar_height))),
 		 Fcons (Qtool_bar_external, Qnil),
-		 Fcons (Qtool_bar_position, Qtop),
+		 Fcons (Qtool_bar_position, FRAME_TOOL_BAR_POSITION (f)),
 		 Fcons (Qtool_bar_size,
 			Fcons (make_fixnum (FRAME_PIXEL_WIDTH (f)
-					    - (FRAME_INTERNAL_BORDER_WIDTH (f) * 2)),
+					    - (FRAME_INTERNAL_BORDER_WIDTH (f)
+					       * 2)),
 			       make_fixnum (FRAME_TOOL_BAR_HEIGHT (f)))),
 		 Fcons (Qinternal_border_width,
 			make_fixnum (FRAME_INTERNAL_BORDER_WIDTH (f))));
@@ -2133,6 +2162,12 @@ haiku_set_use_frame_synchronization (struct frame *f, Lisp_Object arg,
 				     Lisp_Object oldval)
 {
   be_set_use_frame_synchronization (FRAME_HAIKU_VIEW (f), !NILP (arg));
+}
+
+bool
+haiku_should_pass_control_tab_to_system (void)
+{
+  return haiku_pass_control_tab_to_system;
 }
 
 
@@ -2908,7 +2943,7 @@ It can later be retrieved with `x-get-resource'.  */)
 
 DEFUN ("haiku-frame-list-z-order", Fhaiku_frame_list_z_order,
        Shaiku_frame_list_z_order, 0, 1, 0,
-       doc: /* Return list of Emacs' frames, in Z (stacking) order.
+       doc: /* Return list of Emacs's frames, in Z (stacking) order.
 If TERMINAL is non-nil and specifies a live frame, return the child
 frames of that frame in Z (stacking) order.
 
@@ -3136,7 +3171,7 @@ frame_parm_handler haiku_frame_parm_handlers[] =
     gui_set_font_backend,
     gui_set_alpha,
     haiku_set_sticky,
-    NULL, /* set tool bar pos */
+    haiku_set_tool_bar_position,
     haiku_set_inhibit_double_buffering,
     haiku_set_undecorated,
     haiku_set_parent_frame,
@@ -3242,6 +3277,14 @@ syms_of_haikufns (void)
 	       Vx_sensitive_text_pointer_shape,
 	       doc: /* SKIP: real doc in xfns.c.  */);
   Vx_sensitive_text_pointer_shape = Qnil;
+
+  DEFVAR_BOOL ("haiku-pass-control-tab-to-system",
+	       haiku_pass_control_tab_to_system,
+	       doc: /* Whether or not to pass C-TAB to the system.
+Setting this variable will cause Emacs to pass C-TAB to the system
+(allowing window switching on the Haiku operating system), rather than
+intercepting it.  */);
+  haiku_pass_control_tab_to_system = true;
 
   DEFVAR_LISP ("haiku-allowed-ui-colors", Vhaiku_allowed_ui_colors,
 	       doc: /* Vector of UI colors that Emacs can look up from the system.

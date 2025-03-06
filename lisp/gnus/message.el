@@ -1,6 +1,6 @@
 ;;; message.el --- composing mail and news messages -*- lexical-binding: t -*-
 
-;; Copyright (C) 1996-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2025 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: mail, news
@@ -154,7 +154,7 @@ If this variable is nil, no such courtesy message will be added."
   :type '(radio string (const nil)))
 
 (defcustom message-ignored-bounced-headers
-  "^\\(Received\\|Return-Path\\|Delivered-To\\):"
+  "^\\(Received\\|Return-Path\\|Delivered-To\\|DKIM-Signature\\|X-Hashcash\\):"
   "Regexp that matches headers to be removed in resent bounced mail."
   :group 'message-interface
   :type 'regexp)
@@ -747,16 +747,14 @@ default is system dependent and determined by the function
 `message-send-mail-function'.
 
 See also `send-mail-function'."
-  :type '(radio (function-item message--default-send-mail-function
-		               :tag "Use send-mail-function")
+  :type '(radio (function-item message--default-send-mail-function)
 		(function-item message-send-mail-with-sendmail)
 		(function-item message-send-mail-with-mh)
 		(function-item message-send-mail-with-qmail)
 		(function-item message-smtpmail-send-it)
-		(function-item smtpmail-send-it)
+                (function-item :doc "Use SMTPmail package." smtpmail-send-it)
 		(function-item feedmail-send-it)
-		(function-item message-send-mail-with-mailclient
-			       :tag "Use Mailclient package")
+                (function-item message-send-mail-with-mailclient)
  		(function :tag "Other"))
   :group 'message-sending
   :version "27.1"
@@ -2847,11 +2845,11 @@ will not be inserted."
 			(const :tag "No ID" nil))
 		(choice (string :tag "Key")
 			(const :tag "No Key" nil))
-		(choice (other :tag "None" nil)
-			(const :tag "Unprotected" "unprotected")
+                (choice (const :tag "Unprotected" "unprotected")
 			(const :tag "Sign" "sign")
 			(const :tag "Encrypt" "encrypt")
-			(const :tag "Sign and Encrypt" "signencrypt"))))
+                        (const :tag "Sign and Encrypt" "signencrypt")
+                        (other :tag "None" nil))))
   :version "28.1")
 
 (defun message-add-openpgp-header ()
@@ -3255,79 +3253,79 @@ Like `text-mode', but with these additional commands:
 ;;; Movement commands
 
 (defun message-goto-to ()
-  "Move point to the To header."
+  "Move point to the To header or insert an empty one."
   (interactive nil message-mode)
   (push-mark)
   (message-position-on-field "To"))
 
 (defun message-goto-from ()
-  "Move point to the From header."
+  "Move point to the From header or insert an empty one."
   (interactive nil message-mode)
   (push-mark)
   (message-position-on-field "From"))
 
 (defun message-goto-subject ()
-  "Move point to the Subject header."
+  "Move point to the Subject header or insert an empty one."
   (interactive nil message-mode)
   (push-mark)
   (message-position-on-field "Subject"))
 
 (defun message-goto-cc ()
-  "Move point to the Cc header."
+  "Move point to the Cc header or insert an empty one."
   (interactive nil message-mode)
   (push-mark)
   (message-position-on-field "Cc" "To"))
 
 (defun message-goto-bcc ()
-  "Move point to the Bcc  header."
+  "Move point to the Bcc  header or insert an empty one."
   (interactive nil message-mode)
   (push-mark)
   (message-position-on-field "Bcc" "Cc" "To"))
 
 (defun message-goto-fcc ()
-  "Move point to the Fcc header."
+  "Move point to the Fcc header or insert an empty one."
   (interactive nil message-mode)
   (push-mark)
   (message-position-on-field "Fcc" "To" "Newsgroups"))
 
 (defun message-goto-reply-to ()
-  "Move point to the Reply-To header."
+  "Move point to the Reply-To header or insert an empty one."
   (interactive nil message-mode)
   (push-mark)
   (message-position-on-field "Reply-To" "Subject"))
 
 (defun message-goto-newsgroups ()
-  "Move point to the Newsgroups header."
+  "Move point to the Newsgroups header or insert an empty one."
   (interactive nil message-mode)
   (push-mark)
   (message-position-on-field "Newsgroups"))
 
 (defun message-goto-distribution ()
-  "Move point to the Distribution header."
+  "Move point to the Distribution header or insert an empty one."
   (interactive nil message-mode)
   (push-mark)
   (message-position-on-field "Distribution"))
 
 (defun message-goto-followup-to ()
-  "Move point to the Followup-To header."
+  "Move point to the Followup-To header or insert an empty one."
   (interactive nil message-mode)
   (push-mark)
   (message-position-on-field "Followup-To" "Newsgroups"))
 
 (defun message-goto-mail-followup-to ()
-  "Move point to the Mail-Followup-To header."
+  "Move point to the Mail-Followup-To header or insert an empty one."
   (interactive nil message-mode)
   (push-mark)
   (message-position-on-field "Mail-Followup-To" "To"))
 
 (defun message-goto-keywords ()
-  "Move point to the Keywords header."
+  "Move point to the Keywords header or insert an empty one."
   (interactive nil message-mode)
   (push-mark)
   (message-position-on-field "Keywords" "Subject"))
 
 (defun message-goto-summary ()
-  "Move point to the Summary header."
+  "Move point to the Summary header or insert an empty one."
   (interactive nil message-mode)
   (push-mark)
   (message-position-on-field "Summary" "Subject"))
@@ -4251,6 +4249,10 @@ This function strips off the signature from the original message."
     (newline)))
 
 (defun message-position-on-field (header &rest afters)
+  "Move point to header HEADER or insert it if not found.
+
+If HEADER is not present, insert it with an empty value, after any
+headers specified in AFTERS."
   (let ((case-fold-search t))
     (save-restriction
       (narrow-to-region
@@ -5018,30 +5020,34 @@ Each line should be no more than 79 characters long."
   "Send the current buffer to `message-send-mail-function'.
 Or, if there's a header that specifies a different method, use
 that instead."
-  (let ((method (message-field-value "X-Message-SMTP-Method")))
+  (let ((method (message-field-value "X-Message-SMTP-Method"))
+        send-function)
     (if (not method)
-	(funcall message-send-mail-function)
+        (funcall message-send-mail-function)
       (message-remove-header "X-Message-SMTP-Method")
       (setq method (split-string method))
+      (setq send-function
+            (symbol-function
+             (intern-soft (format "message-send-mail-with-%s" (car method)))))
       (cond
-       ((equal (car method) "sendmail")
-	(message-send-mail-with-sendmail))
        ((equal (car method) "smtp")
-	(require 'smtpmail)
-	(let* ((smtpmail-store-queue-variables t)
+        (require 'smtpmail)
+        (let* ((smtpmail-store-queue-variables t)
                (smtpmail-smtp-server (nth 1 method))
-	       (service (nth 2 method))
-	       (port (string-to-number service))
-	       ;; If we're talking to the TLS SMTP port, then force a
-	       ;; TLS connection.
-	       (smtpmail-stream-type (if (= port 465)
-					 'tls
-				       smtpmail-stream-type))
-	       (smtpmail-smtp-service (if (> port 0) port service))
-	       (smtpmail-smtp-user (or (nth 3 method) smtpmail-smtp-user)))
-	  (message-smtpmail-send-it)))
+               (service (nth 2 method))
+               (port (string-to-number service))
+               ;; If we're talking to the TLS SMTP port, then force a
+               ;; TLS connection.
+               (smtpmail-stream-type (if (= port 465)
+                                         'tls
+                                       smtpmail-stream-type))
+               (smtpmail-smtp-service (if (> port 0) port service))
+               (smtpmail-smtp-user (or (nth 3 method) smtpmail-smtp-user)))
+          (message-smtpmail-send-it)))
+       (send-function
+        (funcall send-function))
        (t
-	(error "Unknown method %s" method))))))
+        (error "Unknown mail method %s" method))))))
 
 (defun message-send-mail-with-sendmail ()
   "Send off the prepared buffer with sendmail."
@@ -5766,8 +5772,10 @@ The result is a fixnum."
       (with-temp-buffer
 	(insert-buffer-substring buf)
 	(message-clone-locals buf)
-	;; Avoid re-doing things like GPG-encoding secret parts.
-	(if (not encoded-cache)
+	;; Avoid re-doing things like GPG-encoding secret parts, unless
+	;; the user has requested that attachments be externalized, in
+	;; which case we have to re-encode the message body.
+	(if (or mml-externalize-attachments (not encoded-cache))
 	    (message-encode-message-body)
 	  (erase-buffer)
 	  (insert encoded-cache))
@@ -6248,8 +6256,7 @@ subscribed address (and not the additional To and Cc header contents)."
 	    (widen)))))))
 
 (defun message-idna-to-ascii-rhs ()
-  "Possibly IDNA encode non-ASCII domain names in From:, To: and Cc: headers.
-See `message-idna-encode'."
+  "Possibly IDNA encode non-ASCII domain names in From:, To: and Cc: headers."
   (interactive nil message-mode)
   (when message-use-idna
     (save-excursion
@@ -6598,12 +6605,11 @@ they are."
     (widen)
     (forward-line 1)
     (unless (looking-at "$")
-      (forward-line 2)))
-   (sit-for 0)))
+      (forward-line 2))))
+  (sit-for 0))
 
 (defcustom message-beginning-of-line t
-  "Whether \\<message-mode-map>\\[message-beginning-of-line]\
- goes to beginning of header values."
+  "Whether \\<message-mode-map>\\[message-beginning-of-line] goes to beginning of header values."
   :version "22.1"
   :group 'message-buffers
   :link '(custom-manual "(message)Movement")
@@ -6665,7 +6671,7 @@ beginning of line.
 When called without a prefix argument, header value spanning
 multiple lines is treated as a single line.  Otherwise, even if
 N is 1, when point is on a continuation header line, it will be
-moved to the beginning "
+moved to the beginning."
   (interactive "^p" message-mode)
   (cond
    ;; Go to beginning of header or beginning of line.
@@ -6873,10 +6879,9 @@ are not included."
 
 (defun message-setup-1 (headers &optional yank-action actions return-action)
   (dolist (action actions)
-    (condition-case nil
-        ;; FIXME: Use functions rather than expressions!
-	(add-to-list 'message-send-actions
-		     `(apply #',(car action) ',(cdr action)))))
+    ;; FIXME: Use functions rather than expressions!
+    (add-to-list 'message-send-actions
+		 `(apply #',(car action) ',(cdr action))))
   (setq message-return-action return-action)
   (setq message-reply-buffer
 	(if (and (consp yank-action)
@@ -7713,10 +7718,7 @@ the message."
 		""))
 	(when message-wash-forwarded-subjects
 	  (setq subject (message-wash-subject subject)))
-	;; Make sure funcs is a list.
-	(and funcs
-	     (not (listp funcs))
-	     (setq funcs (list funcs)))
+        (setq funcs (ensure-list funcs))
 	;; Apply funcs in order, passing subject generated by previous
 	;; func to the next one.
 	(dolist (func funcs)
@@ -8217,7 +8219,6 @@ which specify the range to operate on."
 It can be either a list or a symbol referring to a list.  See
 `gmm-tool-bar-from-list' for the format of the list.  The
 default key map is `message-mode-map'."
-  :type '(repeat gmm-tool-bar-list-item)
   :type '(choice (repeat :tag "User defined list" gmm-tool-bar-item)
 		 (symbol))
   :version "29.1"
@@ -8981,32 +8982,61 @@ used to take the screenshot."
     retval))
 
 ;;;###autoload
-(defun message-mailto (&optional url)
+(defun message-mailto (&optional url subject body file-attachments)
   "Command to parse command line mailto: links.
 This is meant to be used for MIME handlers: Setting the handler
 for \"x-scheme-handler/mailto;\" to \"emacs -f message-mailto %u\"
 will then start up Emacs ready to compose mail.  For emacsclient use
-  emacsclient -e \\='(message-mailto \"%u\")'"
+  emacsclient -e \\='(message-mailto \"%u\")'
+
+To facilitate the use of this function within window systems that
+provide message subject, body and attachments independent of URL
+itself, the arguments SUBJECT, BODY and FILE-ATTACHMENTS may also
+provide alternative message subject and body text, which is
+inserted in lieu of nothing if URL does not incorporate such
+information itself, and a list of files to insert as attachments
+to the E-mail."
   (interactive)
   ;; <a href="mailto:someone@example.com?subject=This%20is%20the%20subject&cc=someone_else@example.com&body=This%20is%20the%20body">Send email</a>
   (message-mail)
-  (message-mailto-1 (or url (pop command-line-args-left))))
+  (message-mailto-1 (or url (pop command-line-args-left))
+                    subject body file-attachments))
 
-(defun message-mailto-1 (url)
-  (let ((args (message-parse-mailto-url url)))
+(defun message-mailto-1 (url &optional subject body file-attachments)
+  (let ((args (message-parse-mailto-url url))
+        (need-body nil) (need-subject nil))
     (dolist (arg args)
       (unless (equal (car arg) "body")
 	(message-position-on-field (capitalize (car arg)))
 	(insert (string-replace
 		 "\r\n" "\n"
 		 (mapconcat #'identity (reverse (cdr arg)) ", ")))))
-    (when (assoc "body" args)
-      (message-goto-body)
-      (dolist (body (cdr (assoc "body" args)))
-	(insert body "\n")))
+    (if (assoc "body" args)
+        (progn
+          (message-goto-body)
+          (dolist (body (cdr (assoc "body" args)))
+	    (insert body "\n")))
+
+      (setq need-body t))
     (if (assoc "subject" args)
 	(message-goto-body)
-      (message-goto-subject))))
+      (setq need-subject t)
+      (message-goto-subject))
+    ;; If either one of need-subject and need-body is non-nil then
+    ;; attempt to insert the absent information from an external
+    ;; SUBJECT or BODY.
+    (when (or need-body need-subject)
+      (when (and need-body body)
+        (message-goto-body)
+        (insert body))
+      (when (and need-subject subject)
+        (message-goto-subject)
+        (insert subject)
+        (message-goto-body)))
+    ;; Subsequently insert each attachment enumerated within
+    ;; FILE-ATTACHMENTS.
+    (dolist (file file-attachments)
+      (mml-attach-file file nil 'attachment))))
 
 (provide 'message)
 

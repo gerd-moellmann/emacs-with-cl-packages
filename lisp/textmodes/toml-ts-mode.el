@@ -1,6 +1,6 @@
 ;;; toml-ts-mode.el --- tree-sitter support for TOML  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2025 Free Software Foundation, Inc.
 
 ;; Author     : Jostein Kjønigsen <jostein@kjonigsen.net>
 ;; Maintainer : Jostein Kjønigsen <jostein@kjonigsen.net>
@@ -39,8 +39,8 @@
 (defcustom toml-ts-mode-indent-offset 2
   "Number of spaces for each indentation step in `toml-ts-mode'."
   :version "29.1"
-  :type 'integer
-  :safe 'integerp
+  :type 'natnum
+  :safe 'natnump
   :group 'toml)
 
 (defvar toml-ts-mode--syntax-table
@@ -50,7 +50,7 @@
     (modify-syntax-entry ?=  "."     table)
     (modify-syntax-entry ?\' "\""    table)
     (modify-syntax-entry ?#  "<"   table)
-    (modify-syntax-entry ?\n "> b"  table)
+    (modify-syntax-entry ?\n ">"  table)
     (modify-syntax-entry ?\^m "> b" table)
     table)
   "Syntax table for `toml-ts-mode'.")
@@ -152,6 +152,8 @@ Return nil if there is no name or if NODE is not a defun node."
                   ("Array" "\\`table_array_element\\'" nil nil)))
 
     (treesit-major-mode-setup)))
+
+(derived-mode-add-parents 'toml-ts-mode '(toml-mode))
 
 (if (treesit-ready-p 'toml)
     (add-to-list 'auto-mode-alist '("\\.toml\\'" . toml-ts-mode)))

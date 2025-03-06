@@ -1,6 +1,6 @@
 ;;; arc-mode.el --- simple editing of archives  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1995, 1997-1998, 2001-2024 Free Software Foundation,
+;; Copyright (C) 1995, 1997-1998, 2001-2025 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Morten Welinder <terra@gnu.org>
@@ -231,13 +231,27 @@ Archive and member name will be added."
   :group 'archive)
 
 (defcustom archive-zip-extract
-  (cond ((executable-find "unzip")   '("unzip" "-qq" "-c"))
+  (cond ((executable-find "unzip")
+         (if (and (eq system-type 'android)
+                  ;; Mind that the unzip provided by Android
+                  ;; does not understand -qq or -c, their
+                  ;; functions being assumed by -q and -p
+                  ;; respectively.  Furthermore, the user
+                  ;; might install an unzip executable
+                  ;; distinct from the system-provided unzip,
+                  ;; and such situations must be detected as
+                  ;; well.
+                  (member (executable-find "unzip")
+                          '("/bin/unzip"
+                            "/system/bin/unzip")))
+             '("unzip" "-q" "-p")
+           '("unzip" "-qq" "-c")))
 	(archive-7z-program          `(,archive-7z-program "x" "-so"))
 	((executable-find "pkunzip") '("pkunzip" "-e" "-o-"))
 	(t                           '("unzip" "-qq" "-c")))
   "Program and its options to run in order to extract a zip file member.
-Extraction should happen to standard output.  Archive and member name will
-be added."
+Extraction should happen to standard output.  Archive and member
+name will be added."
   :type '(list (string :tag "Program")
 	       (repeat :tag "Options"
 		       :inline t
@@ -549,6 +563,8 @@ Its value is an `archive--file-desc'.")
 (defvar-local archive-files nil
   "Vector of `archive--file-desc' objects.")
 
+(defvar tar-archive-from-tar nil)
+
 ;; -------------------------------------------------------------------------
 ;;; Section: Support functions.
 
@@ -645,6 +661,49 @@ Does not signal an error if optional argument NOERROR is non-nil."
       (if (not noerror)
           (error "Line does not describe a member of the archive")))))
 ;; -------------------------------------------------------------------------
+;;; Section: Helper functions for requiring filename extensions
+
+(defun archive--act-files (command files)
+  (lambda (archive)
+    (apply #'call-process (car command)
+           nil nil nil (append (cdr command) (cons archive files)))))
+
+(defun archive--need-rename-p (&optional archive)
+  (let ((archive
+         (file-name-nondirectory (or archive buffer-file-name))))
+    (cl-case archive-subtype
+      ((zip) (not (seq-contains-p archive ?. #'eq))))))
+
+(defun archive--ensure-extension (archive ensure-extension)
+  (if ensure-extension
+      (make-temp-name (expand-file-name (concat archive "_tmp.")))
+    archive))
+
+(defun archive--maybe-rename (newname need-rename-p)
+  ;; Operating with archive as current buffer, and protect
+  ;; `default-directory' from being modified in `rename-visited-file'.
+  (when need-rename-p
+    (let ((default-directory default-directory))
+      (rename-visited-file newname))))
+
+(defun archive--with-ensure-extension (archive proc-fn)
+  (let ((saved default-directory))
+    (with-current-buffer (find-buffer-visiting archive)
+      (let ((ensure-extension (archive--need-rename-p))
+            (default-directory saved))
+        (unwind-protect
+            ;; Some archive programs (like zip) expect filenames to
+            ;; have an extension, so if necessary, temporarily rename
+            ;; an extensionless file for write accesses.
+            (let ((archive (archive--ensure-extension
+                            archive ensure-extension)))
+              (archive--maybe-rename archive ensure-extension)
+              (let ((exitcode (funcall proc-fn archive)))
+                (or (zerop exitcode)
+                    (error "Updating was unsuccessful (%S)" exitcode))))
+          (progn (archive--maybe-rename archive ensure-extension)
+                 (revert-buffer nil t)))))))
+;; -------------------------------------------------------------------------
 ;;; Section: the mode definition
 
 ;;;###autoload
@@ -697,7 +756,8 @@ archive.
 	;; on local filesystem.  Treat such archives as remote.
 	(or archive-remote
 	    (setq archive-remote
-		  (or (string-match archive-remote-regexp (buffer-file-name))
+		  (or tar-archive-from-tar ; was included in a tar archive
+                      (string-match archive-remote-regexp (buffer-file-name))
 		      (string-match file-name-invalid-regexp
 				    (buffer-file-name)))))
 
@@ -863,6 +923,9 @@ If FNAME can be uniquely created in DIR, it is returned unaltered.
 If FNAME is something our underlying filesystem can't grok, or if another
 file by that name already exists in DIR, a unique new name is generated
 using `make-temp-file', and the generated name is returned."
+  (if (file-name-absolute-p fname)
+      ;; We need a file name relative to the filesystem root.
+      (setq fname (substring fname (1+ (string-search "/" fname)))))
   (let ((fullname (expand-file-name fname dir))
 	(alien (string-match file-name-invalid-regexp fname))
 	(tmpfile
@@ -1122,6 +1185,9 @@ NEW-NAME."
          (buffer (get-buffer bufname))
          (just-created nil)
 	 (file-name-coding archive-file-name-coding-system))
+      (or archive-remote
+          (and (local-variable-p 'tar-archive-from-tar)
+               (setq archive-remote tar-archive-from-tar)))
       (if (and buffer
 	       (string= (buffer-file-name buffer) arcfilename))
           nil
@@ -1378,16 +1444,9 @@ NEW-NAME."
 	  (setq ename
 		(encode-coding-string ename archive-file-name-coding-system))
           (let* ((coding-system-for-write 'no-conversion)
-		 (default-directory (file-name-as-directory archive-tmpdir))
-		 (exitcode (apply #'call-process
-				  (car command)
-				  nil
-				  nil
-				  nil
-				  (append (cdr command)
-					  (list archive ename)))))
-            (or (zerop exitcode)
-		(error "Updating was unsuccessful (%S)" exitcode))))
+                 (default-directory (file-name-as-directory archive-tmpdir)))
+            (archive--with-ensure-extension
+             archive (archive--act-files command (list ename)))))
       (archive-delete-local tmpfile))))
 
 (defun archive-write-file (&optional file)
@@ -1510,9 +1569,7 @@ as a relative change like \"g+rw\" as for chmod(2)."
 	  (archive-resummarize))
       (error "Setting group is not supported for this archive type"))))
 
-(defun archive-expunge ()
-  "Do the flagged deletions."
-  (interactive)
+(defun archive--expunge-maybe-force (force)
   (let (files)
     (save-excursion
       (goto-char archive-file-list-start)
@@ -1526,7 +1583,8 @@ as a relative change like \"g+rw\" as for chmod(2)."
     (and files
 	 (or (not archive-read-only)
 	     (error "Archive is read-only"))
-	 (or (yes-or-no-p (format "Really delete %d member%s? "
+         (or force
+             (yes-or-no-p (format "Really delete %d member%s? "
 				  (length files)
 				  (if (null (cdr files)) "" "s")))
 	     (error "Operation aborted"))
@@ -1540,13 +1598,14 @@ as a relative change like \"g+rw\" as for chmod(2)."
 	       (archive-resummarize)
 	     (revert-buffer))))))
 
+(defun archive-expunge ()
+  "Do the flagged deletions."
+  (interactive)
+  (archive--expunge-maybe-force nil))
+
 (defun archive-*-expunge (archive files command)
-  (apply #'call-process
-	 (car command)
-	 nil
-	 nil
-	 nil
-	 (append (cdr command) (cons archive files))))
+  (archive--with-ensure-extension
+   archive (archive--act-files command files)))
 
 (defun archive-rename-entry (newname)
   "Change the name associated with this entry in the archive file."
@@ -2058,16 +2117,14 @@ This doesn't recover lost files, it just undoes changes in the buffer itself."
    (t
     (archive-extract-by-stdout
      archive
-     ;; unzip expands wildcards in NAME, so we need to quote it.  But
-     ;; not on DOS/Windows, since that fails extraction on those
-     ;; systems (unless w32-quote-process-args is nil), and file names
-     ;; with wildcards in zip archives don't work there anyway.
-     ;; FIXME: Does pkunzip need similar treatment?
-     (if (and (or (not (memq system-type '(windows-nt ms-dos)))
-		  (and (boundp 'w32-quote-process-args)
-		       (null w32-quote-process-args)))
-	      (equal (car archive-zip-extract) "unzip"))
-	 (shell-quote-argument name)
+     ;; unzip expands wildcard characters in NAME, so we need to quote
+     ;; wildcard characters in a special way: replace each such
+     ;; character C with a single-character alternative [C].  We
+     ;; cannot use 'shell-quote-argument' here because that doesn't
+     ;; protect wildcard characters from being expanded by unzip
+     ;; itself.
+     (if (equal (car archive-zip-extract) "unzip")
+         (replace-regexp-in-string "[[?*]" "[\\&]" name)
        name)
      archive-zip-extract))))
 

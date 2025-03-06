@@ -1,6 +1,6 @@
 ;;; refer.el --- look up references in bibliography files  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1992, 1996, 2001-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1992, 1996, 2001-2025 Free Software Foundation, Inc.
 
 ;; Author: Ashwin Ram <ashwin@cc.gatech.edu>
 ;; Maintainer: emacs-devel@gnu.org
@@ -113,9 +113,9 @@ each time it is needed."
 
 (defcustom refer-cache-bib-files t
   "Variable determining whether the value of `refer-bib-files' should be cached.
-If t, initialize the value of refer-bib-files the first time it is used.  If
-nil, re-read the list of \\.bib files depending on the value of `refer-bib-files'
-each time it is needed."
+If t, initialize the value of refer-bib-files the first time it is used.
+If nil, re-read the list of \\.bib files depending on the value of
+`refer-bib-files' each time it is needed."
   :type 'boolean)
 
 (defcustom refer-bib-files-regexp "\\\\bibliography"

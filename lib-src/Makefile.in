@@ -1,6 +1,6 @@
 ### @configure_input@
 
-# Copyright (C) 1985, 1987-1988, 1993-1994, 2001-2024 Free Software
+# Copyright (C) 1985, 1987-1988, 1993-1994, 2001-2025 Free Software
 # Foundation, Inc.
 
 # This file is part of GNU Emacs.
@@ -97,6 +97,14 @@ localstatedir=@localstatedir@
 srcdir=@srcdir@
 VPATH=@srcdir@
 
+# Cross-compilation setup
+
+XCONFIGURE=@XCONFIGURE@
+
+ifneq ($(XCONFIGURE),)
+vpath $(srcdir)
+endif
+
 # The top-level source directory, also set by configure.
 top_srcdir=@top_srcdir@
 # MinGW CPPFLAGS may use this.
@@ -141,6 +149,9 @@ HAVE_BE_APP=@HAVE_BE_APP@
 HAIKU_LIBS=@HAIKU_LIBS@
 HAIKU_CFLAGS=@HAIKU_CFLAGS@
 
+## Android build-time support
+ANDROID=@ANDROID@
+
 # emacsclientw.exe for MinGW, empty otherwise
 CLIENTW = @CLIENTW@
 
@@ -157,7 +168,12 @@ UTILITIES = hexl${EXEEXT} 			 	 \
 ifeq ($(HAVE_BE_APP),yes)
 DONT_INSTALL= make-docfile${EXEEXT} make-fingerprint${EXEEXT} be-resources
 else
+ifeq ($(XCONFIGURE)$(HAVE_ANDROID),yes)
+DONT_INSTALL = make-docfile${EXEEXT} make-fingerprint${EXEEXT} \
+	asset-directory-tool${EXEEXT}
+else
 DONT_INSTALL= make-docfile${EXEEXT} make-fingerprint${EXEEXT}
+endif
 endif
 
 # Like UTILITIES, but they're not system-dependent, and should not be
@@ -194,18 +210,18 @@ LIBRESOLV=@LIBRESOLV@
 ## -llockfile if HAVE_LIBLOCKFILE or -lmail if HAVE_LIBMAIL
 LIBS_MAIL=@LIBS_MAIL@
 ## empty or -lrt or -lposix4 if HAVE_CLOCK_GETTIME
-LIB_CLOCK_GETTIME = @LIB_CLOCK_GETTIME@
+CLOCK_TIME_LIB = @CLOCK_TIME_LIB@
 ## empty or -lbcrypt or -ladvapi32
-LIB_GETRANDOM = @LIB_GETRANDOM@
+GETRANDOM_LIB = @GETRANDOM_LIB@
 ## Whatever libraries are needed for euidaccess
-LIB_EACCESS=@LIB_EACCESS@
+EUIDACCESS_LIBGEN=@EUIDACCESS_LIBGEN@
 ## Libraries needed for file_has_acl
-LIB_HAS_ACL=@LIB_HAS_ACL@
+FILE_HAS_ACL_LIB=@FILE_HAS_ACL_LIB@
 ## empty or -lwsock2 for MinGW
 LIB_WSOCK32=@LIB_WSOCK32@
 
 ## Extra libraries for etags
-LIBS_ETAGS = $(LIB_CLOCK_GETTIME) $(LIB_GETRANDOM)
+LIBS_ETAGS = $(CLOCK_TIME_LIB) $(GETRANDOM_LIB)
 
 HAVE_SECCOMP=@HAVE_SECCOMP@
 HAVE_LIBSECCOMP=@HAVE_LIBSECCOMP@
@@ -304,7 +320,7 @@ maybe-blessmail: $(BLESSMAIL_TARGET)
 ## up if chown or chgrp fails, as the package responsible for
 ## installing Emacs can fix this problem later.
 $(DESTDIR)${archlibdir}: all
-	$(info $ )
+	$(info $.)
 	$(info Installing utilities run internally by Emacs.)
 	umask 022 && ${MKDIR_P} "$(DESTDIR)${archlibdir}"
 	exp_archlibdir=`cd "$(DESTDIR)${archlibdir}" && pwd -P` && \
@@ -346,7 +362,7 @@ $(DESTDIR)${archlibdir}: all
 .PHONY: bootstrap-clean check tags
 
 install: $(DESTDIR)${archlibdir}
-	$(info $ )
+	$(info $.)
 	$(info Installing utilities for users to run.)
 	umask 022 && ${MKDIR_P} "$(DESTDIR)${bindir}"
 	for file in ${INSTALLABLES} ; do \
@@ -375,7 +391,7 @@ clean: mostlyclean
 	rm -f ${EXE_FILES}
 
 distclean: clean
-	rm -f TAGS Makefile blessmail
+	rm -f TAGS Makefile blessmail Makefile.android
 
 bootstrap-clean maintainer-clean: distclean
 
@@ -407,6 +423,9 @@ etags${EXEEXT}: ${etags_deps}
 ctags${EXEEXT}: ${srcdir}/ctags.c ${etags_deps}
 	$(AM_V_CCLD)$(CC) ${ALL_CFLAGS} -o $@ $< $(etags_libs)
 
+asset-directory-tool${EXEEXT}: ${srcdir}/asset-directory-tool.c $(config_h)
+	$(AM_V_CCLD)$(CC) ${ALL_CFLAGS} $< $(LOADLIBES) -o $@
+
 ebrowse${EXEEXT}: ${srcdir}/ebrowse.c ${srcdir}/../lib/min-max.h $(NTLIB) \
                    $(config_h)
 	$(AM_V_CCLD)$(CC) ${ALL_CFLAGS} -o $@ $< $(NTLIB) $(LOADLIBES)
@@ -427,12 +446,14 @@ pop.o: ${srcdir}/pop.c ${srcdir}/pop.h ${srcdir}/../lib/min-max.h $(config_h)
 emacsclient${EXEEXT}: ${srcdir}/emacsclient.c $(NTLIB) $(config_h)
 	$(AM_V_CCLD)$(CC) ${ALL_CFLAGS} $< \
 	   $(NTLIB) $(LOADLIBES) \
-	   $(LIB_WSOCK32) $(LIB_EACCESS) $(LIB_HAS_ACL) $(LIBS_ECLIENT) -o $@
+	   $(LIB_WSOCK32) $(EUIDACCESS_LIBGEN) \
+	   $(FILE_HAS_ACL_LIB) $(LIBS_ECLIENT) \
+	   -o $@
 
 emacsclientw${EXEEXT}: ${srcdir}/emacsclient.c $(NTLIB) $(CLIENTRES) $(config_h)
 	$(AM_V_CCLD)$(CC) ${ALL_CFLAGS} $(CLIENTRES) -mwindows $< \
 	   $(LOADLIBES) \
-	   $(LIB_WSOCK32) $(LIB_EACCESS) $(LIBS_ECLIENT) -o $@
+	   $(LIB_WSOCK32) $(EUIDACCESS_LIBGEN) $(LIBS_ECLIENT) -o $@
 
 be-resources: ${srcdir}/be_resources.cc ${config_h}
 	$(AM_V_CXXLD)$(CXX) ${ALL_CXXFLAGS} ${HAIKU_LIBS} $< -o $@
@@ -461,7 +482,7 @@ emacsclient.res: ../nt/emacsclient.rc $(NTINC)/../icons/emacs.ico
 ifeq ($(SECCOMP_FILTER),1)
 seccomp-filter$(EXEEXT): $(srcdir)/seccomp-filter.c $(config_h)
 	$(AM_V_CCLD)$(CC) $(ALL_CFLAGS) $(LIBSECCOMP_CFLAGS) $< \
-	  $(LIBSECCOMP_LIBS) -o $@
+	  $(LIBSECCOMP_LIBS) $(LOADLIBES) -o $@
 
 seccomp-filter.bpf seccomp-filter.pfc seccomp-filter-exec.bpf seccomp-filter-exec.pfc: seccomp-filter$(EXEEXT)
 	$(AM_V_GEN)./seccomp-filter$(EXEEXT) \

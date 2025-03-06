@@ -1,6 +1,6 @@
 /* Functions for the pure Gtk+-3.
 
-Copyright (C) 1989, 1992-1994, 2005-2006, 2008-2020, 2022-2024 Free
+Copyright (C) 1989, 1992-1994, 2005-2006, 2008-2020, 2022-2025 Free
 Software Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -37,8 +37,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "font.h"
 #include "xsettings.h"
 #include "atimer.h"
-
-static ptrdiff_t image_cache_refcount;
 
 static int x_decode_color (struct frame *f, Lisp_Object color_name,
 			   int mono_color);
@@ -398,13 +396,6 @@ pgtk_set_title (struct frame *f, Lisp_Object name, Lisp_Object old_name)
   pgtk_set_name_internal (f, name);
 }
 
-
-void
-pgtk_set_doc_edited (void)
-{
-}
-
-
 static void
 pgtk_set_menu_bar_lines (struct frame *f, Lisp_Object value, Lisp_Object oldval)
 {
@@ -482,6 +473,11 @@ pgtk_change_tab_bar_height (struct frame *f, int height)
      leading to the tab bar height being incorrectly set upon the next
      call to x_set_font.  (bug#59285) */
   int lines = height / unit;
+
+  /* Even so, HEIGHT might be less than unit if the tab bar face is
+     not so tall as the frame's font height; which if true lines will
+     be set to 0 and the tab bar will thus vanish.  */
+
   if (lines == 0 && height != 0)
     lines = 1;
 
@@ -947,6 +943,7 @@ unless TYPE is `png'.  */)
   return pgtk_cr_export_frames (frames, surface_type);
 }
 
+extern frame_parm_handler pgtk_frame_parm_handlers[];
 frame_parm_handler pgtk_frame_parm_handlers[] =
   {
     gui_set_autoraise,		/* generic OK */
@@ -1020,17 +1017,6 @@ unwind_create_frame (Lisp_Object frame)
   /* If frame is ``official'', nothing to do.  */
   if (NILP (Fmemq (frame, Vframe_list)))
     {
-      /* If the frame's image cache refcount is still the same as our
-         private shadow variable, it means we are unwinding a frame
-         for which we didn't yet call init_frame_faces, where the
-         refcount is incremented.  Therefore, we increment it here, so
-         that free_frame_faces, called in x_free_frame_resources
-         below, will not mistakenly decrement the counter that was not
-         incremented yet to account for this new frame.  */
-      if (FRAME_IMAGE_CACHE (f) != NULL
-	  && FRAME_IMAGE_CACHE (f)->refcount == image_cache_refcount)
-	FRAME_IMAGE_CACHE (f)->refcount++;
-
       pgtk_free_frame_resources (f);
       free_glyphs (f);
       return Qt;
@@ -1389,9 +1375,6 @@ This function is an internal primitive--use `make-frame' instead.  */ )
 #ifdef HAVE_HARFBUZZ
   register_font_driver (&ftcrhbfont_driver, f);
 #endif	/* HAVE_HARFBUZZ */
-
-  image_cache_refcount =
-    FRAME_IMAGE_CACHE (f) ? FRAME_IMAGE_CACHE (f)->refcount : 0;
 
   gui_default_parameter (f, parms, Qfont_backend, Qnil,
 			 "fontBackend", "FontBackend", RES_TYPE_STRING);
@@ -1820,7 +1803,7 @@ pgtk_is_numeric_char (int c)
 static GSettings *
 parse_resource_key (const char *res_key, char *setting_key)
 {
-  char path[32 + RESOURCE_KEY_MAX_LEN];
+  char path[33 + RESOURCE_KEY_MAX_LEN];
   const char *sp = res_key;
   char *dp;
 
@@ -1870,7 +1853,7 @@ parse_resource_key (const char *res_key, char *setting_key)
 	  *dp++ = c;
 	  sp++;
 	}
-      *dp++ = '/';		/* must ends with '/' */
+      *dp++ = '/';		/* must end with '/' */
       *dp = '\0';
     }
 
@@ -2150,7 +2133,7 @@ If omitted or nil, that stands for the selected frame's display.
 On PGTK, always return true-color.  */)
   (Lisp_Object terminal)
 {
-  return intern ("true-color");
+  return Qtrue_color;
 }
 
 
@@ -2621,7 +2604,7 @@ static Lisp_Object tip_frame;
 
 /* The window-system window corresponding to the frame of the
    currently visible tooltip.  */
-GtkWidget *tip_window;
+static GtkWidget *tip_window;
 
 /* A timer that hides or deletes the currently visible tooltip when it
    fires.  */
@@ -2747,9 +2730,6 @@ x_create_tip_frame (struct pgtk_display_info *dpyinfo, Lisp_Object parms, struct
   register_font_driver (&ftcrhbfont_driver, f);
 #endif	/* HAVE_HARFBUZZ */
 
-  image_cache_refcount =
-    FRAME_IMAGE_CACHE (f) ? FRAME_IMAGE_CACHE (f)->refcount : 0;
-
   gui_default_parameter (f, parms, Qfont_backend, Qnil,
                          "fontBackend", "FontBackend", RES_TYPE_STRING);
 
@@ -2846,7 +2826,7 @@ x_create_tip_frame (struct pgtk_display_info *dpyinfo, Lisp_Object parms, struct
   {
     Lisp_Object disptype;
 
-    disptype = intern ("color");
+    disptype = Qcolor;
 
     if (NILP (Fframe_parameter (frame, Qdisplay_type)))
       {
@@ -3393,8 +3373,7 @@ Text larger than the specified size is clipped.  */)
 
  start_timer:
   /* Let the tip disappear after timeout seconds.  */
-  tip_timer = call3 (intern ("run-at-time"), timeout, Qnil,
-		     intern ("x-hide-tip"));
+  tip_timer = call3 (Qrun_at_time, timeout, Qnil, Qx_hide_tip);
 
   return unbind_to (count, Qnil);
 }
@@ -3458,7 +3437,6 @@ frame_geometry (Lisp_Object frame, Lisp_Object attribute)
   tab_bar_height = FRAME_TAB_BAR_HEIGHT (f);
   tab_bar_width = (tab_bar_height
 		   ? native_width - 2 * internal_border_width : 0);
-  /* inner_top += tab_bar_height; */
 
   /* Construct list.  */
   if (EQ (attribute, Qouter_edges))
@@ -3471,10 +3449,12 @@ frame_geometry (Lisp_Object frame, Lisp_Object attribute)
   else if (EQ (attribute, Qinner_edges))
     return list4 (make_fixnum (native_left + internal_border_width),
 		  make_fixnum (native_top
-			       + tool_bar_height
+			       + tab_bar_height
+			       + FRAME_TOOL_BAR_TOP_HEIGHT (f)
 			       + internal_border_width),
 		  make_fixnum (native_right - internal_border_width),
-		  make_fixnum (native_bottom - internal_border_width));
+		  make_fixnum (native_bottom - internal_border_width
+			       - FRAME_TOOL_BAR_BOTTOM_HEIGHT (f)));
   else
     return
       list (Fcons (Qouter_position,
@@ -3571,7 +3551,9 @@ menu bar or tool bar of FRAME.  */)
 				 ? type : Qnative_edges));
 }
 
-DEFUN ("pgtk-set-mouse-absolute-pixel-position", Fpgtk_set_mouse_absolute_pixel_position, Spgtk_set_mouse_absolute_pixel_position, 2, 2, 0,
+DEFUN ("pgtk-set-mouse-absolute-pixel-position",
+       Fpgtk_set_mouse_absolute_pixel_position,
+       Spgtk_set_mouse_absolute_pixel_position, 2, 2, 0,
        doc: /* Move mouse pointer to absolute pixel position (X, Y).
 The coordinates X and Y are interpreted in pixels relative to a position
 \(0, 0) of the selected frame's display.  */)
@@ -3590,7 +3572,9 @@ The coordinates X and Y are interpreted in pixels relative to a position
   return Qnil;
 }
 
-DEFUN ("pgtk-mouse-absolute-pixel-position", Fpgtk_mouse_absolute_pixel_position, Spgtk_mouse_absolute_pixel_position, 0, 0, 0,
+DEFUN ("pgtk-mouse-absolute-pixel-position",
+       Fpgtk_mouse_absolute_pixel_position,
+       Spgtk_mouse_absolute_pixel_position, 0, 0, 0,
        doc: /* Return absolute position of mouse cursor in pixels.
 The position is returned as a cons cell (X . Y) of the
 coordinates of the mouse cursor position in pixels relative to a
@@ -3612,7 +3596,8 @@ position (0, 0) of the selected frame's terminal. */)
 }
 
 
-DEFUN ("pgtk-page-setup-dialog", Fpgtk_page_setup_dialog, Spgtk_page_setup_dialog, 0, 0, 0,
+DEFUN ("pgtk-page-setup-dialog", Fpgtk_page_setup_dialog,
+       Spgtk_page_setup_dialog, 0, 0, 0,
        doc: /* Pop up a page setup dialog.
 The current page setup can be obtained using `x-get-page-setup'.  */)
   (void)
@@ -3624,7 +3609,8 @@ The current page setup can be obtained using `x-get-page-setup'.  */)
   return Qnil;
 }
 
-DEFUN ("pgtk-get-page-setup", Fpgtk_get_page_setup, Spgtk_get_page_setup, 0, 0, 0,
+DEFUN ("pgtk-get-page-setup", Fpgtk_get_page_setup,
+       Spgtk_get_page_setup, 0, 0, 0,
        doc: /* Return the value of the current page setup.
 The return value is an alist containing the following keys:
 
@@ -3962,4 +3948,8 @@ syms_of_pgtkfns (void)
   DEFSYM (Qlandscape, "landscape");
   DEFSYM (Qreverse_portrait, "reverse-portrait");
   DEFSYM (Qreverse_landscape, "reverse-landscape");
+  DEFSYM (Qtrue_color, "true-color");
+  DEFSYM (Qcolor, "color");
+  DEFSYM (Qrun_at_time, "run-at-time");
+  DEFSYM (Qx_hide_tip, "x-hide-tip");
 }

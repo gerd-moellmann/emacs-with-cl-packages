@@ -1,6 +1,6 @@
 ;;; erc-d.el --- A dumb test server for ERC -*- lexical-binding: t -*-
 
-;; Copyright (C) 2020-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -254,7 +254,7 @@ return a replacement.")
          (ending (process-get process :dialog-ending))
          (dialog (make-erc-d-dialog :name name
                                     :process process
-                                    :queue (make-ring 5)
+                                    :queue (make-ring 10)
                                     :exchanges (make-ring 10)
                                     :match-handlers mat-h
                                     :server-fqdn fqdn)))
@@ -292,32 +292,27 @@ With int SKIP, advance past that many exchanges."
 
 (defvar erc-d--m-debug (getenv "ERC_D_DEBUG"))
 
-(defmacro erc-d--m (process format-string &rest args)
-  "Output ARGS using FORMAT-STRING somewhere depending on context.
-PROCESS should be a client connection or a server network process."
-  `(let ((format-string (if erc-d--m-debug
-                            (concat (format-time-string "%s.%N: ")
-                                    ,format-string)
-                          ,format-string))
-         (want-insert (and ,process erc-d--in-process)))
-     (when want-insert
-       (with-current-buffer (process-buffer (process-get ,process :server))
-         (goto-char (point-max))
-         (insert (concat (format ,format-string ,@args) "\n"))))
-     (when (or erc-d--m-debug (not want-insert))
-       (message format-string ,@args))))
+(defun erc-d--m (process format-string &rest args)
+  "Output ARGS using FORMAT-STRING to PROCESS's buffer or elsewhere."
+  (when erc-d--m-debug
+    (setq format-string (concat (format-time-string "%s.%N: ") format-string)))
+  (let ((insertp (and process erc-d--in-process))
+        (buffer (and process (process-buffer (process-get process :server)))))
+    (when (and insertp (buffer-live-p buffer))
+      (princ (concat (apply #'format format-string args) "\n") buffer))
+    (when (or erc-d--m-debug (not insertp))
+      (apply #'message format-string args))))
 
-(defmacro erc-d--log (process string &optional outbound)
-  "Log STRING sent to (OUTBOUND) or received from PROCESS peer."
-  `(let ((id (or (process-get ,process :log-id)
-                 (let ((port (erc-d-u--get-remote-port ,process)))
-                   (process-put ,process :log-id port)
-                   port)))
-         (name (erc-d-dialog-name (process-get ,process :dialog))))
-     (if ,outbound
-         (erc-d--m process "-> %s:%s %s" name id ,string)
-       (dolist (line (split-string ,string (process-get process :ending)))
-         (erc-d--m process "<- %s:%s %s" name id line)))))
+(defun erc-d--log (process string &optional outbound)
+  "Log STRING received from or OUTBOUND to PROCESS peer."
+  (let ((id (or (process-get process :log-id)
+                (let ((port (erc-d-u--get-remote-port process)))
+                  (process-put process :log-id port) port)))
+        (name (erc-d-dialog-name (process-get process :dialog))))
+    (if outbound
+        (erc-d--m process "-> %s:%s %s" name id string)
+      (dolist (line (split-string string (process-get process :ending)))
+        (erc-d--m process "<- %s:%s %s" name id line)))))
 
 (defun erc-d--log-process-event (server process msg)
   (erc-d--m server "%s: %s" process (string-trim-right msg)))
@@ -455,14 +450,14 @@ including line delimiters."
         (setq string (unless (= (match-end 0) (length string))
                        (substring string (match-end 0))))
         (erc-d--log process line nil)
-        (ring-insert queue (erc-d-i--parse-message line 'decode))))
+        (ring-insert queue (erc-d-i--parse-message line nil))))
     (when string
       (setf (process-get process :stashed-input) string))))
 
 ;; Misc process properties:
 ;;
 ;; The server property `:dialog-dialogs' is an alist of (symbol
-;; . erc-d-u-scan-d) conses, each of which pairs a dialogs name with
+;; . erc-d-u-scan-d) conses, each of which pairs a dialog's name with
 ;; info on its read progress (described above in the Commentary).
 ;; This list is populated by `erc-d-run' at the start of each session.
 ;;

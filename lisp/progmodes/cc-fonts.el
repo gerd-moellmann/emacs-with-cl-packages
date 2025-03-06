@@ -1,6 +1,6 @@
 ;; cc-fonts.el --- font lock support for CC Mode -*- lexical-binding: t -*-
 
-;; Copyright (C) 2002-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2025 Free Software Foundation, Inc.
 
 ;; Authors:    2003- Alan Mackenzie
 ;;             2002- Martin Stjernholm
@@ -259,14 +259,14 @@
 
   (defmacro c-fontify-types-and-refs (varlist &rest body)
     (declare (indent 1) (debug let*))
-    ;; Like `let', but additionally activates `c-record-type-identifiers'
+    ;; Like `let*', but additionally activates `c-record-type-identifiers'
     ;; and `c-record-ref-identifiers', and fontifies the recorded ranges
     ;; accordingly on exit.
     ;;
     ;; This function does hidden buffer changes.
-    `(let ((c-record-type-identifiers t)
-	   c-record-ref-identifiers
-	   ,@varlist)
+    `(let* ((c-record-type-identifiers t)
+	    c-record-ref-identifiers
+	    ,@varlist)
        (prog1 (progn ,@body)
 	 (c-fontify-recorded-types-and-refs))))
 
@@ -387,7 +387,7 @@
 	      (parse-sexp-lookup-properties
 	       (cc-eval-when-compile
 		 (boundp 'parse-sexp-lookup-properties))))
-	  ,(c-make-font-lock-search-form regexp highlights))
+	  ,(c-make-font-lock-search-form regexp highlights t))
 	nil)))
 
   (defun c-make-font-lock-BO-decl-search-function (regexp &rest highlights)
@@ -1112,7 +1112,7 @@ casts and declarations are fontified.  Used on level 2 and higher."
   ;; 'c-decl-type-start (according to TYPES).  Stop at LIMIT.
   ;;
   ;; If TYPES is t, fontify all identifiers as types; if it is a number, a
-  ;; buffer position, additionally set the `c-deftype' text property on the
+  ;; buffer position, additionally set the `c-typedef' text property on the
   ;; keyword at that position; if it is nil fontify as either variables or
   ;; functions, otherwise TYPES is a face to use.  If NOT-TOP is non-nil, we
   ;; are not at the top-level ("top-level" includes being directly inside a
@@ -1219,6 +1219,7 @@ casts and declarations are fontified.  Used on level 2 and higher."
   ;;           inside a function declaration arglist).
   ;; '<>       In an angle bracket arglist.
   ;; 'arglist  Some other type of arglist.
+  ;; 'generic  In a C11 _Generic construct.
   ;; 'top      Some other context and point is at the top-level (either
   ;;           outside any braces or directly inside a class or namespace,
   ;;           etc.)
@@ -1345,6 +1346,15 @@ casts and declarations are fontified.  Used on level 2 and higher."
 	     (c-back-over-member-initializers)))
       (c-put-char-property (1- match-pos) 'c-type 'c-not-decl)
       (cons 'not-decl nil))
+     ;; In a C11 _Generic construct.
+     ((and c-generic-key
+	   (eq (char-before match-pos) ?,)
+	   (save-excursion
+	     (and (c-go-up-list-backward match-pos
+					 (max (- (point) 2000) (point-min)))
+		  (zerop (c-backward-token-2))
+		  (looking-at c-generic-key))))
+      (cons 'generic nil))
      ;; At start of a declaration inside a declaration paren.
      ((save-excursion
 	(goto-char match-pos)
@@ -1378,7 +1388,8 @@ casts and declarations are fontified.  Used on level 2 and higher."
 				  (memq type '(c-decl-arg-start
 					       c-decl-type-start))))))))
 		      ((and (zerop (c-backward-token-2))
-			    (looking-at c-fun-name-substitute-key)))))))))
+			    (looking-at c-fun-name-substitute-key)
+			    (not (eq (char-after (match-end 0)) ?_))))))))))
       ;; Cache the result of this test for next time around.
       (c-put-char-property (1- match-pos) 'c-type 'c-decl-arg-start)
       (cons 'decl nil))
@@ -1616,13 +1627,16 @@ casts and declarations are fontified.  Used on level 2 and higher."
 		   (c-forward-syntactic-ws))
 
 		 ;; Now analyze the construct.
-		 (if (eq context 'not-decl)
-		     (progn
-		       (setq decl-or-cast nil)
-		       (if (c-syntactic-re-search-forward
-			    "," (min limit (point-max)) 'at-limit t)
-			   (c-put-char-property (1- (point)) 'c-type 'c-not-decl))
-		       nil)
+		 (cond
+		  ((eq context 'not-decl)
+		   (setq decl-or-cast nil)
+		   (if (c-syntactic-re-search-forward
+			"," (min limit (point-max)) 'at-limit t)
+		       (c-put-char-property (1- (point)) 'c-type 'c-not-decl))
+		   nil)
+		  ((eq context 'generic)
+		   (c-font-lock-c11-generic-clause))
+		  (t
 		   (setq decl-or-cast
 			 (c-forward-decl-or-cast-1
 			  match-pos context last-cast-end inside-macro))
@@ -1683,7 +1697,7 @@ casts and declarations are fontified.  Used on level 2 and higher."
 					      context
 					      (or toplev (nth 4 decl-or-cast))))
 
-		    (t t))))
+		    (t t)))))
 
 	     ;; It was a false alarm.  Check if we're in a label (or other
 	     ;; construct with `:' except bitfield) instead.
@@ -1712,6 +1726,28 @@ casts and declarations are fontified.  Used on level 2 and higher."
 	       t))))
 
 	nil))))
+
+(defun c-font-lock-c11-generic-clause ()
+  ;; Fontify a type inside the C11 _Generic clause.  Point will be at the
+  ;; type and will be left at the next comma of the clause (if any) or the
+  ;; closing parenthesis, if any, or at the end of the type, otherwise.
+  ;; The return value is always nil.
+  (c-fontify-types-and-refs
+      ((here (point))
+       (type-type (c-forward-type t))
+       (c-promote-possible-types (if (eq type-type 'maybe) 'just-one t))
+       (pos (point)) pos1)
+    (when (and type-type (eq (char-after) ?:))
+      (goto-char here)
+      (c-forward-type t))		; Fontify the type.
+    (cond
+     ((c-syntactic-re-search-forward "," nil t t t)
+      (backward-char))
+     ((and (setq pos1 (c-up-list-forward))
+	   (eq (char-before pos1) ?\)))
+      (goto-char (1- pos1)))
+     (t (goto-char pos))))
+  nil)
 
 (defun c-font-lock-enum-body (limit)
   ;; Fontify the identifiers of each enum we find by searching forward.
@@ -1853,6 +1889,38 @@ casts and declarations are fontified.  Used on level 2 and higher."
 	      (c-forward-syntactic-ws)
 	      (c-font-lock-declarators limit t in-typedef
 				       (not (c-bs-at-toplevel-p (point)))))))))))
+
+(defun c-font-lock-ids-with-dollar (limit)
+  ;; Maybe fontify identifiers with a dollar using `font-lock-warning-face'.
+  ;; This is done only for languages which tolerate a $ in ids, and only when
+  ;; the flag variable `c-warn-ids-with-dollar' is set to non-nil.  This
+  ;; function only works after functions such as `c-font-lock-declarations'
+  ;; have already been run.
+  ;;
+  ;; This function will be called from font-lock for a region bounded by POINT
+  ;; and LIMIT, as though it were to identify a keyword for
+  ;; font-lock-keyword-face.  It always returns NIL to inhibit this and
+  ;; prevent a repeat invocation.  See elisp/lispref page "Search-based
+  ;; Fontification".
+  (when c-warn-ids-with-dollar
+    (let (id-start)
+      (while (and (< (point) limit)
+		  (skip-chars-forward "^$" limit)
+		  (< (point) limit)
+		  (eq (char-after) ?$))
+	(if (and (memq (c-get-char-property (point) 'face)
+		       '(font-lock-variable-name-face
+			 font-lock-function-name-face
+			 font-lock-type-face))
+		 (setq id-start (c-on-identifier)))
+	    (progn
+	      (goto-char id-start)
+	      (looking-at c-identifier-key)
+	      (c-put-font-lock-face (match-beginning 0) (match-end 0)
+				    'font-lock-warning-face)
+	      (goto-char (match-end 0)))
+	  (forward-char)))
+      nil)))
 
 (defun c-font-lock-ml-strings (limit)
   ;; Fontify multi-line strings.
@@ -2254,7 +2322,12 @@ on level 2 only and so aren't combined with `c-complex-decl-matchers'."
 
       ;; Fontify generic colon labels in languages that support them.
       ,@(when (c-lang-const c-recognize-colon-labels)
-	  '(c-font-lock-labels))))
+	  '(c-font-lock-labels))
+
+      ;; Maybe fontify identifiers containing a dollar sign with
+      ;; `font-lock-warning-face'.
+      ,@(when (c-lang-const c-dollar-in-ids)
+	  `(c-font-lock-ids-with-dollar))))
 
 (c-lang-defconst c-complex-decl-matchers
   "Complex font lock matchers for types and declarations.  Used on level
@@ -2330,7 +2403,11 @@ on level 2 only and so aren't combined with `c-complex-decl-matchers'."
 	  ;; (see Elisp page "Search-based Fontification").
 	  '(("\\<new\\>"
 	     (c-font-lock-c++-new))))
-      ))
+
+      ;; Maybe fontify identifiers containing a dollar sign with
+      ;; `font-lock-warning-face'.
+      ,@(when (c-lang-const c-dollar-in-ids)
+	  `(c-font-lock-ids-with-dollar))))
 
 (defun c-font-lock-labels (limit)
   ;; Fontify all statement labels from the point to LIMIT.  Assumes
@@ -2623,7 +2700,9 @@ need for `c-font-lock-extra-types'.")
   ;; prevent a repeat invocation.  See elisp/lispref page "Search-based
   ;; fontification".
   (let (pos)
-    (while (c-syntactic-re-search-forward c-using-key limit 'end)
+    (while
+	(and (< (point) limit)
+	     (c-syntactic-re-search-forward c-using-key limit 'end))
       (while  ; Do one declarator of a comma separated list, each time around.
 	  (progn
 	    (c-forward-syntactic-ws)
@@ -2643,9 +2722,7 @@ need for `c-font-lock-extra-types'.")
 			   'same)
 		       (looking-at c-colon-type-list-re)))
 		;; Inherited protected member: leave unfontified
-		)
-	       (t (goto-char pos)
-		  (c-font-lock-declarators limit nil c-label-face-name nil)))
+		))
 	      (eq (char-after) ?,)))
 	(forward-char)))		; over the comma.
     nil))

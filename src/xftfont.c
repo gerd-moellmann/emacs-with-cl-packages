@@ -1,5 +1,5 @@
 /* xftfont.c -- XFT font driver.
-   Copyright (C) 2006-2024 Free Software Foundation, Inc.
+   Copyright (C) 2006-2025 Free Software Foundation, Inc.
    Copyright (C) 2006, 2007, 2008, 2009, 2010, 2011
      National Institute of Advanced Industrial Science and Technology (AIST)
      Registration Number H13PRO009
@@ -628,6 +628,12 @@ xftfont_shape (Lisp_Object lgstring, Lisp_Object direction)
 static int
 xftfont_end_for_frame (struct frame *f)
 {
+  /* XftDrawDestroy tries to access dpyinfo->display, which could've
+     been destroyed by now, causing Emacs to crash.  The alternative
+     is to leak the XftDraw, but that's better than a crash.  */
+  if (!FRAME_X_DISPLAY (f))
+    return 0;
+
   block_input ();
   XftDraw *xft_draw;
 

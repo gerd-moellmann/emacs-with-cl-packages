@@ -1,6 +1,6 @@
 /* Font backend for the Microsoft W32 Uniscribe API.
    Windows-specific parts of the HarfBuzz font backend.
-   Copyright (C) 2008-2024 Free Software Foundation, Inc.
+   Copyright (C) 2008-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -33,11 +33,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #ifdef HAVE_HARFBUZZ
 # include <hb.h>
 # include <hb-ot.h>	/* for hb_ot_font_set_funcs */
-# if GNUC_PREREQ (4, 3, 0)
-#  define bswap_32(v)  __builtin_bswap32(v)
-# else
-#  include <byteswap.h>
-# endif
 #endif
 
 #include "lisp.h"
@@ -112,6 +107,31 @@ memq_no_quit (Lisp_Object elt, Lisp_Object list)
     list = XCDR (list);
   return (CONSP (list));
 }
+
+
+/* Uniscribe function pointers.  */
+static HRESULT (WINAPI * pfnScriptItemize) (const WCHAR *,
+					    int,
+					    int,
+					    const SCRIPT_CONTROL *,
+					    const SCRIPT_STATE *,
+					    SCRIPT_ITEM *, int *);
+static HRESULT (WINAPI * pfnScriptShape) (HDC, SCRIPT_CACHE *,
+					  const WCHAR *,
+					  int, int, SCRIPT_ANALYSIS *,
+					  WORD *, WORD *, SCRIPT_VISATTR *,
+					  int *);
+static HRESULT (WINAPI * pfnScriptPlace) (HDC, SCRIPT_CACHE *,
+					  const WORD *, int,
+					  const SCRIPT_VISATTR *,
+					  SCRIPT_ANALYSIS *,
+					  int *, GOFFSET *, ABC *);
+static HRESULT (WINAPI * pfnScriptGetGlyphABCWidth) (HDC, SCRIPT_CACHE *,
+						     WORD, ABC *);
+static HRESULT (WINAPI * pfnScriptFreeCache) (SCRIPT_CACHE *);
+static HRESULT (WINAPI * pfnScriptGetCMap) (HDC, SCRIPT_CACHE *,
+					    const WCHAR *,
+					    int, DWORD, WORD *);
 
 
 /* Font backend interface implementation.  */
@@ -207,7 +227,7 @@ uniscribe_close (struct font *font)
   else
 #endif
   if (uniscribe_font->cache)
-    ScriptFreeCache ((SCRIPT_CACHE) &(uniscribe_font->cache));
+    (*pfnScriptFreeCache) ((SCRIPT_CACHE) &(uniscribe_font->cache));
 
   uniscribe_font->cache = NULL;
 
@@ -325,13 +345,12 @@ uniscribe_shape (Lisp_Object lgstring, Lisp_Object direction)
   max_items = 2;
   items = xmalloc (sizeof (SCRIPT_ITEM) * max_items + 1);
 
-  while ((result = ScriptItemize (chars, nchars, max_items, NULL, NULL,
-				  items, &nitems)) == E_OUTOFMEMORY)
+  while ((result = (*pfnScriptItemize) (chars, nchars, max_items, NULL, NULL,
+					items, &nitems)) == E_OUTOFMEMORY)
     {
       /* If that wasn't enough, keep trying with one more run.  */
       max_items++;
-      items = (SCRIPT_ITEM *) xrealloc (items,
-					sizeof (SCRIPT_ITEM) * max_items + 1);
+      items = xrealloc (items, sizeof (SCRIPT_ITEM) * max_items + 1);
     }
 
   if (FAILED (result))
@@ -350,17 +369,18 @@ uniscribe_shape (Lisp_Object lgstring, Lisp_Object direction)
     {
       int nglyphs, nchars_in_run;
       nchars_in_run = items[i+1].iCharPos - items[i].iCharPos;
-      /* Force ScriptShape to generate glyphs in the same order as
+      /* Force (*pfnScriptShape) to generate glyphs in the same order as
 	 they are in the input LGSTRING, which is in the logical
 	 order.  */
       items[i].a.fLogicalOrder = 1;
 
       /* Context may be NULL here, in which case the cache should be
          used without needing to select the font.  */
-      result = ScriptShape (context, (SCRIPT_CACHE) &(uniscribe_font->cache),
-			    chars + items[i].iCharPos, nchars_in_run,
-			    max_glyphs - done_glyphs, &(items[i].a),
-			    glyphs, clusters, attributes, &nglyphs);
+      result
+	= (*pfnScriptShape) (context, (SCRIPT_CACHE) &(uniscribe_font->cache),
+			     chars + items[i].iCharPos, nchars_in_run,
+			     max_glyphs - done_glyphs, &(items[i].a),
+			     glyphs, clusters, attributes, &nglyphs);
 
       if (result == E_PENDING && !context)
 	{
@@ -371,10 +391,12 @@ uniscribe_shape (Lisp_Object lgstring, Lisp_Object direction)
 	  context = get_frame_dc (f);
 	  old_font = SelectObject (context, FONT_HANDLE (font));
 
-	  result = ScriptShape (context, (SCRIPT_CACHE) &(uniscribe_font->cache),
-				chars + items[i].iCharPos, nchars_in_run,
-				max_glyphs - done_glyphs, &(items[i].a),
-				glyphs, clusters, attributes, &nglyphs);
+	  result
+	    = (*pfnScriptShape) (context,
+				 (SCRIPT_CACHE) &(uniscribe_font->cache),
+				 chars + items[i].iCharPos, nchars_in_run,
+				 max_glyphs - done_glyphs, &(items[i].a),
+				 glyphs, clusters, attributes, &nglyphs);
 	}
 
       if (result == E_OUTOFMEMORY)
@@ -396,9 +418,11 @@ uniscribe_shape (Lisp_Object lgstring, Lisp_Object direction)
 	}
       else
 	{
-	  result = ScriptPlace (context, (SCRIPT_CACHE) &(uniscribe_font->cache),
-				glyphs, nglyphs, attributes, &(items[i].a),
-				advances, offsets, &overall_metrics);
+	  result
+	    = (*pfnScriptPlace) (context,
+				 (SCRIPT_CACHE) &(uniscribe_font->cache),
+				 glyphs, nglyphs, attributes, &(items[i].a),
+				 advances, offsets, &overall_metrics);
 	  if (result == E_PENDING && !context)
 	    {
 	      /* Cache not complete...  */
@@ -406,10 +430,11 @@ uniscribe_shape (Lisp_Object lgstring, Lisp_Object direction)
 	      context = get_frame_dc (f);
 	      old_font = SelectObject (context, FONT_HANDLE (font));
 
-	      result = ScriptPlace (context,
-				    (SCRIPT_CACHE) &(uniscribe_font->cache),
-				    glyphs, nglyphs, attributes, &(items[i].a),
-				    advances, offsets, &overall_metrics);
+	      result
+		= (*pfnScriptPlace) (context,
+				     (SCRIPT_CACHE) &(uniscribe_font->cache),
+				     glyphs, nglyphs, attributes, &(items[i].a),
+				     advances, offsets, &overall_metrics);
 	    }
           if (SUCCEEDED (result))
 	    {
@@ -475,7 +500,7 @@ uniscribe_shape (Lisp_Object lgstring, Lisp_Object direction)
 			 then updated for each successive glyph in the
 			 grapheme cluster.  */
 		      /* FIXME: Should we use DIRECTION here instead
-			 of what ScriptItemize guessed?  */
+			 of what (*pfnScriptItemize) guessed?  */
 		      if (items[i].a.fRTL)
 			{
 			  int j1 = j;
@@ -502,7 +527,7 @@ uniscribe_shape (Lisp_Object lgstring, Lisp_Object direction)
 		  LGLYPH_SET_ASCENT (lglyph, font->ascent);
 		  LGLYPH_SET_DESCENT (lglyph, font->descent);
 
-		  result = ScriptGetGlyphABCWidth
+		  result = (*pfnScriptGetGlyphABCWidth)
 		    (context, (SCRIPT_CACHE) &(uniscribe_font->cache),
 		     glyphs[j], &char_metric);
 		  if (result == E_PENDING && !context)
@@ -511,7 +536,7 @@ uniscribe_shape (Lisp_Object lgstring, Lisp_Object direction)
 		      f = XFRAME (selected_frame);
 		      context = get_frame_dc (f);
 		      old_font = SelectObject (context, FONT_HANDLE (font));
-		      result = ScriptGetGlyphABCWidth
+		      result = (*pfnScriptGetGlyphABCWidth)
 			(context, (SCRIPT_CACHE) &(uniscribe_font->cache),
 			 glyphs[j], &char_metric);
 		    }
@@ -630,7 +655,8 @@ uniscribe_encode_char (struct font *font, int c)
      convert surrogate pairs to glyph indexes correctly.  */
     {
       items = (SCRIPT_ITEM *) alloca (sizeof (SCRIPT_ITEM) * 2 + 1);
-      if (SUCCEEDED (ScriptItemize (ch, len, 2, NULL, NULL, items, &nitems)))
+      if (SUCCEEDED ((*pfnScriptItemize) (ch, len, 2, NULL, NULL, items,
+					  &nitems)))
 	{
 	  HRESULT result;
           /* Surrogates seem to need 2 here, even though only one glyph is
@@ -641,14 +667,14 @@ uniscribe_encode_char (struct font *font, int c)
           SCRIPT_VISATTR attrs[2];
           int nglyphs;
 
-	  /* Force ScriptShape to generate glyphs in the logical
+	  /* Force (*pfnScriptShape) to generate glyphs in the logical
 	     order.  */
 	  items[0].a.fLogicalOrder = 1;
 
-          result = ScriptShape (context,
-				(SCRIPT_CACHE) &(uniscribe_font->cache),
-                                ch, len, 2, &(items[0].a),
-                                glyphs, clusters, attrs, &nglyphs);
+          result = (*pfnScriptShape) (context,
+				      (SCRIPT_CACHE) &(uniscribe_font->cache),
+				      ch, len, 2, &(items[0].a),
+				      glyphs, clusters, attrs, &nglyphs);
 
           if (result == E_PENDING)
             {
@@ -657,10 +683,11 @@ uniscribe_encode_char (struct font *font, int c)
               f = XFRAME (selected_frame);
               context = get_frame_dc (f);
               old_font = SelectObject (context, FONT_HANDLE (font));
-              result = ScriptShape (context,
-				    (SCRIPT_CACHE) &(uniscribe_font->cache),
-                                    ch, len, 2, &(items[0].a),
-                                    glyphs, clusters, attrs, &nglyphs);
+              result
+		= (*pfnScriptShape) (context,
+				     (SCRIPT_CACHE) &(uniscribe_font->cache),
+				     ch, len, 2, &(items[0].a),
+				     glyphs, clusters, attrs, &nglyphs);
             }
 
           if (SUCCEEDED (result) && nglyphs == 1)
@@ -676,9 +703,10 @@ uniscribe_encode_char (struct font *font, int c)
                  when shaped. But we still need the return from here
                  to be valid for the shaping engine to be invoked
                  later.  */
-              result = ScriptGetCMap (context,
-				      (SCRIPT_CACHE) &(uniscribe_font->cache),
-                                      ch, len, 0, glyphs);
+              result
+		= (*pfnScriptGetCMap) (context,
+				       (SCRIPT_CACHE) &(uniscribe_font->cache),
+				       ch, len, 0, glyphs);
               if (SUCCEEDED (result) && glyphs[0])
                 code = glyphs[0];
             }
@@ -948,7 +976,7 @@ uniscribe_check_otf_1 (HDC context, Lisp_Object script, Lisp_Object lang,
 
  no_support:
   if (cache)
-    ScriptFreeCache (&cache);
+    (*pfnScriptFreeCache) (&cache);
   return ret;
 }
 
@@ -1271,7 +1299,11 @@ w32hb_get_font_table (hb_face_t *face, hb_tag_t tag, void *data)
   HFONT old_font = SelectObject (context, (HFONT) data);
   char *font_data = NULL;
   DWORD font_data_size = 0, val;
+#if GNUC_PREREQ (4, 3, 0)
+  DWORD table = __builtin_bswap32 (tag);
+#else
   DWORD table = bswap_32 (tag);
+#endif
   hb_blob_t *blob = NULL;
 
   val = GetFontData (context, table, 0, font_data, font_data_size);
@@ -1507,9 +1539,41 @@ syms_of_w32uniscribe_for_pdumper (void)
     return;
 
   /* Don't register if Uniscribe is not available.  */
-  HMODULE uniscribe = GetModuleHandle ("usp10");
+  HMODULE uniscribe;
+
+#ifdef WINDOWSNT
+  uniscribe = LoadLibrary ("usp10.dll");
   if (!uniscribe)
     return;
+
+  pfnScriptItemize = (void *) get_proc_addr (uniscribe, "ScriptItemize");
+  pfnScriptShape = (void *) get_proc_addr (uniscribe, "ScriptShape");
+  pfnScriptPlace = (void *) get_proc_addr (uniscribe, "ScriptPlace");
+  pfnScriptGetGlyphABCWidth
+    = (void *) get_proc_addr (uniscribe, "ScriptGetGlyphABCWidth");
+  pfnScriptFreeCache
+    = (void *) get_proc_addr (uniscribe, "ScriptFreeCache");
+  pfnScriptGetCMap
+    = (void *) get_proc_addr (uniscribe, "ScriptGetCMap");
+  if (!pfnScriptItemize || !pfnScriptShape || !pfnScriptPlace
+      || !pfnScriptGetGlyphABCWidth || !pfnScriptFreeCache
+      || !pfnScriptGetCMap)
+    {
+      FreeLibrary (uniscribe);
+      return;
+    }
+#else /* Cygwin */
+  uniscribe = GetModuleHandle ("usp10.dll");
+  if (!uniscribe)
+    return;
+
+  pfnScriptItemize = &ScriptItemize;
+  pfnScriptShape = &ScriptShape;
+  pfnScriptPlace = &ScriptPlace;
+  pfnScriptGetGlyphABCWidth = &ScriptGetGlyphABCWidth;
+  pfnScriptFreeCache = &ScriptFreeCache;
+  pfnScriptGetCMap = &ScriptGetCMap;
+#endif /* Cygwin */
 
   uniscribe_available = 1;
 
@@ -1529,12 +1593,17 @@ syms_of_w32uniscribe_for_pdumper (void)
     uniscribe_new_apis = false;
 
 #ifdef HAVE_HARFBUZZ
-  /* Currently, HarfBuzz DLLs are always named libharfbuzz-0.dll, as
+  /* Currently, HarfBuzz DLLs are always named libharfbuzz-0.dll on
+     MS-Windows and cygharfbuzz-0.dll on Cygwin, as
      the project keeps the ABI backward-compatible.  So we can
      hard-code the name of the library here, for now.  If they ever
      break ABI compatibility, we may need to load the DLL that
      corresponds to the HarfBuzz version for which Emacs was built.  */
+# ifdef WINDOWSNT
   HMODULE harfbuzz = LoadLibrary ("libharfbuzz-0.dll");
+# else	/* CYGWIN */
+  HMODULE harfbuzz = LoadLibrary ("cygharfbuzz-0.dll");
+# endif /* CYGWIN */
   /* Don't register if HarfBuzz is not available.  */
   if (!harfbuzz)
     return;

@@ -1,6 +1,6 @@
 ;;; em-banner.el --- sample module that displays a login banner  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2025 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -43,9 +43,8 @@
 
 (require 'esh-util)
 (require 'esh-mode)
-(require 'eshell)
 
-;;;###autoload
+;;;###esh-module-autoload
 (progn
 (defgroup eshell-banner nil
   "This sample module displays a welcome banner at login.
@@ -83,9 +82,4 @@ This can be any sexp, and should end with at least two newlines."
       (eshell-interactive-print msg))))
 
 (provide 'em-banner)
-
-;; Local Variables:
-;; generated-autoload-file: "esh-groups.el"
-;; End:
-
 ;;; em-banner.el ends here

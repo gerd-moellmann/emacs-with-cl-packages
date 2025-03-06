@@ -1,6 +1,6 @@
 ;;; wallpaper.el --- Change the desktop background  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2025 Free Software Foundation, Inc.
 
 ;; Author: Stefan Kangas <stefankangas@gmail.com>
 ;; Keywords: images
@@ -431,6 +431,8 @@ See also `wallpaper-default-width'.")
 
 
 ;;; wallpaper-set
+
+(declare-function x-open-connection "xfns.c")
 
 (defun wallpaper--x-monitor-name ()
   "Get the monitor name for `wallpaper-set'.

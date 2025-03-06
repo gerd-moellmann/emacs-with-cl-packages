@@ -1,9 +1,9 @@
 ;;; nxml-maint.el --- commands for maintainers of nxml-*.el  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2003, 2007-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2003, 2007-2025 Free Software Foundation, Inc.
 
 ;; Author: James Clark
-;; Keywords: wp, hypermedia, languages, XML
+;; Keywords: text, hypermedia, languages, XML
 
 ;; This file is part of GNU Emacs.
 
@@ -26,7 +26,7 @@
 
 ;;; Parsing target repertoire files from ucs-fonts.
 ;; This is for converting the TARGET? files in
-;; http://www.cl.cam.ac.uk/~mgk25/download/ucs-fonts.tar.gz
+;; https://www.cl.cam.ac.uk/~mgk25/download/ucs-fonts.tar.gz
 ;; into a glyph set.
 
 (defun nxml-insert-target-repertoire-glyph-set (file var)

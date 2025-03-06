@@ -1,6 +1,6 @@
 ;;; easy-mmode.el --- easy definition for major and minor modes  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1997, 2000-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 2000-2025 Free Software Foundation, Inc.
 
 ;; Author: Georges Brun-Cottan <Georges.Brun-Cottan@inria.fr>
 ;; Maintainer: Stefan Monnier <monnier@gnu.org>
@@ -91,7 +91,7 @@ Enable the mode if ARG is nil, omitted, or is a positive number.
 Disable the mode if ARG is a negative number.
 
 To check whether the minor mode is enabled in the current buffer,
-evaluate `%s'.
+evaluate %s.
 
 The mode's hook is called both when the mode is enabled and when
 it is disabled.")
@@ -128,11 +128,14 @@ it is disabled.")
                         easy-mmode--arg-docstring
                         (if global "global " "")
                         mode-pretty-name
-                        ;; Avoid having quotes turn into pretty quotes.
-                        (string-replace "'" "\\='" (format "%S" getter)))))
+                        (concat
+                         (if (symbolp getter) "the variable ")
+                         (format "`%s'"
+                                 ;; Avoid having quotes turn into pretty quotes.
+                                 (string-replace "'" "\\='" (format "%S" getter)))))))
           (let ((start (point)))
             (insert argdoc)
-            (when (fboundp 'fill-region)
+            (when (fboundp 'fill-region) ;Don't break bootstrap!
               (fill-region start (point) 'left t))))
         ;; Finally, insert the keymap.
         (when (and (boundp keymap-sym)
@@ -142,8 +145,6 @@ it is disabled.")
           (insert (format "\\{%s}" keymap-sym)))
         (buffer-string)))))
 
-;;;###autoload
-(defalias 'easy-mmode-define-minor-mode #'define-minor-mode)
 ;;;###autoload
 (defmacro define-minor-mode (mode doc &rest body)
   "Define a new minor mode MODE.
@@ -250,7 +251,8 @@ INIT-VALUE LIGHTER KEYMAP.
          (warnwrap (if (or (null body) (keywordp (car body))) #'identity
                      (lambda (exp)
                        (macroexp-warn-and-return
-                        "Use keywords rather than deprecated positional arguments to `define-minor-mode'"
+                        (format-message
+                         "Use keywords rather than deprecated positional arguments to `define-minor-mode'")
                         exp))))
 	 keyw keymap-sym tmp)
 
@@ -417,6 +419,8 @@ No problems result if this variable is not bound.
 	  `(defvar ,keymap-sym
 	     (let ((m ,keymap))
 	       (cond ((keymapp m) m)
+                     ;; FIXME: `easy-mmode-define-keymap' is obsolete,
+                     ;; so this form should also be obsolete somehow.
 		     ((listp m)
                       (with-suppressed-warnings ((obsolete
                                                   easy-mmode-define-keymap))
@@ -439,8 +443,6 @@ No problems result if this variable is not bound.
 ;;; make global minor mode
 ;;;
 
-;;;###autoload
-(defalias 'easy-mmode-define-global-mode #'define-globalized-minor-mode)
 ;;;###autoload
 (defalias 'define-global-minor-mode #'define-globalized-minor-mode)
 ;;;###autoload
@@ -494,11 +496,8 @@ on if the hook has explicitly disabled it.
 	 (extra-keywords nil)
          (MODE-variable mode)
 	 (MODE-buffers (intern (concat global-mode-name "-buffers")))
-	 (MODE-enable-in-buffers
-	  (intern (concat global-mode-name "-enable-in-buffers")))
-	 (MODE-check-buffers
-	  (intern (concat global-mode-name "-check-buffers")))
-	 (MODE-cmhh (intern (concat global-mode-name "-cmhh")))
+	 (MODE-enable-in-buffer
+	  (intern (concat global-mode-name "-enable-in-buffer")))
 	 (minor-MODE-hook (intern (concat mode-name "-hook")))
 	 (MODE-set-explicitly (intern (concat mode-name "-set-explicitly")))
 	 (MODE-major-mode (intern (concat (symbol-name mode) "-major-mode")))
@@ -528,7 +527,8 @@ on if the hook has explicitly disabled it.
        (progn
          (put ',global-mode 'globalized-minor-mode t)
          :autoload-end
-         (defvar-local ,MODE-major-mode nil))
+         (defvar-local ,MODE-major-mode nil)
+         ,@(when predicate `((defvar ,MODE-predicate))))
        ;; The actual global minor-mode
        (define-minor-mode ,global-mode
          ,(concat (format "Toggle %s in all buffers.\n" pretty-name)
@@ -558,14 +558,9 @@ Disable the mode if ARG is a negative number.\n\n"
 
 	 ;; Setup hook to handle future mode changes and new buffers.
 	 (if ,global-mode
-	     (progn
-	       (add-hook 'after-change-major-mode-hook
-			 #',MODE-enable-in-buffers)
-	       (add-hook 'find-file-hook #',MODE-check-buffers)
-	       (add-hook 'change-major-mode-hook #',MODE-cmhh))
-	   (remove-hook 'after-change-major-mode-hook #',MODE-enable-in-buffers)
-	   (remove-hook 'find-file-hook #',MODE-check-buffers)
-	   (remove-hook 'change-major-mode-hook #',MODE-cmhh))
+	     (add-hook 'after-change-major-mode-hook
+		       #',MODE-enable-in-buffer)
+	   (remove-hook 'after-change-major-mode-hook #',MODE-enable-in-buffer))
 
 	 ;; Go through existing buffers.
 	 (dolist (buf (buffer-list))
@@ -589,7 +584,20 @@ modes derived from `text-mode'\".  An element with value t means \"use\"
 and nil means \"don't use\".  There's an implicit nil at the end of the
 list."
                       mode)
-             :type '(repeat sexp)
+             :type '(choice
+                     (const :tag "Enable in all major modes" t)
+                     (const :tag "Don't enable in any major mode" nil)
+                     (repeat
+                      :tag "Rules (earlier takes precedence)..."
+                      (choice
+                       (const :tag "Enable in all (other) modes" t)
+                       (const :tag "Don't enable in any (other) mode" nil)
+                       (symbol :value fundamental-mode
+                               :tag "Enable in major mode")
+                       (cons :tag "Don't enable in major modes"
+                             (const :tag "Don't enable in..." not)
+                             (repeat (symbol :value fundamental-mode
+                                             :tag "Major mode"))))))
              ,@group))
 
        ;; Autoloading define-globalized-minor-mode autoloads everything
@@ -610,36 +618,19 @@ list."
        ;; List of buffers left to process.
        (defvar ,MODE-buffers nil)
 
-       ;; The function that calls TURN-ON in each buffer.
-       (defun ,MODE-enable-in-buffers ()
-         (let ((buffers ,MODE-buffers))
-           ;; Clear MODE-buffers to avoid scanning the same list of
-           ;; buffers in recursive calls to MODE-enable-in-buffers.
-           ;; Otherwise it could lead to infinite recursion.
-           (setq ,MODE-buffers nil)
-           (dolist (buf buffers)
-             (when (buffer-live-p buf)
-               (with-current-buffer buf
-                 (unless ,MODE-set-explicitly
-                   (unless (eq ,MODE-major-mode major-mode)
-                     (if ,MODE-variable
-                         (progn
-                           (,mode -1)
-                           (funcall ,turn-on-function))
-                       (funcall ,turn-on-function))))
-                 (setq ,MODE-major-mode major-mode))))))
-       (put ',MODE-enable-in-buffers 'definition-name ',global-mode)
-
-       (defun ,MODE-check-buffers ()
-	 (,MODE-enable-in-buffers)
-	 (remove-hook 'post-command-hook #',MODE-check-buffers))
-       (put ',MODE-check-buffers 'definition-name ',global-mode)
-
-       ;; The function that catches kill-all-local-variables.
-       (defun ,MODE-cmhh ()
-	 (add-to-list ',MODE-buffers (current-buffer))
-	 (add-hook 'post-command-hook #',MODE-check-buffers))
-       (put ',MODE-cmhh 'definition-name ',global-mode))))
+       ;; The function that calls TURN-ON in the current buffer.
+       (defun ,MODE-enable-in-buffer ()
+         ;; Remove ourselves from the list of pending buffers.
+         (setq ,MODE-buffers (delq (current-buffer) ,MODE-buffers))
+         (unless ,MODE-set-explicitly
+           (unless (eq ,MODE-major-mode major-mode)
+             (if ,MODE-variable
+                 (progn
+                   (,mode -1)
+                   (funcall ,turn-on-function))
+               (funcall ,turn-on-function))))
+         (setq ,MODE-major-mode major-mode))
+       (put ',MODE-enable-in-buffer 'definition-name ',global-mode))))
 
 (defun easy-mmode--globalized-predicate-p (predicate)
   (cond
@@ -662,7 +653,7 @@ list."
           (throw 'found nil))
          ((and (consp elem)
                (eq (car elem) 'not))
-          (when (apply #'derived-mode-p (cdr elem))
+          (when (derived-mode-p (cdr elem))
             (throw 'found nil)))
          ((symbolp elem)
           (when (derived-mode-p elem)
@@ -693,6 +684,7 @@ Valid keywords and arguments are:
   :group     Ignored.
   :suppress  Non-nil to call `suppress-keymap' on keymap,
              `nodigits' to suppress digits as prefix arguments."
+  (declare (obsolete define-keymap "29.1"))
   (let (inherit dense suppress)
     (while args
       (let ((key (pop args))
@@ -733,9 +725,7 @@ The M, BS, and ARGS arguments are as per that function.  DOC is
 the constant's documentation.
 
 This macro is deprecated; use `defvar-keymap' instead."
-  ;; FIXME: Declare obsolete in favor of `defvar-keymap'.  It is still
-  ;; used for `gud-menu-map' and `gud-minor-mode-map', so fix that first.
-  (declare (doc-string 3) (indent 1))
+  (declare (doc-string 3) (indent 1) (obsolete defvar-keymap "29.1"))
   `(defconst ,m
      (easy-mmode-define-keymap ,bs nil (if (boundp ',m) ,m) ,(cons 'list args))
      ,doc))
@@ -838,6 +828,12 @@ Interactively, COUNT is the prefix numeric argument, and defaults to 1."
                 (user-error "No previous %s" ,name)))
            ,@body))
        (put ',prev-sym 'definition-name ',base))))
+
+;; When deleting these two, also delete them from loaddefs-gen.el.
+;;;###autoload
+(define-obsolete-function-alias 'easy-mmode-define-minor-mode #'define-minor-mode "30.1")
+;;;###autoload
+(define-obsolete-function-alias 'easy-mmode-define-global-mode #'define-globalized-minor-mode "30.1")
 
 (provide 'easy-mmode)
 

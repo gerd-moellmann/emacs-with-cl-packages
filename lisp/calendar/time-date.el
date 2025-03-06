@@ -1,6 +1,6 @@
 ;;; time-date.el --- Date and time handling functions  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1998-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2025 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;;	Masanobu Umeda <umerin@mse.kyutech.ac.jp>
@@ -344,8 +344,11 @@ right of \"%x\", trailing zero units are not output."
              string)
         (cond
          ((string-equal spec "z")
-          (setq chop-leading (and leading-zeropos
-                                  (min leading-zeropos (match-beginning 0)))))
+          (setq chop-leading
+                (if leading-zeropos
+                    (min leading-zeropos (match-beginning 0))
+                  ;; The entire spec is zero, get past "%z" to last 0.
+                  (+ 2 (match-beginning 0)))))
          ((string-equal spec "x")
           (setq chop-trailing t))
          (t
@@ -408,6 +411,7 @@ right of \"%x\", trailing zero units are not output."
   "Formatting used by the function `seconds-to-string'.")
 ;;;###autoload
 (defun seconds-to-string (delay)
+  ;; FIXME: There's a similar (tho fancier) function in mastodon.el!
   "Convert the time interval in seconds to a short string."
   (cond ((> 0 delay) (concat "-" (seconds-to-string (- delay))))
         ((= 0 delay) "0s")

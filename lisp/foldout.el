@@ -1,6 +1,6 @@
 ;;; foldout.el --- folding extensions for outline-mode and outline-minor-mode  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1994, 2001-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1994, 2001-2025 Free Software Foundation, Inc.
 
 ;; Author: Kevin Broadey <KevinB@bartley.demon.co.uk>
 ;; Maintainer: emacs-devel@gnu.org
@@ -44,7 +44,7 @@
 ;;
 ;; When zooming in on a heading you might only want to see the child
 ;; subheadings.  You do this by specifying a numeric argument: C-u C-c C-z.
-;; You can specify the number of levels of children too (c.f. show-children):
+;; You can specify the number of levels of children too (cf. `show-children'):
 ;; e.g. M-2 C-c C-z exposes two levels of child subheadings.  Alternatively,
 ;; you might only be interested in the body.  You do this by specifying a
 ;; negative argument: M-- C-c C-z.  You can also cause the whole subtree to be
@@ -229,7 +229,7 @@ An end marker of nil means the fold ends after (point-max).")
 	  (error "Can't find outline-minor-mode in minor-mode-alist"))
 
       ;; slip our fold announcement into the list
-      (setcdr outl-entry (nconc foldout-entry (cdr outl-entry)))))
+      (setcdr outl-entry (append foldout-entry (cdr outl-entry)))))
 
 
 
@@ -239,7 +239,7 @@ An end marker of nil means the fold ends after (point-max).")
 Normally the body and the immediate subheadings are exposed, but
 optional arg EXPOSURE \(interactively with prefix arg) changes this:-
 
-        EXPOSURE > 0	exposes n levels of subheadings (c.f. `show-children')
+        EXPOSURE > 0	exposes n levels of subheadings (cf. `show-children')
 	EXPOSURE < 0	exposes only the body
 	EXPOSURE = 0	exposes the entire subtree"
   (interactive "P")

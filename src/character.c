@@ -1,6 +1,6 @@
 /* Basic character support.
 
-Copyright (C) 2001-2024 Free Software Foundation, Inc.
+Copyright (C) 2001-2025 Free Software Foundation, Inc.
 Copyright (C) 1995, 1997, 1998, 2001 Electrotechnical Laboratory, JAPAN.
   Licensed to the Free Software Foundation.
 Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
@@ -250,7 +250,7 @@ char_width (int c, struct Lisp_Char_Table *dp)
 	    if (c >= 0)
 	      {
 		int w = CHARACTER_WIDTH (c);
-		if (INT_ADD_WRAPV (width, w, &width))
+		if (ckd_add (&width, width, w))
 		  string_overflow ();
 	      }
 	  }
@@ -305,7 +305,7 @@ c_string_width (const unsigned char *str, ptrdiff_t len, int precision,
 	  *nbytes = i_byte;
 	  return width;
 	}
-      if (INT_ADD_WRAPV (thiswidth, width, &width))
+      if (ckd_add (&width, width, thiswidth))
 	string_overflow ();
       i++;
       i_byte += bytes;
@@ -445,7 +445,7 @@ lisp_string_width (Lisp_Object string, ptrdiff_t from, ptrdiff_t to,
 	  *nbytes = i_byte - from_byte;
 	  return width;
 	}
-      if (INT_ADD_WRAPV (thiswidth, width, &width))
+      if (ckd_add (&width, width, thiswidth))
 	string_overflow ();
       i += chars;
       i_byte += bytes;
@@ -674,7 +674,7 @@ count_size_as_multibyte (const unsigned char *str, ptrdiff_t len)
   for (ptrdiff_t i = 0; i < len; i++)
     nonascii += str[i] >> 7;
   ptrdiff_t bytes;
-  if (INT_ADD_WRAPV (len, nonascii, &bytes))
+  if (ckd_add (&bytes, len, nonascii))
     string_overflow ();
   return bytes;
 }
@@ -790,21 +790,21 @@ string_escape_byte8 (Lisp_Object string)
   if (byte8_count == 0)
     return string;
 
-  if (INT_MULTIPLY_WRAPV (byte8_count, 3, &thrice_byte8_count))
+  if (ckd_mul (&thrice_byte8_count, byte8_count, 3))
     string_overflow ();
 
   if (multibyte)
     {
       /* Convert 2-byte sequence of byte8 chars to 4-byte octal.  */
-      if (INT_ADD_WRAPV (nchars, thrice_byte8_count, &uninit_nchars)
-	  || INT_ADD_WRAPV (nbytes, 2 * byte8_count, &uninit_nbytes))
+      if (ckd_add (&uninit_nchars, nchars, thrice_byte8_count)
+	  || ckd_add (&uninit_nbytes, nbytes, 2 * byte8_count))
 	string_overflow ();
       val = make_uninit_multibyte_string (uninit_nchars, uninit_nbytes);
     }
   else
     {
       /* Convert 1-byte sequence of byte8 chars to 4-byte octal.  */
-      if (INT_ADD_WRAPV (thrice_byte8_count, nbytes, &uninit_nbytes))
+      if (ckd_add (&uninit_nbytes, thrice_byte8_count, nbytes))
 	string_overflow ();
       val = make_uninit_string (uninit_nbytes);
     }
@@ -1116,6 +1116,14 @@ A char-table for width (columns) of each character.  */);
   char_table_set_range (Vchar_width_table, 0x80, 0x9F, make_fixnum (4));
   char_table_set_range (Vchar_width_table, MAX_5_BYTE_CHAR + 1, MAX_CHAR,
 			make_fixnum (4));
+
+  DEFVAR_LISP ("ambiguous-width-chars", Vambiguous_width_chars,
+	       doc: /*
+A char-table for characters whose width (columns) can be 1 or 2.
+
+The actual width depends on the language-environment and on the
+value of `cjk-ambiguous-chars-are-wide'.  */);
+  Vambiguous_width_chars = Fmake_char_table (Qnil, Qnil);
 
   DEFVAR_LISP ("printable-chars", Vprintable_chars,
 	       doc: /* A char-table for each printable character.  */);

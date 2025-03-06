@@ -1,6 +1,6 @@
 ;;; vc-dir.el --- Directory status display under VC  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2007-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2025 Free Software Foundation, Inc.
 
 ;; Author: Dan Nicolaescu <dann@ics.uci.edu>
 ;; Keywords: vc tools
@@ -785,8 +785,7 @@ MARK-FILES should be a list of absolute filenames."
 
 (defun vc-dir-mark-state-files (states)
   "Mark files that are in the state specified by the list in STATES."
-  (unless (listp states)
-    (setq states (list states)))
+  (setq states (ensure-list states))
   (ewoc-map
    (lambda (filearg)
      (when (memq (vc-dir-fileinfo->state filearg) states)

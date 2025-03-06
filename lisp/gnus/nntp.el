@@ -1,6 +1,6 @@
 ;;; nntp.el --- nntp access for Gnus  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1987-1990, 1992-1998, 2000-2024 Free Software
+;; Copyright (C) 1987-1990, 1992-1998, 2000-2025 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
@@ -300,9 +300,10 @@ backend doesn't catch this error.")
 (defvar nntp--report-1 nil)
 
 (defun nntp-report (&rest args)
-  "Report an error from the nntp backend.  The first string in ARGS
-can be a format string.  For some commands, the failed command may be
-retried once before actually displaying the error report."
+  "Report an error from the nntp backend.
+The first string in ARGS can be a format string.  For some commands, the
+failed command may be retried once before actually displaying the error
+report."
   (if nntp--report-1
       (progn
         ;; Throw out to nntp-with-open-group-error so that the connection may
@@ -645,8 +646,7 @@ connection timeouts (which may be several minutes) or
 `nntp-with-open-group', opens a new connection then re-issues the NNTP
 command whose response triggered the error."
   (declare (indent 2) (debug (form form [&optional symbolp] def-body)))
-  (when (and (listp connectionless)
-	     (not (eq connectionless nil)))
+  (when (consp connectionless)
     (setq forms (cons connectionless forms)
 	  connectionless nil))
   `(nntp-with-open-group-function ,group ,server ,connectionless

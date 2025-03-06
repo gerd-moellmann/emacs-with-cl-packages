@@ -1,6 +1,6 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990--1995, 1998--2024 Free Software Foundation, Inc.
+@c Copyright (C) 1990--1995, 1998--2025 Free Software Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Text
 @chapter Text
@@ -1695,7 +1695,7 @@ The @code{pixel-fill-width} helper function can be used to compute the
 pixel width to use.  If given no arguments, it'll return a value
 slightly less than the width of the current window.  The first
 optional value, @var{columns}, specifies the number of columns using
-the standard, monospaced fonts, e.g. @code{fill-column}.  The second
+the standard, monospaced fonts, for example @code{fill-column}.  The second
 optional value is the window to use.  You'd typically use it like
 this:
 
@@ -3569,8 +3569,8 @@ the context.
 The @code{add-face-text-property} function provides a convenient way
 to set this text property.  @xref{Changing Properties}.
 
-@item font-lock-face
 @kindex font-lock-face @r{(text property)}
+@item font-lock-face
 This property specifies a value for the @code{face} property that Font
 Lock mode should apply to the underlying text.  It is one of the
 fontification methods used by Font Lock mode, and is useful for
@@ -3578,8 +3578,8 @@ special modes that implement their own highlighting.
 @xref{Precalculated Fontification}.  When Font Lock mode is disabled,
 @code{font-lock-face} has no effect.
 
-@item mouse-face
 @kindex mouse-face @r{(text property)}
+@item mouse-face
 This property is used instead of @code{face} when the mouse pointer
 hovers over the text which has this property.  When this happens, the
 entire stretch of text that has the same @code{mouse-face} property
@@ -3590,10 +3590,10 @@ that alter the text size (e.g., @code{:height}, @code{:weight}, and
 @code{:slant}).  Those attributes are always the same as for the
 unhighlighted text.
 
-@item cursor-face
 @kindex cursor-face @r{(text property)}
 @findex cursor-face-highlight-mode
 @vindex cursor-face-highlight-nonselected-window
+@item cursor-face
 This property is similar to @code{mouse-face}, but it is used when
 point (not the mouse) is inside text that has this property.  The
 highlighting happens only if the mode
@@ -3604,8 +3604,8 @@ similarly to what @code{highlight-nonselected-windows} does for the
 region (@pxref{Mark,, The Mark and the Region, emacs, The GNU Emacs
 Manual}).
 
-@item fontified
 @kindex fontified @r{(text property)}
+@item fontified
 This property says whether the text is ready for display.  If
 @code{nil}, Emacs's redisplay routine calls the functions in
 @code{fontification-functions} (@pxref{Auto Faces}) to prepare this
@@ -3618,9 +3618,9 @@ way text is displayed.  For example, it can make text appear taller
 or shorter, higher or lower, wider or narrow, or replaced with an image.
 @xref{Display Property}.
 
-@item help-echo
 @kindex help-echo @r{(text property)}
 @cindex tooltip for help strings
+@item help-echo
 @anchor{Text help-echo}
 If text has a string as its @code{help-echo} property, then when you
 move the mouse onto that text, Emacs displays that string in the echo
@@ -3655,17 +3655,27 @@ You can alter the way help text is displayed by setting the variable
 
 This feature is used in the mode line and for other active text.
 
-@item help-echo-inhibit-substitution
 @cindex help-echo text, avoid command-key substitution
 @kindex help-echo-inhibit-substitution @r{(text property)}
+@item help-echo-inhibit-substitution
 If the first character of a @code{help-echo} string has a
 non-@code{nil} @code{help-echo-inhibit-substitution} property, then it
 is displayed as-is by @code{show-help-function}, without being passed
 through @code{substitute-command-keys}.
 
-@item keymap
+@cindex help-echo text on fringes
+@item left-fringe-help
+@itemx right-fringe-help
+If any visible text of a screen line has the @code{left-fringe-help} or
+@code{right-fringe-help} text property whose value is a string, then
+that string will be displayed when the mouse pointer hovers over the
+corresponding line's fringe through @code{show-help-function}
+(@pxref{Help display}).  This is useful when used together with fringe
+cursors and bitmaps (@pxref{Fringes}).
+
 @cindex keymap of character
 @kindex keymap @r{(text property)}
+@item keymap
 The @code{keymap} property specifies an additional keymap for
 commands.  When this keymap applies, it is used for key lookup before
 the minor mode keymaps and before the buffer's local map.
@@ -3678,8 +3688,8 @@ character after point applies if it is non-@code{nil} and
 front-sticky.  (For mouse clicks, the position of the click is used
 instead of the position of point.)
 
-@item local-map
 @kindex local-map @r{(text property)}
+@item local-map
 This property works like @code{keymap} except that it specifies a
 keymap to use @emph{instead of} the buffer's local map.  For most
 purposes (perhaps all purposes), it is better to use the @code{keymap}
@@ -3689,9 +3699,9 @@ property.
 The @code{syntax-table} property overrides what the syntax table says
 about this particular character.  @xref{Syntax Properties}.
 
-@item read-only
 @cindex read-only character
 @kindex read-only @r{(text property)}
+@item read-only
 If a character has the property @code{read-only}, then modifying that
 character is not allowed.  Any command that would do so gets an error,
 @code{text-read-only}.  If the property value is a string, that string
@@ -3707,23 +3717,23 @@ possible to remove a @code{read-only} property unless you know the
 special trick: bind @code{inhibit-read-only} to a non-@code{nil} value
 and then remove the property.  @xref{Read Only Buffers}.
 
-@item inhibit-read-only
 @kindex inhibit-read-only @r{(text property)}
+@item inhibit-read-only
 Characters that have the property @code{inhibit-read-only} can be
 edited even in read-only buffers.  @xref{Read Only Buffers}.
 
-@item invisible
 @kindex invisible @r{(text property)}
+@item invisible
 A non-@code{nil} @code{invisible} property can make a character invisible
 on the screen.  @xref{Invisible Text}, for details.
 
-@kindex inhibit-isearch @r{(text property)}
 @item inhibit-isearch
+@kindex inhibit-isearch @r{(text property)}
 A non-@code{nil} @code{inhibit-isearch} property will make isearch
 skip the text.
 
-@item intangible
 @kindex intangible @r{(text property)}
+@item intangible
 If a group of consecutive characters have equal and non-@code{nil}
 @code{intangible} properties, then you cannot place point between them.
 If you try to move point forward into the group, point actually moves to
@@ -3744,10 +3754,10 @@ the command loop will move point outside of the invisible text at the end of
 each command anyway.  @xref{Adjusting Point}.  For these reasons, this
 property is obsolete; use the @code{cursor-intangible} property instead.
 
-@item cursor-intangible
 @kindex cursor-intangible @r{(text property)}
 @findex cursor-intangible-mode
 @cindex rear-nonsticky, and cursor-intangible property
+@item cursor-intangible
 When the minor mode @code{cursor-intangible-mode} is turned on, point
 is moved away from any position that has a non-@code{nil}
 @code{cursor-intangible} property, just before redisplay happens.
@@ -3767,15 +3777,15 @@ When the variable @code{cursor-sensor-inhibit} is non-@code{nil}, the
 @code{cursor-intangible} property and the
 @code{cursor-sensor-functions} property (described below) are ignored.
 
-@item field
 @kindex field @r{(text property)}
+@item field
 Consecutive characters with the same @code{field} property constitute a
 @dfn{field}.  Some motion functions including @code{forward-word} and
 @code{beginning-of-line} stop moving at a field boundary.
 @xref{Fields}.
 
-@item cursor
 @kindex cursor @r{(text property)}
+@item cursor
 Normally, the cursor is displayed at the beginning or the end of any
 overlay and text property strings that ``hide'' (i.e., are displayed
 instead of) the current buffer position.  You can instead tell Emacs
@@ -3824,33 +3834,39 @@ Lisp program wants to put the cursor, or where the user would expect
 the cursor, when point is located on some buffer position that is
 ``covered'' by the display or overlay string.
 
-@item pointer
 @kindex pointer @r{(text property)}
+@item pointer
 This specifies a specific pointer shape when the mouse pointer is over
 this text or image.  @xref{Pointer Shape}, for possible pointer
 shapes.
 
-@item line-spacing
 @kindex line-spacing @r{(text property)}
+@item line-spacing
 A newline can have a @code{line-spacing} text or overlay property that
 controls the height of the display line ending with that newline.  The
 property value overrides the default frame line spacing and the buffer
 local @code{line-spacing} variable.  @xref{Line Height}.
 
-@item line-height
 @kindex line-height @r{(text property)}
+@item line-height
 A newline can have a @code{line-height} text or overlay property that
 controls the total height of the display line ending in that newline.
 @xref{Line Height}.
 
 @item wrap-prefix
-If text has a @code{wrap-prefix} property, the prefix it defines will
-be added at display time to the beginning of every continuation line
-due to text wrapping (so if lines are truncated, the wrap-prefix is
-never used).  It may be a string or an image (@pxref{Other Display
-Specs}), or a stretch of whitespace such as specified by the
-@code{:width} or @code{:align-to} display properties (@pxref{Specified
-Space}).
+If a region of text has a @code{wrap-prefix} property, the prefix it
+defines will be added at display time to the beginning of every
+continuation line due to text wrapping (so if lines are truncated, the
+wrap-prefix is never used).  The property value may be a string or an
+image (@pxref{Other Display Specs}), or a stretch of whitespace such as
+specified by the @code{:width} or @code{:align-to} display properties
+(@pxref{Specified Space}).  Note that to have its effect, the
+@code{wrap-prefix} property must be set on the entire region of text,
+starting from the first character of the first line of that text and up
+to the last character of the last line; otherwise, breaking the text
+into lines in a different way might fail to display the prefix, because
+the display engine checks for this property only immediately after
+continuing a line.
 
 A wrap-prefix may also be specified for an entire buffer using the
 @code{wrap-prefix} buffer-local variable (however, a
@@ -3858,22 +3874,28 @@ A wrap-prefix may also be specified for an entire buffer using the
 the @code{wrap-prefix} variable).  @xref{Truncation}.
 
 @item line-prefix
-If text has a @code{line-prefix} property, the prefix it defines will
-be added at display time to the beginning of every non-continuation
-line.  It may be a string or an image (@pxref{Other Display
-Specs}), or a stretch of whitespace such as specified by the
-@code{:width} or @code{:align-to} display properties (@pxref{Specified
-Space}).
+If a region of text has a @code{line-prefix} property, the prefix it
+defines will be added at display time to the beginning of every
+non-continuation line.  The property value may be a string or an image
+(@pxref{Other Display Specs}), or a stretch of whitespace such as
+specified by the @code{:width} or @code{:align-to} display properties
+(@pxref{Specified Space}).  Note that to have its effect, the
+@code{line-prefix} property must be set on the entire region of text,
+starting from the first character of the first line of that text and up
+to the last character of the last line; otherwise, breaking the text
+into lines in a different way might fail to display the prefix, because
+the display engine checks for this property only when starting a new
+line.
 
 A line-prefix may also be specified for an entire buffer using the
 @code{line-prefix} buffer-local variable (however, a
 @code{line-prefix} text-property takes precedence over the value of
 the @code{line-prefix} variable).  @xref{Truncation}.
 
-@item modification-hooks
 @cindex change hooks for a character
 @cindex hooks for changing a character
 @kindex modification-hooks @r{(text property)}
+@item modification-hooks
 If a character has the property @code{modification-hooks}, then its
 value should be a list of functions; modifying that character calls
 all of those functions before the actual modification.  Each function
@@ -3896,10 +3918,10 @@ recursive calls.  @xref{Change Hooks}.
 Overlays also support the @code{modification-hooks} property, but the
 details are somewhat different (@pxref{Overlay Properties}).
 
-@item insert-in-front-hooks
-@itemx insert-behind-hooks
 @kindex insert-in-front-hooks @r{(text property)}
 @kindex insert-behind-hooks @r{(text property)}
+@item insert-in-front-hooks
+@itemx insert-behind-hooks
 The operation of inserting text in a buffer also calls the functions
 listed in the @code{insert-in-front-hooks} property of the following
 character and in the @code{insert-behind-hooks} property of the
@@ -3917,11 +3939,11 @@ prepare for that.
 See also @ref{Change Hooks}, for other hooks that are called
 when you change text in a buffer.
 
-@item point-entered
-@itemx point-left
 @cindex hooks for motion of point
 @kindex point-entered @r{(text property)}
 @kindex point-left @r{(text property)}
+@item point-entered
+@itemx point-left
 The special properties @code{point-entered} and @code{point-left}
 record hook functions that report motion of point.  Each time point
 moves, Emacs compares these two property values:
@@ -3957,9 +3979,9 @@ running the @code{point-left} and @code{point-entered} hooks, see
 These properties are obsolete; please use
 @code{cursor-sensor-functions} instead.
 
-@item cursor-sensor-functions
 @kindex cursor-sensor-functions @r{(text property)}
 @findex cursor-sensor-mode
+@item cursor-sensor-functions
 This special property records a list of functions that react to cursor
 motion.  Each function in the list is called, just before redisplay,
 with 3 arguments: the affected window, the previous known position of
@@ -3971,15 +3993,15 @@ mode @code{cursor-sensor-mode} is turned on.
 When the variable @code{cursor-sensor-inhibit} is non-@code{nil}, the
 @code{cursor-sensor-functions} property is ignored.
 
-@item composition
 @kindex composition @r{(text property)}
+@item composition
 This text property is used to display a sequence of characters as a
 single glyph composed from components.  But the value of the property
 itself is completely internal to Emacs and should not be manipulated
 directly by, for instance, @code{put-text-property}.
 
-@item minibuffer-message
 @kindex minibuffer-message @r{(text property)}
+@item minibuffer-message
 This text property tells where to display temporary messages in an
 active minibuffer.  Specifically, the first character of the
 minibuffer text which has this property will have the temporary
@@ -3987,6 +4009,12 @@ message displayed before it.  The default is to display temporary
 messages at the end of the minibuffer text.  This text property is
 used by the function that is the default value of
 @code{set-message-function} (@pxref{Displaying Messages}).
+
+@kindex display-line-numbers-disable @r{(text property)}
+@item display-line-numbers-disable
+This text property prevents display of line numbers (@pxref{Display
+Custom, display-line-numbers,, emacs, The GNU Emacs Manual}) for the
+text which has this property.
 
 @end table
 
@@ -4942,7 +4970,7 @@ network.  MD5 and SHA-1 are not collision resistant (i.e., it is
 possible to deliberately design different pieces of data which have
 the same MD5 or SHA-1 hash), so you should not use them for anything
 security-related.  For security-related applications you should use
-the other hash types, such as SHA-2 (e.g. @code{sha256} or
+the other hash types, such as SHA-2 (e.g., @code{sha256} or
 @code{sha512}).
 
 @defun secure-hash-algorithms
@@ -4970,22 +4998,22 @@ of the returned string depends on @var{algorithm}:
 
 @itemize
 @item
-For @code{md5}: 32 characters (32 bytes if @var{binary} is
+For @code{md5}: 32 characters (16 bytes if @var{binary} is
 non-@code{nil}).
 @item
-For @code{sha1}: 40 characters (40 bytes if @var{binary} is
+For @code{sha1}: 40 characters (20 bytes if @var{binary} is
 non-@code{nil}).
 @item
-For @code{sha224}: 56 characters (56 bytes if @var{binary} is
+For @code{sha224}: 56 characters (28 bytes if @var{binary} is
 non-@code{nil}).
 @item
-For @code{sha256}: 64 characters (64 bytes if @var{binary} is
+For @code{sha256}: 64 characters (32 bytes if @var{binary} is
 non-@code{nil}).
 @item
-For @code{sha384}: 96 characters (96 bytes if @var{binary} is
+For @code{sha384}: 96 characters (48 bytes if @var{binary} is
 non-@code{nil}).
 @item
-For @code{sha512}: 128 characters (128 bytes if @var{binary} is
+For @code{sha512}: 128 characters (64 bytes if @var{binary} is
 non-@code{nil}).
 @end itemize
 
@@ -5040,7 +5068,7 @@ This function is equivalent to calling @code{secure-hash} like this:
 @end lisp
 
 It returns a 40-character string if @var{binary} is @code{nil}, or a
-40-byte unibyte string otherwise.
+20-byte unibyte string otherwise.
 @end defun
 
 @node Suspicious Text
@@ -5404,6 +5432,14 @@ called @var{gif}, you have to mark it specially to let
 
 @end defun
 
+@defun sqlite-execute-batch db statements
+Execute the @acronym{SQL} @var{statements}.  @var{statements} is a
+string containing 0 or more @acronym{SQL} statements.  This command
+might be useful when a Lisp program needs to execute multiple Data
+Definition Language (@acronym{DDL}) statements in one go.
+
+@end defun
+
 @defun sqlite-select db query &optional values return-type
 Select some data from @var{db} and return them.  For instance:
 
@@ -5752,10 +5788,10 @@ non-@code{nil}, indent the @acronym{HTML}/@acronym{XML} logically.
 @cindex JSON
 @cindex JavaScript Object Notation
 
-  When Emacs is compiled with @acronym{JSON} (@dfn{JavaScript Object
-Notation}) support, it provides several functions to convert
-between Lisp objects and JSON values.  Any JSON value can be converted
-to a Lisp object, but not vice versa.  Specifically:
+  The Emacs @acronym{JSON} (@dfn{JavaScript Object Notation}) support
+provides several functions to convert between Lisp objects and JSON
+values.  Any JSON value can be converted to a Lisp object, but not vice
+versa.  Specifically:
 
 @itemize
 @item
@@ -5790,12 +5826,6 @@ represents @code{@{@}}, the empty JSON object; not @code{null},
 @code{false}, or an empty array, all of which are different JSON
 values.
 
-@defun json-available-p
-This predicate returns non-@code{nil} if Emacs has been built with
-@acronym{JSON} support, and the library is available on the current
-system.
-@end defun
-
   If some Lisp object can't be represented in JSON, the serialization
 functions will signal an error of type @code{wrong-type-argument}.
 The parsing functions can also signal the following errors:
@@ -5820,7 +5850,7 @@ can be serialized to JSON@.  Likewise, the parsing functions will
 return any of the possible types described above.
 
 @defun json-serialize object &rest args
-This function returns a new Lisp string which contains the JSON
+This function returns a new Lisp unibyte string which contains the JSON
 representation of @var{object}.  The argument @var{args} is a list of
 keyword/argument pairs.  The following keywords are accepted:
 
@@ -5839,7 +5869,7 @@ keyword @code{false}.  It defaults to the symbol @code{:false}.
 @defun json-insert object &rest args
 This function inserts the JSON representation of @var{object} into the
 current buffer before point.  The argument @var{args} are interpreted
-as in @code{json-parse-string}.
+as in @code{json-serialize}.
 @end defun
 
 @defun json-parse-string string &rest args
@@ -5922,74 +5952,109 @@ Nevertheless, we can define two distinct APIs around the
 @cindex JSONRPC application interfaces
 @enumerate
 
-@item A user interface for building JSONRPC applications
+@item An API for building JSONRPC applications
 
 @findex :request-dispatcher
 @findex :notification-dispatcher
 @findex jsonrpc-notify
 @findex jsonrpc-request
 @findex jsonrpc-async-request
-In this scenario, the JSONRPC application selects a concrete subclass
-of @code{jsonrpc-connection}, and proceeds to create objects of that
-subclass using @code{make-instance}.  To initiate a contact to the
-remote endpoint, the JSONRPC application passes this object to the
-functions @code{jsonrpc-notify}, @code{jsonrpc-request}, and/or
-@code{jsonrpc-async-request}.  For handling remotely initiated
-contacts, which generally come in asynchronously, the instantiation
-should include @code{:request-dispatcher} and
-@code{:notification-dispatcher} initargs, which are both functions of
-3 arguments: the connection object; a symbol naming the JSONRPC method
-invoked remotely; and a JSONRPC @code{params} object.
+In this scenario, a new aspiring JSONRPC-based application selects a
+concrete subclass of @code{jsonrpc-connection} that provides the
+transport for the JSONRPC messages to be exchanged between endpoints.
+
+The application creates objects of that subclass using
+@code{make-instance}.  To initiate a contact to a remote endpoint, the
+application passes this object to the functions such as
+@code{jsonrpc-notify}, @code{jsonrpc-request}, or
+@code{jsonrpc-async-request}.
+
+For handling remotely initiated contacts, which generally come in
+asynchronously, the @code{make-instance} instantiation should
+initialize it the @code{:request-dispatcher} and
+@code{:notification-dispatcher} EIEIO keyword arguments.  These are
+both functions of 3 arguments: the connection object; a symbol naming
+the JSONRPC method invoked remotely; and a JSONRPC @code{params}
+object.
 
 @findex jsonrpc-error
 The function passed as @code{:request-dispatcher} is responsible for
 handling the remote endpoint's requests, which expect a reply from the
-local endpoint (in this case, the program you're building).  Inside
-that function, you may either return locally (a normal return) or
-non-locally (an error return).  A local return value must be a Lisp
-object that can be serialized as JSON (@pxref{Parsing JSON}).  This
-determines a success response, and the object is forwarded to the
-server as the JSONRPC @code{result} object.  A non-local return,
-achieved by calling the function @code{jsonrpc-error}, causes an error
-response to be sent to the server.  The details of the accompanying
-JSONRPC @code{error} are filled out with whatever was passed to
+local endpoint (in this case, the application you're building).
+Inside that function, you may either return locally (a regular return)
+or non-locally (throw an error).  Both exits from the request
+dispatcher cause a reply to the remote endpoint's request to be sent
+through the transport.
+
+A regular return determines a success response, and the return value
+must be a Lisp object that can be serialized as JSON (@pxref{Parsing
+JSON}).  The result is forwarded to the server as the JSONRPC
+@code{result} object.  A non-local return, achieved by calling the
+function @code{jsonrpc-error}, causes an error response to be sent to
+the server.  The details of the accompanying JSONRPC @code{error}
+object are filled out with whatever was passed to
 @code{jsonrpc-error}.  A non-local return triggered by an unexpected
 error of any other type also causes an error response to be sent
 (unless you have set @code{debug-on-error}, in which case this calls
 the Lisp debugger, @pxref{Error Debugging}).
 
-@item A inheritance interface for building JSONRPC transport implementations
+@findex jsonrpc-convert-to-endpoint
+@findex jsonrpc-convert-from-endpoint
+It's possible to use the @code{jsonrpc} library to build applications
+based on transport protocols that can be described as
+``quasi-JSONRPC''.  These are similar, but not quite identical to
+JSONRPC, such as the @uref{https://www.jsonrpc.org/, DAP (Debug
+Adapter Protocol)}.  These protocols also define request, response and
+notification messages but the format is not quite the same as JSONRPC.
+The generic functions @code{jsonrpc-convert-to-endpoint} and
+@code{jsonrpc-convert-from-endpoint} can be customized for converting
+between the internal representation of JSONRPC and whatever the
+endpoint accepts (@pxref{Generic Functions}).
 
-In this scenario, @code{jsonrpc-connection} is subclassed to implement
+@item An API for building JSONRPC transports
+
+In this scenario, @code{jsonrpc-connection} is sub-classed to implement
 a different underlying transport strategy (for details on how to
 subclass, see @ref{Inheritance,Inheritance,,eieio}.).  Users of the
 application-building interface can then instantiate objects of this
 concrete class (using the @code{make-instance} function) and connect
-to JSONRPC endpoints using that strategy.
+to JSONRPC endpoints using that strategy.  See @ref{Process-based
+JSONRPC connections} for a built-in transport implementation.
 
 This API has mandatory and optional parts.
 
 @findex jsonrpc-connection-send
 To allow its users to initiate JSONRPC contacts (notifications or
-requests) or reply to endpoint requests, the subclass must have an
-implementation of the @code{jsonrpc-connection-send} method.
+requests) or reply to endpoint requests, the new transport
+implementation must equip the @code{jsonrpc-connection-send} generic
+function with a specialization for the new subclass
+(@pxref{Generic Functions}).  This generic function is called
+automatically by primitives such as @code{jsonrpc-request} and
+@code{jsonrpc-notify}.  The specialization should ensure that the
+message described in the argument list is sent through whatever
+underlying communication mechanism (a.k.a.@: ``wire'') is used by the
+new transport to talk to endpoints.  This ``wire'' may be a network
+socket, a serial interface, an HTTP connection, etc.
 
 @findex jsonrpc-connection-receive
 Likewise, for handling the three types of remote contacts (requests,
 notifications, and responses to local requests), the transport
 implementation must arrange for the function
-@code{jsonrpc-connection-receive} to be called after noticing a new
-JSONRPC message on the wire (whatever that "wire" may be).
+@code{jsonrpc-connection-receive} to be called from Elisp after
+noticing some data on the ``wire'' that can be used to craft a JSONRPC
+(or quasi-JSONRPC) message.
 
 @findex jsonrpc-shutdown
 @findex jsonrpc-running-p
 Finally, and optionally, the @code{jsonrpc-connection} subclass should
-implement the @code{jsonrpc-shutdown} and @code{jsonrpc-running-p}
-methods if these concepts apply to the transport.  If they do, then
-any system resources (e.g.@: processes, timers, etc.) used to listen for
-messages on the wire should be released in @code{jsonrpc-shutdown},
-i.e.@: they should only be needed while @code{jsonrpc-running-p} is
-non-@code{nil}.
+add specializations to the @code{jsonrpc-shutdown} and
+@code{jsonrpc-running-p} generic functions if these concepts apply to
+the transport.  The specialization of @code{jsonrpc-shutdown} should
+ensure the release of any system resources (e.g.@: processes, timers,
+etc.) used to listen for messages on the wire.  The specialization of
+@code{jsonrpc-running-p} should tell if these resources are still
+active or have already been released (via @code{jsonrpc-shutdown} or
+otherwise).
 
 @end enumerate
 
@@ -6071,7 +6136,7 @@ communicating endpoints is a matter of correctly designing the RPC
 application: when synchronization is needed, requests (which are
 blocking) should be used; when it isn't, notifications should suffice.
 However, when Emacs acts as one of these endpoints, asynchronous
-events (e.g. timer- or process-related) may be triggered while there
+events (e.g., timer- or process-related) may be triggered while there
 is still uncertainty about the state of the remote endpoint.
 Furthermore, acting on these events may only sometimes demand
 synchronization, depending on the event's specific nature.
@@ -6201,6 +6266,17 @@ to @code{activate-change-group}, and finish it with a single call to
 would expect.  Non-nested use of change groups for the same buffer
 will get Emacs confused, so don't let it happen; the first change
 group you start for any given buffer should be the last one finished.
+
+  Emacs keeps track of change groups by assuming that by following
+each cdr in @code{buffer-undo-list}, it will eventually arrive at the
+cons it was set to at the time @code{prepare-change-group} was called.
+
+  If @code{buffer-undo-list} no longer contains that cons, Emacs will
+lose track of any change groups, resulting in an error when the change
+group is canceled.  To avoid this, do not call any functions which
+may edit the undo list in such a manner, when a change group is
+active: notably, ``amalgamating'' commands such as @code{delete-char},
+which call @code{undo-auto-amalgamate}.
 
 @node Change Hooks
 @section Change Hooks
@@ -6335,3 +6411,155 @@ hooks during a series of changes (typically for performance reasons),
 use @code{combine-change-calls} or @code{combine-after-change-calls}
 instead.
 @end defvar
+
+@menu
+* Tracking changes::       Keeping track of buffer modifications.
+@end menu
+
+@node Tracking changes
+@subsection Keeping track of buffer modifications
+@cindex track-changes
+@cindex change tracker
+
+Using @code{before-change-functions} and @code{after-change-functions}
+can be difficult in practice because of a number of pitfalls, such as
+the fact that the two calls are not always properly paired, or some
+calls may be missing, either because some Emacs primitives failed to
+properly pair them or because of incorrect use of
+@code{inhibit-modification-hooks}.  Furthermore,
+many restrictions apply to those hook functions, such as the fact that
+they basically should never modify the current buffer, nor use an
+operation that may block, and they proceed quickly because
+some commands may call these hooks a large number of times.
+
+The Track-Changes library fundamentally provides an alternative API,
+built on top of those hooks.  Compared to @code{after-change-functions},
+the first important difference is that, instead of providing the bounds
+of the change and the previous length, it provides the bounds of the
+change and the actual previous content of that region.  The need to
+extract information from the original contents of the buffer is one of
+the main reasons why some packages need to use both
+@code{before-change-functions} and @code{after-change-functions} and
+then try to match them up.
+
+The second difference is that it decouples the notification of a change
+from the act of processing it, and it automatically combines into
+a single change operation all the changes that occur between the first
+change and the actual processing.  This makes it natural and easy to
+process the changes at a larger granularity, such as once per command,
+and eliminates most of the restrictions that apply to the usual change
+hook functions, making it possible to use blocking operations or to
+modify the buffer.
+
+To start tracking changes, you have to call
+@code{track-changes-register}, passing it a @var{signal} function as
+argument.  This returns a tracker @var{id} which is used to identify
+your change tracker to the other functions of the library.
+When the buffer is modified, the library calls the @var{signal}
+function to inform you of that change and immediately starts
+accumulating subsequent changes into a single combined change.
+The @var{signal} function serves only to warn that a modification
+occurred but does not receive a description of the change.  Also the
+library will not call it again until after you retrieved the change.
+
+To retrieve changes, you need to call @code{track-changes-fetch}, which
+provides you with the bounds of the changes accumulated since the
+last call, as well as the previous content of that region.  It also
+``re-arms'' the @var{signal} function so that the library will call it
+again after the next buffer modification.
+
+@defun track-changes-register signal &key nobefore disjoint immediate
+This function creates a new @dfn{change tracker}.  Change trackers are kept
+abstract, so we refer to them as mere identities, and the function thus
+returns the tracker's @var{id}.
+
+@var{signal} is a function that the library will call to notify of
+a change.  It will sometimes call it with a single argument and
+sometimes with two.  Upon the first change to the buffer since this
+tracker last called @code{track-changes-fetch}, the library calls this
+@var{signal} function with a single argument holding the @var{id} of
+the tracker.
+
+By default, the call to the @var{signal} function does not happen
+immediately, but is instead postponed with a 0 seconds timer
+(@pxref{Timers}).  This is usually desired to make sure the @var{signal}
+function is not called too frequently and runs in a permissive context,
+freeing the client from performance concerns or worries about which
+operations might be problematic.  If a client wants to have more
+control, they can provide a non-@code{nil} value as the @var{immediate}
+argument in which case the library calls the @var{signal} function
+directly from @code{after-change-functions}.  Beware that it means that
+the @var{signal} function has to be careful not to modify the buffer or
+use operations that may block.
+
+If you're not interested in the actual previous content of the buffer,
+but are using this library only for its ability to combine many small
+changes into a larger one and to delay the processing to a more
+convenient time, you can specify a non-@code{nil} value for the
+@var{nobefore} argument.  In that case, @code{track-change-fetch}
+provides you only with the length of the previous content, just like
+@code{after-change-functions}.  It also allows the library to save
+some work.
+
+While you may like to accumulate many small changes into larger ones,
+you may not want to do that if the changes are too far apart.  If you
+specify a non-@code{nil} value for the @var{disjoint} argument, the library
+will let you know when a change is about to occur ``far'' from the
+currently pending ones by calling the @var{signal} function right away,
+passing it two arguments this time: the @var{id} of the tracker, and the
+number of characters that separates the upcoming change from the
+already pending changes.  This in itself does not prevent combining this
+new change with the previous ones, so if you think the upcoming change
+is indeed too far, you need to call @code{track-change-fetch}
+right away.
+Beware that when the @var{signal} function is called because of
+a disjoint change, this happens directly from
+@code{before-change-functions}, so the usual restrictions apply about
+modifying the buffer or using operations that may block.
+@end defun
+
+@defun track-changes-fetch id func
+This is the function that lets you find out what has changed in the
+buffer.  By providing the tracker @var{id} you let the library figure
+out which changes have already been seen by your tracker.  Instead of
+returning a description of the changes, @code{track-changes-fetch} calls
+the @var{func} function with that description in the form of
+3 arguments: @var{beg}, @var{end}, and @var{before}, where
+@code{@var{beg}..@var{end}} delimit the region that was modified and
+@var{before} describes the previous content of that region.
+Usually @var{before} is a string containing the previous text of the
+modified region, but if you specified a non-@code{nil} @var{nobefore} argument
+to @code{track-changes-register}, then it is replaced by the number of
+characters of that previous text.
+
+In case no changes occurred since the last call,
+@code{track-changes-fetch} simply does not call @var{func} and returns
+@code{nil}.  If changes did occur, it calls @var{func} and returns the value
+returned by @var{func}.  But note that @var{func} is called just once
+regardless of how many changes occurred: those are summarized into
+a single @var{beg}/@var{end}/@var{before} triplet.
+
+In some cases, the library is not properly notified of all changes,
+for example because of a bug in the low-level C code or because of an
+improper use of @code{inhibit-modification-hooks}.  When it detects such
+a problem, @var{func} receives a @code{@var{beg}..@var{end}} region
+which covers the whole buffer and the @var{before} argument is the
+symbol @code{error} to indicate that the library was unable to determine
+what was changed.
+
+Once @var{func} finishes, @code{track-changes-fetch} re-enables the
+@var{signal} function so that it will be called the next time a change
+occurs.  This is the reason why it calls @var{func} instead of returning
+a description: it lets you process the change without worrying about the
+risk that the @var{signal} function gets triggered in the middle of it,
+because the @var{signal} is re-enabled only after @var{func} finishes.
+@end defun
+
+@defun track-changes-unregister id
+This function tells the library that the tracker @var{id} does not need
+to know about buffer changes any more.  Most clients will never want to
+stop tracking changes, but for clients such as minor modes, it is
+important to call this function when the minor mode is disabled,
+otherwise the tracker will keep accumulating changes and consume more
+and more resources.
+@end defun

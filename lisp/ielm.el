@@ -1,6 +1,6 @@
 ;;; ielm.el --- interaction mode for Emacs Lisp  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1994, 2001-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1994, 2001-2025 Free Software Foundation, Inc.
 
 ;; Author: David Smith <maa036@lancaster.ac.uk>
 ;; Maintainer: emacs-devel@gnu.org
@@ -109,6 +109,13 @@ will be inserted after the prompt, moving the input to the next line.
 This gives more frame width for large indented sexps, and allows functions
 such as `edebug-defun' to work with such inputs."
   :type 'boolean)
+
+(defcustom ielm-history-file-name
+  (locate-user-emacs-file "ielm-history.eld")
+  "If non-nil, name of the file to read/write IELM input history."
+  :type '(choice (const :tag "Disable input history" nil)
+                 file)
+  :version "30.1")
 
 (defvaralias 'inferior-emacs-lisp-mode-hook 'ielm-mode-hook)
 (defcustom ielm-mode-hook nil
@@ -498,6 +505,22 @@ behavior of the indirect buffer."
   "Run `ielm-indirect-setup-hook'."
   (run-hooks 'ielm-indirect-setup-hook))
 
+(defun ielm--expand-ellipsis (orig-fun beg &rest args)
+  (let ((end (copy-marker (apply orig-fun beg args) t)))
+    (funcall pp-default-function beg end)
+    end))
+
+;;; Input history
+
+(defvar ielm--exit nil
+  "Function to call when Emacs is killed.")
+
+(defun ielm--input-history-writer (buf)
+  "Return a function writing IELM input history to BUF."
+  (lambda ()
+    (with-current-buffer buf
+      (comint-write-input-ring))))
+
 ;;; Major mode
 
 (define-derived-mode inferior-emacs-lisp-mode comint-mode "IELM"
@@ -580,6 +603,8 @@ Customized bindings may be defined in `ielm-map', which currently contains:
   (setq-local comment-use-syntax t)
   (setq-local lexical-binding t)
 
+  (add-function :around (local 'cl-print-expand-ellipsis-function)
+                #'ielm--expand-ellipsis)
   (setq-local indent-line-function #'ielm-indent-line)
   (setq-local ielm-working-buffer (current-buffer))
   (setq-local fill-paragraph-function #'lisp-fill-paragraph)
@@ -598,12 +623,23 @@ Customized bindings may be defined in `ielm-map', which currently contains:
             #'ielm-indirect-setup-hook 'append t)
   (setq comint-indirect-setup-function #'emacs-lisp-mode)
 
+  ;; Input history
+  (setq-local comint-input-ring-file-name ielm-history-file-name)
+  (setq-local ielm--exit (ielm--input-history-writer (current-buffer)))
+  (setq-local kill-buffer-hook
+              (lambda ()
+                (funcall ielm--exit)
+                (remove-hook 'kill-emacs-hook ielm--exit)))
+  (unless noninteractive
+    (add-hook 'kill-emacs-hook ielm--exit))
+  (comint-read-input-ring t)
+
   ;; A dummy process to keep comint happy. It will never get any input
   (unless (comint-check-proc (current-buffer))
     ;; Was cat, but on non-Unix platforms that might not exist, so
     ;; use hexl instead, which is part of the Emacs distribution.
     (condition-case nil
-        (start-process "ielm" (current-buffer) "hexl")
+        (start-process "ielm" (current-buffer) hexl-program-name)
       (file-error (start-process "ielm" (current-buffer) "cat")))
     (set-process-query-on-exit-flag (ielm-process) nil)
     (goto-char (point-max))
@@ -647,7 +683,8 @@ See `inferior-emacs-lisp-mode' for details."
     (unless (comint-check-proc buf-name)
       (with-current-buffer (get-buffer-create buf-name)
         (unless (zerop (buffer-size)) (setq old-point (point)))
-        (inferior-emacs-lisp-mode)))
+        (inferior-emacs-lisp-mode)
+        (setq-local trusted-content :all)))
     (pop-to-buffer-same-window buf-name)
     (when old-point (push-mark old-point))))
 

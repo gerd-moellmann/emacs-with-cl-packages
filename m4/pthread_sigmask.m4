@@ -1,5 +1,6 @@
-# pthread_sigmask.m4 serial 21
-dnl Copyright (C) 2011-2024 Free Software Foundation, Inc.
+# pthread_sigmask.m4
+# serial 23
+dnl Copyright (C) 2011-2025 Free Software Foundation, Inc.
 dnl This file is free software; the Free Software Foundation
 dnl gives unlimited permission to copy and/or distribute it,
 dnl with or without modifications, as long as this notice is preserved.
@@ -24,7 +25,7 @@ AC_DEFUN([gl_FUNC_PTHREAD_SIGMASK],
        [gl_cv_func_pthread_sigmask_macro=no])
     ])
 
-  LIB_PTHREAD_SIGMASK=
+  PTHREAD_SIGMASK_LIB=
 
   if test $gl_cv_func_pthread_sigmask_macro = yes; then
     dnl pthread_sigmask is a dummy macro.
@@ -47,7 +48,7 @@ AC_DEFUN([gl_FUNC_PTHREAD_SIGMASK],
           if test -n "$LIBMULTITHREAD"; then
             AC_CACHE_CHECK([for pthread_sigmask in $LIBMULTITHREAD],
               [gl_cv_func_pthread_sigmask_in_LIBMULTITHREAD],
-              [gl_save_LIBS="$LIBS"
+              [gl_saved_LIBS="$LIBS"
                LIBS="$LIBS $LIBMULTITHREAD"
                AC_LINK_IFELSE(
                  [AC_LANG_PROGRAM(
@@ -58,11 +59,11 @@ AC_DEFUN([gl_FUNC_PTHREAD_SIGMASK],
                  ],
                  [gl_cv_func_pthread_sigmask_in_LIBMULTITHREAD=yes],
                  [gl_cv_func_pthread_sigmask_in_LIBMULTITHREAD=no])
-               LIBS="$gl_save_LIBS"
+               LIBS="$gl_saved_LIBS"
               ])
             if test $gl_cv_func_pthread_sigmask_in_LIBMULTITHREAD = yes; then
               dnl pthread_sigmask is available with -pthread or -lpthread.
-              LIB_PTHREAD_SIGMASK="$LIBMULTITHREAD"
+              PTHREAD_SIGMASK_LIB="$LIBMULTITHREAD"
             else
               dnl pthread_sigmask is not available at all.
               HAVE_PTHREAD_SIGMASK=0
@@ -101,6 +102,9 @@ AC_DEFUN([gl_FUNC_PTHREAD_SIGMASK],
     ])
   fi
 
+  AC_SUBST([PTHREAD_SIGMASK_LIB])
+  dnl For backward compatibility.
+  LIB_PTHREAD_SIGMASK="$PTHREAD_SIGMASK_LIB"
   AC_SUBST([LIB_PTHREAD_SIGMASK])
   dnl We don't need a variable LTLIB_PTHREAD_SIGMASK, because when
   dnl "$gl_threads_api" = posix, $LTLIBMULTITHREAD and $LIBMULTITHREAD are the
@@ -114,7 +118,7 @@ AC_DEFUN([gl_FUNC_PTHREAD_SIGMASK],
     dnl On FreeBSD 13.0, MidnightBSD 1.1, HP-UX 11.31, Solaris 9, in programs
     dnl that are not linked with -lpthread, the pthread_sigmask() function
     dnl always returns 0 and has no effect.
-    if test -z "$LIB_PTHREAD_SIGMASK"; then
+    if test -z "$PTHREAD_SIGMASK_LIB"; then
       case " $LIBS " in
         *' -pthread '*) ;;
         *' -lpthread '*) ;;
@@ -161,8 +165,8 @@ AC_DEFUN([gl_FUNC_PTHREAD_SIGMASK],
     AC_CACHE_CHECK([whether pthread_sigmask returns error numbers],
       [gl_cv_func_pthread_sigmask_return_works],
       [
-        gl_save_LIBS="$LIBS"
-        LIBS="$LIBS $LIB_PTHREAD_SIGMASK"
+        gl_saved_LIBS="$LIBS"
+        LIBS="$LIBS $PTHREAD_SIGMASK_LIB"
         AC_RUN_IFELSE(
           [AC_LANG_SOURCE([[
 #include <pthread.h>
@@ -185,7 +189,7 @@ int main ()
                gl_cv_func_pthread_sigmask_return_works="guessing yes";;
            esac
           ])
-        LIBS="$gl_save_LIBS"
+        LIBS="$gl_saved_LIBS"
       ])
     case "$gl_cv_func_pthread_sigmask_return_works" in
       *no)
@@ -208,10 +212,10 @@ int main ()
             gl_cv_func_pthread_sigmask_unblock_works="guessing yes";;
         esac
         m4_ifdef([gl_][THREADLIB],
-          [dnl Link against $LIBMULTITHREAD, not only $LIB_PTHREAD_SIGMASK.
+          [dnl Link against $LIBMULTITHREAD, not only $PTHREAD_SIGMASK_LIB.
            dnl Otherwise we get a false positive on those platforms where
            dnl $gl_cv_func_pthread_sigmask_in_libc_works is "no".
-           gl_save_LIBS=$LIBS
+           gl_saved_LIBS=$LIBS
            LIBS="$LIBS $LIBMULTITHREAD"])
         AC_RUN_IFELSE(
           [AC_LANG_SOURCE([[
@@ -255,7 +259,7 @@ int main ()
           [:],
           [gl_cv_func_pthread_sigmask_unblock_works=no],
           [:])
-        m4_ifdef([gl_][THREADLIB], [LIBS=$gl_save_LIBS])
+        m4_ifdef([gl_][THREADLIB], [LIBS=$gl_saved_LIBS])
       ])
     case "$gl_cv_func_pthread_sigmask_unblock_works" in
       *no)

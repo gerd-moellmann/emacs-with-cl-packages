@@ -1,6 +1,6 @@
 /* Record indices of function doc strings stored in a file. -*- coding: utf-8 -*-
 
-Copyright (C) 1985-1986, 1993-1995, 1997-2024 Free Software Foundation,
+Copyright (C) 1985-1986, 1993-1995, 1997-2025 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
@@ -37,27 +37,60 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "intervals.h"
 #include "keymap.h"
 
+
+
+#if !defined HAVE_ANDROID || defined ANDROID_STUBIFY	\
+  || (__ANDROID_API__ < 9)
+#define doc_fd		int
+#define doc_fd_p(fd)	((fd) >= 0)
+#define doc_open	emacs_open
+#define doc_read_quit	emacs_read_quit
+#define doc_lseek	lseek
+#else /* HAVE_ANDROID && !defined ANDROID_STUBIFY
+	 && __ANDROID_API__ >= 9 */
+
+#include "android.h"
+
+/* Use an Android file descriptor under Android instead, as this
+   allows loading directly from asset files without loading each asset
+   into memory and creating a separate file descriptor every time.
+
+   However, lread requires the ability to seek inside asset files,
+   which is not provided under Android 2.2.  So when building for that
+   particular system, fall back to the usual file descriptor-based
+   code.  */
+
+#define doc_fd		struct android_fd_or_asset
+#define doc_fd_p(fd)	((fd).asset != (void *) -1)
+#define doc_open	android_open_asset
+#define doc_read_quit	android_asset_read_quit
+#define doc_lseek	android_asset_lseek
+#define USE_ANDROID_ASSETS
+#endif /* !HAVE_ANDROID || ANDROID_STUBIFY || __ANDROID_API__ < 9 */
+
+
+
 /* Buffer used for reading from documentation file.  */
 static char *get_doc_string_buffer;
 static ptrdiff_t get_doc_string_buffer_size;
 
-static unsigned char *read_bytecode_pointer;
-
 static char const sibling_etc[] = "../etc/";
 
-/* `readchar' in lread.c calls back here to fetch the next byte.
-   If UNREADFLAG is 1, we unread a byte.  */
+#ifdef USE_ANDROID_ASSETS
 
-int
-read_bytecode_char (bool unreadflag)
+/* Like `close_file_unwind'.  However, PTR is a pointer to an Android
+   file descriptor instead of a system file descriptor.  */
+
+static void
+close_file_unwind_android_fd (void *ptr)
 {
-  if (unreadflag)
-    {
-      read_bytecode_pointer--;
-      return 0;
-    }
-  return *read_bytecode_pointer++;
+  struct android_fd_or_asset *fd;
+
+  fd = ptr;
+  android_close_asset (*fd);
 }
+
+#endif /* USE_ANDROID_ASSETS */
 
 /* Extract a doc string from a file.  FILEPOS says where to get it.
    If it is an integer, use that position in the standard DOC file.
@@ -71,15 +104,10 @@ read_bytecode_char (bool unreadflag)
    (e.g. because the file has been modified and the location is stale),
    return nil.
 
-   If UNIBYTE, always make a unibyte string.
-
-   If DEFINITION, assume this is for reading
-   a dynamic function definition; convert the bytestring
-   and the constants vector with appropriate byte handling,
-   and return a cons cell.  */
+   If UNIBYTE, always make a unibyte string.  */
 
 Lisp_Object
-get_doc_string (Lisp_Object filepos, bool unibyte, bool definition)
+get_doc_string (Lisp_Object filepos, bool unibyte)
 {
   char *from, *to, *name, *p, *p1;
   Lisp_Object file, pos;
@@ -123,8 +151,8 @@ get_doc_string (Lisp_Object filepos, bool unibyte, bool definition)
   name = SAFE_ALLOCA (docdir_sizemax + SBYTES (file));
   lispstpcpy (lispstpcpy (name, docdir), file);
 
-  int fd = emacs_open (name, O_RDONLY, 0);
-  if (fd < 0)
+  doc_fd fd = doc_open (name, O_RDONLY, 0);
+  if (!doc_fd_p (fd))
     {
       if (will_dump_p ())
 	{
@@ -132,9 +160,9 @@ get_doc_string (Lisp_Object filepos, bool unibyte, bool definition)
 	     So check in ../etc.  */
 	  lispstpcpy (stpcpy (name, sibling_etc), file);
 
-	  fd = emacs_open (name, O_RDONLY, 0);
+	  fd = doc_open (name, O_RDONLY, 0);
 	}
-      if (fd < 0)
+      if (!doc_fd_p (fd))
 	{
 	  if (errno != ENOENT && errno != ENOTDIR)
 	    report_file_error ("Read error on documentation file", file);
@@ -145,14 +173,18 @@ get_doc_string (Lisp_Object filepos, bool unibyte, bool definition)
 	  return concat3 (cannot_open, file, quote_nl);
 	}
     }
+#ifndef USE_ANDROID_ASSETS
   record_unwind_protect_int (close_file_unwind, fd);
+#else /* USE_ANDROID_ASSETS */
+  record_unwind_protect_ptr (close_file_unwind_android_fd, &fd);
+#endif /* !USE_ANDROID_ASSETS */
 
   /* Seek only to beginning of disk block.  */
   /* Make sure we read at least 1024 bytes before `position'
      so we can check the leading text for consistency.  */
   int offset = min (position, max (1024, position % (8 * 1024)));
   if (TYPE_MAXIMUM (off_t) < position
-      || lseek (fd, position - offset, 0) < 0)
+      || doc_lseek (fd, position - offset, 0) < 0)
     error ("Position %"pI"d out of range in doc string file \"%s\"",
 	   position, name);
 
@@ -181,7 +213,7 @@ get_doc_string (Lisp_Object filepos, bool unibyte, bool definition)
          If we read the same block last time, maybe skip this?  */
       if (space_left > 1024 * 8)
 	space_left = 1024 * 8;
-      int nread = emacs_read_quit (fd, p, space_left);
+      int nread = doc_read_quit (fd, p, space_left);
       if (nread < 0)
 	report_file_error ("Read error on documentation file", file);
       p[nread] = 0;
@@ -259,14 +291,6 @@ Invalid data in documentation file -- %c followed by code %03o",
 	*to++ = *from++;
     }
 
-  /* If DEFINITION, read from this buffer
-     the same way we would read bytes from a file.  */
-  if (definition)
-    {
-      read_bytecode_pointer = (unsigned char *) get_doc_string_buffer + offset;
-      return Fread (Qlambda);
-    }
-
   if (unibyte)
     return make_unibyte_string (get_doc_string_buffer + offset,
 				to - (get_doc_string_buffer + offset));
@@ -283,16 +307,6 @@ Invalid data in documentation file -- %c followed by code %03o",
     }
 }
 
-/* Get a string from position FILEPOS and pass it through the Lisp reader.
-   We use this for fetching the bytecode string and constants vector
-   of a compiled function from the .elc file.  */
-
-Lisp_Object
-read_doc_string (Lisp_Object filepos)
-{
-  return get_doc_string (filepos, 0, 1);
-}
-
 static bool
 reread_doc_file (Lisp_Object file)
 {
@@ -302,6 +316,20 @@ reread_doc_file (Lisp_Object file)
     save_match_data_load (file, Qt, Qt, Qt, Qnil);
 
   return 1;
+}
+
+DEFUN ("documentation-stringp", Fdocumentation_stringp, Sdocumentation_stringp,
+       1, 1, 0,
+       doc: /* Return non-nil if OBJECT is a well-formed docstring object.
+OBJECT can be either a string or a reference if it's kept externally.  */)
+  (Lisp_Object object)
+{
+  return (STRINGP (object)
+          || FIXNUMP (object)   /* Reference to DOC.  */
+          || (CONSP (object)    /* Reference to .elc.  */
+              && STRINGP (XCAR (object))
+              && FIXNUMP (XCDR (object)))
+          ? Qt : Qnil);
 }
 
 DEFUN ("documentation", Fdocumentation, Sdocumentation, 1, 2, 0,
@@ -330,19 +358,7 @@ string is passed through `substitute-command-keys'.  */)
     xsignal1 (Qvoid_function, function);
   if (CONSP (fun) && EQ (XCAR (fun), Qmacro))
     fun = XCDR (fun);
-#ifdef HAVE_NATIVE_COMP
-  if (!NILP (Fsubr_native_elisp_p (fun)))
-    doc = native_function_doc (fun);
-  else
-#endif
-  if (SUBRP (fun))
-    doc = make_fixnum (XSUBR (fun)->doc);
-#ifdef HAVE_MODULES
-  else if (MODULE_FUNCTIONP (fun))
-    doc = module_function_documentation (XMODULE_FUNCTION (fun));
-#endif
-  else
-    doc = call1 (Qfunction_documentation, fun);
+  doc = call1 (Qfunction_documentation, fun);
 
   /* If DOC is 0, it's typically because of a dumped file missing
      from the DOC file (bug in src/Makefile.in).  */
@@ -351,7 +367,7 @@ string is passed through `substitute-command-keys'.  */)
   if (FIXNUMP (doc) || CONSP (doc))
     {
       Lisp_Object tem;
-      tem = get_doc_string (doc, 0, 0);
+      tem = get_doc_string (doc, 0);
       if (NILP (tem) && try_reload)
 	{
 	  /* The file is newer, we need to reset the pointers.  */
@@ -369,6 +385,25 @@ string is passed through `substitute-command-keys'.  */)
   if (NILP (raw))
     doc = call1 (Qsubstitute_command_keys, doc);
   return doc;
+}
+
+DEFUN ("internal-subr-documentation", Fsubr_documentation, Ssubr_documentation, 1, 1, 0,
+       doc: /* Return the raw documentation info of a C primitive.  */)
+  (Lisp_Object function)
+{
+#ifdef HAVE_NATIVE_COMP
+  if (!NILP (Fnative_comp_function_p (function)))
+    return native_function_doc (function);
+  else
+#endif
+  if (SUBRP (function))
+    return make_fixnum (XSUBR (function)->doc);
+#ifdef HAVE_MODULES
+  else if (MODULE_FUNCTIONP (function))
+    return module_function_documentation (XMODULE_FUNCTION (function));
+#endif
+  else
+    return Qt;
 }
 
 DEFUN ("documentation-property", Fdocumentation_property,
@@ -407,7 +442,7 @@ aren't strings.  */)
   if (FIXNUMP (tem) || (CONSP (tem) && FIXNUMP (XCDR (tem))))
     {
       Lisp_Object doc = tem;
-      tem = get_doc_string (tem, 0, 0);
+      tem = get_doc_string (tem, 0);
       if (NILP (tem) && try_reload)
 	{
 	  /* The file is newer, we need to reset the pointers.  */
@@ -442,46 +477,29 @@ store_function_docstring (Lisp_Object obj, EMACS_INT offset)
   /* If it's a lisp form, stick it in the form.  */
   if (CONSP (fun) && EQ (XCAR (fun), Qmacro))
     fun = XCDR (fun);
-  if (CONSP (fun))
-    {
-      Lisp_Object tem = XCAR (fun);
-      if (EQ (tem, Qlambda) || EQ (tem, Qautoload)
-	  || (EQ (tem, Qclosure) && (fun = XCDR (fun), 1)))
-	{
-	  tem = Fcdr (Fcdr (fun));
-	  if (CONSP (tem) && FIXNUMP (XCAR (tem)))
-	    /* FIXME: This modifies typically pure hash-cons'd data, so its
-	       correctness is quite delicate.  */
-	    XSETCAR (tem, make_fixnum (offset));
-	}
-    }
   /* Lisp_Subrs have a slot for it.  */
-  else if (SUBRP (fun) && !SUBR_NATIVE_COMPILEDP (fun))
+  if (SUBRP (fun))
+    XSUBR (fun)->doc = offset;
+  else if (CLOSUREP (fun))
     {
-      XSUBR (fun)->doc = offset;
-    }
-
-  /* Bytecode objects sometimes have slots for it.  */
-  else if (COMPILEDP (fun))
-    {
-      /* This bytecode object must have a slot for the
-	 docstring, since we've found a docstring for it.  */
-      if (PVSIZE (fun) > COMPILED_DOC_STRING
-	  /* Don't overwrite a non-docstring value placed there,
-           * such as the symbols used for Oclosures.  */
-	  && VALID_DOCSTRING_P (AREF (fun, COMPILED_DOC_STRING)))
-	ASET (fun, COMPILED_DOC_STRING, make_fixnum (offset));
+      /* This bytecode object must have a slot for the docstring, since
+	 we've found a docstring for it.  */
+      if (PVSIZE (fun) > CLOSURE_DOC_STRING
+	  /* Don't overwrite a non-docstring value placed there, such as
+             the symbols used for Oclosures.  */
+	  && VALID_DOCSTRING_P (AREF (fun, CLOSURE_DOC_STRING)))
+	ASET (fun, CLOSURE_DOC_STRING, make_fixnum (offset));
       else
 	{
-	  AUTO_STRING (format,
-	               (PVSIZE (fun) > COMPILED_DOC_STRING
-	                ? "Docstring slot busy for %s"
-	                : "No docstring slot for %s"));
-	  CALLN (Fmessage, format,
-		 (SYMBOLP (obj)
-		  ? SYMBOL_NAME (obj)
-		  : build_string ("<anonymous>")));
+	  AUTO_STRING (format, "No doc string slot for compiled: %S");
+	  CALLN (Fmessage, format, obj);
 	}
+    }
+  else
+    {
+      AUTO_STRING (format, "Ignoring DOC string on non-compiled"
+		   "non-subr: %S");
+      CALLN (Fmessage, format, obj);
     }
 }
 
@@ -497,7 +515,7 @@ That file is found in `../etc' now; later, when the dumped Emacs is run,
 the same file name is found in the `doc-directory'.  */)
   (Lisp_Object filename)
 {
-  int fd;
+  doc_fd fd;
   char buf[1024 + 1];
   int filled;
   EMACS_INT pos;
@@ -507,8 +525,8 @@ the same file name is found in the `doc-directory'.  */)
   ptrdiff_t dirlen;
   /* Preloaded defcustoms using custom-initialize-delay are added to
      this list, but kept unbound.  See https://debbugs.gnu.org/11565  */
-  Lisp_Object delayed_init =
-    find_symbol_value (intern ("custom-delayed-init-variables"));
+  Lisp_Object delayed_init
+    = find_symbol_value (Qcustom_delayed_init_variables);
 
   if (!CONSP (delayed_init)) delayed_init = Qnil;
 
@@ -544,21 +562,25 @@ the same file name is found in the `doc-directory'.  */)
       Vbuild_files = Fpurecopy (Vbuild_files);
     }
 
-  fd = emacs_open (name, O_RDONLY, 0);
-  if (fd < 0)
+  fd = doc_open (name, O_RDONLY, 0);
+  if (!doc_fd_p (fd))
     {
       int open_errno = errno;
       report_file_errno ("Opening doc string file", build_string (name),
 			 open_errno);
     }
+#ifndef USE_ANDROID_ASSETS
   record_unwind_protect_int (close_file_unwind, fd);
+#else /* USE_ANDROID_ASSETS */
+  record_unwind_protect_ptr (close_file_unwind_android_fd, &fd);
+#endif /* !USE_ANDROID_ASSETS */
   Vdoc_file_name = filename;
   filled = 0;
   pos = 0;
   while (true)
     {
       if (filled < 512)
-	filled += emacs_read_quit (fd, &buf[filled], sizeof buf - 1 - filled);
+	filled += doc_read_quit (fd, &buf[filled], sizeof buf - 1 - filled);
       if (!filled)
 	break;
 
@@ -647,7 +669,7 @@ If the variable `text-quoting-style' is `grave', `straight' or
 `curve', just return that value.  If it is nil (the default), return
 `grave' if curved quotes cannot be displayed (for instance, on a
 terminal with no support for these characters), otherwise return
-`quote'.  Any other value is treated as `grave'.
+`curve'.  Any other value is treated as `curve'.
 
 Note that in contrast to the variable `text-quoting-style', this
 function will never return nil.  */)
@@ -712,8 +734,11 @@ compute the correct value for the current terminal in the nil case.  */);
 	       doc: /* If nil, a nil `text-quoting-style' is treated as `grave'.  */);
   /* Initialized by ‘main’.  */
 
+  defsubr (&Sdocumentation_stringp);
   defsubr (&Sdocumentation);
+  defsubr (&Ssubr_documentation);
   defsubr (&Sdocumentation_property);
   defsubr (&Ssnarf_documentation);
   defsubr (&Stext_quoting_style);
+  DEFSYM (Qcustom_delayed_init_variables, "custom-delayed-init-variables");
 }

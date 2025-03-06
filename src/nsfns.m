@@ -1,6 +1,6 @@
 /* Functions for the NeXT/Open/GNUstep and macOS window system.
 
-Copyright (C) 1989, 1992-1994, 2005-2006, 2008-2024 Free Software
+Copyright (C) 1989, 1992-1994, 2005-2006, 2008-2025 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -86,8 +86,6 @@ static Lisp_Object tip_last_parms;
 /* Static variables to handle AppleScript execution.  */
 static Lisp_Object as_script, *as_result;
 static int as_status;
-
-static ptrdiff_t image_cache_refcount;
 
 static struct ns_display_info *ns_display_info_for_name (Lisp_Object);
 
@@ -641,6 +639,11 @@ ns_change_tab_bar_height (struct frame *f, int height)
      leading to the tab bar height being incorrectly set upon the next
      call to x_set_font.  (bug#59285) */
   int lines = height / unit;
+
+  /* Even so, HEIGHT might be less than unit if the tab bar face is
+     not so tall as the frame's font height; which if true lines will
+     be set to 0 and the tab bar will thus vanish.  */
+
   if (lines == 0 && height != 0)
     lines = 1;
 
@@ -685,6 +688,16 @@ ns_change_tab_bar_height (struct frame *f, int height)
   SET_FRAME_GARBAGED (f);
 }
 
+#ifdef NS_IMPL_COCOA
+
+void
+ns_make_frame_key_window (struct frame *f)
+{
+  [[FRAME_NS_VIEW (f) window] makeKeyWindow];
+}
+
+#endif /* NS_IMPL_COCOA */
+
 /* tabbar support */
 static void
 ns_set_tab_bar_lines (struct frame *f, Lisp_Object value, Lisp_Object oldval)
@@ -706,8 +719,10 @@ ns_set_tab_bar_lines (struct frame *f, Lisp_Object value, Lisp_Object oldval)
     ns_change_tab_bar_height (f, nlines * FRAME_LINE_HEIGHT (f));
 }
 
+
 
-/* toolbar support */
+/* Tool bar support.  */
+
 static void
 ns_set_tool_bar_lines (struct frame *f, Lisp_Object value, Lisp_Object oldval)
 {
@@ -760,7 +775,16 @@ ns_set_tool_bar_lines (struct frame *f, Lisp_Object value, Lisp_Object oldval)
 }
 
 static void
-ns_set_child_frame_border_width (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
+ns_set_tool_bar_position (struct frame *f, Lisp_Object arg,
+			  Lisp_Object oldval)
+{
+  if (!EQ (arg, Qtop))
+    error ("Tool bar position must be `top'");
+}
+
+static void
+ns_set_child_frame_border_width (struct frame *f, Lisp_Object arg,
+				 Lisp_Object oldval)
 {
   int border;
 
@@ -780,6 +804,26 @@ ns_set_child_frame_border_width (struct frame *f, Lisp_Object arg, Lisp_Object o
 
       SET_FRAME_GARBAGED (f);
     }
+}
+
+static void
+ns_set_inhibit_double_buffering (struct frame *f,
+                                 Lisp_Object new_value,
+                                 Lisp_Object old_value)
+{
+#if defined (NS_IMPL_COCOA) && MAC_OS_X_VERSION_MIN_REQUIRED >= 101400
+  if (!EQ (new_value, old_value))
+    {
+      FRAME_DOUBLE_BUFFERED (f) = NILP (new_value);
+
+      /* If the view or layer haven't been created yet this will be a
+         noop.  */
+      [(EmacsLayer *)[FRAME_NS_VIEW (f) layer]
+          setDoubleBuffered:FRAME_DOUBLE_BUFFERED (f)];
+
+      SET_FRAME_GARBAGED (f);
+    }
+#endif
 }
 
 static void
@@ -1055,8 +1099,8 @@ frame_parm_handler ns_frame_parm_handlers[] =
   gui_set_font_backend, /* generic OK */
   gui_set_alpha,
   0, /* x_set_sticky */
-  0, /* x_set_tool_bar_position */
-  0, /* x_set_inhibit_double_buffering */
+  ns_set_tool_bar_position,
+  ns_set_inhibit_double_buffering,
   ns_set_undecorated,
   ns_set_parent_frame,
   0, /* x_set_skip_taskbar */
@@ -1091,29 +1135,8 @@ unwind_create_frame (Lisp_Object frame)
   /* If frame is ``official'', nothing to do.  */
   if (NILP (Fmemq (frame, Vframe_list)))
     {
-#if defined GLYPH_DEBUG && defined ENABLE_CHECKING
-      struct ns_display_info *dpyinfo = FRAME_DISPLAY_INFO (f);
-#endif
-
-      /* If the frame's image cache refcount is still the same as our
-	 private shadow variable, it means we are unwinding a frame
-	 for which we didn't yet call init_frame_faces, where the
-	 refcount is incremented.  Therefore, we increment it here, so
-	 that free_frame_faces, called in ns_free_frame_resources
-	 below, will not mistakenly decrement the counter that was not
-	 incremented yet to account for this new frame.  */
-      if (FRAME_IMAGE_CACHE (f) != NULL
-	  && FRAME_IMAGE_CACHE (f)->refcount == image_cache_refcount)
-	FRAME_IMAGE_CACHE (f)->refcount++;
-
       ns_free_frame_resources (f);
       free_glyphs (f);
-
-#if defined GLYPH_DEBUG && defined ENABLE_CHECKING
-      /* Check that reference counts are indeed correct.  */
-      eassert (dpyinfo->terminal->image_cache->refcount == image_cache_refcount);
-#endif
-
       return Qt;
     }
 
@@ -1289,13 +1312,10 @@ DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame,
   block_input ();
 
 #ifdef NS_IMPL_COCOA
-    mac_register_font_driver (f);
+  mac_register_font_driver (f);
 #else
-    register_font_driver (&nsfont_driver, f);
+  register_font_driver (&nsfont_driver, f);
 #endif
-
-  image_cache_refcount =
-    FRAME_IMAGE_CACHE (f) ? FRAME_IMAGE_CACHE (f)->refcount : 0;
 
   gui_default_parameter (f, parms, Qfont_backend, Qnil,
                          "fontBackend", "FontBackend", RES_TYPE_STRING);
@@ -1443,6 +1463,14 @@ DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame,
                          "BufferPredicate", RES_TYPE_SYMBOL);
   gui_default_parameter (f, parms, Qtitle, Qnil, "title", "Title",
                          RES_TYPE_STRING);
+
+#if defined (NS_IMPL_COCOA) && MAC_OS_X_VERSION_MIN_REQUIRED >= 101400
+  tem = gui_display_get_arg (dpyinfo, parms, Qinhibit_double_buffering, NULL, NULL,
+                             RES_TYPE_BOOLEAN);
+  FRAME_DOUBLE_BUFFERED (f) = NILP (tem) || EQ (tem, Qunbound);
+  store_frame_param (f, Qinhibit_double_buffering,
+                     FRAME_DOUBLE_BUFFERED (f) ? Qnil : Qt);
+#endif
 
   parms = get_geometry_from_preferences (dpyinfo, parms);
   window_prompting = gui_figure_window_size (f, parms, false, true);
@@ -1600,7 +1628,7 @@ ns_window_is_ancestor (NSWindow *win, NSWindow *candidate)
 
 DEFUN ("ns-frame-list-z-order", Fns_frame_list_z_order,
        Sns_frame_list_z_order, 0, 1, 0,
-       doc: /* Return list of Emacs' frames, in Z (stacking) order.
+       doc: /* Return list of Emacs's frames, in Z (stacking) order.
 If TERMINAL is non-nil and specifies a live frame, return the child
 frames of that frame in Z (stacking) order.
 
@@ -1996,12 +2024,12 @@ DEFUN ("x-display-backing-store", Fx_display_backing_store,
   switch ([ns_get_window (terminal) backingType])
     {
     case NSBackingStoreBuffered:
-      return intern ("buffered");
+      return Qbuffered;
 #if defined (NS_IMPL_GNUSTEP) || MAC_OS_X_VERSION_MIN_REQUIRED < 101300
     case NSBackingStoreRetained:
-      return intern ("retained");
+      return Qretained;
     case NSBackingStoreNonretained:
-      return intern ("non-retained");
+      return Qnon_retained;
 #endif
     default:
       error ("Strange value for backingType parameter of frame");
@@ -2021,19 +2049,19 @@ DEFUN ("x-display-visual-class", Fx_display_visual_class,
   depth = [[[NSScreen screens] objectAtIndex:0] depth];
 
   if ( depth == NSBestDepth (NSCalibratedWhiteColorSpace, 2, 2, YES, NULL))
-    return intern ("static-gray");
+    return Qstatic_gray;
   else if (depth == NSBestDepth (NSCalibratedWhiteColorSpace, 8, 8, YES, NULL))
-    return intern ("gray-scale");
+    return Qgray_scale;
   else if ( depth == NSBestDepth (NSCalibratedRGBColorSpace, 8, 8, YES, NULL))
-    return intern ("pseudo-color");
+    return Qpseudo_color;
   else if ( depth == NSBestDepth (NSCalibratedRGBColorSpace, 4, 12, NO, NULL))
-    return intern ("true-color");
+    return Qtrue_color;
   else if ( depth == NSBestDepth (NSCalibratedRGBColorSpace, 8, 24, NO, NULL))
-    return intern ("direct-color");
+    return Qdirect_color;
   else
     /* Color management as far as we do it is really handled by
        Nextstep itself anyway.  */
-    return intern ("direct-color");
+    return Qdirect_color;
 }
 
 
@@ -2133,13 +2161,13 @@ is layered in front of the windows of other applications.  */)
   (Lisp_Object on)
 {
   check_window_system (NULL);
-  if (EQ (on, intern ("activate")))
+  if (EQ (on, Qactivate))
     {
       [NSApp unhide: NSApp];
       [NSApp activateIgnoringOtherApps: YES];
     }
 #if GNUSTEP_GUI_MAJOR_VERSION > 0 || GNUSTEP_GUI_MINOR_VERSION >= 27
-  else if (EQ (on, intern ("activate-front")))
+  else if (EQ (on, Qactivate_front))
     {
       [NSApp unhide: NSApp];
       [[NSRunningApplication currentApplication]
@@ -2480,7 +2508,7 @@ DEFUN ("system-move-file-to-trash", Fsystem_move_file_to_trash,
   if (!NILP (Ffile_directory_p (filename))
       && NILP (Ffile_symlink_p (filename)))
     {
-      operation = intern ("delete-directory");
+      operation = Qdelete_directory;
       filename = Fdirectory_file_name (filename);
     }
 
@@ -2991,9 +3019,6 @@ ns_create_tip_frame (struct ns_display_info *dpyinfo, Lisp_Object parms)
 #endif
   unblock_input ();
 
-  image_cache_refcount =
-    FRAME_IMAGE_CACHE (f) ? FRAME_IMAGE_CACHE (f)->refcount : 0;
-
   gui_default_parameter (f, parms, Qfont_backend, Qnil,
                          "fontBackend", "FontBackend", RES_TYPE_STRING);
 
@@ -3099,7 +3124,7 @@ ns_create_tip_frame (struct ns_display_info *dpyinfo, Lisp_Object parms)
 
   /* Set the `display-type' frame parameter before setting up faces. */
   {
-    Lisp_Object disptype = intern ("color");
+    Lisp_Object disptype = Qcolor;
 
     if (NILP (Fframe_parameter (frame, Qdisplay_type)))
       {
@@ -3158,7 +3183,7 @@ x_hide_tip (bool delete)
 {
   if (!NILP (tip_timer))
     {
-      call1 (intern ("cancel-timer"), tip_timer);
+      call1 (Qcancel_timer, tip_timer);
       tip_timer = Qnil;
     }
 
@@ -3309,7 +3334,7 @@ DEFUN ("x-show-tip", Fx_show_tip, Sx_show_tip, 1, 6, 0,
 	      tip_f = XFRAME (tip_frame);
 	      if (!NILP (tip_timer))
 		{
-		  call1 (intern ("cancel-timer"), tip_timer);
+		  call1 (Qcancel_timer, tip_timer);
 		  tip_timer = Qnil;
 		}
 
@@ -3356,12 +3381,12 @@ DEFUN ("x-show-tip", Fx_show_tip, Sx_show_tip, 1, 6, 0,
 			  break;
 			}
 		      else
-			tip_last_parms =
-			  call2 (intern ("assq-delete-all"), parm, tip_last_parms);
+			tip_last_parms
+			  = call2 (Qassq_delete_all, parm, tip_last_parms);
 		    }
 		  else
-		    tip_last_parms =
-		      call2 (intern ("assq-delete-all"), parm, tip_last_parms);
+		    tip_last_parms
+		      = call2 (Qassq_delete_all, parm, tip_last_parms);
 		}
 
 	      /* Now check if every parameter in what is left of
@@ -3523,8 +3548,8 @@ DEFUN ("x-show-tip", Fx_show_tip, Sx_show_tip, 1, 6, 0,
 
     start_timer:
       /* Let the tip disappear after timeout seconds.  */
-      tip_timer = call3 (intern ("run-at-time"), timeout, Qnil,
-			 intern ("x-hide-tip"));
+      tip_timer = call3 (Qrun_at_time, timeout, Qnil,
+			 Qx_hide_tip);
     }
 
   return unbind_to (count, Qnil);
@@ -3785,6 +3810,27 @@ all_nonzero_ascii (unsigned char *str, ptrdiff_t n)
   return true;
 }
 
+/* Count the number of characters in STR, NBYTES long.
+   The string must be valid UTF-8.  */
+static ptrdiff_t
+count_utf8_chars (const char *str, ptrdiff_t nbytes)
+{
+  /* This is faster than parse_str_as_multibyte, and much faster than
+     [NSString lengthOfBytesUsingEncoding: NSUTF32StringEncoding].  */
+  const char *end = str + nbytes;
+  ptrdiff_t nc = 0;
+  while (str < end)
+    {
+      nc++;
+      unsigned char c = *str;
+      str += (  c <= 0x7f ? 1    // 0xxxxxxx
+              : c <= 0xdf ? 2    // 110xxxxx 10xxxxxx
+              : c <= 0xef ? 3    // 1110xxxx 10xxxxxx 10xxxxxx
+              :             4);  // 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+    }
+  return nc;
+}
+
 @implementation NSString (EmacsString)
 /* Make an NSString from a Lisp string.  STRING must not be in an
    encoded form (e.g. UTF-8).  */
@@ -3829,9 +3875,11 @@ all_nonzero_ascii (unsigned char *str, ptrdiff_t n)
 /* Make a Lisp string from an NSString.  */
 - (Lisp_Object)lispString
 {
-  // make_string behaves predictably and correctly with UTF-8 input.
-  return make_string ([self UTF8String],
-                      [self lengthOfBytesUsingEncoding: NSUTF8StringEncoding]);
+  /* If the input string includes unpaired surrogates, then the result
+     will be an empty string.  */
+  const char *utf8 = [self UTF8String];
+  ptrdiff_t bytes = [self lengthOfBytesUsingEncoding: NSUTF8StringEncoding];
+  return make_multibyte_string (utf8, count_utf8_chars (utf8, bytes), bytes);
 }
 @end
 
@@ -4003,4 +4051,20 @@ The default value is t.  */);
   as_script = Qnil;
   staticpro (&as_script);
   as_result = 0;
+
+  DEFSYM (Qbuffered, "buffered");
+  DEFSYM (Qretained, "retained");
+  DEFSYM (Qnon_retained, "non-retained");
+  DEFSYM (Qstatic_gray, "static-gray");
+  DEFSYM (Qgray_scale, "gray-scale");
+  DEFSYM (Qpseudo_color, "pseudo-color");
+  DEFSYM (Qtrue_color, "true-color");
+  DEFSYM (Qdirect_color, "direct-color");
+  DEFSYM (Qactivate, "activate");
+  DEFSYM (Qactivate_front, "activate-front");
+  DEFSYM (Qcolor, "color");
+  DEFSYM (Qcancel_timer, "cancel-timer");
+  DEFSYM (Qassq_delete_all, "assq-delete-all");
+  DEFSYM (Qrun_at_time, "run-at-time");
+  DEFSYM (Qx_hide_tip, "x-hide-tip");
 }

@@ -1,6 +1,6 @@
 ;;; icomplete.el --- minibuffer completion incremental feedback -*- lexical-binding: t -*-
 
-;; Copyright (C) 1992-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1992-2025 Free Software Foundation, Inc.
 
 ;; Author: Ken Manheimer <ken dot manheimer at gmail...>
 ;; Created: Mar 1993 Ken Manheimer, klm@nist.gov - first release to usenet
@@ -69,11 +69,12 @@ When nil, show candidates in full."
   :type 'boolean
   :version "24.4")
 
-(defvar icomplete-tidy-shadowed-file-names nil
+(defcustom icomplete-tidy-shadowed-file-names nil
   "If non-nil, automatically delete superfluous parts of file names.
 For example, if the user types ~/ after a long path name,
 everything preceding the ~/ is discarded so the interactive
-selection process starts again from the user's $HOME.")
+selection process starts again from the user's $HOME."
+  :type 'boolean)
 
 (defcustom icomplete-show-matches-on-no-input nil
   "When non-nil, show completions when first prompting for input.
@@ -137,10 +138,19 @@ See `icomplete-delay-completions-threshold'."
   "Maximum number of initial chars to apply `icomplete-compute-delay'."
   :type 'integer)
 
-(defvar icomplete-in-buffer nil
-  "If non-nil, also use Icomplete when completing in non-mini buffers.
+(defcustom icomplete-in-buffer nil
+  "If non-nil, use Icomplete when completing in buffers other than minibuffer.
 This affects commands like `completion-in-region', but not commands
-that use their own completions setup.")
+that use their own completions setup.
+
+If you would prefer to see only Icomplete's in-buffer display, but do
+not want the \"*Completions*\" buffer to pop up in those cases, add
+this advice to your init file:
+
+  (advice-add \\='completion-at-point
+              :after #\\='minibuffer-hide-completions)
+"
+  :type 'boolean)
 
 (defcustom icomplete-minibuffer-setup-hook nil
   "Icomplete-specific customization of minibuffer setup.
@@ -717,11 +727,14 @@ If it's on, just add the vertical display."
 Should be run via minibuffer `post-command-hook'.
 See `icomplete-mode' and `minibuffer-setup-hook'."
   (when (and icomplete-mode
+             ;; Check if still in the right buffer (bug#61308)
+             (or (window-minibuffer-p) completion-in-region--data)
              (icomplete-simple-completing-p)) ;Shouldn't be necessary.
-    (let ((saved-point (point)))
+    (let ((saved-point (point))
+          (completion-lazy-hilit t))
       (save-excursion
         (goto-char (icomplete--field-end))
-                                        ; Insert the match-status information:
+        ;; Insert the match-status information:
         (when (and (or icomplete-show-matches-on-no-input
                        (not (equal (icomplete--field-string)
                                    icomplete--initial-input)))
@@ -784,10 +797,8 @@ and SUFFIX, if non-nil, are obtained from `affixation-function' or
 `group-function'.  Consecutive `equal' sections are avoided.
 COMP is the element in PROSPECTS or a transformation also given
 by `group-function''s second \"transformation\" protocol."
-  (let* ((aff-fun (or (completion-metadata-get md 'affixation-function)
-                      (plist-get completion-extra-properties :affixation-function)))
-         (ann-fun (or (completion-metadata-get md 'annotation-function)
-                      (plist-get completion-extra-properties :annotation-function)))
+  (let* ((aff-fun (completion-metadata-get md 'affixation-function))
+         (ann-fun (completion-metadata-get md 'annotation-function))
          (grp-fun (and completions-group
                        (completion-metadata-get md 'group-function)))
          (annotated
@@ -897,7 +908,7 @@ by `group-function''s second \"transformation\" protocol."
                                 'icomplete-selected-match 'append comp)
      collect (concat prefix
                      (make-string (- max-prefix-len (length prefix)) ? )
-                     comp
+                     (completion-lazy-hilit comp)
                      (make-string (- max-comp-len (length comp)) ? )
                      suffix)
      into lines-aux
@@ -1054,7 +1065,8 @@ matches exist."
                   (setq determ (concat open-bracket "" close-bracket)))
                 (while (and comps (not limit))
                   (setq comp
-                        (if prefix-len (substring (car comps) prefix-len) (car comps))
+                        (let ((cur (completion-lazy-hilit (car comps))))
+                          (if prefix-len (substring cur prefix-len) cur))
                         comps (cdr comps))
                   (setq prospects-len
                         (+ (string-width comp)

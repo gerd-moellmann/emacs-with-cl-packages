@@ -10,7 +10,7 @@
 @copying
 This file describes EasyPG Assistant @value{VERSION}.
 
-Copyright @copyright{} 2007--2024 Free Software Foundation, Inc.
+Copyright @copyright{} 2007--2025 Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -289,6 +289,15 @@ also ask you whether or not to sign the text before encryption and if
 you answered yes, it will let you select the signing keys.
 @end deffn
 
+@defvar epa-keys-select-method
+This variable controls the method used for key selection in
+@code{epa-select-keys}.  The default value @code{buffer} pops up a
+special buffer where you can select the keys.  If the value is
+@code{minibuffer}, @code{epa-select-keys} will instead prompt for the
+keys in the minibuffer, where you should type the keys separated by
+commas.
+@end defvar
+
 @node Cryptographic operations on files
 @section Cryptographic Operations on Files
 @cindex cryptographic operations on files
@@ -389,7 +398,8 @@ Decrypt OpenPGP armors in the current buffer.
 @kindex C-c C-e C-v
 @kindex C-c C-e v
 @findex epa-mail-verify
-Verify OpenPGP cleartext signed messages in the current buffer.
+Verify OpenPGP cleartext signed messages in the current buffer.  If
+verification fails for some reason, this command signals an error.
 
 @item C-c C-e C-s and C-c C-e s
 @kindex C-c C-e C-s
@@ -639,6 +649,9 @@ Options, , Option Summary, gnupg, Using the GNU Privacy Guard}.
 Customize variable @code{epg-pinentry-mode} to @code{loopback} in
 Emacs.
 @end enumerate
+
+Note that loopback Pinentry does not work with @command{gpgsm},
+therefore EasyPG will ignore this setting for it.
 
 There are other options available to use Emacs as Pinentry, you might
 come across a Pinentry called @command{pinentry-emacs} or

@@ -1,6 +1,6 @@
 ;;; crm.el --- read multiple strings with completion  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1985-1986, 1993-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1985-1986, 1993-2025 Free Software Foundation, Inc.
 
 ;; Author: Sen Nagata <sen@eccosys.com>
 ;; Keywords: completion, minibuffer, multiple elements
@@ -238,6 +238,11 @@ with empty strings removed."
   (let* ((map (if require-match
                   crm-local-must-match-map
                 crm-local-completion-map))
+         (map (if minibuffer-visible-completions
+                  (make-composed-keymap
+                   (list minibuffer-visible-completions-map
+                         map))
+                map))
          input)
     (minibuffer-with-setup-hook
         (lambda ()
@@ -246,22 +251,16 @@ with empty strings removed."
           (setq-local minibuffer-completion-table #'crm--collection-fn)
           (setq-local minibuffer-completion-predicate predicate)
           (setq-local completion-list-insert-choice-function
-                      (lambda (start end choice)
-                        (if (and (stringp start) (stringp end))
-                            (let* ((beg (save-excursion
-                                          (goto-char (minibuffer-prompt-end))
-                                          (or (search-forward start nil t)
-                                              (search-forward-regexp crm-separator nil t)
-                                              (minibuffer-prompt-end))))
-                                   (end (save-excursion
-                                          (goto-char (point-max))
-                                          (or (search-backward end nil t)
-                                              (progn
-                                                (goto-char beg)
-                                                (search-forward-regexp crm-separator nil t))
-                                              (point-max)))))
-                              (completion--replace beg end choice))
-                          (completion--replace start end choice))))
+                      (lambda (_start _end choice)
+                        (let* ((beg (save-excursion
+                                      (if (search-backward-regexp crm-separator nil t)
+                                          (1+ (point))
+                                        (minibuffer-prompt-end))))
+                               (end (save-excursion
+                                      (if (search-forward-regexp crm-separator nil t)
+                                          (1- (point))
+                                        (point-max)))))
+                          (completion--replace beg end choice))))
           ;; see completing_read in src/minibuf.c
           (setq-local minibuffer-completion-confirm
                       (unless (eq require-match t) require-match))

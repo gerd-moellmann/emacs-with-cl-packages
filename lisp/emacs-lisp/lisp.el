@@ -1,6 +1,6 @@
 ;;; lisp.el --- Lisp editing commands for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1994, 2000-2024 Free Software Foundation,
+;; Copyright (C) 1985-1986, 1994, 2000-2025 Free Software Foundation,
 ;; Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -45,6 +45,11 @@ This affects `insert-parentheses' and `insert-pair'."
   :type 'boolean
   :group 'lisp)
 
+(defun forward-sexp-default-function (&optional arg)
+  "Default function for `forward-sexp-function'."
+  (goto-char (or (scan-sexps (point) arg) (buffer-end arg)))
+  (if (< arg 0) (backward-prefix-chars)))
+
 (defvar forward-sexp-function nil
   ;; FIXME:
   ;; - for some uses, we may want a "sexp-only" version, which only
@@ -76,8 +81,7 @@ report errors as appropriate for this kind of usage."
     (or arg (setq arg 1))
     (if forward-sexp-function
         (funcall forward-sexp-function arg)
-      (goto-char (or (scan-sexps (point) arg) (buffer-end arg)))
-      (if (< arg 0) (backward-prefix-chars)))))
+      (forward-sexp-default-function arg))))
 
 (defun backward-sexp (&optional arg interactive)
   "Move backward across one balanced expression (sexp).
@@ -422,7 +426,8 @@ of a defun, nil if it failed to find one."
 				       "\\(?:" defun-prompt-regexp "\\)\\s(")
 			     "^\\s(")
 			                      nil 'move arg))
-                    (nth 8 (syntax-ppss))))
+                    (save-match-data
+                      (nth 8 (syntax-ppss)))))
            found)
 	 (progn (goto-char (1- (match-end 0)))
                 t)))
@@ -529,6 +534,8 @@ major mode's decisions about context.")
   "Return the \"far end\" position of the buffer, in direction ARG.
 If ARG is positive, that's the end of the buffer.
 Otherwise, that's the beginning of the buffer."
+  (declare (ftype (function ((or number marker)) integer))
+           (side-effect-free error-free))
   (if (> arg 0) (point-max) (point-min)))
 
 (defun end-of-defun (&optional arg interactive)

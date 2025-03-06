@@ -1,6 +1,6 @@
 ;;; meta-mode.el --- major mode for editing Metafont or MetaPost sources -*- lexical-binding:t -*-
 
-;; Copyright (C) 1997, 2001-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 2001-2025 Free Software Foundation, Inc.
 
 ;; Author: Ulrik Vieth <vieth@thphy.uni-duesseldorf.de>
 ;; Version: 1.0
@@ -198,7 +198,7 @@
   ;;
   ;; The expected syntax of an item is either "word" or "symbol",
   ;; possibly ending with optional whitespace.  Everything following
-  ;; the item (but belonging to it) is expected to by skipable by
+  ;; the item (but belonging to it) is expected to by skippable by
   ;; `forward-sexp'.  The list of items is expected to be separated
   ;; by commas and terminated by semicolons or equals signs.
   ;;

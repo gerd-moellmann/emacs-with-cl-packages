@@ -1,6 +1,6 @@
 /* Set file access and modification times.
 
-   Copyright (C) 2003-2024 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
 
    This file is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as
@@ -220,7 +220,7 @@ fdutimens (int fd, char const *file, struct timespec const timespec[2])
   if (0 <= utimensat_works_really)
     {
       int result;
-# if __linux__ || __sun
+# if defined __linux__ || defined __sun || defined __NetBSD__
       /* As recently as Linux kernel 2.6.32 (Dec 2009), several file
          systems (xfs, ntfs-3g) have bugs with a single UTIME_OMIT,
          but work if both times are either explicitly specified or
@@ -230,9 +230,10 @@ fdutimens (int fd, char const *file, struct timespec const timespec[2])
          where UTIME_OMIT would have worked.
 
          The same bug occurs in Solaris 11.1 (Apr 2013).
+         The same bug occurs in NetBSD 10.0 (May 2024).
 
-         FIXME: Simplify this for Linux in 2016 and for Solaris in
-         2024, when file system bugs are no longer common.  */
+         FIXME: Simplify this in 2024, when these file system bugs are
+         no longer common on Gnulib target platforms.  */
       if (adjustment_needed == 2)
         {
           if (fd < 0 ? stat (file, &st) : fstat (fd, &st))
@@ -405,10 +406,10 @@ fdutimens (int fd, char const *file, struct timespec const timespec[2])
     struct timeval *t;
     if (ts)
       {
-        timeval[0].tv_sec = ts[0].tv_sec;
-        timeval[0].tv_usec = ts[0].tv_nsec / 1000;
-        timeval[1].tv_sec = ts[1].tv_sec;
-        timeval[1].tv_usec = ts[1].tv_nsec / 1000;
+        timeval[0] = (struct timeval) { .tv_sec  = ts[0].tv_sec,
+                                        .tv_usec = ts[0].tv_nsec / 1000 };
+        timeval[1] = (struct timeval) { .tv_sec  = ts[1].tv_sec,
+                                        .tv_usec = ts[1].tv_nsec / 1000 };
         t = timeval;
       }
     else
@@ -440,7 +441,7 @@ fdutimens (int fd, char const *file, struct timespec const timespec[2])
 #  endif
         if (futimes (fd, t) == 0)
           {
-#  if __linux__ && __GLIBC__
+#  if defined __linux__ && defined __GLIBC__
             /* Work around a longstanding glibc bug, still present as
                of 2010-12-27.  On older Linux kernels that lack both
                utimensat and utimes, glibc's futimes rounds instead of
@@ -502,8 +503,8 @@ fdutimens (int fd, char const *file, struct timespec const timespec[2])
       struct utimbuf *ut;
       if (ts)
         {
-          utimbuf.actime = ts[0].tv_sec;
-          utimbuf.modtime = ts[1].tv_sec;
+          utimbuf = (struct utimbuf) { .actime  = ts[0].tv_sec,
+                                       .modtime = ts[1].tv_sec };
           ut = &utimbuf;
         }
       else
@@ -553,7 +554,7 @@ lutimens (char const *file, struct timespec const timespec[2])
   if (0 <= lutimensat_works_really)
     {
       int result;
-# if __linux__ || __sun
+# if defined __linux__ || defined __sun || defined __NetBSD__
       /* As recently as Linux kernel 2.6.32 (Dec 2009), several file
          systems (xfs, ntfs-3g) have bugs with a single UTIME_OMIT,
          but work if both times are either explicitly specified or
@@ -563,6 +564,7 @@ lutimens (char const *file, struct timespec const timespec[2])
          UTIME_OMIT would have worked.
 
          The same bug occurs in Solaris 11.1 (Apr 2013).
+         The same bug occurs in NetBSD 10.0 (May 2024).
 
          FIXME: Simplify this for Linux in 2016 and for Solaris in
          2024, when file system bugs are no longer common.  */
@@ -621,10 +623,10 @@ lutimens (char const *file, struct timespec const timespec[2])
     int result;
     if (ts)
       {
-        timeval[0].tv_sec = ts[0].tv_sec;
-        timeval[0].tv_usec = ts[0].tv_nsec / 1000;
-        timeval[1].tv_sec = ts[1].tv_sec;
-        timeval[1].tv_usec = ts[1].tv_nsec / 1000;
+        timeval[0] = (struct timeval) { .tv_sec = ts[0].tv_sec,
+                                        .tv_usec = ts[0].tv_nsec / 1000 };
+        timeval[1] = (struct timeval) { .tv_sec = ts[1].tv_sec,
+                                        .tv_usec = ts[1].tv_nsec / 1000 };
         t = timeval;
       }
     else

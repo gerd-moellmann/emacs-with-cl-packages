@@ -1,6 +1,6 @@
 ;;; gnutls.el --- Support SSL/TLS connections through GnuTLS  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2010-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2025 Free Software Foundation, Inc.
 
 ;; Author: Ted Zlatanov <tzz@lifelogs.com>
 ;; Keywords: comm, tls, ssl, encryption
@@ -96,7 +96,7 @@ Security'."
           (repeat :tag "List of hostname regexps with flags for each"
            (list
             (choice :tag "Hostname"
-                    (const ".*" :tag "Any hostname")
+                    (const :tag "Any hostname" ".*")
                     regexp)
             (set (const :trustfiles)
                  (const :hostname))))))
@@ -111,6 +111,10 @@ Security'."
     "/usr/local/share/certs/ca-root-nss.crt" ; FreeBSD
     "/etc/ssl/cert.pem"                      ; macOS, Dragora, Parabola
     "/etc/certs/ca-certificates.crt"         ; OpenIndiana
+    "/system/etc/security/cacerts/*"	     ; Android system
+    "/system/etc/security/cacerts_supl/*"    ; Android, supplementary
+    "/system/etc/security/cacerts_google/*"  ; Android, Google
+    "/data/misc/user/0/cacerts-added/*"	     ; Android, user-specified (?)
     )
   "List of CA bundle location filenames or a function returning said list.
 If a file path contains glob wildcards, they will be expanded.
@@ -262,6 +266,7 @@ For the meaning of the rest of the parameters, see `gnutls-boot-parameters'."
            &key type hostname priority-string
            trustfiles crlfiles keylist min-prime-bits
            verify-flags verify-error verify-hostname-error
+           pass flags
            &allow-other-keys)
   "Return a keyword list of parameters suitable for passing to `gnutls-boot'.
 
@@ -277,6 +282,13 @@ default.
 
 VERIFY-HOSTNAME-ERROR is a backwards compatibility option for
 putting `:hostname' in VERIFY-ERROR.
+
+PASS is a string, the password of the key.  It may also be nil,
+for a NULL password.
+
+FLAGS is a list of symbols corresponding to the equivalent ORed
+bitflag of the gnutls_pkcs_encrypt_flags_t enum of GnuTLS.  The
+empty list corresponds to the bitflag with value 0.
 
 When VERIFY-ERROR is t or a list containing `:trustfiles', an
 error will be raised when the peer certificate verification fails
@@ -355,6 +367,8 @@ defaults to GNUTLS_VERIFY_ALLOW_X509_V1_CA_CRT."
                 :keylist ,keylist
                 :verify-flags ,verify-flags
                 :verify-error ,verify-error
+                :pass ,pass
+                :flags ,flags
                 :callbacks nil)))
 
 (defun gnutls--get-files (files)

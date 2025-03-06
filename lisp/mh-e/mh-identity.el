@@ -1,6 +1,6 @@
 ;;; mh-identity.el --- multiple identify support for MH-E  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2002-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2025 Free Software Foundation, Inc.
 
 ;; Author: Peter S. Galbraith <psg@debian.org>
 ;; Maintainer: Bill Wohler <wohler@newt.com>
@@ -141,7 +141,7 @@ See `mh-identity-list'."
            (cons '("None")
                  (mapcar #'list (mapcar #'car mh-identity-list)))
            nil t default nil default))
-    (if (eq identity "None")
+    (if (equal identity "None")
         nil
       identity)))
 

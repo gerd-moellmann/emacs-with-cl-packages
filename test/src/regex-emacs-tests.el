@@ -1,6 +1,6 @@
 ;;; regex-emacs-tests.el --- tests for regex-emacs.c -*- lexical-binding: t -*-
 
-;; Copyright (C) 2015-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -273,7 +273,7 @@ on success"
      string
      (condition-case nil
          (if (string-match pattern string) nil 'search-failed)
-       ('invalid-regexp 'compilation-failed))
+       (invalid-regexp 'compilation-failed))
      bounds-ref substring-ref)))
 
 
@@ -518,7 +518,7 @@ known/benign differences in behavior.")
                what-failed
                (condition-case nil
                    (if (string-match pattern string) nil 'search-failed)
-                 ('invalid-regexp 'compilation-failed))
+                 (invalid-regexp 'compilation-failed))
 
                matches-observed
                (cl-loop for x from 0 to 20
@@ -555,10 +555,10 @@ known/benign differences in behavior.")
 
 (defconst regex-tests-PTESTS-whitelist
   [
-   ;; emacs doesn't see DEL (0x7f) as a [:cntrl:] character
+   ;; Emacs doesn't see DEL (0x7f) as a [:cntrl:] character
    138
 
-   ;; emacs doesn't barf on weird ranges such as [b-a], but simply
+   ;; Emacs doesn't barf on weird ranges such as [b-a], but simply
    ;; fails to match
    168
   ]
@@ -872,20 +872,130 @@ This evaluates the TESTS test cases from glibc."
   (should (equal (string-match "\\`\\(?:ab\\)*\\'" "a") nil))
   (should (equal (string-match "\\`a\\{2\\}*\\'" "a") nil)))
 
-(ert-deftest regexp-tests-backtrack-optimization () ;bug#61514
-  :expected-result :failed
+(ert-deftest regexp-tests-backtrack-optimization ()
   ;; Make sure we don't use up the regexp stack needlessly.
   (with-current-buffer (get-buffer-create "*bug*")
     (erase-buffer)
     (insert (make-string 1000000 ?x) "=")
     (goto-char (point-min))
+    ;; Make sure we do perform the optimization (if we don't, the
+    ;; below will burp with regexp-stack-overflow). ;bug#61514
     (should (looking-at "x*=*"))
     (should (looking-at "x*\\(=\\|:\\)"))
     (should (looking-at "x*\\(=\\|:\\)*"))
-    (should (looking-at "x*=*?"))))
+    (should (looking-at "x*=*?"))
+    ;; relint suppression: Repetition of expression matching an empty string
+    (should (looking-at "x*\\(=*\\|h\\)*?"))
+    ;; relint suppression: Repetition of expression matching an empty string
+    (should (looking-at "x*\\(=*\\|h\\)*"))
+    ;; relint suppression: Repetition of expression matching an empty string
+    (should (looking-at "x*\\(=*?\\|h\\)*"))
+    ;; relint suppression: Repetition of expression matching an empty string
+    (should (looking-at "x*\\(=*?\\|h\\)*?"))
+    ;; relint suppression: Repetition of expression matching an empty string
+    (should (looking-at "x*\\(=*\\|h\\)+?"))
+    ;; relint suppression: Repetition of expression matching an empty string
+    (should (looking-at "x*\\(=*\\|h\\)+"))
+    ;; relint suppression: Repetition of expression matching an empty string
+    (should (looking-at "x*\\(=*?\\|h\\)+"))
+    ;; relint suppression: Repetition of expression matching an empty string
+    (should (looking-at "x*\\(=*?\\|h\\)+?"))
+    (should (looking-at "x*\\(=+\\|h\\)+?"))
+    (should (looking-at "x*\\(=+\\|h\\)+"))
+    (should (looking-at "x*\\(=+?\\|h\\)+"))
+    (should (looking-at "x*\\(=+?\\|h\\)+?"))
+    ;; Regression check for overly optimistic optimization.
+    (should (eq 0 (string-match "\\(ca*\\|ab\\)+d" "cabd")))
+    (should (string-match "\\(aa*\\|b\\)*c" "ababc"))
+    (should (string-match " \\sw*\\bfoo" " foo"))
+    (should (string-match ".*\\>" "hello "))
+    ))
+
+(ert-deftest regexp-tests-zero-width-assertion-repetition ()
+  ;; Check compatibility behavior with repetition operators after
+  ;; certain zero-width assertions (bug#64128).
+
+  ;; This function is just to hide ugly regexps from relint so that it
+  ;; doesn't complain about them.
+  (cl-flet ((smatch (re str) (string-match re str)))
+    ;; Postfix operators after ^ and \` become literals, for historical
+    ;; compatibility.  Only the first character of a lazy operator (like *?)
+    ;; becomes a literal.
+    (should (equal (smatch "^*a" "x\n*a") 2))
+    (should (equal (smatch "^*?a" "x\n*a") 2))
+    (should (equal (smatch "^*?a" "x\na") 2))
+    (should (equal (smatch "^*?a" "x\n**a") nil))
+
+    (should (equal (smatch "\\`*a" "*a") 0))
+    (should (equal (smatch "\\`*?a" "*a") 0))
+    (should (equal (smatch "\\`*?a" "a") 0))
+    (should (equal (smatch "\\`*?a" "**a") nil))
+
+    ;; Other zero-width assertions are treated as normal elements, so postfix
+    ;; operators apply to them alone (which is pointless but valid).
+    (should (equal (smatch "\\b*!" "*!") 1))
+    (should (equal (smatch "!\\b+;" "!;") nil))
+    (should (equal (smatch "!\\b+a" "!a") 0))
+
+    (should (equal (smatch "\\B*!" "*!") 1))
+    (should (equal (smatch "!\\B+;" "!;") 0))
+    (should (equal (smatch "!\\B+a" "!a") nil))
+
+    (should (equal (smatch "\\<*b" "*b") 1))
+    (should (equal (smatch "a\\<*b" "ab") 0))
+    (should (equal (smatch ";\\<*b" ";b") 0))
+    (should (equal (smatch "a\\<+b" "ab") nil))
+    (should (equal (smatch ";\\<+b" ";b") 0))
+
+    (should (equal (smatch "\\>*;" "*;") 1))
+    (should (equal (smatch "a\\>*b" "ab") 0))
+    (should (equal (smatch "a\\>*;" "a;") 0))
+    (should (equal (smatch "a\\>+b" "ab") nil))
+    (should (equal (smatch "a\\>+;" "a;") 0))
+
+    (should (equal (smatch "a\\'" "ab") nil))
+    (should (equal (smatch "b\\'" "ab") 1))
+    (should (equal (smatch "a\\'*b" "ab") 0))
+    (should (equal (smatch "a\\'+" "ab") nil))
+    (should (equal (smatch "b\\'+" "ab") 1))
+    (should (equal (smatch "\\'+" "+") 1))
+
+    (should (equal (smatch "\\_<*b" "*b") 1))
+    (should (equal (smatch "a\\_<*b" "ab") 0))
+    (should (equal (smatch " \\_<*b" " b") 0))
+    (should (equal (smatch "a\\_<+b" "ab") nil))
+    (should (equal (smatch " \\_<+b" " b") 0))
+
+    (should (equal (smatch "\\_>*;" "*;") 1))
+    (should (equal (smatch "a\\_>*b" "ab") 0))
+    (should (equal (smatch "a\\_>* " "a ") 0))
+    (should (equal (smatch "a\\_>+b" "ab") nil))
+    (should (equal (smatch "a\\_>+ " "a ") 0))
+
+    (should (equal (smatch "\\=*b" "*b") 1))
+    (should (equal (smatch "a\\=*b" "a*b") nil))
+    (should (equal (smatch "a\\=*b" "ab") 0))
+    ))
+
+(ert-deftest regex-emacs-syntax-properties ()
+  ;; Verify absence of character class syntax property ghost matching bug.
+  (let ((re "\\s-[[:space:]]")
+        (s (concat "a"
+                (propertize "b" 'syntax-table '(0))  ; whitespace
+                "éz"))
+        (parse-sexp-lookup-properties t))
+    ;; Test matching in a string...
+    (should (equal (string-match re s) nil))
+    ;; ... and in a buffer.
+    (should (equal (with-temp-buffer
+                     (insert s)
+                     (goto-char (point-min))
+                     (re-search-forward re nil t))
+                   nil))))
 
 (ert-deftest regex-tests-mutual-exclusive-inf-rec ()
   ;; Regression test for bug#65726, where this crashed Emacs.
+  ;; relint suppression: Repetition of expression matching an empty string
   (should (equal (string-match "a*\\(?:c\\|b*\\)*" "a") 0)))
 
 ;;; regex-emacs-tests.el ends here

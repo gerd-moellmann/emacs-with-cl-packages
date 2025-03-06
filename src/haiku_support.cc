@@ -1,5 +1,5 @@
 /* Haiku window system support.  Hey, Emacs, this is -*- C++ -*-
-   Copyright (C) 2021-2024 Free Software Foundation, Inc.
+   Copyright (C) 2021-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -340,10 +340,18 @@ keysym_from_raw_char (int32 raw, int32 key, unsigned *code)
 
       break;
 
+#if B_HAIKU_VERSION >= B_HAIKU_VERSION_1_PRE_BETA_6
+    case B_HANGUL_KEY:
+#else /* B_HAIKU_VERSION < B_HAIKU_VERSION_1_PRE_BETA_6 */
     case B_HANGUL:
+#endif /* B_HAIKU_VERSION >= B_HAIKU_VERSION_1_PRE_BETA_6 */
       *code = KEY_HANGUL;
       break;
+#if B_HAIKU_VERSION >= B_HAIKU_VERSION_1_PRE_BETA_6
+    case B_HANGUL_HANJA_KEY:
+#else /* B_HAIKU_VERSION < B_HAIKU_VERSION_1_PRE_BETA_6 */
     case B_HANGUL_HANJA:
+#endif /* B_HAIKU_VERSION >= B_HAIKU_VERSION_1_PRE_BETA_6 */
       *code = KEY_HANGUL_HANJA;
       break;
     case B_KATAKANA_HIRAGANA:
@@ -581,6 +589,24 @@ public:
   }
 };
 
+#if 0
+
+/* Return the ID of this team.  */
+
+static team_id
+my_team_id (void)
+{
+  thread_id id;
+  thread_info info;
+
+  id = find_thread (NULL);
+  get_thread_info (id, &info);
+
+  return info.team;
+}
+
+#endif /* 0 */
+
 class Emacs : public BApplication
 {
 public:
@@ -621,7 +647,8 @@ public:
   {
     BAlert *about = new BAlert (PACKAGE_NAME,
 				PACKAGE_STRING
-				"\nThe extensible, self-documenting, real-time display editor.",
+				"\nThe extensible, self-documenting, "
+				"real-time display editor.",
 				"Close");
     about->Go ();
   }
@@ -674,6 +701,39 @@ public:
     else
       BApplication::MessageReceived (msg);
   }
+
+  /* The code below doesn't function; see `be_display_notification'
+     for further specifics.  */
+
+#if 0
+  void
+  ArgvReceived (int32 argc, char **argv)
+  {
+    struct haiku_notification_click_event rq;
+    intmax_t id;
+    team_id team;
+
+    /* ArgvReceived is called after Emacs is first started, with each
+       command line argument passed to Emacs.  It is, moreover, called
+       with ARGC set to 1 and ARGV[0] a string starting with
+       -Notification, after a notification is clicked.  This string
+       both incorporates the team ID and the notification ID.  */
+
+    if (argc == 1
+	&& sscanf (argv[0], "-Notification,%d.%jd", &team, &id) == 2)
+      {
+	/* Since this is a valid notification message, generate an
+	   event if the team ID matches.  */
+	if (team == my_team_id ())
+	  {
+	    rq.id = id;
+	    haiku_write (NOTIFICATION_CLICK_EVENT, &rq);
+	  }
+      }
+
+    BApplication::ArgvReceived (argc, argv);
+  }
+#endif /* 0 */
 };
 
 class EmacsWindow : public BWindow
@@ -689,8 +749,6 @@ public:
   EmacsWindow *parent;
   BRect pre_fullscreen_rect;
   BRect pre_zoom_rect;
-  int x_before_zoom;
-  int y_before_zoom;
   bool shown_flag;
   volatile bool was_shown_p;
   bool menu_bar_active_p;
@@ -708,8 +766,6 @@ public:
 			    B_NORMAL_WINDOW_FEEL, B_NO_SERVER_SIDE_WINDOW_MODIFIERS),
 		   subset_windows (NULL),
 		   parent (NULL),
-		   x_before_zoom (INT_MIN),
-		   y_before_zoom (INT_MIN),
 		   shown_flag (false),
 		   was_shown_p (false),
 		   menu_bar_active_p (false),
@@ -1011,7 +1067,16 @@ public:
 	msg->FindInt64 ("when", &rq.time);
 
 	rq.modifiers = 0;
+	rq.keysym = 0;
+
 	uint32_t mods = modifiers ();
+
+        if (haiku_should_pass_control_tab_to_system ()
+            && (mods & B_CONTROL_KEY) && key == 38)
+        {
+          BWindow::DispatchMessage (msg, handler);
+          return;
+        }
 
 	if (mods & B_SHIFT_KEY)
 	  rq.modifiers |= HAIKU_MODIFIER_SHIFT;
@@ -1025,10 +1090,39 @@ public:
 	if (mods & B_OPTION_KEY)
 	  rq.modifiers |= HAIKU_MODIFIER_SUPER;
 
-	ret = keysym_from_raw_char (raw, key, &rq.keysym);
+	/* mods & B_SHIFT_KEY should be inverted if keycode is
+	   situated in the numeric keypad and Num Lock is set, for
+	   this transformation is not effected on key events
+	   themselves.  */
 
-	if (!ret)
-	  rq.keysym = 0;
+	if (mods & B_NUM_LOCK)
+	  {
+	    switch (key)
+	      {
+	      case 0x37:
+	      case 0x38:
+	      case 0x39:
+	      case 0x48:
+	      case 0x49:
+	      case 0x4a:
+	      case 0x58:
+	      case 0x59:
+	      case 0x5a:
+	      case 0x64:
+	      case 0x65:
+		mods ^= B_SHIFT_KEY;
+
+		/* If shift is set at this juncture, map these keys to
+		   the digits they represent.  Because raw is not
+		   affected by Num Lock, keysym_from_raw_char will map
+		   this to the keysym yielded by this key in the
+		   absence of any modifiers.  */
+		if (mods & B_SHIFT_KEY)
+		  goto map_keysym;
+	      }
+	  }
+
+	ret = keysym_from_raw_char (raw, key, &rq.keysym);
 
 	if (ret < 0)
 	  return;
@@ -1039,6 +1133,7 @@ public:
 	  {
 	    if (mods & B_SHIFT_KEY)
 	      {
+	  map_keysym:
 		if (mods & B_CAPS_LOCK)
 		  map_caps_shift (key, &rq.multibyte_char);
 		else
@@ -3263,9 +3358,7 @@ class EmacsFilePanelCallbackLooper : public BLooper
 	      {
 		str_buf = (char *) alloca (std::strlen (str_path)
 					   + std::strlen (name) + 2);
-		snprintf (str_buf, std::strlen (str_path)
-			  + std::strlen (name) + 2, "%s/%s",
-			  str_path, name);
+		sprintf (str_buf, "%s/%s", str_path, name);
 		file_name = strdup (str_buf);
 	      }
 	  }

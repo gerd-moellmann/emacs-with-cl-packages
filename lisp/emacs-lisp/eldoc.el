@@ -1,11 +1,11 @@
 ;;; eldoc.el --- Show function arglist or variable docstring in echo area  -*- lexical-binding:t; -*-
 
-;; Copyright (C) 1996-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2025 Free Software Foundation, Inc.
 
 ;; Author: Noah Friedman <friedman@splode.com>
 ;; Keywords: extensions
 ;; Created: 1995-10-06
-;; Version: 1.13.0
+;; Version: 1.15.0
 ;; Package-Requires: ((emacs "26.3"))
 
 ;; This is a GNU ELPA :core package.  Avoid functionality that is not
@@ -155,7 +155,7 @@ Remember to keep it a prime number to improve hash performance.")
 
 (defvar eldoc-message-commands
   ;; Don't define as `defconst' since it would then go to (read-only) purespace.
-  (make-vector eldoc-message-commands-table-size 0)
+  (obarray-make eldoc-message-commands-table-size)
   "Commands after which it is appropriate to print in the echo area.
 ElDoc does not try to print function arglists, etc., after just any command,
 because some commands print their own messages in the echo area and these
@@ -191,7 +191,7 @@ It should receive the same arguments as `message'.")
 
 When `eldoc-print-after-edit' is non-nil, ElDoc messages are only
 printed after commands contained in this obarray."
-  (let ((cmds (make-vector 31 0))
+  (let ((cmds (obarray-make 31))
 	(re (regexp-opt '("delete" "insert" "edit" "electric" "newline"))))
     (mapatoms (lambda (s)
 		(and (commandp s)
@@ -300,13 +300,9 @@ reflect the change."
 This function displays the message produced by formatting ARGS
 with FORMAT-STRING on the mode line when the current buffer is a minibuffer.
 Otherwise, it displays the message like `message' would."
-  (if (minibufferp)
+  (if (or (bound-and-true-p edebug-mode) (minibufferp))
       (progn
-	(add-hook 'minibuffer-exit-hook
-		  (lambda () (setq eldoc-mode-line-string nil
-			      ;; https://debbugs.gnu.org/16920
-			      eldoc-last-message nil))
-		  nil t)
+        (add-hook 'post-command-hook #'eldoc-minibuffer--cleanup)
 	(with-current-buffer
 	    (window-buffer
 	     (or (window-in-direction 'above (minibuffer-window))
@@ -316,14 +312,23 @@ Otherwise, it displays the message like `message' would."
                      (not (and (listp mode-line-format)
                                (assq 'eldoc-mode-line-string mode-line-format))))
 	    (setq mode-line-format
-		  (list "" '(eldoc-mode-line-string
-			     (" " eldoc-mode-line-string " "))
-			mode-line-format)))
+                  (funcall
+                   (if (listp mode-line-format) #'append #'list)
+                   (list "" '(eldoc-mode-line-string
+			      (" " eldoc-mode-line-string " ")))
+                   mode-line-format)))
           (setq eldoc-mode-line-string
                 (when (stringp format-string)
                   (apply #'format-message format-string args)))
           (force-mode-line-update)))
     (apply #'message format-string args)))
+
+(defun eldoc-minibuffer--cleanup ()
+  (unless (or (bound-and-true-p edebug-mode) (minibufferp))
+    (setq eldoc-mode-line-string nil
+          ;; https://debbugs.gnu.org/16920
+          eldoc-last-message nil)
+    (remove-hook 'post-command-hook #'eldoc-minibuffer--cleanup)))
 
 (make-obsolete
  'eldoc-message "use `eldoc-documentation-functions' instead." "eldoc-1.1.0")
@@ -392,7 +397,6 @@ Also store it in `eldoc-last-message' and return that value."
 (defun eldoc-display-message-no-interference-p ()
   "Return nil if displaying a message would cause interference."
   (not (or executing-kbd-macro
-           (bound-and-true-p edebug-active)
            ;; The following configuration shows "Matches..." in the
            ;; echo area when point is after a closing bracket, which
            ;; conflicts with eldoc.
@@ -439,7 +443,7 @@ documentation-producing backend to cooperate with specific
 documentation-displaying frontends.  For example, KEY can be:
 
 * `:thing', VALUE being a short string or symbol designating what
-  is being reported on.  It can, for example be the name of the
+  DOCSTRING reports on.  It can, for example be the name of the
   function whose signature is being documented, or the name of
   the variable whose docstring is being documented.
   `eldoc-display-in-echo-area', a member of
@@ -449,6 +453,17 @@ documentation-displaying frontends.  For example, KEY can be:
 * `:face', VALUE being a symbol designating a face which both
   `eldoc-display-in-echo-area' and `eldoc-display-in-buffer' will
   use when displaying `:thing''s value.
+
+* `:echo', controlling how `eldoc-display-in-echo-area' should
+  present this documentation item in the echo area, to save
+  space.  If VALUE is a string, echo it instead of DOCSTRING.  If
+  a number, only echo DOCSTRING up to that character position.
+  If `skip', don't echo DOCSTRING at all.
+
+The additional KEY `:origin' is always added by ElDoc, its VALUE
+being the member of `eldoc-documentation-functions' where
+DOCSTRING originated.  `eldoc-display-functions' may use this
+information to organize display of multiple docstrings.
 
 Finally, major modes should modify this hook locally, for
 example:
@@ -473,8 +488,6 @@ directly from the user or from ElDoc's automatic mechanisms'.")
 
 (defvar eldoc--doc-buffer nil "Buffer displaying latest ElDoc-produced docs.")
 
-(defvar eldoc--doc-buffer-docs nil "Documentation items in `eldoc--doc-buffer'.")
-
 (defun eldoc-doc-buffer (&optional interactive)
   "Get or display ElDoc documentation buffer.
 
@@ -492,45 +505,69 @@ If INTERACTIVE, display it.  Else, return said buffer."
            (display-buffer (current-buffer)))
           (t (current-buffer)))))
 
+(defvar eldoc-doc-buffer-separator
+  (concat "\n" (propertize "\n" 'face '(:inherit separator-line :extend t)) "\n")
+  "String used to separate items in Eldoc documentation buffer.")
+
 (defun eldoc--format-doc-buffer (docs)
   "Ensure DOCS are displayed in an *eldoc* buffer."
   (with-current-buffer (if (buffer-live-p eldoc--doc-buffer)
                            eldoc--doc-buffer
                          (setq eldoc--doc-buffer
                                (get-buffer-create " *eldoc*")))
-    (unless (eq docs eldoc--doc-buffer-docs)
-      (setq-local eldoc--doc-buffer-docs docs)
-      (let ((inhibit-read-only t)
-            (things-reported-on))
-        (special-mode)
-        (erase-buffer)
-        (setq-local nobreak-char-display nil)
-        (cl-loop for (docs . rest) on docs
-                 for (this-doc . plist) = docs
-                 for thing = (plist-get plist :thing)
-                 when thing do
-                 (cl-pushnew thing things-reported-on)
-                 (setq this-doc
-                       (concat
-                        (propertize (format "%s" thing)
-                                    'face (plist-get plist :face))
-                        ": "
-                        this-doc))
-                 do (insert this-doc)
-                 when rest do (insert "\n")
-                 finally (goto-char (point-min)))
-        ;; Rename the buffer, taking into account whether it was
-        ;; hidden or not
-        (rename-buffer (format "%s*eldoc%s*"
-                               (if (string-match "^ " (buffer-name)) " " "")
-                               (if things-reported-on
-                                   (format " for %s"
-                                           (mapconcat
-                                            (lambda (s) (format "%s" s))
-                                            things-reported-on
-                                            ", "))
-                                 ""))))))
+    (let ((inhibit-read-only t)
+          (things-reported-on))
+      (special-mode)
+      (erase-buffer)
+      (setq-local nobreak-char-display nil)
+      (cl-loop for (docs . rest) on docs
+               for (this-doc . plist) = docs
+               for thing = (plist-get plist :thing)
+               when thing do
+               (cl-pushnew thing things-reported-on)
+               (setq this-doc
+                     (concat
+                      (propertize (format "%s" thing)
+                                  'face (plist-get plist :face))
+                      ": "
+                      this-doc))
+               do (insert this-doc)
+               when rest do
+               (insert eldoc-doc-buffer-separator)
+               finally (goto-char (point-min)))
+      ;; Rename the buffer, taking into account whether it was
+      ;; hidden or not
+      (rename-buffer (format "%s*eldoc%s*"
+                             (if (string-match "^ " (buffer-name)) " " "")
+                             (if things-reported-on
+                                 (format " for %s"
+                                         (mapconcat
+                                          (lambda (s) (format "%s" s))
+                                          things-reported-on
+                                          ", "))
+                               "")))))
   eldoc--doc-buffer)
+
+(defun eldoc--echo-area-render (docs)
+  "Similar to `eldoc--format-doc-buffer', but for echo area.
+Helper for `eldoc-display-in-echo-area'."
+  (cl-loop for (item . rest) on docs
+           for (this-doc . plist) = item
+           for echo = (plist-get plist :echo)
+           for thing = (plist-get plist :thing)
+           unless (eq echo 'skip) do
+           (setq this-doc
+                 (cond ((integerp echo) (substring this-doc 0 echo))
+                       ((stringp echo) echo)
+                       (t this-doc)))
+           (when thing (setq this-doc
+                             (concat
+                              (propertize (format "%s" thing)
+                                          'face (plist-get plist :face))
+                              ": "
+                              this-doc)))
+           (insert this-doc)
+           (when rest (insert "\n"))))
 
 (defun eldoc--echo-area-substring (available)
   "Given AVAILABLE lines, get buffer substring to display in echo area.
@@ -570,25 +607,29 @@ known to be truncated."
                     'maybe)))
        (get-buffer-window eldoc--doc-buffer t)))
 
-(defun eldoc-display-in-echo-area (docs _interactive)
+(defun eldoc-display-in-echo-area (docs interactive)
   "Display DOCS in echo area.
-Honor `eldoc-echo-area-use-multiline-p' and
+INTERACTIVE is non-nil if user explicitly invoked ElDoc.  Honor
+`eldoc-echo-area-use-multiline-p' and
 `eldoc-echo-area-prefer-doc-buffer'."
   (cond
-   (;; Check if we have permission to mess with echo area at all.  For
-    ;; example, if this-command is non-nil while running via an idle
-    ;; timer, we're still in the middle of executing a command, e.g. a
-    ;; query-replace where it would be annoying to overwrite the echo
-    ;; area.
-    (or
-     (not (eldoc-display-message-no-interference-p))
-     this-command
-     (not (eldoc--message-command-p last-command))))
-   (;; If we do but nothing to report, clear the echo area.
+   ((and (not interactive)
+         ;; When called non-interactively, check if we have permission
+         ;; to mess with echo area at all.  For example, if
+         ;; this-command is non-nil while running via an idle timer,
+         ;; we're still in the middle of executing a command, e.g. a
+         ;; query-replace where it would be annoying to overwrite the
+         ;; echo area.
+         (or
+          (not (eldoc-display-message-no-interference-p))
+          this-command
+          (not (eldoc--message-command-p last-command)))))
+   (;; If nothing to report, clear the echo area.
     (null docs)
     (eldoc--message nil))
    (t
-    ;; Otherwise, establish some parameters.
+    ;; Otherwise, proceed to change the echo area.  Start by
+    ;; establishing some parameters.
     (let*
         ((width (1- (window-width (minibuffer-window))))
          (val (if (and (symbolp eldoc-echo-area-use-multiline-p)
@@ -617,15 +658,15 @@ Honor `eldoc-echo-area-use-multiline-p' and
                single-doc)
               ((and (numberp available)
                     (cl-plusp available))
-               ;; Else, given a positive number of logical lines, we
-               ;; format the *eldoc* buffer, using as most of its
-               ;; contents as we know will fit.
-               (with-current-buffer (eldoc--format-doc-buffer docs)
-                 (save-excursion
-                   (eldoc--echo-area-substring available))))
+               ;; Else, given a positive number of logical lines, grab
+               ;; as many as we can.
+               (with-temp-buffer
+                 (eldoc--echo-area-render docs)
+                 (eldoc--echo-area-substring available)))
               (t ;; this is the "truncate brutally" situation
                (let ((string
-                      (with-current-buffer (eldoc--format-doc-buffer docs)
+                      (with-temp-buffer
+                        (eldoc--echo-area-render docs)
                         (buffer-substring (goto-char (point-min))
                                           (progn (end-of-visible-line)
                                                  (point))))))
@@ -646,38 +687,45 @@ If INTERACTIVE is t, also display the buffer."
 (defun eldoc-documentation-default ()
   "Show the first non-nil documentation string for item at point.
 This is the default value for `eldoc-documentation-strategy'."
-  (run-hook-with-args-until-success 'eldoc-documentation-functions
-                                    (eldoc--make-callback :patient)))
-
-(defun eldoc--documentation-compose-1 (eagerlyp)
-  "Helper function for composing multiple doc strings.
-If EAGERLYP is non-nil show documentation as soon as possible,
-else wait for all doc strings."
   (run-hook-wrapped 'eldoc-documentation-functions
                     (lambda (f)
-                      (let* ((callback (eldoc--make-callback
-                                        (if eagerlyp :eager :patient)))
-                             (str (funcall f callback)))
-                        (if (or (null str) (stringp str)) (funcall callback str))
-                        nil)))
-  t)
+                      (funcall f (eldoc--make-callback :eager f)))))
 
 (defun eldoc-documentation-compose ()
   "Show multiple documentation strings together after waiting for all of them.
 This is meant to be used as a value for `eldoc-documentation-strategy'."
-  (eldoc--documentation-compose-1 nil))
+  (let (fns-and-callbacks)
+    ;; Make all the callbacks, setting up state inside
+    ;; `eldoc--invoke-strategy' to know how many callbacks to wait for
+    ;; before displaying the result (bug#62816).
+    (run-hook-wrapped 'eldoc-documentation-functions
+                      (lambda (f)
+                        (push (cons f (eldoc--make-callback :patient f))
+                              fns-and-callbacks)
+                        nil))
+    ;; Now call them.  The last one will trigger the display.
+    (cl-loop for (f . callback) in fns-and-callbacks
+             for str = (funcall f callback)
+             when (or (null str) (stringp str)) do (funcall callback str)))
+  t)
 
 (defun eldoc-documentation-compose-eagerly ()
   "Show multiple documentation strings one by one as soon as possible.
 This is meant to be used as a value for `eldoc-documentation-strategy'."
-  (eldoc--documentation-compose-1 t))
+  (run-hook-wrapped 'eldoc-documentation-functions
+                    (lambda (f)
+                      (let* ((callback (eldoc--make-callback :eager f))
+                             (str (funcall f callback)))
+                        (if (or (null str) (stringp str)) (funcall callback str))
+                        nil)))
+  t)
 
 (defun eldoc-documentation-enthusiast ()
   "Show most important documentation string produced so far.
 This is meant to be used as a value for `eldoc-documentation-strategy'."
   (run-hook-wrapped 'eldoc-documentation-functions
                     (lambda (f)
-                      (let* ((callback (eldoc--make-callback :enthusiast))
+                      (let* ((callback (eldoc--make-callback :enthusiast f))
                              (str (funcall f callback)))
                         (if (stringp str) (funcall callback str))
                         nil)))
@@ -782,7 +830,7 @@ before a higher priority one.")
 ;; `eldoc--invoke-strategy' could be moved to
 ;; `eldoc-documentation-strategy' or thereabouts if/when we decide to
 ;; extend or publish the `make-callback' protocol.
-(defun eldoc--make-callback (method)
+(defun eldoc--make-callback (method origin)
   "Make callback suitable for `eldoc-documentation-functions'.
 The return value is a function FN whose lambda list is (STRING
 &rest PLIST) and can be called by those functions.  Its
@@ -802,8 +850,11 @@ have the following values:
    `eldoc-documentation-functions' have been collected;
 
 - `:eager' says to display STRING along with all other competing
-  strings so far, as soon as possible."
-  (funcall eldoc--make-callback method))
+  strings so far, as soon as possible.
+
+ORIGIN is the member of `eldoc-documentation-functions' which
+will be responsible for eventually calling the FN."
+  (funcall eldoc--make-callback method origin))
 
 (defun eldoc--invoke-strategy (interactive)
   "Invoke `eldoc-documentation-strategy' function.
@@ -840,9 +891,10 @@ the docstrings eventually produced, using
          (docs-registered '()))
     (cl-labels
         ((register-doc
-          (pos string plist)
+          (pos string plist origin)
           (when (and string (> (length string) 0))
-            (push (cons pos (cons string plist)) docs-registered)))
+            (push (cons pos (cons string `(:origin ,origin ,@plist)))
+                  docs-registered)))
          (display-doc
           ()
           (run-hook-with-args
@@ -852,7 +904,7 @@ the docstrings eventually produced, using
                                                         (lambda (a b) (< (car a) (car b))))))
            interactive))
          (make-callback
-          (method)
+          (method origin)
           (let ((pos (prog1 howmany (cl-incf howmany))))
             (cl-ecase method
               (:enthusiast
@@ -860,7 +912,7 @@ the docstrings eventually produced, using
                  (when (and string (cl-loop for (p) in docs-registered
                                             never (< p pos)))
                    (setq docs-registered '())
-                   (register-doc pos string plist))
+                   (register-doc pos string plist origin))
                  (when (and (timerp eldoc--enthusiasm-curbing-timer)
                             (memq eldoc--enthusiasm-curbing-timer
                                   timer-list))
@@ -872,19 +924,22 @@ the docstrings eventually produced, using
               (:patient
                (cl-incf want)
                (lambda (string &rest plist)
-                 (register-doc pos string plist)
+                 (register-doc pos string plist origin)
                  (when (zerop (cl-decf want)) (display-doc))
                  t))
               (:eager
                (lambda (string &rest plist)
-                 (register-doc pos string plist)
+                 (register-doc pos string plist origin)
                  (display-doc)
                  t))))))
       (let* ((eldoc--make-callback #'make-callback)
              (res (funcall eldoc-documentation-strategy)))
         ;; Observe the old and the new protocol:
-        (cond (;; Old protocol: got string, output immediately;
-               (stringp res) (register-doc 0 res nil) (display-doc))
+        (cond (;; Old protocol: got string, e-d-strategy is itself the
+               ;; origin function, and we output immediately;
+               (stringp res)
+               (register-doc 0 res nil eldoc-documentation-strategy)
+               (display-doc))
               (;; Old protocol: got nil, clear the echo area;
                (null res) (eldoc--message nil))
               (;; New protocol: trust callback will be called;
@@ -946,7 +1001,8 @@ the docstrings eventually produced, using
  "mark-paragraph" "mouse-set-point" "move-" "move-beginning-of-"
  "move-end-of-" "newline" "next-" "other-window" "pop-global-mark"
  "previous-" "recenter" "right-" "scroll-" "self-insert-command"
- "split-window-" "up-list")
+ "split-window-" "up-list" "touch-screen-handle-touch"
+ "analyze-text-conversion")
 
 (provide 'eldoc)
 

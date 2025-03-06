@@ -1,6 +1,6 @@
 ;;; em-elecslash.el --- electric forward slashes  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2025 Free Software Foundation, Inc.
 
 ;; Author: Sean Whitton <spwhitton@spwhitton.name>
 
@@ -32,7 +32,7 @@
 (require 'esh-mode)
 
 ;; This makes us an option when customizing `eshell-modules-list'.
-;;;###autoload
+;;;###esh-module-autoload
 (progn
 (defgroup eshell-elecslash nil
   "Electric forward slash in remote Eshells.
@@ -72,7 +72,7 @@ insertion."
     (delete-char -1)
     (let ((tilde-before (eq ?~ (char-before)))
           (command (save-excursion
-                     (eshell-bol)
+                     (beginning-of-line)
                      (skip-syntax-forward " ")
                      (thing-at-point 'sexp)))
           (prefix (file-remote-p default-directory)))
@@ -108,9 +108,4 @@ insertion."
         (insert "/")))))
 
 (provide 'em-elecslash)
-
-;; Local Variables:
-;; generated-autoload-file: "esh-groups.el"
-;; End:
-
-;;; esh-elecslash.el ends here
+;;; em-elecslash.el ends here

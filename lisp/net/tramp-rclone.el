@@ -1,6 +1,6 @@
 ;;; tramp-rclone.el --- Tramp access functions to cloud storages  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2018-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2018-2025 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -95,6 +95,7 @@
     (file-equal-p . tramp-handle-file-equal-p)
     (file-executable-p . tramp-fuse-handle-file-executable-p)
     (file-exists-p . tramp-handle-file-exists-p)
+    (file-group-gid . tramp-handle-file-group-gid)
     (file-in-directory-p . tramp-handle-file-in-directory-p)
     (file-local-copy . tramp-handle-file-local-copy)
     (file-locked-p . tramp-handle-file-locked-p)
@@ -118,6 +119,7 @@
     (file-symlink-p . tramp-handle-file-symlink-p)
     (file-system-info . tramp-rclone-handle-file-system-info)
     (file-truename . tramp-handle-file-truename)
+    (file-user-uid . tramp-handle-file-user-uid)
     (file-writable-p . tramp-handle-file-writable-p)
     (find-backup-file-name . tramp-handle-find-backup-file-name)
     ;; `get-file-buffer' performed by default handler.
@@ -173,8 +175,10 @@ Operations not mentioned here will be handled by the default Emacs primitives.")
 First arg specifies the OPERATION, second arg is a list of
 arguments to pass to the OPERATION."
   (if-let ((fn (assoc operation tramp-rclone-file-name-handler-alist)))
-      (save-match-data (apply (cdr fn) args))
-    (tramp-run-real-handler operation args)))
+      (prog1 (save-match-data (apply (cdr fn) args))
+	(setq tramp-debug-message-fnh-function (cdr fn)))
+    (prog1 (tramp-run-real-handler operation args)
+      (setq tramp-debug-message-fnh-function operation))))
 
 ;;;###tramp-autoload
 (tramp--with-startup
@@ -185,12 +189,11 @@ arguments to pass to the OPERATION."
 (defun tramp-rclone-parse-device-names (_ignore)
   "Return a list of (nil host) tuples allowed to access."
   (with-tramp-connection-property nil "rclone-device-names"
-    (delq nil
-	  (mapcar
-	   (lambda (line)
-	     (when (string-match (rx bol (group (+ (not blank))) ":" eol) line)
-	       `(nil ,(match-string 1 line))))
-	   (tramp-process-lines nil tramp-rclone-program "listremotes")))))
+    (tramp-compat-seq-keep
+     (lambda (line)
+       (when (string-match (rx bol (group (+ (not blank))) ":" eol) line)
+	 `(nil ,(match-string 1 line))))
+     (tramp-process-lines nil tramp-rclone-program "listremotes"))))
 
 
 ;; File name primitives.
@@ -353,7 +356,7 @@ file names."
 
 (defun tramp-rclone-remote-file-name (filename)
   "Return FILENAME as used in the `rclone' command."
-  (setq filename (tramp-compat-file-name-unquote (expand-file-name filename)))
+  (setq filename (file-name-unquote (expand-file-name filename)))
   (if (tramp-rclone-file-name-p filename)
       (with-parsed-tramp-file-name filename nil
 	;; As long as we call `tramp-rclone-maybe-open-connection' here,
@@ -375,54 +378,55 @@ connection if a previous connection has died for some reason."
   (unless (tramp-connectable-p vec)
     (throw 'non-essential 'non-essential))
 
-  (let ((host (tramp-file-name-host vec)))
-    (when (rassoc `(,host) (tramp-rclone-parse-device-names nil))
-      (if (tramp-string-empty-or-nil-p host)
-	  (tramp-error vec 'file-error "Storage %s not connected" host))
-      ;; We need a process bound to the connection buffer.  Therefore,
-      ;; we create a dummy process.  Maybe there is a better solution?
-      (unless (get-buffer-process (tramp-get-connection-buffer vec))
-	(let ((p (make-network-process
-		  :name (tramp-get-connection-name vec)
-		  :buffer (tramp-get-connection-buffer vec)
-		  :server t :host 'local :service t :noquery t)))
-	  (process-put p 'tramp-vector vec)
-	  (set-process-query-on-exit-flag p nil)
+  (with-tramp-debug-message vec "Opening connection"
+    (let ((host (tramp-file-name-host vec)))
+      (when (rassoc `(,host) (tramp-rclone-parse-device-names nil))
+	(if (tramp-string-empty-or-nil-p host)
+	    (tramp-error vec 'file-error "Storage %s not connected" host))
+	;; We need a process bound to the connection buffer.
+	;; Therefore, we create a dummy process.  Maybe there is a
+	;; better solution?
+	(unless (get-buffer-process (tramp-get-connection-buffer vec))
+	  (let ((p (make-network-process
+		    :name (tramp-get-connection-name vec)
+		    :buffer (tramp-get-connection-buffer vec)
+		    :server t :host 'local :service t :noquery t)))
+	    (tramp-post-process-creation p vec)
 
-	  ;; Set connection-local variables.
-	  (tramp-set-connection-local-variables vec)))
+	    ;; Set connection-local variables.
+	    (tramp-set-connection-local-variables vec)))
 
-      ;; Create directory.
-      (unless (file-directory-p (tramp-fuse-mount-point vec))
-	(make-directory (tramp-fuse-mount-point vec) 'parents))
+	;; Create directory.
+	(unless (file-directory-p (tramp-fuse-mount-point vec))
+	  (make-directory (tramp-fuse-mount-point vec) 'parents))
 
-      ;; Mount.  This command does not return, so we use 0 as
-      ;; DESTINATION of `tramp-call-process'.
-      (unless (tramp-fuse-mounted-p vec)
-	(apply
-	 #'tramp-call-process
-	 vec tramp-rclone-program nil 0 nil
-	 "mount" (tramp-fuse-mount-spec vec)
-	 (tramp-fuse-mount-point vec)
-	 (tramp-get-method-parameter vec 'tramp-mount-args))
-	(while (not (file-exists-p (tramp-make-tramp-file-name vec 'noloc)))
-	  (tramp-cleanup-connection vec 'keep-debug 'keep-password))
+	;; Mount.  This command does not return, so we use 0 as
+	;; DESTINATION of `tramp-call-process'.
+	(unless (tramp-fuse-mounted-p vec)
+	  (apply
+	   #'tramp-call-process
+	   vec tramp-rclone-program nil 0 nil
+	   "mount" (tramp-fuse-mount-spec vec)
+	   (tramp-fuse-mount-point vec)
+	   (tramp-get-method-parameter vec 'tramp-mount-args))
+	  (while (not (file-exists-p (tramp-make-tramp-file-name vec 'noloc)))
+	    (tramp-cleanup-connection vec 'keep-debug 'keep-password))
 
-	;; Mark it as connected.
-	(add-to-list 'tramp-fuse-mount-points (tramp-file-name-unify vec))
-	(tramp-set-connection-property
-	 (tramp-get-connection-process vec) "connected" t))))
+	  ;; Mark it as connected.
+	  (add-to-list 'tramp-fuse-mount-points (tramp-file-name-unify vec))
+	  (tramp-set-connection-property
+	   (tramp-get-connection-process vec) "connected" t))))
 
-  ;; In `tramp-check-cached-permissions', the connection properties
-  ;; "{uid,gid}-{integer,string}" are used.  We set them to proper values.
-  (with-tramp-connection-property
-      vec "uid-integer" (tramp-get-local-uid 'integer))
-  (with-tramp-connection-property
-      vec "gid-integer" (tramp-get-local-gid 'integer))
-  (with-tramp-connection-property
-      vec "uid-string" (tramp-get-local-uid 'string))
-  (with-tramp-connection-property
-      vec "gid-string" (tramp-get-local-gid 'string)))
+    ;; In `tramp-check-cached-permissions', the connection properties
+    ;; "{uid,gid}-{integer,string}" are used.  We set them to proper values.
+    (with-tramp-connection-property
+	vec "uid-integer" (tramp-get-local-uid 'integer))
+    (with-tramp-connection-property
+	vec "gid-integer" (tramp-get-local-gid 'integer))
+    (with-tramp-connection-property
+	vec "uid-string" (tramp-get-local-uid 'string))
+    (with-tramp-connection-property
+	vec "gid-string" (tramp-get-local-gid 'string))))
 
 (defun tramp-rclone-send-command (vec &rest args)
   "Send a command to connection VEC.

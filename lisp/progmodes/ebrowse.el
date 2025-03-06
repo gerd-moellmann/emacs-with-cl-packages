@@ -1,6 +1,6 @@
 ;;; ebrowse.el --- Emacs C++ class browser & tags facility  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1992-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1992-2025 Free Software Foundation, Inc.
 
 ;; Author: Gerd Moellmann <gerd@gnu.org>
 ;; Maintainer: emacs-devel@gnu.org
@@ -851,7 +851,7 @@ Return the buffer created."
 For each member, a symbol is added to the table.  Members are
 extracted from the buffer-local tree `ebrowse--tree-table'.
 
-Each symbol has its property `ebrowse-info' set to a list (TREE MEMBER-LIST
+Each symbol has its property `ebrowse-tree' set to a list (TREE MEMBER-LIST
 MEMBER) where TREE is the tree in which the member is defined,
 MEMBER-LIST is a symbol describing the member list in which the member
 is found, and MEMBER is a MEMBER structure describing the member.
@@ -1130,7 +1130,7 @@ If given a numeric N-TIMES argument, mark that many classes."
 
 (defun ebrowse-redraw-marks (start end)
   "Display class marker signs in the tree between START and END."
-  (interactive)
+  (interactive "r")
   (save-excursion
     (with-silent-modifications
       (catch 'end
@@ -1494,9 +1494,9 @@ and possibly kill the viewed buffer."
 
 
 (defun ebrowse-view-file-other-frame (file)
-  "View a file FILE in another frame.
+  "View FILE in another frame.
 The new frame is deleted when you quit viewing the file in that frame."
-  (interactive)
+  (interactive "fIn other frame view file: ")
   (let ((old-frame-configuration (current-frame-configuration))
 	(had-a-buf (get-file-buffer file))
 	(buf-to-view (find-file-noselect file)))

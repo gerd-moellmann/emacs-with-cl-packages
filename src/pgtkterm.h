@@ -1,5 +1,5 @@
 /* Definitions and headers for communication with pure Gtk+3.
-   Copyright (C) 1989, 1993, 2005, 2008-2024 Free Software Foundation,
+   Copyright (C) 1989, 1993, 2005, 2008-2025 Free Software Foundation,
    Inc.
 
 This file is part of GNU Emacs.
@@ -42,7 +42,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 struct pgtk_bitmap_record
 {
-  void *img;
   char *file;
   int refcount;
   int height, width, depth;
@@ -51,11 +50,36 @@ struct pgtk_bitmap_record
 
 struct pgtk_device_t
 {
+  /* Lisp name of the device.  */
+  Lisp_Object name;
+
+  /* Seat to which this device appertains.  */
   GdkSeat *seat;
+
+  /* Pointer to this device's GdkDevice object.  */
   GdkDevice *device;
 
-  Lisp_Object name;
+  /* Next device in this chain.  */
   struct pgtk_device_t *next;
+};
+
+struct pgtk_touch_point
+{
+  /* The detail code reported to Lisp.  */
+  EMACS_INT local_detail;
+
+  /* The frame associated with this touch point.  */
+  struct frame *frame;
+
+  /* The next touch point in this list.  */
+  struct pgtk_touch_point *next;
+
+  /* The touchpoint detail.  This purports to be a pointer, but is a
+     number.  */
+  GdkEventSequence *number;
+
+  /* The last known rounded X and Y positions of the touchpoint.  */
+  int x, y;
 };
 
 #define RGB_TO_ULONG(r, g, b) (((r) << 16) | ((g) << 8) | (b))
@@ -132,9 +156,12 @@ struct pgtk_display_info
     /* This says how to access this display through GDK.  */
     GdkDisplay *gdpy;
 
-    /* An alias defined to make porting X code easier.  */
+    /* An alias defined to facilitate porting X code.  */
     GdkDisplay *display;
   };
+
+  /* List of active touch-points.  */
+  struct pgtk_touch_point *touchpoints;
 
   /* This is a cons cell of the form (NAME . FONT-LIST-CACHE).  */
   Lisp_Object name_list_element;
@@ -463,7 +490,7 @@ enum
 #define FRAME_X_WINDOW(f)          FRAME_GTK_OUTER_WIDGET (f)
 #define FRAME_NATIVE_WINDOW(f)     GTK_WINDOW (FRAME_X_WINDOW (f))
 #define FRAME_GDK_WINDOW(f)			\
-  (gtk_widget_get_window (FRAME_GTK_WIDGET (f)))
+  gtk_widget_get_window (FRAME_GTK_WIDGET (f))
 
 #define FRAME_X_DISPLAY(f)        (FRAME_DISPLAY_INFO (f)->gdpy)
 
@@ -553,7 +580,6 @@ extern void pgtk_clear_frame (struct frame *);
 extern char *pgtk_xlfd_to_fontname (const char *);
 
 /* Implemented in pgtkfns.c.  */
-extern void pgtk_set_doc_edited (void);
 extern const char *pgtk_get_defaults_value (const char *);
 extern const char *pgtk_get_string_resource (XrmDatabase, const char *, const char *);
 extern void pgtk_implicitly_set_name (struct frame *, Lisp_Object, Lisp_Object);

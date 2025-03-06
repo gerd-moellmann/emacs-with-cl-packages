@@ -1,6 +1,6 @@
 ;;; faces.el --- Lisp faces -*- lexical-binding: t -*-
 
-;; Copyright (C) 1992-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1992-2025 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: internal
@@ -651,11 +651,11 @@ Optional argument INHERIT is passed to `face-attribute'."
 If FACE is a face-alias, get the documentation for the target face."
   (let ((alias (get face 'face-alias)))
     (if alias
-        (let ((doc (get alias 'face-documentation)))
+        (let ((doc (documentation-property alias 'face-documentation)))
 	  (format "%s is an alias for the face `%s'.%s" face alias
                   (if doc (format "\n%s" doc)
                     "")))
-      (get face 'face-documentation))))
+      (documentation-property face 'face-documentation))))
 
 
 (defun set-face-documentation (face string)
@@ -1118,8 +1118,7 @@ element of DEFAULT is returned.  If DEFAULT isn't a list, but
 MULTIPLE is non-nil, a one-element list containing DEFAULT is
 returned.  Otherwise, DEFAULT is returned verbatim."
   (let (defaults)
-    (unless (listp default)
-      (setq default (list default)))
+    (setq default (ensure-list default))
     (when default
       (setq default
             (if multiple
@@ -1146,16 +1145,16 @@ returned.  Otherwise, DEFAULT is returned verbatim."
                       (format-prompt prompt default)
                     (format "%s: " prompt)))
           (completion-extra-properties
-           '(:affixation-function
-             (lambda (faces)
-               (mapcar
-                (lambda (face)
-                  (list face
-                        (concat (propertize read-face-name-sample-text
-                                            'face face)
-                                "\t")
-                        ""))
-                faces))))
+           `(:affixation-function
+             ,(lambda (faces)
+                (mapcar
+                 (lambda (face)
+                   (list face
+                         (concat (propertize read-face-name-sample-text
+                                             'face face)
+                                 "\t")
+                         ""))
+                 faces))))
           aliasfaces nonaliasfaces faces)
       ;; Build up the completion tables.
       (mapatoms (lambda (s)
@@ -1340,10 +1339,11 @@ of a global face.  Value is the new attribute value."
 		       (format "%s" old-value))))
 	     (setq new-value
                    (if (memq attribute '(:foreground :background))
-                       (let ((color
-                              (read-color
-                               (format-prompt "%s for face `%s'"
-                                              default attribute-name face))))
+                       (let* ((prompt (format-prompt
+                                       "%s for face `%s'"
+                                       default attribute-name face))
+                              (fg (eq attribute ':foreground))
+                              (color (read-color prompt nil nil nil fg face)))
                          (if (equal (string-trim color) "")
                              default
                            color))
@@ -1539,15 +1539,12 @@ argument, prompt for a regular expression using `read-regexp'."
 ;;; Face specifications (defface).
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; Parameter FRAME Is kept for call compatibility to with previous
-;; face implementation.
-
 (defun face-attr-construct (face &optional _frame)
   "Return a `defface'-style attribute list for FACE.
 Value is a property list of pairs ATTRIBUTE VALUE for all specified
 face attributes of FACE where ATTRIBUTE is the attribute name and
-VALUE is the specified value of that attribute.
-Argument FRAME is ignored and retained for compatibility."
+VALUE is the specified value of that attribute."
+  (declare (advertised-calling-convention (face) "30.1"))
   (let (result)
     (dolist (entry face-attribute-name-alist result)
       (let* ((attribute (car entry))
@@ -1850,7 +1847,6 @@ If there is neither a user setting nor a default for FACE, return nil."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Frame-type independent color support.
-;;; We keep the old x-* names as aliases for back-compatibility.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun defined-colors (&optional frame)
@@ -1862,7 +1858,6 @@ If FRAME is nil, that stands for the selected frame."
   (if (display-graphic-p frame)
       (xw-defined-colors frame)
     (mapcar 'car (tty-color-alist frame))))
-(defalias 'x-defined-colors 'defined-colors)
 
 (defun defined-colors-with-face-attributes (&optional frame foreground)
   "Return a list of colors supported for a particular FRAME.
@@ -1871,15 +1866,26 @@ to `defined-colors' the elements of the returned list are color
 strings with text properties, that make the color names render
 with the color they represent as background color (if FOREGROUND
 is nil; otherwise use the foreground color)."
-  (mapcar
-   (lambda (color-name)
-     (let ((color (copy-sequence color-name)))
-       (propertize color 'face
-		   (if foreground
-		       (list :foreground color)
-		     (list :foreground (readable-foreground-color color-name)
-                           :background color)))))
-   (defined-colors frame)))
+  (mapcar (lambda (color-name)
+            (faces--string-with-color color-name color-name foreground))
+          (defined-colors frame)))
+
+(defun faces--string-with-color (string color &optional foreground face)
+  "Return a copy of STRING with face attributes for COLOR.
+Set the :background or :foreground attribute to COLOR, depending
+on the argument FOREGROUND.
+
+The optional FACE argument determines the values of other face
+attributes."
+  (let* ((defaults (if face (list face) '()))
+         (colors (cond (foreground
+                        (list :foreground color))
+                       (face
+                        (list :background color))
+                       (t
+                        (list :foreground (readable-foreground-color color)
+                              :background color)))))
+    (propertize string 'face (cons colors defaults))))
 
 (defun readable-foreground-color (color)
   "Return a readable foreground color for background COLOR.
@@ -1935,7 +1941,6 @@ If FRAME is omitted or nil, use the selected frame."
     (if (display-graphic-p frame)
 	(xw-color-defined-p color frame)
       (numberp (tty-color-translate color frame)))))
-(defalias 'x-color-defined-p 'color-defined-p)
 
 (declare-function xw-color-values "xfns.c" (color &optional frame))
 
@@ -1963,8 +1968,6 @@ return value is nil."
    (t
     (tty-color-values color frame))))
 
-(defalias 'x-color-values 'color-values)
-
 (declare-function xw-display-color-p "xfns.c" (&optional terminal))
 
 (defun display-color-p (&optional display)
@@ -1975,7 +1978,6 @@ If omitted or nil, that stands for the selected frame's display."
   (if (display-graphic-p display)
       (xw-display-color-p display)
     (tty-display-color-p display)))
-(defalias 'x-display-color-p 'display-color-p)
 
 (declare-function x-display-grayscale-p "xfns.c" (&optional terminal))
 
@@ -1988,7 +1990,7 @@ If omitted or nil, that stands for the selected frame's display."
     (> (tty-color-gray-shades display) 2)))
 
 (defun read-color (&optional prompt convert-to-RGB allow-empty-name msg
-			     foreground)
+			     foreground face)
   "Read a color name or RGB triplet.
 Completion is available for color names, but not for RGB triplets.
 
@@ -2017,17 +2019,25 @@ to enter an empty color name (the empty string).
 Interactively, or with optional arg MSG non-nil, print the
 resulting color name in the echo area.
 
-Interactively, displays a list of colored completions.  If optional
-argument FOREGROUND is non-nil, shows them as foregrounds, otherwise
-as backgrounds."
+Interactively, provides completion for selecting the color.  If
+the optional argument FOREGROUND is non-nil, shows the completion
+candidates with their foregound color changed to be the color of
+the candidate, otherwise changes the background color of the
+candidates.  The optional argument FACE determines the other
+face attributes of the candidates on display."
   (interactive "i\np\ni\np")    ; Always convert to RGB interactively.
   (let* ((completion-ignore-case t)
-	 (colors (append '("foreground at point" "background at point")
-			 (if allow-empty-name '(""))
-                         (if (display-color-p)
-                             (defined-colors-with-face-attributes
-                               nil foreground)
-                           (defined-colors))))
+	 (color-alist
+          `(("foreground at point" . ,(foreground-color-at-point))
+            ("background at point" . ,(background-color-at-point))
+            ,@(if allow-empty-name '(("" . unspecified)))
+            ,@(mapcar (lambda (c) (cons c c)) (defined-colors))))
+         (colors (mapcar (lambda (pair)
+                           (let* ((name (car pair))
+                                  (color (cdr pair)))
+                             (faces--string-with-color name color
+                                                       foreground face)))
+                         color-alist))
 	 (color (completing-read
 		 (or prompt "Color (name or #RGB triplet): ")
 		 ;; Completing function for reading colors, accepting
@@ -2431,7 +2441,10 @@ If you set `term-file-prefix' to nil, this function does nothing."
   '((((supports :slant italic))
      :slant italic)
     (((supports :underline t))
-     :underline t)
+     ;; Include italic, even if it isn't supported by the default
+     ;; font, because this face could be merged with another face
+     ;; which uses font that does have an italic variant.
+     :underline t :slant italic)
     (t
      ;; Default to italic, even if it doesn't appear to be supported,
      ;; because in some cases the display engine will do its own
@@ -2448,7 +2461,9 @@ If you set `term-file-prefix' to nil, this function does nothing."
 (defface underline
   '((((supports :underline t))
      :underline t)
-    (((supports :weight bold))
+    ;; Include underline, for when this face is merged with another
+    ;; whose font does support underline.
+    (((supports :weight bold :underline t))
      :weight bold)
     (t :underline t))
   "Basic underlined face."
@@ -2703,7 +2718,7 @@ non-nil."
   :version "22.1")
 
 (defface mode-line
-  '((((class color) (min-colors 88))
+  '((((class color grayscale) (min-colors 88))
      :box (:line-width -1 :style released-button)
      :background "grey75" :foreground "black")
     (t
@@ -2726,11 +2741,11 @@ This inherits from the `mode-line' face."
 (defface mode-line-inactive
   '((default
      :inherit mode-line)
-    (((class color) (min-colors 88) (background light))
+    (((class color grayscale) (min-colors 88) (background light))
      :weight light
      :box (:line-width -1 :color "grey75" :style nil)
      :foreground "grey20" :background "grey90")
-    (((class color) (min-colors 88) (background dark) )
+    (((class color grayscale) (min-colors 88) (background dark) )
      :weight light
      :box (:line-width -1 :color "grey40" :style nil)
      :foreground "grey80" :background "grey30"))
@@ -2740,7 +2755,7 @@ This inherits from the `mode-line' face."
   :group 'basic-faces)
 
 (defface mode-line-highlight
-  '((((supports :box t) (class color) (min-colors 88))
+  '((((supports :box t) (class color grayscale) (min-colors 88))
      :box (:line-width 2 :color "grey40" :style released-button))
     (t
      :inherit highlight))
@@ -2927,7 +2942,7 @@ Note: Other faces cannot inherit from the cursor face."
     (((type haiku))
      :foreground "B_MENU_ITEM_TEXT_COLOR"
      :background "B_MENU_BACKGROUND_COLOR")
-    (((type x w32 mac ns pgtk) (class color))
+    (((type x w32 mac ns pgtk android) (class color))
      :background "grey75")
     (((type x) (class mono))
      :background "grey"))
@@ -3202,6 +3217,10 @@ also the same size as FACE on FRAME, or fail."
 
 (define-obsolete-function-alias 'face-background-pixmap #'face-stipple "29.1")
 (define-obsolete-function-alias 'set-face-background-pixmap #'set-face-stipple "29.1")
+(define-obsolete-function-alias 'x-defined-colors #'defined-colors "30.1")
+(define-obsolete-function-alias 'x-color-defined-p #'color-defined-p "30.1")
+(define-obsolete-function-alias 'x-color-values #'color-values "30.1")
+(define-obsolete-function-alias 'x-display-color-p #'display-color-p "30.1")
 
 (provide 'faces)
 

@@ -1,6 +1,6 @@
 ;;; sqlite-mode.el --- Mode for examining sqlite3 database files  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2021-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -33,6 +33,7 @@
 (declare-function sqlite-finalize "sqlite.c")
 (declare-function sqlite-select "sqlite.c")
 (declare-function sqlite-open "sqlite.c")
+(declare-function sqlite-close "sqlite.c")
 
 (defvar-keymap sqlite-mode-map
   "g" #'sqlite-mode-list-tables
@@ -41,7 +42,7 @@
   "DEL" #'sqlite-mode-delete)
 
 (define-derived-mode sqlite-mode special-mode "Sqlite"
-  "This mode lists the contents of an .sqlite3 file"
+  "This mode lists the contents of an .sqlite3 file."
   :interactive nil
   (buffer-disable-undo)
   (setq-local buffer-read-only t

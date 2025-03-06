@@ -1,6 +1,6 @@
 ;;; srecode/map.el --- Manage a template file map  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2008-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2025 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -76,7 +76,7 @@ Each app keys to an alist of files and modes (as above.)")
   "Return the entries in MAP for major MODE."
   (let ((ans nil))
     (dolist (f (oref map files))
-      (when (mode-local-use-bindings-p mode (cdr f))
+      (when (provided-mode-derived-p mode (cdr f))
 	(setq ans (cons f ans))))
     ans))
 

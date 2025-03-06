@@ -1,6 +1,6 @@
 ;;; dbus-tests.el --- Tests of D-Bus integration into Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2013-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2025 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 
@@ -68,22 +68,35 @@
   "Check type conversion functions."
   (skip-unless dbus--test-enabled-session-bus)
 
-  (let ((ustr "0123abc_xyz\x01\xff")
-	(mstr "Grüß Göttin"))
+  (let ((ustr (string-to-unibyte "0123abc_xyz\x01\xff"))
+	(mstr (string-to-multibyte "Grüß Göttin"))
+        (kstr (encode-coding-string "парола" 'koi8)))
     (should
      (string-equal
       (dbus-byte-array-to-string (dbus-string-to-byte-array "")) ""))
     (should
      (string-equal
-      (dbus-byte-array-to-string (dbus-string-to-byte-array ustr)) ustr))
+      (dbus-byte-array-to-string (dbus-string-to-byte-array nil)) ""))
     (should
      (string-equal
-      (dbus-byte-array-to-string (dbus-string-to-byte-array mstr) 'multibyte)
-      mstr))
-    ;; Should not work for multibyte strings.
-    (should-not
+      ;; The conversion could return a multibyte string, so we make it unibyte.
+      (string-to-unibyte
+       (dbus-byte-array-to-string (dbus-string-to-byte-array ustr)))
+      ustr))
+    (should
+     (string-equal
+      ;; The conversion could return a multibyte string, so we make it unibyte.
+      (string-to-unibyte (dbus-byte-array-to-string (mapcar 'identity ustr)))
+      ustr))
+    (should
      (string-equal
       (dbus-byte-array-to-string (dbus-string-to-byte-array mstr)) mstr))
+    (should
+     (string-equal
+      ;; The conversion could return a multibyte string, so we make it unibyte.
+      (string-to-unibyte
+       (dbus-byte-array-to-string (dbus-string-to-byte-array kstr)))
+      kstr))
 
     (should
      (string-equal
@@ -565,10 +578,10 @@ This includes initialization and closing the bus."
    ((null args)
     :ignore)
    ;; One argument.
-   ((= 1 (length args))
+   ((length= args 1)
     (car args))
    ;; Two arguments.
-   ((= 2 (length args))
+   ((length= args 2)
     `(:error ,dbus-error-invalid-args
              ,(format-message "Wrong arguments %s" args)))
    ;; More than two arguments.
@@ -771,6 +784,59 @@ is in progress."
           (while (null dbus--test-signal-received)
             (read-event nil nil 0.1)))
         (should (equal dbus--test-signal-received '((1 2 3) ("bar"))))
+
+        ;; Unregister signal.
+        (should (dbus-unregister-object registered))
+        (should-not (dbus-unregister-object registered)))
+
+    ;; Cleanup.
+    (dbus-unregister-service :session dbus--test-service)))
+
+(ert-deftest dbus-test05-register-signal-with-nils ()
+  "Check signal registration for an own service.
+SERVICE, PATH, INTERFACE and SIGNAL are ‘nil’.  This is interpreted as a
+wildcard for the respective argument."
+  :tags '(:unstable)
+  (skip-unless dbus--test-enabled-session-bus)
+  (dbus-ignore-errors (dbus-unregister-service :session dbus--test-service))
+
+  (unwind-protect
+      (let ((member "Member")
+            (handler #'dbus--test-signal-handler)
+            registered)
+
+        ;; Register signal handler.
+        (should
+         (equal
+          (setq
+           registered
+           (dbus-register-signal
+            :session nil nil nil nil handler))
+          `((:signal :session nil nil)
+            (nil nil ,handler))))
+
+        (dbus-register-signal
+         :session nil dbus--test-path
+         dbus--test-interface member handler)
+        (dbus-register-signal
+         :session dbus--test-service nil
+         dbus--test-interface member handler)
+        (dbus-register-signal
+         :session dbus--test-service dbus--test-path
+         nil member handler)
+        (dbus-register-signal
+         :session dbus--test-service dbus--test-path
+         dbus--test-interface nil handler)
+
+        ;; Send one argument, basic type.
+        (setq dbus--test-signal-received nil)
+        (dbus-send-signal
+         :session dbus--test-service dbus--test-path
+         dbus--test-interface member "foo")
+	(with-timeout (1 (dbus--test-timeout-handler))
+          (while (null dbus--test-signal-received)
+            (read-event nil nil 0.1)))
+        (should (equal dbus--test-signal-received '("foo")))
 
         ;; Unregister signal.
         (should (dbus-unregister-object registered))
@@ -1952,7 +2018,7 @@ The argument EXPECTED-ARGS is a list of expected arguments for the method."
         (let ((result (dbus-get-all-managed-objects
                        :session dbus--test-service dbus--test-path)))
           (should
-           (= 3 (length result)))
+           (length= result 3))
 
           (dolist (interface interfaces)
             (pcase-let ((`(,iname ,objs) interface))
@@ -1970,7 +2036,7 @@ The argument EXPECTED-ARGS is a list of expected arguments for the method."
                        :session dbus--test-service
                        (concat dbus--test-path "/obj0"))))
           (should
-           (= 2 (length result)))
+           (length= result 2))
 
           (dolist (interface interfaces)
             (pcase-let ((`(,iname ,objs) interface))
@@ -1989,7 +2055,7 @@ The argument EXPECTED-ARGS is a list of expected arguments for the method."
                        :session dbus--test-service
                        (concat dbus--test-path "/obj0/obj2"))))
           (should
-           (= 1 (length result)))
+           (length= result 1))
 
           (dolist (interface interfaces)
             (pcase-let ((`(,iname ,objs) interface))

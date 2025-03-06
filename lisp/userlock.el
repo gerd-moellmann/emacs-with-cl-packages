@@ -1,6 +1,6 @@
 ;;; userlock.el --- handle file access contention between multiple users  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1986, 2001-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1985-1986, 2001-2025 Free Software Foundation, Inc.
 
 ;; Author: Richard King
 ;; (according to authors.el)
@@ -64,10 +64,11 @@ in any way you like."
 			  (match-string 0 opponent)))
 	      opponent))
       (while (null answer)
+	(when noninteractive
+          (signal 'file-locked (list file opponent "Cannot resolve lock conflict in batch mode")))
         (message (substitute-command-keys
                   "%s locked by %s: (\\`s', \\`q', \\`p', \\`?')? ")
                  short-file short-opponent)
-	(if noninteractive (error "Cannot resolve lock conflict in batch mode"))
 	(let ((tem (let ((inhibit-quit t)
 			 (cursor-in-echo-area t))
 		     (prog1 (downcase (read-char))
@@ -110,10 +111,11 @@ You can <\\`q'>uit; don't modify this file."))
 
 (defun userlock--check-content-unchanged (filename)
   (with-demoted-errors "Unchanged content check: %S"
-    ;; Even tho we receive `filename', we know that `filename' refers to the current
-    ;; buffer's file.
-    (cl-assert (equal (expand-file-name filename)
-                      (expand-file-name buffer-file-truename)))
+    ;; Even tho we receive `filename', we know that `filename' refers
+    ;; to the current buffer's file.
+    (cl-assert (or (null buffer-file-truename) ; temporary buffer
+                   (equal (expand-file-name filename)
+                          (expand-file-name buffer-file-truename))))
     ;; Note: rather than read the file and compare to the buffer, we could save
     ;; the buffer and compare to the file, but for encrypted data this
     ;; wouldn't work well (and would risk exposing the data).
@@ -135,7 +137,15 @@ You can <\\`q'>uit; don't modify this file."))
                          (compare-buffer-substrings
                           buf start end
                           (current-buffer) (point-min) (point-max))))))
-          (set-visited-file-modtime)
+          ;; We know that some buffer visits FILENAME, because our
+          ;; caller (see lock_file) verified that.  Thus, we set the
+          ;; modtime in that buffer, to cater to use case where the
+          ;; file is about to be written to from some buffer that
+          ;; doesn't visit any file, like a temporary buffer.
+          (let ((buf (get-file-buffer (file-truename filename))))
+            (when buf  ; If we cannot find the visiting buffer, punt.
+              (with-current-buffer buf
+                (set-visited-file-modtime))))
           'unchanged)))))
 
 ;;;###autoload
@@ -206,11 +216,12 @@ file, then make the change again."))
 ;;;###autoload
 (defun userlock--handle-unlock-error (error)
   "Report an ERROR that occurred while unlocking a file."
-  (display-warning
-   '(unlock-file)
-   ;; There is no need to explain that this is an unlock error because
-   ;; ERROR is a `file-error' condition, which explains this.
-   (message "%s, ignored" (error-message-string error))
-   :warning))
+  (when create-lockfiles
+    (display-warning
+     '(unlock-file)
+     ;; There is no need to explain that this is an unlock error because
+     ;; ERROR is a `file-error' condition, which explains this.
+     (message "%s, ignored" (error-message-string error))
+     :warning)))
 
 ;;; userlock.el ends here

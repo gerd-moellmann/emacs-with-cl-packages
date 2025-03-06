@@ -1,6 +1,6 @@
 ;;; idlw-shell.el --- run IDL as an inferior process of Emacs.  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2025 Free Software Foundation, Inc.
 
 ;; Authors: JD Smith <jd.smith@utoledo.edu>
 ;;          Carsten Dominik <dominik@astro.uva.nl>
@@ -96,8 +96,8 @@
 
 (defcustom idlwave-shell-prompt-pattern "^\r? ?IDL> "
   "Regexp to match IDL prompt at beginning of a line.
-For example, \"^\r?IDL> \" or \"^\r?WAVE> \".
-The \"^\r?\" is needed, to indicate the beginning of the line, with
+For example, \"^\\r?IDL> \" or \"^\\r?WAVE> \".
+The \"^\\r?\" is needed, to indicate the beginning of the line, with
 optional return character (which IDL seems to output randomly).
 This variable is used to initialize `comint-prompt-regexp' in the
 process buffer."
@@ -829,7 +829,7 @@ IDL has currently stepped.")
 
 3. Routine Info
    ------------
-   `\\[idlwave-routine-info]' displays information about an IDL routine near point,
+   \\[idlwave-routine-info] displays information about an IDL routine near point,
    just like in `idlwave-mode'.  The module used is the one at point or
    the one whose argument list is being edited.
    To update IDLWAVE's knowledge about compiled or edited modules, use
@@ -1454,9 +1454,7 @@ and then calls `idlwave-shell-send-command' for any pending commands."
 			 (concat idlwave-shell-accumulation string)))
 		    (setq idlwave-shell-accumulation
 			  (substring string
-				     (progn (string-match "\\(.*[\n\r]+\\)*"
-							  string)
-					    (match-end 0)))))
+				     (string-match "[^\n\r]*\\'" string))))
 		(setq idlwave-shell-accumulation
 		      (concat idlwave-shell-accumulation string)))
 

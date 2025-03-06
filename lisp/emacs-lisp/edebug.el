@@ -1,6 +1,6 @@
 ;;; edebug.el --- a source-level debugger for Emacs Lisp  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1988-1995, 1997, 1999-2024 Free Software Foundation,
+;; Copyright (C) 1988-1995, 1997, 1999-2025 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Daniel LaLiberte <liberte@holonexus.org>
@@ -485,7 +485,7 @@ just FUNCTION is printed."
     (edebug--eval-defun #'eval-defun edebug-it)))
 
 ;;;###autoload
-(defalias 'edebug-defun 'edebug-eval-top-level-form)
+(defalias 'edebug-defun #'edebug-eval-top-level-form)
 
 ;;;###autoload
 (defun edebug-eval-top-level-form ()
@@ -1229,8 +1229,12 @@ purpose by adding an entry to this alist, and setting
 	   ;; But the list will just be reversed.
 	   ,@(nreverse edebug-def-args))
        'nil)
-    (function (lambda () ,@forms))
-    ))
+    #'(lambda ()
+        ;; Mark the closure so we don't throw away unused vars (bug#59213).
+        :closure-dont-trim-context
+        ;; Make sure `forms' is not nil so we don't accidentally return
+        ;; the magic keyword.
+        ,@(or forms '(nil)))))
 
 
 (defvar edebug-form-begin-marker) ; the mark for def being instrumented
@@ -1268,55 +1272,54 @@ Does not unwrap inside vectors, records, structures, or hash tables."
   (pcase sexp
     (`(edebug-after ,_before-form ,_after-index ,form)
      form)
-    (`(lambda ,args (edebug-enter ',_sym ,_arglist
-				   (function (lambda nil . ,body))))
-     `(lambda ,args ,@body))
-    (`(closure ,env ,args (edebug-enter ',_sym ,_arglist
-					 (function (lambda nil . ,body))))
-     `(closure ,env ,args ,@body))
-    (`(edebug-enter ',_sym ,_args (function (lambda nil . ,body)))
+    (`(edebug-enter ',_sym ,_args
+                    #'(lambda nil :closure-dont-trim-context . ,body))
      (macroexp-progn body))
     (_ sexp)))
 
+(defconst edebug--unwrap-cache
+  (make-hash-table :test 'eq :weakness 'key)
+  "Hash-table containing the results of unwrapping cons cells.
+These results are reused to avoid redundant work but also to avoid
+infinite loops when the code/environment contains a circular object.")
+
 (defun edebug-unwrap* (sexp)
   "Return the SEXP recursively unwrapped."
-  (let ((ht (make-hash-table :test 'eq)))
-    (edebug--unwrap1 sexp ht)))
-
-(defun edebug--unwrap1 (sexp hash-table)
-  "Unwrap SEXP using HASH-TABLE of things already unwrapped.
-HASH-TABLE contains the results of unwrapping cons cells within
-SEXP, which are reused to avoid infinite loops when SEXP is or
-contains a circular object."
-  (let ((new-sexp (edebug-unwrap sexp)))
-    (while (not (eq sexp new-sexp))
-      (setq sexp new-sexp
-	    new-sexp (edebug-unwrap sexp)))
-    (if (consp new-sexp)
-	(let ((result (gethash new-sexp hash-table nil)))
-	  (unless result
-	    (let ((remainder new-sexp)
-		  current)
-	      (setq result (cons nil nil)
-		    current result)
-	      (while
-		  (progn
-		    (puthash remainder current hash-table)
-		    (setf (car current)
-			  (edebug--unwrap1 (car remainder) hash-table))
-		    (setq remainder (cdr remainder))
-		    (cond
-		     ((atom remainder)
-		      (setf (cdr current)
-			    (edebug--unwrap1 remainder hash-table))
-		      nil)
-		     ((gethash remainder hash-table nil)
-		      (setf (cdr current) (gethash remainder hash-table nil))
-		      nil)
-		     (t (setq current
-			      (setf (cdr current) (cons nil nil)))))))))
-	  result)
-      new-sexp)))
+  (while (not (eq sexp (setq sexp (edebug-unwrap sexp)))))
+  (cond
+   ((consp sexp)
+    (or (gethash sexp edebug--unwrap-cache nil)
+	(let ((remainder sexp)
+	      (current (cons nil nil)))
+	  (prog1 current
+	    (while
+		(progn
+		  (puthash remainder current edebug--unwrap-cache)
+		  (setf (car current)
+		        (edebug-unwrap* (car remainder)))
+		  (setq remainder (cdr remainder))
+		  (cond
+		   ((atom remainder)
+		    (setf (cdr current)
+			  (edebug-unwrap* remainder))
+		    nil)
+		   ((gethash remainder edebug--unwrap-cache nil)
+		    (setf (cdr current) (gethash remainder edebug--unwrap-cache nil))
+		    nil)
+		   (t (setq current
+			    (setf (cdr current) (cons nil nil)))))))))))
+   ((byte-code-function-p sexp)
+    (apply #'make-byte-code
+           (aref sexp 0) (aref sexp 1)
+           (vconcat (mapcar #'edebug-unwrap* (aref sexp 2)))
+           (nthcdr 3 (append sexp ()))))
+   ((interpreted-function-p sexp)
+    (make-interpreted-closure
+     (aref sexp 0) (mapcar #'edebug-unwrap* (aref sexp 1))
+     (mapcar (lambda (x) (if (consp x) (cons (car x) (edebug-unwrap* (cdr x))) x))
+             (aref sexp 2))
+     (documentation sexp 'raw) (interactive-form sexp)))
+   (t sexp)))
 
 
 (defun edebug-defining-form (cursor form-begin form-end speclist)
@@ -1546,9 +1549,7 @@ contains a circular object."
 (defun edebug-list-form (cursor)
   ;; Return an instrumented form built from the list form.
   ;; The after offset will be left in the cursor after processing the form.
-  (let ((head (edebug-top-element-required cursor "Expected elements"))
-	;; Prevent backtracking whenever instrumenting.
-	(edebug-gate t))
+  (let ((head (edebug-top-element-required cursor "Expected elements")))
     ;; Skip the first offset.
     (edebug-set-cursor cursor (edebug-cursor-expressions cursor)
 		       (cdr (edebug-cursor-offsets cursor)))
@@ -1733,7 +1734,7 @@ contains a circular object."
 (defun edebug-match-form (cursor)
   (list (edebug-form cursor)))
 
-(defalias 'edebug-match-place 'edebug-match-form)
+(defalias 'edebug-match-place #'edebug-match-form)
   ;; Currently identical to edebug-match-form.
   ;; This is for common lisp setf-style place arguments.
 
@@ -2281,12 +2282,7 @@ only be active while Edebug is.  It checks `debug-on-error' to see
 whether it should call the debugger.  When execution is resumed, the
 error is signaled again."
   (if (and (listp debug-on-error) (memq signal-name debug-on-error))
-      (edebug 'error (cons signal-name signal-data)))
-  ;; If we reach here without another non-local exit, then send signal again.
-  ;; i.e. the signal is not continuable, yet.
-  ;; Avoid infinite recursion.
-  (let ((signal-hook-function nil))
-    (signal signal-name signal-data)))
+      (edebug 'error (cons signal-name signal-data))))
 
 ;;; Entering Edebug
 
@@ -2330,6 +2326,12 @@ and run its entry function, and set up `edebug-before' and
               (debug-on-error (or debug-on-error edebug-on-error))
               (debug-on-quit edebug-on-quit))
           (unwind-protect
+              ;; FIXME: We could replace this `signal-hook-function' with
+              ;; a cleaner `handler-bind' but then we wouldn't be able to
+              ;; install it here (i.e. once and for all when entering
+              ;; an Edebugged function), but instead it would have to
+              ;; be installed into a modified `edebug-after' which wraps
+              ;; the `handler-bind' around its argument(s). :-(
               (let ((signal-hook-function #'edebug-signal))
                 (setq edebug-execution-mode (or edebug-next-execution-mode
                                                 edebug-initial-mode
@@ -2471,12 +2473,52 @@ MSG is printed after `::::} '."
   (setf (cdr (assq 'edebug edebug-behavior-alist))
         '(edebug-default-enter edebug-fast-before edebug-fast-after)))
 
-(defalias 'edebug-before nil
+;; The following versions of `edebug-before' and `edebug-after' exist
+;; to handle the error which occurs if either of them gets called
+;; without an enclosing `edebug-enter'.  This can happen, for example,
+;; when a macro mistakenly has a `form' element in its edebug spec,
+;; and it additionally, at macro-expansion time, calls `eval',
+;; `apply', or `funcall' (etc.) on the corresponding argument.  This
+;; is intended to fix bug#65620.
+
+(defun edebug-b/a-error (func)
+  "Throw an error for an invalid call of FUNC.
+FUNC is expected to be `edebug-before' or `edebug-after'."
+  (let (this-macro
+        (n 0)
+        bt-frame)
+    (while (and (setq bt-frame (backtrace-frame n))
+                (not (and (car bt-frame)
+                          (memq (cadr bt-frame)
+                                '(macroexpand macroexpand-1)))))
+      (setq n (1+ n)))
+    (when bt-frame
+      (setq this-macro (caaddr bt-frame)))
+
+    (error
+     (concat "Invalid call to `" (symbol-name func) "'"
+             (if this-macro
+                 (concat ".  Is the edebug spec for `"
+                         (symbol-name this-macro)
+                         "' correct?")
+               ""   ; Not sure this case is possible (ACM, 2023-09-02)
+               )))))
+
+(defun edebug-before (_before-index)
   "Function called by Edebug before a form is evaluated.
-See `edebug-behavior-alist' for implementations.")
-(defalias 'edebug-after nil
+See `edebug-behavior-alist' for other implementations.  This
+version of `edebug-before' gets called when edebug is not yet set
+up.  `edebug-enter' binds the function cell to a real function
+when edebug becomes active."
+  (edebug-b/a-error 'edebug-before))
+
+(defun edebug-after (_before-index _after-index _form)
   "Function called by Edebug after a form is evaluated.
-See `edebug-behavior-alist' for implementations.")
+See `edebug-behavior-alist' for other implementations.  This
+version of `edebug-after' gets called when edebug is not yet set
+up.  `edebug-enter' binds the function cell to a real function
+when edebug becomes active."
+  (edebug-b/a-error 'edebug-after))
 
 (defun edebug--update-coverage (after-index value)
   (let ((old-result (aref edebug-coverage after-index)))
@@ -2855,81 +2897,81 @@ See `edebug-behavior-alist' for implementations.")
 	edebug-inside-windows
 	)
 
-    (unwind-protect
-	(let (
-	      ;; Declare global values local but using the same global value.
-	      ;; We could set these to the values for previous edebug call.
-	      (last-command last-command)
-	      (this-command this-command)
-	      (current-prefix-arg nil)
 
-	      (last-input-event nil)
-	      (last-command-event nil)
-	      (last-event-frame nil)
-	      (last-nonmenu-event nil)
-	      (track-mouse nil)
+    (let (
+	  ;; Declare global values local but using the same global value.
+	  ;; We could set these to the values for previous edebug call.
+	  (last-command last-command)
+	  (this-command this-command)
+	  (current-prefix-arg nil)
 
-              (standard-output t)
-              (standard-input t)
+	  (last-input-event nil)
+	  (last-command-event nil)
+	  (last-event-frame nil)
+	  (last-nonmenu-event nil)
+	  (track-mouse nil)
 
-	      ;; Don't keep reading from an executing kbd macro
-              ;; within edebug unless edebug-continue-kbd-macro is
-              ;; non-nil.  Again, local binding may not be best.
-              (executing-kbd-macro
-               (if edebug-continue-kbd-macro executing-kbd-macro))
+          (standard-output t)
+          (standard-input t)
 
-              ;; Don't get confused by the user's keymap changes.
-              (overriding-local-map nil)
-              (overriding-terminal-local-map nil)
-              ;; Override other minor modes that may bind the keys
-              ;; edebug uses.
-              (minor-mode-overriding-map-alist
-               (list (cons 'edebug-mode edebug-mode-map)))
+	  ;; Don't keep reading from an executing kbd macro
+          ;; within edebug unless edebug-continue-kbd-macro is
+          ;; non-nil.  Again, local binding may not be best.
+          (executing-kbd-macro
+           (if edebug-continue-kbd-macro executing-kbd-macro))
 
-              ;; Bind again to outside values.
-	      (debug-on-error edebug-outside-debug-on-error)
-	      (debug-on-quit edebug-outside-debug-on-quit)
+          ;; Don't get confused by the user's keymap changes.
+          (overriding-local-map nil)
+          (overriding-terminal-local-map nil)
+          ;; Override other minor modes that may bind the keys
+          ;; edebug uses.
+          (minor-mode-overriding-map-alist
+           (list (cons 'edebug-mode edebug-mode-map)))
 
-	      ;; Don't keep defining a kbd macro.
-	      (defining-kbd-macro
-		(if edebug-continue-kbd-macro defining-kbd-macro))
+          ;; Bind again to outside values.
+	  (debug-on-error edebug-outside-debug-on-error)
+	  (debug-on-quit edebug-outside-debug-on-quit)
 
-	      ;; others??
-	      )
+	  ;; Don't keep defining a kbd macro.
+	  (defining-kbd-macro
+	    (if edebug-continue-kbd-macro defining-kbd-macro))
 
-	  (if (and (eq edebug-execution-mode 'go)
-		   (not (memq arg-mode '(after error))))
-	      (message "Break"))
+	  ;; others??
+	  )
 
-	  (setq signal-hook-function nil)
+      (if (and (eq edebug-execution-mode 'go)
+	       (not (memq arg-mode '(after error))))
+	  (message "Break"))
 
-	  (edebug-mode 1)
-	  (unwind-protect
-	      (recursive-edit)		;  <<<<<<<<<< Recursive edit
+      (setq signal-hook-function nil)
 
-	    ;; Do the following, even if quit occurs.
-	    (setq signal-hook-function #'edebug-signal)
-	    (if edebug-backtrace-buffer
-		(kill-buffer edebug-backtrace-buffer))
+      (edebug-mode 1)
+      (unwind-protect
+	  (recursive-edit)		;  <<<<<<<<<< Recursive edit
 
-	    ;; Remember selected-window after recursive-edit.
-	    ;;      (setq edebug-inside-window (selected-window))
+	;; Do the following, even if quit occurs.
+	(setq signal-hook-function #'edebug-signal)
+	(if edebug-backtrace-buffer
+	    (kill-buffer edebug-backtrace-buffer))
 
-	    (set-match-data edebug-outside-match-data)
+	;; Remember selected-window after recursive-edit.
+	;;      (setq edebug-inside-window (selected-window))
 
-	    ;; Recursive edit may have changed buffers,
-	    ;; so set it back before exiting let.
-	    (if (buffer-name edebug-buffer) ; if it still exists
-		(progn
-		  (set-buffer edebug-buffer)
-		  (when (memq edebug-execution-mode '(go Go-nonstop))
-		    (edebug-overlay-arrow)
-		    (sit-for 0))
-                  (edebug-mode -1))
-	      ;; gotta have a buffer to let its buffer local variables be set
-	      (get-buffer-create " bogus edebug buffer"))
-	    ));; inner let
-      )))
+	(set-match-data edebug-outside-match-data)
+
+	;; Recursive edit may have changed buffers,
+	;; so set it back before exiting let.
+	(if (buffer-name edebug-buffer) ; if it still exists
+	    (progn
+	      (set-buffer edebug-buffer)
+	      (when (memq edebug-execution-mode '(go Go-nonstop))
+		(edebug-overlay-arrow)
+		(sit-for 0))
+              (edebug-mode -1))
+	  ;; gotta have a buffer to let its buffer local variables be set
+	  (get-buffer-create " bogus edebug buffer"))
+	));; inner let
+      ))
 
 
 ;;; Display related functions
@@ -3312,7 +3354,7 @@ With prefix argument, make it a temporary breakpoint."
     (message "%s" msg)))
 
 
-(defalias 'edebug-step-through-mode 'edebug-step-mode)
+(defalias 'edebug-step-through-mode #'edebug-step-mode)
 
 (defun edebug-step-mode ()
   "Proceed to next stop point."
@@ -3800,12 +3842,12 @@ be installed in `emacs-lisp-mode-map'.")
 
 ;; Global GUD bindings for all emacs-lisp-mode buffers.
 (unless edebug-inhibit-emacs-lisp-mode-bindings
-  (define-key emacs-lisp-mode-map "\C-x\C-a\C-s" 'edebug-step-mode)
-  (define-key emacs-lisp-mode-map "\C-x\C-a\C-n" 'edebug-next-mode)
-  (define-key emacs-lisp-mode-map "\C-x\C-a\C-c" 'edebug-go-mode)
-  (define-key emacs-lisp-mode-map "\C-x\C-a\C-l" 'edebug-where)
+  (define-key emacs-lisp-mode-map "\C-x\C-a\C-s" #'edebug-step-mode)
+  (define-key emacs-lisp-mode-map "\C-x\C-a\C-n" #'edebug-next-mode)
+  (define-key emacs-lisp-mode-map "\C-x\C-a\C-c" #'edebug-go-mode)
+  (define-key emacs-lisp-mode-map "\C-x\C-a\C-l" #'edebug-where)
   ;; The following isn't a GUD binding.
-  (define-key emacs-lisp-mode-map "\C-x\C-a\C-m" 'edebug-set-initial-mode))
+  (define-key emacs-lisp-mode-map "\C-x\C-a\C-m" #'edebug-set-initial-mode))
 
 (defvar-keymap edebug-mode-map
   :parent emacs-lisp-mode-map
@@ -4198,13 +4240,13 @@ Remove frames for Edebug's functions and the lambdas in
 and after-index fields in both FRAMES and the returned list
 of deinstrumented frames, for those frames where the source
 code location is known."
-  (let (skip-next-lambda def-name before-index after-index results
-        (index (length frames)))
+  (let ((index (length frames))
+        skip-next-lambda def-name before-index after-index results)
     (dolist (frame (reverse frames))
       (let ((new-frame (copy-edebug--frame frame))
             (fun (edebug--frame-fun frame))
             (args (edebug--frame-args frame)))
-        (cl-decf index)
+        (cl-decf index) ;; FIXME: Not used?
         (pcase fun
           ('edebug-enter
 	   (setq skip-next-lambda t
@@ -4214,38 +4256,46 @@ code location is known."
                                   (nth 1 (nth 0 args))
                                 (nth 0 args))
                  after-index (nth 1 args)))
-          ((pred edebug--symbol-not-prefixed-p)
-           (edebug--unwrap-frame new-frame)
-           (edebug--add-source-info new-frame def-name before-index after-index)
-           (edebug--add-source-info frame def-name before-index after-index)
-           (push new-frame results)
-           (setq before-index nil
-                 after-index nil))
-          (`(,(or 'lambda 'closure) . ,_)
+          ;; Just skip all our own frames.
+          ((pred edebug--symbol-prefixed-p) nil)
+          (_
+           (when (and skip-next-lambda
+                      (not (interpreted-function-p fun)))
+             (warn "Edebug--strip-instrumentation expected an interpreted function:\n%S" fun))
 	   (unless skip-next-lambda
              (edebug--unwrap-frame new-frame)
-             (edebug--add-source-info frame def-name before-index after-index)
              (edebug--add-source-info new-frame def-name before-index after-index)
+             (edebug--add-source-info frame def-name before-index after-index)
              (push new-frame results))
-	   (setq before-index nil
+           (setq before-index nil
                  after-index nil
                  skip-next-lambda nil)))))
     results))
 
-(defun edebug--symbol-not-prefixed-p (sym)
-  "Return non-nil if SYM is a symbol not prefixed by \"edebug-\"."
+(defun edebug--symbol-prefixed-p (sym)
+  "Return non-nil if SYM is a symbol prefixed by \"edebug-\"."
   (and (symbolp sym)
-       (not (string-prefix-p "edebug-" (symbol-name sym)))))
+       (string-prefix-p "edebug-" (symbol-name sym))))
 
 (defun edebug--unwrap-frame (frame)
   "Remove Edebug's instrumentation from FRAME.
 Strip it from the function and any unevaluated arguments."
-  (setf (edebug--frame-fun frame) (edebug-unwrap* (edebug--frame-fun frame)))
-  (unless (edebug--frame-evald frame)
-    (let (results)
-      (dolist (arg (edebug--frame-args frame))
-        (push (edebug-unwrap* arg) results))
-      (setf (edebug--frame-args frame) (nreverse results)))))
+  (cl-callf edebug-unwrap* (edebug--frame-fun frame))
+  ;; We used to try to be careful to apply `edebug-unwrap' only to source
+  ;; expressions and not to values, so we did not apply unwrap to the arguments
+  ;; of the frame if they had already been evaluated.
+  ;; But this was not careful enough since `edebug-unwrap*' gleefully traverses
+  ;; its argument without paying attention to its syntactic structure so it
+  ;; also "mistakenly" descends into the values contained within the "source
+  ;; code".  In practice this *very* rarely leads to undesired results.
+  ;; On the contrary, it's often useful to descend into values because they
+  ;; may contain interpreted closures and hence source code where we *do*
+  ;; want to apply `edebug-unwrap'.
+  ;; So based on this experience, we now also apply `edebug-unwrap*' to
+  ;; the already evaluated arguments.
+  ;;(unless (edebug--frame-evald frame)
+  (cl-callf (lambda (xs) (mapcar #'edebug-unwrap* xs))
+      (edebug--frame-args frame)))
 
 (defun edebug--add-source-info (frame def-name before-index after-index)
   "Update FRAME with the additional info needed by an edebug--frame.
@@ -4527,10 +4577,9 @@ With prefix argument, make it a temporary breakpoint."
 (add-hook 'called-interactively-p-functions
           #'edebug--called-interactively-skip)
 (defun edebug--called-interactively-skip (i frame1 frame2)
-  (when (and (memq (car-safe (nth 1 frame1)) '(lambda closure))
+  (when (and (interpreted-function-p (nth 1 frame1))
              ;; Lambda value with no arguments.
-             (null (nth (if (eq (car-safe (nth 1 frame1)) 'lambda) 1 2)
-                        (nth 1 frame1)))
+             (null (aref (nth 1 frame1) 0))
              (memq (nth 1 frame2) '(edebug-enter edebug-default-enter)))
     ;; `edebug-enter' calls itself on its first invocation.
     (let ((s 1))

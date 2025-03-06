@@ -1,5 +1,5 @@
 /* Font backend for the Microsoft Windows API.
-   Copyright (C) 2007-2024 Free Software Foundation, Inc.
+   Copyright (C) 2007-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -1072,7 +1072,7 @@ w32font_open_internal (struct frame *f, Lisp_Object font_entity,
      name to be usable in x-list-fonts. Eventually we expect to change
      x-list-fonts and other places that use fonts so that this can be
      an fcname or similar.  */
-  font->props[FONT_NAME_INDEX] = Ffont_xlfd_name (font_object, Qnil);
+  font->props[FONT_NAME_INDEX] = Ffont_xlfd_name (font_object, Qnil, Qt);
 
   return 1;
 }
@@ -1196,15 +1196,15 @@ w32_enumfont_pattern_entity (Lisp_Object frame,
   if (EQ (backend, Quniscribe) && (full_type & NTMFLAGS_OPENTYPE))
     tem = Qopentype;
   else if (font_type & TRUETYPE_FONTTYPE)
-    tem = intern ("truetype");
+    tem = Qtruetype;
   else if (full_type & NTM_PS_OPENTYPE)
     tem = Qpostscript;
   else if (full_type & NTM_TYPE1)
-    tem = intern ("type1");
+    tem = Qtype1;
   else if (font_type & RASTER_FONTTYPE)
-    tem = intern ("w32bitmap");
+    tem = Qw32bitmap;
   else
-    tem = intern ("w32vector");
+    tem = Qw32vector;
 
   font_put_extra (entity, QCformat, tem);
 
@@ -2031,7 +2031,7 @@ static void
 fill_in_logfont (struct frame *f, LOGFONT *logfont, Lisp_Object font_spec)
 {
   Lisp_Object tmp, extra;
-  int dpi = FRAME_RES_Y (f);
+  int dpi = FRAME_RES (f);
 
   tmp = AREF (font_spec, FONT_DPI_INDEX);
   if (FIXNUMP (tmp))
@@ -2265,14 +2265,14 @@ font_supported_scripts (FONTSIGNATURE * sig)
   /* Match a single subrange. SYM is set if bit N is set in subranges.  */
 #define SUBRANGE(n,sym) \
   if (subranges[(n) / 32] & (1U << ((n) % 32))) \
-    supported = Fcons ((sym), supported)
+    supported = Fcons (sym, supported)
 
   /* Match multiple subranges. SYM is set if any MASK bit is set in
      subranges[0 - 3].  */
 #define MASK_ANY(mask0,mask1,mask2,mask3,sym)      \
   if ((subranges[0] & (mask0)) || (subranges[1] & (mask1))     \
       || (subranges[2] & (mask2)) || (subranges[3] & (mask3))) \
-    supported = Fcons ((sym), supported)
+    supported = Fcons (sym, supported)
 
   /* 0: ASCII (a.k.a. "Basic Latin"),
      1: Latin-1 supplement, 2: Latin Extended A, 3: Latin Extended B,
@@ -2772,6 +2772,12 @@ syms_of_w32font (void)
   DEFSYM (Qstandard, "standard");
   DEFSYM (Qsubpixel, "subpixel");
   DEFSYM (Qnatural, "natural");
+
+  /* Font formats.  */
+  DEFSYM (Qtruetype, "truetype");
+  DEFSYM (Qtype1, "type1");
+  DEFSYM (Qw32bitmap, "w32bitmap");
+  DEFSYM (Qw32vector, "w32vector");
 
   /* Languages  */
   DEFSYM (Qzh, "zh");

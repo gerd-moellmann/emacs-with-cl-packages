@@ -1,6 +1,6 @@
 ;;; smerge-mode.el --- Minor mode to resolve diff3 conflicts -*- lexical-binding: t -*-
 
-;; Copyright (C) 1999-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2025 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Keywords: vc, tools, revision control, merge, diff3, cvs, conflict
@@ -254,10 +254,6 @@ Used in `smerge-diff-base-upper' and related functions."
 Can be nil if the style is undecided, or else:
 - `diff3-E'
 - `diff3-A'")
-
-;; Compiler pacifiers
-(defvar font-lock-mode)
-(defvar font-lock-keywords)
 
 ;;;;
 ;;;; Actual code
@@ -1243,7 +1239,11 @@ spacing of the \"Lower\" chunk."
     (write-region beg1 end1 file1 nil 'nomessage)
     (write-region beg2 end2 file2 nil 'nomessage)
     (unwind-protect
-	(with-current-buffer (get-buffer-create smerge-diff-buffer-name)
+	(save-current-buffer
+          (if-let (buffer (get-buffer smerge-diff-buffer-name))
+              (set-buffer buffer)
+            (set-buffer (get-buffer-create smerge-diff-buffer-name))
+            (setq buffer-read-only t))
 	  (setq default-directory dir)
 	  (let ((inhibit-read-only t))
 	    (erase-buffer)

@@ -1,14 +1,14 @@
 ;;; trampver.el --- Transparent Remote Access, Multiple Protocol  -*- lexical-binding:t -*-
 ;;; lisp/trampver.el.  Generated from trampver.el.in by configure.
 
-;; Copyright (C) 2003-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2025 Free Software Foundation, Inc.
 
 ;; Author: Kai Großjohann <kai.grossjohann@gmx.net>
 ;; Maintainer: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
 ;; Package: tramp
-;; Version: 2.6.3
-;; Package-Requires: ((emacs "26.1"))
+;; Version: 2.7.1.30.1
+;; Package-Requires: ((emacs "27.1"))
 ;; Package-Type: multi
 ;; URL: https://www.gnu.org/software/tramp/
 
@@ -40,13 +40,14 @@
 ;; ./configure" to change them.
 
 ;;;###tramp-autoload
-(defconst tramp-version "2.6.3"
+(defconst tramp-version "2.7.1.30.1"
   "This version of Tramp.")
 
 ;;;###tramp-autoload
 (defconst tramp-bug-report-address "tramp-devel@gnu.org"
   "Email address to send bug reports to.")
 
+;;;###tramp-autoload
 (defconst tramp-repository-branch
   (ignore-errors
     ;; Suppress message from `emacs-repository-get-branch'.  We must
@@ -55,13 +56,12 @@
 	  (dir (or (locate-dominating-file (locate-library "tramp") ".git")
 		   source-directory))
 	  debug-on-error)
-      ;; `emacs-repository-get-branch' has been introduced with Emacs 27.1.
-      (with-no-warnings
-	(and (stringp dir) (file-directory-p dir)
-	     (executable-find "git")
-	     (emacs-repository-get-branch dir)))))
+      (and (stringp dir) (file-directory-p dir)
+	   (executable-find "git")
+	   (emacs-repository-get-branch dir))))
   "The repository branch of the Tramp sources.")
 
+;;;###tramp-autoload
 (defconst tramp-repository-version
   (ignore-errors
     ;; Suppress message from `emacs-repository-get-version'.  We must
@@ -76,9 +76,9 @@
   "The repository revision of the Tramp sources.")
 
 ;; Check for Emacs version.
-(let ((x   (if (not (string-version-lessp emacs-version "26.1"))
+(let ((x   (if (not (string-version-lessp emacs-version "27.1"))
       "ok"
-    (format "Tramp 2.6.3 is not fit for %s"
+    (format "Tramp 2.7.1.30.1 is not fit for %s"
             (replace-regexp-in-string "\n" "" (emacs-version))))))
   (unless (string-equal "ok" x) (error "%s" x)))
 
@@ -106,7 +106,8 @@
          ("2.4.3.27.1" . "27.1") ("2.4.5.27.2" . "27.2")
          ("2.5.2.28.1" . "28.1") ("2.5.3.28.2" . "28.2") ("2.5.4" . "28.3")
          ("2.6.0.29.1" . "29.1") ("2.6.2.29.2" . "29.2") ("2.6.3-pre" . "29.3")
-	 ("2.6.3" . "29.4")))
+	 ("2.6.3" . "29.4")
+	 ("2.7.1.30.1" . "30.1")))
 
 (add-hook 'tramp-unload-hook
 	  (lambda ()

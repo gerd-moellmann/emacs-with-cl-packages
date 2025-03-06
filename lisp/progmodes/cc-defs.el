@@ -1,6 +1,6 @@
 ;;; cc-defs.el --- compile time definitions for CC Mode -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985, 1987, 1992-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1985, 1987, 1992-2025 Free Software Foundation, Inc.
 
 ;; Authors:    2003- Alan Mackenzie
 ;;             1998- Martin Stjernholm
@@ -425,11 +425,14 @@ to it is returned.  This function does not modify the point or the mark."
 (defvar lookup-syntax-properties)       ;XEmacs.
 
 (defmacro c-is-escaped (pos)
-  ;; Are there an odd number of backslashes before POS?
+  ;; Is the character following POS escaped?
   (declare (debug t))
   `(save-excursion
      (goto-char ,pos)
-     (not (zerop (logand (skip-chars-backward "\\\\") 1)))))
+     (if (and c-escaped-newline-takes-precedence
+	      (memq (char-after) '(?\n ?\r)))
+	 (eq (char-before) ?\\)
+       (not (zerop (logand (skip-chars-backward "\\\\") 1))))))
 
 (defmacro c-will-be-escaped (pos beg end)
   ;; Will the character after POS be escaped after the removal of (BEG END)?
@@ -437,13 +440,23 @@ to it is returned.  This function does not modify the point or the mark."
   (declare (debug t))
   `(save-excursion
      (let ((-end- ,end)
+	   (-pos- ,pos)
 	   count)
-       (goto-char ,pos)
-       (setq count (skip-chars-backward "\\\\" -end-))
-       (when (eq (point) -end-)
-	 (goto-char ,beg)
-	 (setq count (+ count (skip-chars-backward "\\\\"))))
-       (not (zerop (logand count 1))))))
+       (if (and c-escaped-newline-takes-precedence
+		(memq (char-after -pos-) '(?\n ?\r)))
+	   (eq (char-before (if (eq -pos- -end-)
+				,beg
+			      -pos-))
+	       ?\\)
+	 (goto-char -pos-)
+	 (setq count
+	       (if (> -pos- -end-)
+		   (skip-chars-backward "\\\\" -end-)
+		 0))
+	 (when (eq (point) -end-)
+	   (goto-char ,beg)
+	   (setq count (+ count (skip-chars-backward "\\\\"))))
+	 (not (zerop (logand count 1)))))))
 
 (defmacro c-will-be-unescaped (beg)
   ;; Would the character after BEG be unescaped?
@@ -720,9 +733,10 @@ various buffer change hooks."
 
 (defmacro c-forward-syntactic-ws (&optional limit)
   "Forward skip over syntactic whitespace.
-Syntactic whitespace is defined as whitespace characters, comments,
-and preprocessor directives.  However if point starts inside a comment
-or preprocessor directive, the content of it is not treated as
+Syntactic whitespace is defined as whitespace characters with
+whitespace (or comment-end) syntax, comments, and preprocessor
+directives.  However if point starts inside a comment or
+preprocessor directive, the content of it is not treated as
 whitespace.
 
 LIMIT sets an upper limit of the forward movement, if specified.  If
@@ -742,9 +756,10 @@ comment at the start of cc-engine.el for more info."
 
 (defmacro c-backward-syntactic-ws (&optional limit)
   "Backward skip over syntactic whitespace.
-Syntactic whitespace is defined as whitespace characters, comments,
-and preprocessor directives.  However if point starts inside a comment
-or preprocessor directive, the content of it is not treated as
+Syntactic whitespace is defined as whitespace characters with
+whitespace (or comment-end) syntax, comments, and preprocessor
+directives.  However if point starts inside a comment or
+preprocessor directive, the content of it is not treated as
 whitespace.
 
 LIMIT sets a lower limit of the backward movement, if specified.  If
@@ -912,7 +927,8 @@ be after it."
      (when dest (goto-char dest) t)))
 
 (defmacro c-beginning-of-defun-1 ()
-  ;; Wrapper around beginning-of-defun.
+  ;; Wrapper around beginning-of-defun.  Note that the return value from this
+  ;; macro has no significance.
   ;;
   ;; NOTE: This function should contain the only explicit use of
   ;; beginning-of-defun in CC Mode.  Eventually something better than
@@ -925,44 +941,49 @@ be after it."
   ;; `c-parse-state'.
 
   `(progn
-     (if (and ,(fboundp 'buffer-syntactic-context-depth)
-	      c-enable-xemacs-performance-kludge-p)
-	 ,(when (fboundp 'buffer-syntactic-context-depth)
-	    ;; XEmacs only.  This can improve the performance of
-	    ;; c-parse-state to between 3 and 60 times faster when
-	    ;; braces are hung.  It can also degrade performance by
-	    ;; about as much when braces are not hung.
-	    '(let (beginning-of-defun-function end-of-defun-function
-					       pos)
-	       (while (not pos)
-		 (save-restriction
-		   (widen)
-		   (setq pos (c-safe-scan-lists
-			      (point) -1 (buffer-syntactic-context-depth))))
-		 (cond
-		  ((bobp) (setq pos (point-min)))
-		  ((not pos)
-		   (let ((distance (skip-chars-backward "^{")))
-		     ;; unbalanced parenthesis, while invalid C code,
-		     ;; shouldn't cause an infloop!  See unbal.c
-		     (when (zerop distance)
-		       ;; Punt!
-		       (beginning-of-defun)
-		       (setq pos (point)))))
-		  ((= pos 0))
-		  ((not (eq (char-after pos) ?{))
-		   (goto-char pos)
-		   (setq pos nil))
-		  ))
-	       (goto-char pos)))
-       ;; Emacs, which doesn't have buffer-syntactic-context-depth
-       (let (beginning-of-defun-function end-of-defun-function)
-	 (beginning-of-defun)))
-     ;; if defun-prompt-regexp is non-nil, b-o-d won't leave us at the
-     ;; open brace.
-     (and defun-prompt-regexp
-	  (looking-at defun-prompt-regexp)
-	  (goto-char (match-end 0)))))
+     (while
+	 (progn
+	   (if (and ,(fboundp 'buffer-syntactic-context-depth)
+		    c-enable-xemacs-performance-kludge-p)
+	       ,(when (fboundp 'buffer-syntactic-context-depth)
+		  ;; XEmacs only.  This can improve the performance of
+		  ;; c-parse-state to between 3 and 60 times faster when
+		  ;; braces are hung.  It can also degrade performance by
+		  ;; about as much when braces are not hung.
+		  '(let (beginning-of-defun-function end-of-defun-function
+						     pos)
+		     (while (not pos)
+		       (save-restriction
+			 (widen)
+			 (setq pos (c-safe-scan-lists
+				    (point) -1 (buffer-syntactic-context-depth))))
+		       (cond
+			((bobp) (setq pos (point-min)))
+			((not pos)
+			 (let ((distance (skip-chars-backward "^{")))
+			   ;; unbalanced parenthesis, while invalid C code,
+			   ;; shouldn't cause an infloop!  See unbal.c
+			   (when (zerop distance)
+			     ;; Punt!
+			     (beginning-of-defun)
+			     (setq pos (point)))))
+			((= pos 0))
+			((not (eq (char-after pos) ?{))
+			 (goto-char pos)
+			 (setq pos nil))
+			))
+		     (goto-char pos)))
+	     ;; Emacs, which doesn't have buffer-syntactic-context-depth
+	     (let (beginning-of-defun-function end-of-defun-function)
+	       (beginning-of-defun)))
+	   (and (not (bobp))
+		;; if defun-prompt-regexp is non-nil, b-o-d won't leave us at
+		;; the open brace.
+		defun-prompt-regexp
+		(looking-at (concat defun-prompt-regexp "\\s("))
+		(or (not (eq (char-before (match-end 0)) ?{))
+		    (progn (goto-char (1- (match-end 0)))
+			   nil)))))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1089,6 +1110,38 @@ continuations."
 		   (eq (char-before) ?\\)))
        (backward-char))))
 
+(defmacro c-skip-ws-chars-forward (string &optional lim)
+  ;; Move point forward, stopping before a char which isn't in STRING, or a
+  ;; char whose syntax isn't whitespace or comment-end, or at pos LIM.
+  ;; Note that \n usually has comment-end syntax.
+  ;;
+  ;; Returns the distance traveled, either zero or positive.
+  (declare (debug t))
+  `(let ((-lim- ,lim)
+	 (here (point))
+	 count)
+     (setq count (skip-chars-forward ,string -lim-))
+     (when (> count 0)
+       (goto-char here)
+       (setq count (skip-syntax-forward " >" (+ here count))))
+     count))
+
+(defmacro c-skip-ws-chars-backward (string &optional lim)
+  ;; Move point backward, stopping after a char which isn't in STRING, or a
+  ;; char whose syntax isn't whitespace or comment-end, or at pos LIM.  Note
+  ;; that \n usually has comment-end syntax.
+  ;;
+  ;; Returns the distance traveled, either zero or negative.
+  (declare (debug t))
+  `(let ((-lim- ,lim)
+	 (here (point))
+	 count)
+     (setq count (skip-chars-backward ,string -lim-))
+     (when (< count 0)
+       (goto-char here)
+       (setq count (skip-syntax-backward " >" (+ here count))))
+     count))
+
 (eval-and-compile
   (defvar c-langs-are-parametric nil))
 
@@ -1195,6 +1248,17 @@ MODE is either a mode symbol or a list of mode symbols."
 	   `((setq c-syntax-table-hwm (min c-syntax-table-hwm -pos-))))
        (put-text-property -pos- (1+ -pos-) ',property ,value))))
 
+(defmacro c-put-string-fence (pos)
+  ;; Put the string-fence syntax-table text property at POS.
+  ;; Since the character there cannot then count as syntactic whitespace,
+  ;; clear the properties `c-is-sws' and `c-in-sws' (see functions
+  ;; `c-forward-sws' and `c-backward-sws' in cc-engine.el for details).
+  (declare (debug t))
+  `(let ((-pos- ,pos))
+     (c-put-char-property -pos- 'syntax-table '(15))
+     (c-clear-char-property -pos- 'c-is-sws)
+     (c-clear-char-property -pos- 'c-in-sws)))
+
 (eval-and-compile
   ;; Constant to decide at compilation time whether to use category
   ;; properties.  Currently (2010-03) they're available only on GNU
@@ -1283,6 +1347,21 @@ MODE is either a mode symbol or a list of mode symbols."
 	  -to-)
        pos)
       (most-positive-fixnum))))
+
+(defmacro c-put-char-properties (from to property value)
+  ;; Put the given PROPERTY with the given VALUE on the characters between
+  ;; FROM and TO.  PROPERTY is assumed to be constant.  The return value is
+  ;; undefined.
+  ;;
+  ;; This macro does hidden buffer changes.
+  (declare (debug t))
+  (setq property (eval property))
+  `(let ((-from- ,from))
+	 (progn
+	   ,@(when (and (fboundp 'syntax-ppss)
+			(eq `,property 'syntax-table))
+	       `((setq c-syntax-table-hwm (min c-syntax-table-hwm -from-))))
+	   (put-text-property -from- ,to ',property ,value))))
 
 (defmacro c-clear-char-properties (from to property)
   ;; Remove all the occurrences of the given property in the given
@@ -1379,7 +1458,8 @@ isn't found, return nil; point is then left undefined."
        value)
       (t (let ((place (c-next-single-property-change
 		       (point) ,property nil -limit-)))
-	   (when place
+	   (when (and place
+		      (< place -limit-))
 	     (goto-char (1+ place))
 	     (c-get-char-property place ,property)))))))
 
@@ -1846,9 +1926,9 @@ with value CHAR in the region [FROM to)."
       '(looking-at
 	"\\([;#]\\|\\'\\|\\s(\\|\\s)\\|\\s\"\\|\\s\\\\|\\s$\\|\\s<\\|\\s>\\|\\s!\\)")
     '(or (looking-at
-	  "\\([;#]\\|\\'\\|\\s(\\|\\s)\\|\\s\"\\|\\s\\\\|\\s$\\|\\s<\\|\\s>\\)"
+	  "\\([;#]\\|\\'\\|\\s(\\|\\s)\\|\\s\"\\|\\s\\\\|\\s$\\|\\s<\\|\\s>\\)")
 	  (let ((prop (c-get-char-property (point) 'syntax-table)))
-	    (equal prop '(14))))))) ; '(14) is generic comment delimiter.
+	    (equal prop '(14)))))) ; '(14) is generic comment delimiter.
 
 
 (defsubst c-intersect-lists (list alist)
@@ -2345,7 +2425,7 @@ system."
     (error "Unknown base mode `%s'" base-mode))
   (put mode 'c-fallback-mode base-mode))
 
-(defvar c-lang-constants (make-vector 151 0))
+(defvar c-lang-constants (obarray-make 151))
 ;;   Obarray used as a cache to keep track of the language constants.
 ;; The constants stored are those defined by `c-lang-defconst' and the values
 ;; computed by `c-lang-const'.  It's mostly used at compile time but it's not
@@ -2550,7 +2630,7 @@ constant.  A file is identified by its base name."
 
     ;; Clear the evaluated values that depend on this source.
     (let ((agenda (get sym 'dependents))
-	  (visited (make-vector 101 0))
+	  (visited (obarray-make 101))
 	  ptr)
       (while agenda
 	(setq sym (car agenda)

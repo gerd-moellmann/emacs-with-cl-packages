@@ -1,6 +1,6 @@
 ;;; mh-folder.el --- MH-Folder mode  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2002-2003, 2005-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2003, 2005-2025 Free Software Foundation, Inc.
 
 ;; Author: Bill Wohler <wohler@newt.com>
 ;; Keywords: mail
@@ -520,8 +520,8 @@ font-lock is done highlighting.")
 ;; Autoload cookie needed by desktop.el
 ;;;###autoload
 (define-derived-mode mh-folder-mode fundamental-mode "MH-Folder"
-  "Major MH-E mode for \"editing\" an MH folder scan listing.\\<mh-folder-mode-map>
-
+  "Major MH-E mode for \"editing\" an MH folder scan listing.
+\\<mh-folder-mode-map>
 You can show the message the cursor is pointing to, and step through
 the messages. Messages can be marked for deletion or refiling into
 another folder; these commands are executed all at once with a
@@ -1293,8 +1293,9 @@ The message at the cursor is used for \"cur\"."
     (if new-cur
         (let ((seq-entry (mh-find-seq 'cur)))
           (mh-remove-cur-notation)
-          (setcdr seq-entry
-                  (list new-cur))       ;delete-seq-locally, add-msgs-to-seq
+          (if seq-entry
+              (setcdr seq-entry (list new-cur))
+            (mh-add-msgs-to-seq (list new-cur) 'cur))
           (mh-define-sequence 'cur (list new-cur))
           (beginning-of-line)
           (if (looking-at mh-scan-good-msg-regexp)

@@ -1,6 +1,6 @@
 @c -*- coding: utf-8 -*-
 @c This is part of the Emacs manual.
-@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2024 Free Software
+@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2025 Free Software
 @c Foundation, Inc.
 @c See file emacs.texi for copying conditions.
 @node Text
@@ -252,6 +252,10 @@ value of @code{sentence-end-double-space}.
   Some languages, such as Thai, do not use periods to indicate the end
 of a sentence.  Set the variable @code{sentence-end-without-period} to
 @code{t} in such cases.
+
+  Even though the above mentioned sentence movement commands are based
+on human languages, other Emacs modes can set these command to get
+similar functionality (@pxref{Moving by Sentences}).
 
 @node Paragraphs
 @section Paragraphs
@@ -947,12 +951,15 @@ situations where you shouldn't change the major mode---in mail
 composition, for instance.
 
 @kindex M-TAB @r{(Text mode)}
-  Text mode binds @kbd{M-@key{TAB}} to @code{ispell-complete-word}.
-This command performs completion of the partial word in the buffer
-before point, using the spelling dictionary as the space of possible
-words.  @xref{Spelling}.  If your window manager defines
-@kbd{M-@key{TAB}} to switch windows, you can type @kbd{@key{ESC}
-@key{TAB}} or @kbd{C-M-i} instead.
+@findex completion-at-point@r{, in Text Mode}
+@vindex text-mode-ispell-word-completion
+  The command @kbd{M-@key{TAB}} (@code{completion-at-point}) performs
+completion of the partial word in the buffer before point, using the
+spelling dictionary as the space of possible words by default.
+@xref{Spelling}.  If your window manager defines @kbd{M-@key{TAB}} to
+switch windows, you can type @kbd{@key{ESC} @key{TAB}} or @kbd{C-M-i}
+instead.  To disable this completion, customize the variable
+@code{text-mode-ispell-word-completion} to the @code{nil} value.
 
 @vindex text-mode-hook
   Entering Text mode runs the mode hook @code{text-mode-hook}
@@ -1101,6 +1108,12 @@ so that Outline mode will know that sections are contained in
 chapters.  This works as long as no other command starts with
 @samp{@@chap}.
 
+@vindex outline-search-function
+  Instead of setting the variable @code{outline-regexp}, you can set
+the variable @code{outline-search-function} to a function that
+matches the current heading and searches for the next one
+(@pxref{Outline Minor Mode,,,elisp, the Emacs Lisp Reference Manual}).
+
 @vindex outline-level
   You can explicitly specify a rule for calculating the level of a
 heading line by setting the variable @code{outline-level}.  The value
@@ -1195,6 +1208,12 @@ Hide everything except the top @var{n} levels of heading lines
 Hide everything except for the heading or body that point is in, plus
 the headings leading up from there to the top level of the outline
 (@code{outline-hide-other}).
+@item C-c / h @var{regexp} @key{RET}
+Hide bodies of headings that match @var{regexp}
+(@code{outline-hide-by-heading-regexp}).
+@item C-c / s @var{regexp} @key{RET}
+Show bodies of headings that match @var{regexp}
+(@code{outline-show-by-heading-regexp}).
 @end table
 
 @findex outline-hide-entry
@@ -1239,6 +1258,16 @@ everything except the entry that point is in, plus its parents (the
 headers leading up from there to top level in the outline) and the top
 level headings.  It also reveals body lines preceding the first
 heading in the buffer.
+
+@findex outline-hide-by-heading-regexp
+@findex outline-show-by-heading-regexp
+@kindex C-c / h @r{(Outline mode)}
+@kindex C-c / s @r{(Outline mode)}
+  The command @kbd{C-c / h} (@code{outline-hide-by-heading-regexp})
+prompts for a regular expression, and hides all the body lines of
+headings which match the regular expression.  The command @kbd{C-c / s}
+likewise prompts for a regular expression, and reveals the bodies of
+matching headings.
 
 @findex outline-hide-body
 @findex outline-show-all
@@ -1915,7 +1944,7 @@ files needed by @TeX{} for cross-references; these commands are generally
 not suitable for running the final copy in which all of the cross-references
 need to be correct.
 
-  When you want the auxiliary files for cross references, use @kbd{C-c
+  When you want the auxiliary files for cross-references, use @kbd{C-c
 C-f} (@code{tex-file}) which runs @TeX{} on the current buffer's file,
 in that file's directory.  Before running @TeX{}, it offers to save any
 modified buffers.  Generally, you need to use (@code{tex-file}) twice to

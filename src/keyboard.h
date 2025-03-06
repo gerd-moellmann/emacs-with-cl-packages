@@ -1,5 +1,5 @@
 /* Declarations useful when processing input.
-   Copyright (C) 1985-1987, 1993, 2001-2024 Free Software Foundation,
+   Copyright (C) 1985-1987, 1993, 2001-2025 Free Software Foundation,
    Inc.
 
 This file is part of GNU Emacs.
@@ -78,7 +78,6 @@ INLINE_HEADER_BEGIN
    When Emacs goes back to the any-kboard state, it looks at all the KBOARDs
    to find those; and it tries processing their input right away.  */
 
-typedef struct kboard KBOARD;
 struct kboard
   {
     KBOARD *next_kboard;
@@ -246,6 +245,14 @@ extern KBOARD *initial_kboard;
    kboard, but doing so requires throwing to wrong_kboard_jmpbuf.  */
 extern KBOARD *current_kboard;
 
+
+#ifdef HAVE_TEXT_CONVERSION
+
+/* True if a key sequence is currently being read.  */
+extern bool reading_key_sequence;
+
+#endif /* HAVE_TEXT_CONVERSION */
+
 /* Total number of times read_char has returned, modulo UINTMAX_MAX + 1.  */
 extern uintmax_t num_input_events;
 
@@ -388,41 +395,50 @@ extern void unuse_menu_items (void);
 /* Macros for dealing with lispy events.  */
 
 /* True if EVENT has data fields describing it (i.e. a mouse click).  */
-#define EVENT_HAS_PARAMETERS(event) (CONSP (event))
+#define EVENT_HAS_PARAMETERS(event) CONSP (event)
 
 /* Extract the head from an event.
    This works on composite and simple events.  */
 #define EVENT_HEAD(event) \
   (EVENT_HAS_PARAMETERS (event) ? XCAR (event) : (event))
 
-/* Extract the starting and ending positions from a composite event.  */
-#define EVENT_START(event) (CAR_SAFE (CDR_SAFE (event)))
-#define EVENT_END(event) (CAR_SAFE (CDR_SAFE (CDR_SAFE (event))))
+/* Extract the starting and ending positions from a composite event. */
+
+/* Unlike Lisp `event-start', this also handles touch screen events,
+   which are not actually mouse events in the general sense.  */
+#define EVENT_START(event)				\
+  ((EQ (EVENT_HEAD (event), Qtouchscreen_begin)		\
+    || EQ (EVENT_HEAD (event), Qtouchscreen_end))	\
+   ? CDR_SAFE (CAR_SAFE (CDR_SAFE (event)))		\
+   : CAR_SAFE (CDR_SAFE (event)))
+
+/* This does not handle touchscreen events.  */
+#define EVENT_END(event) CAR_SAFE (CDR_SAFE (CDR_SAFE (event)))
 
 /* Extract the click count from a multi-click event.  */
-#define EVENT_CLICK_COUNT(event) (Fnth (make_fixnum (2), (event)))
+#define EVENT_CLICK_COUNT(event) Fnth (make_fixnum (2), event)
 
 /* Extract the fields of a position.  */
-#define POSN_WINDOW(posn) (CAR_SAFE (posn))
-#define POSN_POSN(posn) (CAR_SAFE (CDR_SAFE (posn)))
-#define POSN_SET_POSN(posn,x) (XSETCAR (XCDR (posn), (x)))
-#define POSN_WINDOW_POSN(posn) (CAR_SAFE (CDR_SAFE (CDR_SAFE (posn))))
-#define POSN_TIMESTAMP(posn) (CAR_SAFE (CDR_SAFE (CDR_SAFE (CDR_SAFE (posn)))))
-#define POSN_SCROLLBAR_PART(posn)	(Fnth (make_fixnum (4), (posn)))
+#define POSN_WINDOW(posn) CAR_SAFE (posn)
+#define POSN_POSN(posn) CAR_SAFE (CDR_SAFE (posn))
+#define POSN_SET_POSN(posn,x) XSETCAR (XCDR (posn), x)
+#define POSN_WINDOW_POSN(posn) CAR_SAFE (CDR_SAFE (CDR_SAFE (posn)))
+#define POSN_TIMESTAMP(posn) CAR_SAFE (CDR_SAFE (CDR_SAFE (CDR_SAFE (posn))))
+#define POSN_SCROLLBAR_PART(posn) Fnth (make_fixnum (4), posn)
 
 /* A cons (STRING . STRING-CHARPOS), or nil in mouse-click events.
    It's a cons if the click is over a string in the mode line.  */
 
-#define POSN_STRING(posn) (Fnth (make_fixnum (4), (posn)))
+#define POSN_STRING(posn) Fnth (make_fixnum (4), posn)
 
 /* If POSN_STRING is nil, event refers to buffer location.  */
 
-#define POSN_INBUFFER_P(posn) (NILP (POSN_STRING (posn)))
-#define POSN_BUFFER_POSN(posn) (Fnth (make_fixnum (5), (posn)))
+#define POSN_INBUFFER_P(posn) NILP (POSN_STRING (posn))
+#define POSN_BUFFER_POSN(posn) Fnth (make_fixnum (5), posn)
 
 /* Getting the kind of an event head.  */
 #define EVENT_HEAD_KIND(event_head) \
-  (Fget ((event_head), Qevent_kind))
+  Fget (event_head, Qevent_kind)
 
 /* Address (if not 0) of struct timespec to zero out if a SIGIO interrupt
    happens.  */
@@ -466,6 +482,7 @@ extern void set_poll_suppress_count (int);
 extern int gobble_input (void);
 extern bool input_polling_used (void);
 extern void clear_input_pending (void);
+extern bool requeued_command_events_pending_p (void);
 extern bool requeued_events_pending_p (void);
 extern void bind_polling_period (int);
 extern int make_ctrl_char (int) ATTRIBUTE_CONST;
@@ -503,6 +520,9 @@ extern void mark_kboards (void);
 extern const char *const lispy_function_keys[];
 #endif
 
+/* Terminal device used by Emacs for terminal I/O.  */
+extern char *dev_tty;
+/* Initial value for dev_tty.  */
 extern char const DEV_TTY[];
 
 INLINE_HEADER_END

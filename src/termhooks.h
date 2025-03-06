@@ -1,6 +1,6 @@
 /* Parameters and display hooks for terminal devices.
 
-Copyright (C) 1985-1986, 1993-1994, 2001-2024 Free Software Foundation,
+Copyright (C) 1985-1986, 1993-1994, 2001-2025 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
@@ -64,7 +64,8 @@ enum output_method
   output_mac,
   output_ns,
   output_pgtk,
-  output_haiku
+  output_haiku,
+  output_android,
 };
 
 /* Input queue declarations and hooks.  */
@@ -318,7 +319,11 @@ enum event_kind
 
      In TOUCHSCREEN_BEGIN_EVENT and TOUCHSCREEN_END_EVENT, ARG is the
      unique ID of the touchpoint, and X and Y are the frame-relative
-     positions of the touchpoint.  */
+     positions of the touchpoint.
+
+     In TOUCHSCREEN_END_EVENT, non-0 modifiers means that the
+     touchpoint has been canceled.  (See (elisp)Touchscreen
+     Events.)  */
 
   , TOUCHSCREEN_UPDATE_EVENT
   , TOUCHSCREEN_BEGIN_EVENT
@@ -343,6 +348,16 @@ enum event_kind
      monitor configuration changed.  .timestamp gives the time on
      which the monitors changed.  */
   , MONITORS_CHANGED_EVENT
+
+#ifdef HAVE_HAIKU
+  /* In a NOTIFICATION_CLICKED_EVENT, .arg is an integer identifying
+     the notification that was clicked.  */
+  , NOTIFICATION_CLICKED_EVENT
+#endif /* HAVE_HAIKU */
+#ifdef HAVE_ANDROID
+  /* In a NOTIFICATION_EVENT, .arg is a lambda to evaluate.  */
+  , NOTIFICATION_EVENT
+#endif /* HAVE_ANDROID */
 };
 
 /* Bit width of an enum event_kind tag at the start of structs and unions.  */
@@ -528,21 +543,17 @@ struct terminal
   /* The terminal's keyboard object. */
   struct kboard *kboard;
 
-#ifdef HAVE_WINDOW_SYSTEM
-  /* Cache of images.  */
-  struct image_cache *image_cache;
-#endif /* HAVE_WINDOW_SYSTEM */
-
   /* Device-type dependent data shared amongst all frames on this terminal.  */
   union display_info
   {
-    struct tty_display_info *tty;     /* termchar.h */
-    struct x_display_info *x;         /* xterm.h */
-    struct w32_display_info *w32;     /* w32term.h */
-    struct mac_display_info *mac;     /* macterm.h */
-    struct ns_display_info *ns;       /* nsterm.h */
-    struct pgtk_display_info *pgtk; /* pgtkterm.h */
-    struct haiku_display_info *haiku; /* haikuterm.h */
+    struct tty_display_info *tty;		/* termchar.h */
+    struct x_display_info *x;			/* xterm.h */
+    struct w32_display_info *w32;		/* w32term.h */
+    struct mac_display_info *mac;		/* macterm.h */
+    struct ns_display_info *ns;			/* nsterm.h */
+    struct pgtk_display_info *pgtk;		/* pgtkterm.h */
+    struct haiku_display_info *haiku;		/* haikuterm.h */
+    struct android_display_info *android;	/* androidterm.h */
   } display_info;
 
 
@@ -616,7 +627,8 @@ struct terminal
      BGCOLOR.  */
   void (*query_frame_background_color) (struct frame *f, Emacs_Color *bgcolor);
 
-#if defined (HAVE_X_WINDOWS) || defined (HAVE_NTGUI) || defined (HAVE_MACGUI) || defined (HAVE_PGTK)
+#if defined (HAVE_X_WINDOWS) || defined (HAVE_NTGUI) || defined (HAVE_MACGUI) || defined (HAVE_PGTK) \
+  || defined (HAVE_ANDROID)
   /* On frame F, translate pixel colors to RGB values for the NCOLORS
      colors in COLORS.  Use cached information, if available.  */
 
@@ -954,6 +966,9 @@ extern struct terminal *terminal_list;
 #elif defined (HAVE_HAIKU)
 #define TERMINAL_FONT_CACHE(t)						\
   (t->type == output_haiku ? t->display_info.haiku->name_list_element : Qnil)
+#elif defined (HAVE_ANDROID)
+#define TERMINAL_FONT_CACHE(t)						\
+  (t->type == output_android ? t->display_info.android->name_list_element : Qnil)
 #endif
 
 extern struct terminal *decode_live_terminal (Lisp_Object);

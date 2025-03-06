@@ -1,12 +1,15 @@
 ;;; ntlm.el --- NTLM (NT LanManager) authentication support  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2001, 2007-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2001, 2007-2025 Free Software Foundation, Inc.
 
 ;; Author: Taro Kawagishi <tarok@transpulse.org>
 ;; Maintainer: Thomas Fitzsimmons <fitzsim@fitzsim.org>
 ;; Keywords: NTLM, SASL, comm
 ;; Version: 2.1.0
 ;; Created: February 2001
+
+;; This is a GNU ELPA :core package.  Avoid functionality that is not
+;; compatible with the version of Emacs recorded above.
 
 ;; This file is part of GNU Emacs.
 
@@ -98,7 +101,6 @@ USER is a string representing a user name to be authenticated and
 DOMAIN is a NT domain.  USER can include a NT domain part as in
 user@domain where the string after @ is used as the domain if DOMAIN
 is not given."
-  (interactive)
   (let ((request-ident (concat "NTLMSSP" (make-string 1 0)))
 	(request-msgType (concat (make-string 1 1) (make-string 3 0)))
 					;0x01 0x00 0x00 0x00

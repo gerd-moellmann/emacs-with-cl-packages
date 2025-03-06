@@ -1,6 +1,6 @@
 @c -*- coding: utf-8 -*-
 @c This is part of the Emacs manual.
-@c Copyright (C) 1985--1987, 1993--1995, 1997, 1999--2024 Free Software
+@c Copyright (C) 1985--1987, 1993--1995, 1997, 1999--2025 Free Software
 @c Foundation, Inc.
 @c See file emacs.texi for copying conditions.
 @node Programs
@@ -94,14 +94,15 @@ mode for the C programming language is @code{c-mode}.
 @cindex TOML mode
   Emacs has programming language modes for Lisp, Scheme, the
 Scheme-based DSSSL expression language, Ada, ASM, AWK, C, C++, C#,
-Fortran, Icon, IDL (CORBA), IDLWAVE, Java, Javascript, M4, Makefiles,
-Metafont (@TeX{}'s companion for font creation), Modula2, Object
-Pascal, Objective-C, Octave, Pascal, Perl, Pike, PostScript, Prolog,
-Python, Ruby, Simula, SQL, Tcl, TypeScript, Verilog, and VHDL@.  An
-alternative mode for Perl is called CPerl mode.  Modes are also
-available for the scripting languages of the common GNU and Unix
-shells, and MS-DOS/MS-Windows @samp{BAT} files, JSON, DNS master
-files, CSS (Cascading Style Sheets), Dockerfiles, CMake files, and various sorts of configuration files.
+Elixir, Fortran, Icon, IDL (CORBA), HEEx, IDLWAVE, Java, Javascript,
+Lua, M4, Makefiles, Metafont (@TeX{}'s companion for font creation),
+Modula2, Object Pascal, Objective-C, Octave, Pascal, Perl, PHP, Pike,
+PostScript, Prolog, Python, Ruby, Simula, SQL, Tcl, TypeScript, Verilog,
+and VHDL@.  The recommended mode for Perl is called CPerl mode.  Modes
+are also available for the scripting languages of the common GNU and
+Unix shells, and MS-DOS/MS-Windows @samp{BAT} files, JSON, DNS master
+files, CSS (Cascading Style Sheets), Dockerfiles, CMake files, and
+various sorts of configuration files.
 
   Ideally, Emacs should have a major mode for each programming
 language that you might want to edit.  If it doesn't have a mode for
@@ -163,6 +164,7 @@ Emacs we use it for all languages.
 * Left Margin Paren::   An open-paren or similar opening delimiter
                           starts a defun if it is at the left margin.
 * Moving by Defuns::    Commands to move over or mark a major definition.
+* Moving by Sentences:: Commands to move over certain code units.
 * Imenu::               Making buffer indexes as menus.
 * Which Function::      Which Function mode shows which function you are in.
 @end menu
@@ -265,22 +267,108 @@ tree-sitter library provide control of this behavior: if the variable
 @code{treesit-defun-tactic} is set to the value @code{top-level}, the
 defun commands will find the @emph{outermost} defuns instead.
 
+@node Moving by Sentences
+@subsection Moving by Sentences
+@cindex sentences, in programming languages
+
+  These commands move point or set up the region based on units of
+code, also called @dfn{sentences}.  Even though sentences are usually
+considered when writing human languages, Emacs can use the same
+commands to move over certain constructs in programming languages
+(@pxref{Sentences}, @pxref{Moving by Defuns}).  In a programming
+language a sentence is usually a complete language construct smaller
+than defuns, but larger than sexps (@pxref{List Motion,,, elisp, The
+Emacs Lisp Reference Manual}).  What exactly is a sentence in this
+case depends on the programming language, but usually it is a complete
+statement, such as a variable definition and initialization, or a
+conditional statement.  An example of a sentence in the C language
+could be
+
+@example
+int x = 5;
+@end example
+
+@noindent
+or in the JavaScript language it could look like
+
+@example
+@group
+const thing = () => console.log("Hi");
+@end group
+@group
+const foo = [1] == '1'
+  ? "No way"
+  : "...";
+@end group
+
+@end example
+
+@table @kbd
+@item M-a
+Move to beginning of current or preceding sentence
+(@code{backward-sentence}).
+@item M-e
+Move to end of current or following sentence (@code{forward-sentence}).
+@end table
+
+@cindex move to beginning or end of sentence
+@cindex sentence, move to beginning or end
+@kindex M-a @r{(programming modes)}
+@kindex M-e @r{(programming modes)}
+@findex backward-sentence @r{(programming modes)}
+@findex forward-sentence @r{(programming modes)}
+  The commands to move to the beginning and end of the current
+sentence are @kbd{M-a} (@code{backward-sentence}) and @kbd{M-e}
+(@code{forward-sentence}).  If you repeat one of these commands, or
+use a positive numeric argument, each repetition moves to the next
+sentence in the direction of motion.
+
+  @kbd{M-a} with a negative argument @minus{}@var{n} moves forward
+@var{n} times to the next end of a sentence.  Likewise, @kbd{M-e} with
+a negative argument moves back to the start of a sentence.
+
 @node Imenu
 @subsection Imenu
 @cindex index of buffer definitions
 @cindex buffer definitions index
 
-  The Imenu facility offers a way to find the major definitions in
-a file by name.  It is also useful in text formatter major modes,
-where it treats each chapter, section, etc., as a definition.
-(@xref{Xref}, for a more powerful feature that handles multiple files
-together.)
+  The Imenu facility offers a way to find the major definitions in a
+file by name.  It is useful both in programming-language major modes,
+where the definitions are variables, functions, etc., and in text
+formatter major modes, where it treats each chapter, section, etc., as a
+definition.  (@xref{Xref}, for a more powerful feature that handles
+multiple files together.)
 
 @findex imenu
+@vindex imenu-flatten
   If you type @kbd{M-g i} (@code{imenu}), it reads the name of a
 definition using the minibuffer, then moves point to that definition.
-You can use completion to specify the name; the command always
-displays the whole list of valid names.
+You can use completion to specify the name; the command displays the
+list of matching valid names in the completions buffer.  If the index is
+hierarchical, then by default the completion candidates are also shown
+hierarchically, as a nested list: first you need to choose a section,
+then a subsection, etc., and finally the name of the definition.
+However, if you set @code{imenu-flatten} to a non-@code{nil} value, then
+instead of the nested menu you can select a completion candidate from a
+flattened list of definitions.  How the sections and subsections are
+shown in the flattened list of completion candidates depends on the
+value of @code{imenu-flatten}, which can be one of the following:
+
+@table @code
+@vindex imenu-level-separator
+@item prefix
+This shows each candidate prefixed by names of its section, subsection,
+subsubsection, etc., with each level separated from the next by the
+string that is the value of @code{imenu-level-separator}, by default
+@samp{:}.
+
+@item annotation
+This shows the section names as annotations, following each definition
+name.
+
+@item group
+This shows the completion candidates grouped by their sections.
+@end table
 
 @findex imenu-add-menubar-index
   Alternatively, you can bind the command @code{imenu} to a mouse
@@ -314,6 +402,10 @@ they occur in the buffer; if you want alphabetic sorting, use the
 symbol @code{imenu--sort-by-name} as the value.  You can also
 define your own comparison function by writing Lisp code.
 
+  You can also customize how Imenu completions are sorted by changing
+the variable @code{completion-category-overrides} and setting its
+@code{display-sort-function} for the category @code{imenu}.
+
   If Eglot is activated for the current buffer's project
 (@pxref{Projects}) and the current buffer's major mode, Eglot provides
 its own facility for producing the buffer's index based on the
@@ -335,8 +427,8 @@ The Speedbar can also use it (@pxref{Speedbar}).
 @cindex current function name in mode line
 
   Which Function mode is a global minor mode (@pxref{Minor Modes})
-which displays the current function name in the mode line, updating it
-as you move around in a buffer.
+which displays the current function name in the mode line or header
+line, updating it as you move around in a buffer.
 
 @findex which-function-mode
 @vindex which-func-modes
@@ -348,6 +440,12 @@ Imenu).  You can restrict it to a specific list of major modes by
 changing the value of the variable @code{which-func-modes} from
 @code{t} (which means to support all available major modes) to a list
 of major mode names.
+
+@vindex which-func-display
+  By default, Which Function mode displays the current function name
+using the mode line.  Customize @code{which-func-display} to
+@code{header}, @code{mode}, or @code{mode-and-header} to use the
+header line, mode line, or both, respectively.
 
 @node Program Indent
 @section Indentation for Programs
@@ -431,6 +529,9 @@ large chunks of code:
 @table @kbd
 @item C-M-q
 Reindent all the lines within one parenthetical grouping.
+@item M-q
+Fill a single paragraph in a defun, or reindent all the lines within
+that defun.
 @item C-u @key{TAB}
 Shift an entire parenthetical grouping rigidly sideways so that its
 first line is properly indented.
@@ -450,6 +551,21 @@ indentation of the line where the grouping starts).  The function that
 @code{indent-pp-sexp} in Lisp mode, @code{c-indent-exp} in C mode,
 etc.  To correct the overall indentation as well, type @kbd{@key{TAB}}
 first.
+
+@kindex M-q
+@findex prog-fill-reindent-defun
+@vindex beginning-of-defun-function
+@vindex end-of-defun-function
+@vindex fill-paragraph-function
+  To reindent the entire defun around point, type @kbd{M-q}
+(@code{prog-fill-reindent-defun}).  If point is in a comment or a
+string, this command fills and indents the comment or string instead.
+What exactly constitutes a comment, a string, or a defun depends on
+the major mode: the bounds of a defun are decided by the variables
+@code{beginning-of-defun-function} and @code{end-of-defun-function}
+(@pxref{List Motion,,, elisp, The Emacs Lisp Reference Manual}),
+and the filling mechanism is decided by @code{fill-paragraph-function}
+(@pxref{Filling,,, elisp, The Emacs Lisp Reference Manual}).
 
 @kindex C-u TAB
   If you like the relative indentation within a grouping but not the
@@ -1311,6 +1427,19 @@ this, change the value of the variable @code{Man-switches} to
 @kbd{M-p} to switch between man pages in different sections.  The mode
 line shows how many manual pages are available.
 
+@vindex Man-prefer-synchronous-call
+  By default, @kbd{M-x man} calls the @code{man} program
+asynchronously.  You can force the invocation to be synchronous by
+customizing @code{Man-prefer-synchronous-call} to a non-@code{nil}
+value.
+
+@vindex Man-support-remote-systems
+  If the user option @code{Man-support-remote-systems} is
+non-@code{nil}, and @code{default-directory} indicates a remote system
+(@pxref{Remote Files}), the man page is taken from the remote system.
+Calling the @code{man} command with a prefix like @kbd{C-u M-x man}
+reverts the value of @code{Man-support-remote-systems} for that call.
+
 @findex woman
 @cindex manual pages, on MS-DOS/MS-Windows
   An alternative way of reading manual pages is the @kbd{M-x woman}
@@ -1602,6 +1731,20 @@ completion to the buffer.  @xref{Completion}.
 
   In Text mode and related modes, @kbd{M-@key{TAB}} completes words
 based on the spell-checker's dictionary.  @xref{Spelling}.
+
+@cindex completion preview
+@cindex preview completion
+@cindex suggestion preview
+@cindex Completion Preview mode
+@findex completion-preview-mode
+@findex global-completion-preview-mode
+  Completion Preview mode is a minor mode that shows completion
+suggestions as you type.  You can enable it for the current buffer with
+@kbd{M-x completion-preview-mode}, or globally with @w{@kbd{M-x
+global-completion-preview-mode}}.  When Completion Preview mode is on,
+Emacs automatically displays the suggested completion for text around
+point as an in-line preview right after point; type @key{TAB} to accept
+the suggestion.
 
 @node MixedCase Words
 @section MixedCase Words

@@ -1,5 +1,5 @@
 /* Compile Emacs Lisp into native code.
-   Copyright (C) 2019-2024 Free Software Foundation, Inc.
+   Copyright (C) 2019-2025 Free Software Foundation, Inc.
 
 Author: Andrea Corallo <acorallo@gnu.org>
 
@@ -469,7 +469,7 @@ load_gccjit_if_necessary (bool mandatory)
 
 
 /* Increase this number to force a new Vcomp_abi_hash to be generated.  */
-#define ABI_VERSION "5"
+#define ABI_VERSION "6"
 
 /* Length of the hashes used for eln file naming.  */
 #define HASH_LENGTH 8
@@ -520,7 +520,7 @@ load_gccjit_if_necessary (bool mandatory)
 
 #define DECL_BLOCK(name, func)				\
   gcc_jit_block *(name) =				\
-    gcc_jit_function_new_block ((func), STR (name))
+    gcc_jit_function_new_block (func, STR (name))
 
 #ifndef WINDOWSNT
 # ifdef HAVE__SETJMP
@@ -535,7 +535,7 @@ load_gccjit_if_necessary (bool mandatory)
 #define SETJMP_NAME SETJMP
 
 /* Max number function importable by native compiled code.  */
-#define F_RELOC_MAX_SIZE 1500
+#define F_RELOC_MAX_SIZE 1600
 
 typedef struct {
   void *link_table[F_RELOC_MAX_SIZE];
@@ -633,6 +633,7 @@ typedef struct {
   gcc_jit_function *func; /* Current function being compiled.  */
   bool func_has_non_local; /* From comp-func has-non-local slot.  */
   EMACS_INT func_speed; /* From comp-func speed slot.  */
+  EMACS_INT func_safety; /* From comp-func safety slot.  */
   gcc_jit_block *block;  /* Current basic block being compiled.  */
   gcc_jit_lvalue *scratch; /* Used as scratch slot for some code sequence (switch).  */
   ptrdiff_t frame_size; /* Size of the following array in elements. */
@@ -700,6 +701,8 @@ static void helper_save_restriction (void);
 static bool helper_PSEUDOVECTOR_TYPEP_XUNTAG (Lisp_Object, enum pvec_type);
 static struct Lisp_Symbol_With_Pos *
 helper_GET_SYMBOL_WITH_POSITION (Lisp_Object);
+static Lisp_Object
+helper_sanitizer_assert (Lisp_Object, Lisp_Object);
 
 /* Note: helper_link_table must match the list created by
    `declare_runtime_imported_funcs'.  */
@@ -712,6 +715,7 @@ static void *helper_link_table[] =
     helper_unbind_n,
     helper_save_restriction,
     helper_GET_SYMBOL_WITH_POSITION,
+    helper_sanitizer_assert,
     record_unwind_current_buffer,
     set_internal,
     helper_unwind_protect,
@@ -741,7 +745,7 @@ static Lisp_Object
 comp_hash_string (Lisp_Object string)
 {
   Lisp_Object digest = make_uninit_string (MD5_DIGEST_SIZE * 2);
-  md5_buffer (SSDATA (string), SCHARS (string), SSDATA (digest));
+  md5_buffer (SSDATA (string), SBYTES (string), SSDATA (digest));
   hexbuf_digest (SSDATA (digest), SDATA (digest), MD5_DIGEST_SIZE);
 
   return Fsubstring (digest, Qnil, make_fixnum (HASH_LENGTH));
@@ -774,7 +778,7 @@ comp_hash_source_file (Lisp_Object filename)
 #else
   int res = md5_stream (f, SSDATA (digest));
 #endif
-  fclose (f);
+  emacs_fclose (f);
 
   if (res)
     xsignal2 (Qfile_notify_error, build_string ("hashing failed"), filename);
@@ -874,7 +878,7 @@ bcall0 (Lisp_Object f)
 }
 
 static gcc_jit_block *
-retrive_block (Lisp_Object block_name)
+retrieve_block (Lisp_Object block_name)
 {
   Lisp_Object value = Fgethash (block_name, comp.func_blocks_h, Qnil);
 
@@ -2294,7 +2298,7 @@ emit_limple_insn (Lisp_Object insn)
   if (EQ (op, Qjump))
     {
       /* Unconditional branch.  */
-      gcc_jit_block *target = retrive_block (arg[0]);
+      gcc_jit_block *target = retrieve_block (arg[0]);
       gcc_jit_block_end_with_jump (comp.block, NULL, target);
     }
   else if (EQ (op, Qcond_jump))
@@ -2302,8 +2306,8 @@ emit_limple_insn (Lisp_Object insn)
       /* Conditional branch.  */
       gcc_jit_rvalue *a = emit_mvar_rval (arg[0]);
       gcc_jit_rvalue *b = emit_mvar_rval (arg[1]);
-      gcc_jit_block *target1 = retrive_block (arg[2]);
-      gcc_jit_block *target2 = retrive_block (arg[3]);
+      gcc_jit_block *target1 = retrieve_block (arg[2]);
+      gcc_jit_block *target2 = retrieve_block (arg[3]);
 
       if ((!NILP (CALL1I (comp-cstr-imm-vld-p, arg[0]))
 	   && NILP (CALL1I (comp-cstr-imm, arg[0])))
@@ -2326,8 +2330,8 @@ emit_limple_insn (Lisp_Object insn)
 	gcc_jit_context_new_rvalue_from_int (comp.ctxt,
 					     comp.ptrdiff_type,
 					     XFIXNUM (arg[0]));
-      gcc_jit_block *target1 = retrive_block (arg[1]);
-      gcc_jit_block *target2 = retrive_block (arg[2]);
+      gcc_jit_block *target1 = retrieve_block (arg[1]);
+      gcc_jit_block *target2 = retrieve_block (arg[2]);
       gcc_jit_rvalue *test = gcc_jit_context_new_comparison (
 			       comp.ctxt,
 			       NULL,
@@ -2356,8 +2360,8 @@ emit_limple_insn (Lisp_Object insn)
 	gcc_jit_context_new_rvalue_from_int (comp.ctxt,
 					     comp.int_type,
 					     h_num);
-      gcc_jit_block *handler_bb = retrive_block (arg[2]);
-      gcc_jit_block *guarded_bb = retrive_block (arg[3]);
+      gcc_jit_block *handler_bb = retrieve_block (arg[2]);
+      gcc_jit_block *guarded_bb = retrieve_block (arg[3]);
       emit_limple_push_handler (handler, handler_type, handler_bb, guarded_bb,
 				arg[0]);
     }
@@ -2440,7 +2444,7 @@ emit_limple_insn (Lisp_Object insn)
     {
       Lisp_Object arg1 = arg[1];
 
-      if (EQ (Ftype_of (arg1), Qcomp_mvar))
+      if (EQ (Fcl_type_of (arg1), Qcomp_mvar))
 	res = emit_mvar_rval (arg1);
       else if (EQ (FIRST (arg1), Qcall))
 	res = emit_limple_call (XCDR (arg1));
@@ -2583,7 +2587,8 @@ emit_call_with_type_hint (gcc_jit_function *func, Lisp_Object insn,
 			  Lisp_Object type)
 {
   bool hint_match =
-    !NILP (CALL2I (comp-mvar-type-hint-match-p, SECOND (insn), type));
+    !comp.func_safety
+    && !NILP (CALL2I (comp-mvar-type-hint-match-p, SECOND (insn), type));
   gcc_jit_rvalue *args[] =
     { emit_mvar_rval (SECOND (insn)),
       gcc_jit_context_new_rvalue_from_int (comp.ctxt,
@@ -2599,7 +2604,8 @@ emit_call2_with_type_hint (gcc_jit_function *func, Lisp_Object insn,
 			   Lisp_Object type)
 {
   bool hint_match =
-    !NILP (CALL2I (comp-mvar-type-hint-match-p, SECOND (insn), type));
+    !comp.func_safety
+    && !NILP (CALL2I (comp-mvar-type-hint-match-p, SECOND (insn), type));
   gcc_jit_rvalue *args[] =
     { emit_mvar_rval (SECOND (insn)),
       emit_mvar_rval (THIRD (insn)),
@@ -2815,12 +2821,12 @@ emit_static_object (const char *name, Lisp_Object obj)
      <https://gcc.gnu.org/ml/jit/2019-q3/msg00013.html>.
 
      Adjust if possible to reduce the number of function calls.  */
-  size_t chunck_size = NILP (Fcomp_libgccjit_version ()) ? 200 : 1024;
-  char *buff = xmalloc (chunck_size);
+  size_t chunk_size = NILP (Fcomp_libgccjit_version ()) ? 200 : 1024;
+  char *buff = xmalloc (chunk_size);
   for (ptrdiff_t i = 0; i < len;)
     {
-      strncpy (buff, p, chunck_size);
-      buff[chunck_size - 1] = 0;
+      strncpy (buff, p, chunk_size);
+      buff[chunk_size - 1] = 0;
       uintptr_t l = strlen (buff);
 
       if (l != 0)
@@ -2972,6 +2978,10 @@ declare_runtime_imported_funcs (void)
   args[0] = comp.lisp_obj_type;
   ADD_IMPORTED (helper_GET_SYMBOL_WITH_POSITION, comp.lisp_symbol_with_position_ptr_type,
 		1, args);
+
+  args[0] = comp.lisp_obj_type;
+  args[1] = comp.lisp_obj_type;
+  ADD_IMPORTED (helper_sanitizer_assert, comp.lisp_obj_type, 2, args);
 
   ADD_IMPORTED (record_unwind_current_buffer, comp.void_type, 0, NULL);
 
@@ -4275,6 +4285,7 @@ compile_function (Lisp_Object func)
 
   comp.func_has_non_local = !NILP (CALL1I (comp-func-has-non-local, func));
   comp.func_speed = XFIXNUM (CALL1I (comp-func-speed, func));
+  comp.func_safety = XFIXNUM (CALL1I (comp-func-safety, func));
 
   comp.func_relocs_local =
     gcc_jit_function_new_local (comp.func,
@@ -4328,38 +4339,34 @@ compile_function (Lisp_Object func)
   declare_block (Qentry);
   Lisp_Object blocks = CALL1I (comp-func-blocks, func);
   struct Lisp_Hash_Table *ht = XHASH_TABLE (blocks);
-  for (ptrdiff_t i = 0; i < HASH_TABLE_SIZE (ht); i++)
+  DOHASH_SAFE (ht, i)
     {
       Lisp_Object block_name = HASH_KEY (ht, i);
-      if (!EQ (block_name, Qentry)
-	  && !BASE_EQ (block_name, Qunbound))
+      if (!EQ (block_name, Qentry))
 	declare_block (block_name);
     }
 
-  gcc_jit_block_add_assignment (retrive_block (Qentry),
+  gcc_jit_block_add_assignment (retrieve_block (Qentry),
 				NULL,
 				comp.func_relocs_local,
 				gcc_jit_lvalue_as_rvalue (comp.func_relocs));
 
 
-  for (ptrdiff_t i = 0; i < HASH_TABLE_SIZE (ht); i++)
+  DOHASH_SAFE (ht, i)
     {
       Lisp_Object block_name = HASH_KEY (ht, i);
-      if (!BASE_EQ (block_name, Qunbound))
-	{
-	  Lisp_Object block = HASH_VALUE (ht, i);
-	  Lisp_Object insns = CALL1I (comp-block-insns, block);
-	  if (NILP (block) || NILP (insns))
-	    xsignal1 (Qnative_ice,
-		      build_string ("basic block is missing or empty"));
+      Lisp_Object block = HASH_VALUE (ht, i);
+      Lisp_Object insns = CALL1I (comp-block-insns, block);
+      if (NILP (block) || NILP (insns))
+	xsignal1 (Qnative_ice,
+		  build_string ("basic block is missing or empty"));
 
-	  comp.block = retrive_block (block_name);
-	  while (CONSP (insns))
-	    {
-	      Lisp_Object insn = XCAR (insns);
-	      emit_limple_insn (insn);
-	      insns = XCDR (insns);
-	    }
+      comp.block = retrieve_block (block_name);
+      while (CONSP (insns))
+	{
+	  Lisp_Object insn = XCAR (insns);
+	  emit_limple_insn (insn);
+	  insns = XCDR (insns);
 	}
     }
   const char *err =  gcc_jit_context_get_first_error (comp.ctxt);
@@ -4621,6 +4628,8 @@ Return t on success.  */)
 			emit_simple_limple_call_void_ret);
       register_emitter (Qhelper_save_restriction,
 			emit_simple_limple_call_void_ret);
+      register_emitter (Qhelper_sanitizer_assert,
+			emit_simple_limple_call_lisp_ret);
       /* Inliners.  */
       register_emitter (Qadd1, emit_add1);
       register_emitter (Qsub1, emit_sub1);
@@ -4747,7 +4756,7 @@ DEFUN ("comp--release-ctxt", Fcomp__release_ctxt, Scomp__release_ctxt,
     gcc_jit_context_release (comp.ctxt);
 
   if (logfile)
-    fclose (logfile);
+    emacs_fclose (logfile);
   comp.ctxt = NULL;
 
   return Qt;
@@ -4861,8 +4870,8 @@ add_compiler_options (void)
 #endif
 }
 
-DEFUN ("comp--compile-ctxt-to-file", Fcomp__compile_ctxt_to_file,
-       Scomp__compile_ctxt_to_file,
+DEFUN ("comp--compile-ctxt-to-file0", Fcomp__compile_ctxt_to_file0,
+       Scomp__compile_ctxt_to_file0,
        1, 1, 0,
        doc: /* Compile the current context as native code to file FILENAME.  */)
   (Lisp_Object filename)
@@ -4963,14 +4972,12 @@ DEFUN ("comp--compile-ctxt-to-file", Fcomp__compile_ctxt_to_file,
 
   struct Lisp_Hash_Table *func_h =
     XHASH_TABLE (CALL1I (comp-ctxt-funcs-h, Vcomp_ctxt));
-  for (ptrdiff_t i = 0; i < HASH_TABLE_SIZE (func_h); i++)
-    if (!BASE_EQ (HASH_KEY (func_h, i), Qunbound))
-      declare_function (HASH_VALUE (func_h, i));
+  DOHASH_SAFE (func_h, i)
+    declare_function (HASH_VALUE (func_h, i));
   /* Compile all functions. Can't be done before because the
      relocation structs has to be already defined.  */
-  for (ptrdiff_t i = 0; i < HASH_TABLE_SIZE (func_h); i++)
-    if (!BASE_EQ (HASH_KEY (func_h, i), Qunbound))
-      compile_function (HASH_VALUE (func_h, i));
+  DOHASH_SAFE (func_h, i)
+    compile_function (HASH_VALUE (func_h, i));
 
   /* Work around bug#46495 (GCC PR99126). */
 #if defined (WIDE_EMACS_INT)						\
@@ -5086,6 +5093,21 @@ helper_GET_SYMBOL_WITH_POSITION (Lisp_Object a)
   return XUNTAG (a, Lisp_Vectorlike, struct Lisp_Symbol_With_Pos);
 }
 
+static Lisp_Object
+helper_sanitizer_assert (Lisp_Object val, Lisp_Object type)
+{
+  if (!comp_sanitizer_active
+      || !NILP ((CALL2I (cl-typep, val, type))))
+    return Qnil;
+
+  AUTO_STRING (format, "Comp sanitizer FAIL for %s with type %s");
+  CALLN (Fmessage, format, val, type);
+  CALL0I (backtrace);
+  xsignal2 (Qcomp_sanitizer_error, val, type);
+
+  return Qnil;
+}
+
 
 /* `native-comp-eln-load-path' clean-up support code.  */
 
@@ -5181,7 +5203,7 @@ maybe_defer_native_compilation (Lisp_Object function_name,
   if (!native_comp_jit_compilation
       || noninteractive
       || !NILP (Vpurify_flag)
-      || !COMPILEDP (definition)
+      || !CLOSUREP (definition)
       || !STRINGP (Vload_true_file_name)
       || !suffix_p (Vload_true_file_name, ".elc")
       || !NILP (Fgethash (Vload_true_file_name, V_comp_no_native_file_h, Qnil)))
@@ -5199,17 +5221,9 @@ maybe_defer_native_compilation (Lisp_Object function_name,
 
   Fputhash (function_name, definition, Vcomp_deferred_pending_h);
 
-  /* This is so deferred compilation is able to compile comp
-     dependencies breaking circularity.  */
-  if (comp__compilable)
-    {
-      /* Startup is done, comp is usable.  */
-      CALL0I (startup--require-comp-safely);
-      CALLN (Ffuncall, intern_c_string ("native--compile-async"),
-	     src, Qnil, Qlate);
-    }
-  else
-    Vcomp__delayed_sources = Fcons (src, Vcomp__delayed_sources);
+  pending_funcalls
+    = Fcons (list (Qnative__compile_async, src, Qnil, Qlate),
+             pending_funcalls);
 }
 
 
@@ -5283,12 +5297,12 @@ check_comp_unit_relocs (struct Lisp_Native_Comp_Unit *comp_u)
       Lisp_Object x = data_imp_relocs[i];
       if (EQ (x, Qlambda_fixup))
 	return false;
-      else if (SUBR_NATIVE_COMPILEDP (x))
+      else if (NATIVE_COMP_FUNCTIONP (x))
 	{
 	  if (NILP (Fgethash (x, comp_u->lambda_gc_guard_h, Qnil)))
 	    return false;
 	}
-      else if (!EQ (data_imp_relocs[i], AREF (comp_u->data_impure_vec, i)))
+      else if (!EQ (x, AREF (comp_u->data_impure_vec, i)))
 	return false;
     }
   return true;
@@ -5674,13 +5688,6 @@ void
 syms_of_comp (void)
 {
 #ifdef HAVE_NATIVE_COMP
-  DEFVAR_LISP ("comp--delayed-sources", Vcomp__delayed_sources,
-    doc: /* List of sources to be native-compiled when startup is finished.
-For internal use.  */);
-  DEFVAR_BOOL ("comp--compilable", comp__compilable,
-    doc: /* Non-nil when comp.el can be native compiled.
-For internal use. */);
-  /* Compiler control customizes.  */
   DEFVAR_BOOL ("native-comp-jit-compilation", native_comp_jit_compilation,
     doc: /* If non-nil, compile loaded .elc files asynchronously.
 
@@ -5728,6 +5735,7 @@ natively-compiled one.  */);
   DEFSYM (Qhelper_unbind_n, "helper_unbind_n");
   DEFSYM (Qhelper_unwind_protect, "helper_unwind_protect");
   DEFSYM (Qhelper_save_restriction, "helper_save_restriction");
+  DEFSYM (Qhelper_sanitizer_assert, "helper_sanitizer_assert");
   /* Inliners.  */
   DEFSYM (Qadd1, "1+");
   DEFSYM (Qsub1, "1-");
@@ -5748,7 +5756,7 @@ natively-compiled one.  */);
   DEFSYM (Qd_ephemeral, "d-ephemeral");
 
   /* Others.  */
-  DEFSYM (Qcomp, "comp");
+  DEFSYM (Qnative_compiler, "native-compiler");
   DEFSYM (Qfixnum, "fixnum");
   DEFSYM (Qscratch, "scratch");
   DEFSYM (Qlate, "late");
@@ -5798,6 +5806,14 @@ natively-compiled one.  */);
         build_pure_c_string ("eln file inconsistent with current runtime "
 			     "configuration, please recompile"));
 
+  DEFSYM (Qcomp_sanitizer_error, "comp-sanitizer-error");
+  Fput (Qcomp_sanitizer_error, Qerror_conditions,
+	pure_list (Qcomp_sanitizer_error, Qerror));
+  Fput (Qcomp_sanitizer_error, Qerror_message,
+        build_pure_c_string ("Native code sanitizer runtime error"));
+
+  DEFSYM (Qnative__compile_async, "native--compile-async");
+
   defsubr (&Scomp__subr_signature);
   defsubr (&Scomp_el_to_eln_rel_filename);
   defsubr (&Scomp_el_to_eln_filename);
@@ -5806,7 +5822,7 @@ natively-compiled one.  */);
   defsubr (&Scomp__install_trampoline);
   defsubr (&Scomp__init_ctxt);
   defsubr (&Scomp__release_ctxt);
-  defsubr (&Scomp__compile_ctxt_to_file);
+  defsubr (&Scomp__compile_ctxt_to_file0);
   defsubr (&Scomp_libgccjit_version);
   defsubr (&Scomp__register_lambda);
   defsubr (&Scomp__register_subr);
@@ -5917,6 +5933,14 @@ compile calls to them.
 subr-name -> arity
 For internal use.  */);
   Vcomp_subr_arities_h = CALLN (Fmake_hash_table, QCtest, Qequal);
+
+  DEFVAR_BOOL ("comp-sanitizer-active", comp_sanitizer_active,
+    doc: /* If non-nil, enable runtime execution of native-compiler sanitizer.
+For this to be effective, Lisp code must be compiled
+with `comp-sanitizer-emit' non-nil.
+This is intended to be used only for development and
+verification of the native compiler.  */);
+  comp_sanitizer_active = false;
 
   Fprovide (intern_c_string ("native-compile"), Qnil);
 #endif /* #ifdef HAVE_NATIVE_COMP */

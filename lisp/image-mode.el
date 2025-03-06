@@ -1,6 +1,6 @@
 ;;; image-mode.el --- support for visiting image files  -*- lexical-binding: t -*-
 ;;
-;; Copyright (C) 2005-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2025 Free Software Foundation, Inc.
 ;;
 ;; Author: Richard Stallman <rms@gnu.org>
 ;; Keywords: multimedia
@@ -69,8 +69,8 @@ Its value should be one of the following:
 Resizing will always preserve the aspect ratio of the image."
   :type '(choice (const :tag "No resizing" nil)
                  (const :tag "Fit to window" fit-window)
-                 (other :tag "Scale down to fit window" t)
-                 (number :tag "Scale factor" 1))
+                 (number :tag "Scale factor" 1)
+                 (other :tag "Scale down to fit window" t))
   :version "29.1"
   :group 'image)
 
@@ -559,6 +559,8 @@ image as text, when opening such images in `image-mode'."
      :help "Resize image to match the window height and width"]
     ["Fit Image to Window (Scale down only)" image-transform-fit-both
      :help "Scale image down to match the window height and width"]
+    ["Fill Window with Image" image-transform-fill-window
+     :help "Resize image to fill either width or height of the window"]
     ["Zoom In" image-increase-size
      :help "Enlarge the image"]
     ["Zoom Out" image-decrease-size
@@ -654,8 +656,9 @@ Key bindings:
   (unless (display-images-p)
     (error "Display does not support images"))
 
-  (major-mode-suspend)
-  (setq major-mode 'image-mode)
+  (unless (eq major-mode 'image-mode)
+    (major-mode-suspend)
+    (setq major-mode 'image-mode))
   (setq image-transform-resize image-auto-resize)
 
   ;; Bail out early if we have no image data.
@@ -1092,7 +1095,7 @@ Otherwise, display the image by calling `image-mode'."
                   (unwind-protect
                       (progn
                         (setq-local image-fit-to-window-lock t)
-                        (ignore-error 'remote-file-error
+                        (ignore-error remote-file-error
                           (image-toggle-display-image)))
                     (setq image-fit-to-window-lock nil)))))))))))
 
@@ -1596,6 +1599,18 @@ The percentage is in relation to the original size of the image."
   "Fit the current image to the height and width of the current window."
   (interactive nil image-mode)
   (setq image-transform-resize 'fit-window)
+  (image-toggle-display-image))
+
+(defun image-transform-fill-window ()
+  "Fill the window with the image while keeping image proportions.
+This means filling the window with the image as much as possible
+without leaving empty space around image edges.  Then you can use
+either horizontal or vertical scrolling to see the remaining parts
+of the image."
+  (interactive nil image-mode)
+  (let ((size (image-display-size (image-get-display-property) t)))
+    (setq image-transform-resize
+          (if (> (car size) (cdr size)) 'fit-height 'fit-width)))
   (image-toggle-display-image))
 
 (defun image-transform-set-rotation (rotation)

@@ -5,7 +5,7 @@
    <ctype.h> functions' behaviour depends on the current locale set via
    setlocale.
 
-   Copyright (C) 2000-2003, 2006, 2008-2024 Free Software Foundation,
+   Copyright (C) 2000-2003, 2006, 2008-2025 Free Software Foundation,
    Inc.
 
    This file is free software: you can redistribute it and/or modify
@@ -24,9 +24,11 @@
 #ifndef C_CTYPE_H
 #define C_CTYPE_H
 
-#ifndef _GL_INLINE_HEADER_BEGIN
+/* This file uses _GL_INLINE_HEADER_BEGIN, _GL_INLINE.  */
+#if !_GL_CONFIG_H_INCLUDED
  #error "Please include config.h first."
 #endif
+
 _GL_INLINE_HEADER_BEGIN
 #ifndef C_CTYPE_INLINE
 # define C_CTYPE_INLINE _GL_INLINE

@@ -1,4 +1,4 @@
-Copyright (C) 2006-2024 Free Software Foundation, Inc.
+Copyright (C) 2006-2025 Free Software Foundation, Inc.
 See the end of the file for license conditions.
 
 * How developers contribute to GNU Emacs
@@ -18,7 +18,7 @@ To configure Git for Emacs development, you can run the following:
 
 The following shell commands then build and run Emacs from scratch:
 
-	git clone git://git.sv.gnu.org/emacs.git
+	git clone https://git.savannah.gnu.org/git/emacs.git
 	cd emacs
 	./autogen.sh
 	./configure
@@ -157,8 +157,8 @@ If your test lasts longer than some few seconds, mark it in its
 'ert-deftest' definition with ":tags '(:expensive-test)".
 
 To run tests on the entire Emacs tree, run "make check" from the
-top-level directory.  Most tests are in the directory "test/".  From
-the "test/" directory, run "make <filename>" to run the tests for
+top-level directory.  Most tests are in the directory "test/".  From the
+"test/" directory, run "make <filename>-tests" to run the tests for
 <filename>.el(c).  See "test/README" for more information.
 
 If you're making changes that involve the Emacs build system, please
@@ -168,6 +168,25 @@ test 'out-of-tree' builds as well, i.e.:
     cd emacs-build
     ../path-to-emacs-sources/configure
     make
+
+It is a good practice to run the unit test of a change prior to committing.
+If you have changed, e.g., the file "xt-mouse.el", you can run the unit
+tests via
+
+    make && make -C test xt-mouse-tests
+
+Changes in code that implements infrastructure capabilities might affect
+many tests in the test suite, not just the tests for the source files
+you changed.  For such changes, we recommend running unit tests that
+invoke the functions you have changed.  You can search for the tests
+that might be affected using tools like Grep.  For example, suppose you
+make a change in the 'rename-file' primitive.  Then
+
+  grep -Rl rename-file test --include="*.el"
+
+will show all the unit tests which invoke rename-file; run them all to
+be sure your changes didn't break the test suite.  If in doubt, run the
+entire suite.
 
 ** Commit messages
 
@@ -205,8 +224,9 @@ formatting them:
 
 - Unindented ChangeLog entries normally come next.  However, if the
   commit couldn't be properly summarized in the brief summary line,
-  you can put a paragraph (after the empty line and before the
-  individual ChangeLog entries) that further describes the commit.
+  you can put one or more paragraphs (after the empty line and before
+  the individual ChangeLog entries) that further describe(s) the
+  commit.
 
 - Lines in ChangeLog entries should preferably be not longer than 63
   characters, and must not exceed 78 characters, unless they consist

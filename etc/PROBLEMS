@@ -1,6 +1,6 @@
 Known Problems with GNU Emacs
 
-Copyright (C) 1987-1989, 1993-1999, 2001-2024 Free Software Foundation,
+Copyright (C) 1987-1989, 1993-1999, 2001-2025 Free Software Foundation,
 Inc.
 See the end of the file for license conditions.
 
@@ -456,6 +456,26 @@ However, the exact directory name will depend on the system, and you
 will need to both upgrade source and debug info when your system
 upgrades or patches Emacs, and change your startup file accordingly.
 
+** SUSE based distributions (openSUSE, SUSE Linux Enterprise)
+
+On systems with distributions, you can install source and debug info via
+superuser commands like the following:
+
+    # Install Emacs source and debuginfo by using --plus-content
+    zypper --plus-content debug,source install \
+      emacs-debuginfo emacs-debugsource
+
+To get describe-function and similar commands to work, you can then add
+something like the following to your startup file:
+
+    (setq find-function-C-source-directory
+           "/usr/src/debug/emacs-27.1-1/src/")
+
+The line above should work for all systems using zypper besides SUSE
+based ones, however it could be that you have to adjust the path to the
+sources slightly depending on the version of the distribution you have
+installed.
+
 ** Source and debuginfo for other systems
 
 If your system follows neither the Debian nor the Red Hat patterns,
@@ -464,6 +484,16 @@ of Emacs, building Emacs with the appropriate debug flags enabled, and
 running the just-built Emacs.
 
 * General runtime problems
+
+** GTK+ problems
+
+*** Some tool-bar icons aren't displayed.
+
+This could be caused by lack of support for XPM image format in the
+installed GTK packages.  Some GNU/Linux distros no longer install
+support for those formats by default, so you might need to install
+additional support packages.  E.g., on Fedora you need to install the
+'gdk-pixbuf2-modules-extra' package.
 
 ** Lisp problems
 
@@ -757,7 +787,7 @@ window sizes" (Lisp value 'ignore').
 
 This can happen if your Emacs is configured to convert PDF to SVG for
 display, and the version of the MuPDF package you have installed has a
-a known bug, whereby it sometimes produces invalid SVG images.
+known bug, whereby it sometimes produces invalid SVG images.
 Version 1.21 of MuPDF is known to be affected.
 
 The solution is either to upgrade or downgrade to a version of MuPDF
@@ -920,7 +950,7 @@ On many systems, it is possible to set LD_LIBRARY_PATH in your
 environment to specify additional directories where shared libraries
 can be found.
 
-Other systems allow to set LD_RUN_PATH in a similar way, but before
+Other systems allow setting LD_RUN_PATH in a similar way, but before
 Emacs is linked.  With LD_RUN_PATH set, the linker will include a
 specified run-time search path in the executable.
 
@@ -976,6 +1006,8 @@ to take advantage of.
 * Runtime problems related to font handling
 
 ** Some fonts are detected but not usable under Xft.
+
+We understand that these issues were resolved in Xft release 2.3.6.
 
 Some fonts might not be usable under Emacs even though they show up in
 the font family list when Emacs is built with Xft.  This is because
@@ -1272,6 +1304,27 @@ Emacs will select some other font instead.
 The only workaround is not to choose such font variants as the default
 font when running Emacs on MS-Windows.
 
+** On OpenBSD, color Emoji are not supported by default.
+
+The system's FreeType library is not built with libpng support, so it
+can't display color emoji.  This is due to the fact that, on OpenBSD,
+libpng is provided through ports and that a base component cannot depend
+on that.
+
+However, you can add support for PNG in the system's FreeType library by
+following those steps:
+	1. Install the 'png' package.
+	2. Read the release(8) man page for how to get Xenocara sources.
+	3. Patch the file
+	   "/usr/xenocara/lib/freetype/include/freetype/config/ftoption.h"
+	   by uncommenting the "#define FT_CONFIG_OPTION_USE_PNG" line.
+	4. Patch the file "/usr/xenocara/lib/freetype/Makefile" by
+	   appending "-L/usr/local/lib -lpng" to LDADD and appending
+	   "-I/usr/local/include" to CPPFLAGS.
+	5. Build and install Xenocara (also, see release(8)).
+
+Note that this support will be gone after each OpenBSD's system upgrade.
+
 * Internationalization problems
 
 ** M-{ does not work on a Spanish PC keyboard.
@@ -1336,6 +1389,20 @@ displaying popup windows that don't disappear.  If you are affected,
 you should use an Emacs input method instead.
 
 * X runtime problems
+
+** X security problems
+
+*** Emacs faces trouble when running as an untrusted client.
+
+When Emacs is running as an untrusted client under X servers with the
+Security extension, it is unable to use some window manager features
+but reports them to the window manager anyway.  This can lead to
+constant prompting by the window manager about Emacs being
+unresponsive.  To resolve the problem, place:
+
+  (setq x-detect-server-trust t)
+
+in your early-init.el.
 
 ** X keyboard problems
 
@@ -1531,6 +1598,12 @@ https://debbugs.gnu.org/cgi/bugreport.cgi?bug=22000,
 https://debbugs.gnu.org/cgi/bugreport.cgi?bug=22898 and
 https://lists.gnu.org/r/emacs-devel/2016-07/msg00154.html.
 
+*** In Emacs built with GTK+ toolkit, menu-bar background becomes transparent.
+
+This happens when 'alpha-background' is less than 100.  This is due to a
+GTK limitation, for which no workaround is currently known,
+unfortunately.
+
 *** Metacity: Resizing Emacs or ALT-Tab causes X to be unresponsive.
 
 This happens sometimes when using Metacity.  Resizing Emacs or ALT-Tab:bing
@@ -1546,6 +1619,12 @@ With Enlightenment version 0.25, Emacs frames may no be redrawn orderly
 after switching back from another virtual desktop.  Setting the variable
 'x-set-frame-visibility-more-laxly' to one of 'focus-in', 'expose' or
 't' should fix this.
+
+*** Gnome desktop does not respect frame size specified in .Xresources
+
+This has been observed when running a GTK+ build of Emacs 29 from the
+launch pad on Ubuntu 24.04 with mutter as window manager.  The problem
+can be resolved by running Emacs from the command line instead.
 
 *** Gnome: Emacs receives input directly from the keyboard, bypassing XIM.
 
@@ -1721,6 +1800,23 @@ happen without any special user interaction, for example, when Emacs
 restores a saved desktop.  A fix is to install version 2.6.8 of FVWM,
 see https://debbugs.gnu.org/cgi/bugreport.cgi?bug=31650.
 
+*** ssh -X session hangs on exit after remote emacsclient -c frame is deleted.
+
+When Emacs is configured with an X toolkit, for example,
+--with-x-toolkit=lucid, and "emacsclient -c" is run over an "ssh -X"
+connection, deleting the emacsclient frame (via C-x 5 0 or C-x C-c) can
+leave the X display connection open.
+
+The symptom is that after you delete the "emacsclient -c" frame and then
+attempt to exit ssh (with C-d, or "exit"), ssh will hang before
+returning you to the local shell.  You will have to press C-c (to sever
+the X connection) before ssh returns you to your local shell (that is,
+the shell from which you invoked "ssh -X").
+
+To avoid this issue configure Emacs with --with-x-toolkit=no.
+
+See <URL:https://debbugs.gnu.org/72517>.
+
 ** General X problems
 
 *** Redisplay using X is much slower than previous Emacs versions.
@@ -1832,8 +1928,8 @@ which can be carried out at the same time:
 
 7) If selecting text with the mouse is slow, the main culprit is
    likely `select-active-regions', coupled with a program monitoring
-   the clipboard on the X server you are connected to.  Try turning
-   that off.
+   the clipboard or primary selection on the X server you are
+   connected to.  Try turning that off.
 
    However, over networks with moderate to high latency, with no
    clipboard monitor running, the bottleneck is likely to be
@@ -1842,6 +1938,12 @@ which can be carried out at the same time:
    symbol `really-fast' if that is still too slow.  Doing so will also
    cause Emacs features that relies on accurate mouse position
    reporting to stop working reliably.
+
+8) If creating or resizing frames is slow, turn off
+   `frame-resize-pixelwise' (this will not take effect until you
+   create a new frame); then, enable `x-lax-frame-positioning'.  This
+   means frame placement will be less accurate, but makes frame
+   creation, movement, and resize visibly faster.
 
 *** Emacs gives the error, Couldn't find per display information.
 
@@ -1903,6 +2005,12 @@ want, rewrite the resource.
 To check thoroughly for such resource specifications, use 'xrdb
 -query' to see what resources the X server records, and also look at
 the user's ~/.Xdefaults and ~/.Xdefaults-* files.
+
+*** In Emacs built with Lucid cannot display very long popup menus.
+
+Very long popup menus cannot be shown in their entirety, and don't have
+a scroll bar to scroll them vertically.  Lucid does not support this
+feature.  A workaround is to use other toolkits (GTK, LessTif, etc.).
 
 *** Emacs running under X Window System does not handle mouse clicks.
 *** 'emacs -geometry 80x20' finds a file named '80x20'.
@@ -2636,7 +2744,7 @@ keyboard; printing that file on a PostScript printer will show what
 keys can serve as Meta.
 
 The 'xkeycaps' also shows a visual representation of the current
-keyboard settings.  It also allows to modify them.
+keyboard settings.  It also allows modifying them.
 
 *** GNU/Linux: slow startup on Linux-based GNU systems.
 
@@ -2706,6 +2814,19 @@ set the 'visible-cursor' variable to nil in your ~/.emacs:
 
 Still other way is to change the "cvvis" capability to send the
 "\E[?25h\E[?0c" command.
+
+*** GNU/Linux: GPM mouse does not display pointer, but otherwise works.
+
+This happens on Linux kernel versions from 6.7 to 6.13.  On these
+versions, the Linux kernel does not allow programs to draw the mouse
+pointer unless they have superuser permissions.  The GPM daemon
+normally has such permissions and it draws the mouse pointer for other
+programs such as your shell and many ncurses based programs, but not
+for Emacs.
+
+To solve this, you need to change your kernel to a version with this bug
+fixed, such as 6.14 or later.  See associated Linux kernel fix:
+https://lore.kernel.org/regressions/20250110142122.1013222-1-gnoack@google.com/
 
 ** FreeBSD
 
@@ -2890,7 +3011,7 @@ one, you could use the following workarounds:
     directory to that new home directory.
   . Move all the *.eln files from ~/.emacs.d/eln-cache to a directory
     out of the C:\Users tree, and customize Emacs to use that
-    directory for *.eln files.  This requires to call the function
+    directory for *.eln files.  This requires calling the function
     startup-redirect-eln-cache in your init file, to force Emacs to
     write *.eln files compiled at run time to that directory.
   . Delete all *.eln files in your ~/.emacs.d/eln-cache directory, and
@@ -3448,7 +3569,29 @@ file; for example:
       "/usr/local/opt/libgccjit/lib/gcc/11"
       "/usr/local/opt/gcc/lib/gcc/11/gcc/x86_64-apple-darwin20/11.2.0") ":"))
 
-* Runtime problems specific to PGTK
+* Runtime problems specific to PGTK build
+
+** Whether a display server is available cannot be automatically detected.
+
+When started with no arguments from a text terminal and in an
+environment where no display server is specified, Emacs will print:
+
+  $ emacs
+  (emacs:3988): Gtk-WARNING **: 19:19:10.887: cannot open display:
+
+and exit.  This is a byproduct of GTK's not providing any means of
+probing for a display connection before committing to opening one, and
+cannot be addressed by Emacs.  Rather, users must expressly request a
+text mode session:
+
+  $ emacs -nw
+  [...]
+
+** SECONDARY selections don't work on Wayland.
+
+This is because the SECONDARY selection is not implemented by the
+Wayland compositor being used.  A workaround is to use other kinds of
+selections.
 
 ** Giant tool bar icons are displayed in some cases
 
@@ -3475,6 +3618,18 @@ GTK_IM_MODULE.
 GTK does not allow programs to warp the pointer anymore.  There is
 nothing that can be done about this problem.
 
+** 'frame-edges' and 'frame-geometry' return incorrect information
+
+The information returned by these and similar functions on Wayland about
+frame position is incorrect.  For example, 'frame-edges' can return zero
+in the first 2 elements although the top-left corner of the frame is not
+at pixel coordinates (0,0).  This happens because the Wayland protocol
+is specifically engineered not to reveal this information to clients.
+For similar reasons, 'frame-monitor-workarea',
+'frame-monitor-attributes', and related geometry-querying functions
+cannot establish the size of the workarea, and return placeholder
+results instead.
+
 ** Certain keys such as 'C-S-u' are not reported correctly.
 
 Some keys with modifiers such as Shift and Control might not be
@@ -3491,6 +3646,192 @@ Compose key to stop working.
 
 On X Windows, users should not use Emacs configured with PGTK, since
 this and many other problems do not exist on the regular X builds.
+
+** On occasion, menus cannot be activated by touch screen events.
+
+Menus might not be displayed after a mode-line item, or another command
+that produces a menu, is activated by touch screen events.  This is the
+product of several bugs or misdesigns in the GDK Wayland backend which
+cannot be circumvented by Emacs.  Specifically, Wayland denies clients
+that cannot provide a sufficiently recent event serial number the
+ability to display pop-up windows, but GDK only considers the serial
+numbers of touch screen events when their touch sequences remain active,
+and, as touch screen activity is not registered by Emacs until after the
+toolkit's delivery of touch sequences completes, by the time
+`x-popup-menu' is called, the only eligible event serials are those of
+the last keyboard event and the last mouse event, which will not suffice
+if Wayland has received pop-up or drag-and-drop requests from other
+clients since their generation.
+
+* Runtime problems specific to Android
+
+** Text displayed in the default monospace font looks horrible.
+
+TrueType fonts incorporate instruction code executed by the font
+scaler (the component responsible for transforming outlines into
+bitmap images capable of being displayed onscreen) to align features
+of each glyph to pixel boundaries while maintaining their shape, in
+order to alleviate visual imperfections produced by scaling.  The
+substandard instruction code provided by the Android "Droid Sans Mono"
+font misplaces features of glyphs containing, as components, "E" and
+"F", between PPEM sizes of 16 and 24, resulting in noticeable
+whitespace inconsistencies with other glyphs.  Furthermore, the
+vertical stem in the glyph "T" is positioned too far to the left at
+PPEM sizes of 12.
+
+The remedy for this is to replace the instruction code with
+automatically generated code from the FreeType project's "ttfautohint"
+program.  First, extract '/system/fonts/DroidSansMono.ttf' from your
+device:
+
+  $ adb pull /system/fonts/DroidSansMono.ttf
+  /system/fonts/DroidSansMono.ttf: 1 file pulled, 0 skipped.
+  23.1 MB/s (90208 bytes in 0.004s)
+
+install the "ttfautohint" program:
+
+  http://freetype.org/ttfautohint/
+
+generate a font file with new hinting instructions:
+
+  $ ttfautohint DroidSansMono.ttf > DroidSansMono.ttf.rpl
+
+and upload them to your device, either back to /system/fonts (which is
+allowed by free versions of Android, such as Replicant):
+
+  $ adb root
+  $ adb remount
+  $ adb push DroidSansMono.ttf.rpl /system/fonts/DroidSansMono.ttf
+
+or to the user fonts directory described in the "Android Fonts" node
+of the Emacs manual.  You may want to perform this procedure even if
+you are not experiencing problems with character display, as the
+automatically generated instructions result in more legible text.
+
+** Glyphs are missing within the "Arial" font or it does not load.
+
+Old versions of this font included instruction code that assumed a
+degree of latitude from the Microsoft font scaler, which grants fonts
+leave to address nonexistent points without aborting the scaling
+process, among other invalid TrueType operations.  This issue may
+extend beyond Arial to encompass a larger selection of old fonts
+designed by Microsoft or Monotype; most of the time, installing newer
+versions of such fonts will suffice.
+
+** Some TrueType test fonts don't work.
+
+It is unlikely that any of these fonts will really prove useful for
+text editing tasks, since they are designed for the express purpose of
+testing a TrueType font scaler.  The following explanation is present
+only to satisfy a cat-like curiosity.
+
+Most TrueType test fonts "hide" points by moving them to a
+preposterous location outside the confines of the glyph bounding box.
+The Microsoft scaler and FreeType promptly disregard such points.
+
+Nothing in the TrueType specifications implies that points "hidden" in
+this fashion should be afforded any special treatment, and thus Emacs
+eschews doing so.  Consequently, black streaks are displayed as
+Emacs interpolates glyph edges between points within the glyph and
+points the test font attempts to hide.
+
+Since this behavior does not influence the display of real fonts, no
+action will be taken to address this problem.
+
+** Some other font's instruction code produces undesirable results.
+
+Executing instruction code is not a strict requirement for producing
+correct display results from most current fonts.  If a font's
+instruction code produces results that are merely unpleasing, but not
+incorrect, then the font was presumably not designed for Emacs's
+scaler.  If its uninstructed glyphs are satisfactory (such as when
+your screen resolution is high enough to ameliorate scaling
+artifacts), disable instruction code execution by appending its family
+name to the variable 'sfnt-uninstructable-font-regexp', then
+restarting Emacs.
+
+** CJK text does not display in Emacs, but does in other programs.
+
+When inserting CJK text into a buffer or visiting a file containing
+CJK text, Emacs often fails to locate a suitable font.  This problem
+manifests itself as hollow squares with numbers and letters within
+being displayed in lieu of the text itself.
+
+The reason for this is Emacs's absence of support for OpenType fonts
+utilizing CFF (Compact Font Format) outlines, which the CJK fonts
+bundled with Android have been distributed as since Android 7.0.
+
+The solution is to install a TrueType CJK font to the user fonts
+directory detailed in the "Android Fonts" node of the Emacs manual.
+
+Introducing support for the byzantine CFF font format into the Android
+port is a large undertaking that we are looking for volunteers to
+perform.  If you are interested in taking responsibility for this
+task, please contact <emacs-devel@gnu.org>.
+
+** Emacs can only execute spasmodically in the background.
+
+Recent Android releases impose "battery optimization" on programs for
+which it is not expressly disabled; such optimization inhibits the
+execution of background services outside brief windows of time
+distributed at intervals of several dozens of minutes.  Such programs
+as ERC which must send "keep-alive" packets at a rate beyond that at
+which these windows arrive consequently lose, yielding connection
+timeouts after Emacs has been in the background long enough that
+battery optimization enters into effect.
+
+This optimization can be disabled through the Settings app: navigate
+to "Apps & notifications", "Emacs", "Battery", "Battery Optimization",
+before clicking the drop-down menu labeled "Not Optimized", selecting
+the option "All Apps", scrolling to "Emacs", clicking on its entry and
+selecting "Don't Optimize" in the dialog box thus displayed.
+
+The organization of the Settings app might disagree with that
+illustrated above, which if true you should consult the documentation
+or any search mechanism for it.
+
+** Emacs is not compatible with the "Microsoft SwiftKey" input method.
+
+When enabled, windows are repeatedly recentered around earlier buffer
+positions as they are scrolled.  The underlying cause is that Microsoft
+SwiftKey aggressively forces point towards word boundaries, which motion
+is sometimes received and duly processed by Emacs after the window in
+question has already been scrolled past its target position, with the
+result that the next redisplay recenters the window around this outdated
+position.  There is no solution but installing a more
+cooperative--and preferably free--input method.
+
+** The default input method performs edits elsewhere than point in large buffers.
+
+When first reactivated in a window after having been dismissed, certain
+heuristics applied by the "Android Keyboard (AOSP)" input method to
+detect unresponsive text editors, which are ill-adapted to buffers
+greater than a few thousand characters in length, conclude that Emacs is
+misbehaving, so that the input method ignores updates to the position of
+point reported around the time of its activation, and edits suggested by
+the input method are inserted in a previously reported location that
+might be wildly removed from the current insertion point.  This is a bug
+in the input method that can be easily reproduced by inserting lengthy
+documents into any text editor, with no real solution except avoiding
+edit suggestions from recently-reactivated input methods.
+
+** The F3 key appears to be spontaneously activated.
+
+It is possible that this is a product of your inadvertently contacting
+the back-facing fingerprint sensor, which generates F3 key events on
+devices manufactured by OnePlus and possibly others.  Sadly, to the best
+of our knowledge such events cannot be distinguished from legitimate
+keypresses.
+
+** Emacs crashes or is not acknowledged by the OS when requesting storage permissions.
+
+This is only possible on Wear OS (an Android distribution), where the
+system component that provides confirmation dialogs for this type of
+permission is unavailable.  You may circumvent this component by
+connecting to your device over ADB as in the preceding entries and
+executing:
+
+  $ adb shell appops set --uid org.gnu.emacs MANAGE_EXTERNAL_STORAGE allow
 
 * Build-time problems
 
@@ -4145,14 +4486,14 @@ for menus.  Help text is only available in later versions of Windows.
 This character seems to be trapped by the kernel in Windows 95.
 You can enter M-f6 by typing ESC f6.
 
-*** MS-Windows 95/98/ME: subprocesses do not terminate properly.
+*** MS-Windows 98/ME: subprocesses do not terminate properly.
 
 This is a limitation of the Operating System, and can cause problems
 when shutting down Windows.  Ensure that all subprocesses are exited
 cleanly before exiting Emacs.  For more details, see the Emacs on MS
 Windows FAQ (info manual "efaq-w32").
 
-*** MS-Windows 95/98/ME: crashes when Emacs invokes non-existent programs.
+*** MS-Windows 98/ME: crashes when Emacs invokes non-existent programs.
 
 When a program you are trying to run is not found on the PATH,
 Windows might respond by crashing or locking up your system.  In

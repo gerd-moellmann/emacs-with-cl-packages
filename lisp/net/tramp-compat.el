@@ -1,6 +1,6 @@
 ;;; tramp-compat.el --- Tramp compatibility functions  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2007-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2025 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -23,24 +23,22 @@
 
 ;;; Commentary:
 
-;; Tramp's main Emacs version for development is Emacs 29.  This
-;; package provides compatibility functions for Emacs 26, Emacs 27 and
-;; Emacs 28.
+;; Tramp's main Emacs version for development is Emacs 30.  This
+;; package provides compatibility functions for Emacs 27, Emacs 28 and
+;; Emacs 29.
 
 ;;; Code:
 
+(require 'tramp-loaddefs)
 (require 'ansi-color)
 (require 'auth-source)
 (require 'format-spec)
 (require 'parse-time)
 (require 'shell)
-(require 'subr-x)
+(require 'xdg)
 
-(declare-function tramp-compat-rx "tramp")
-(declare-function tramp-error "tramp")
-(declare-function tramp-file-name-handler "tramp")
+(declare-function tramp-error "tramp-message")
 (declare-function tramp-tramp-file-p "tramp")
-(defvar tramp-syntax)
 (defvar tramp-temp-name-prefix)
 
 (defconst tramp-compat-emacs-compiled-version (eval-when-compile emacs-version)
@@ -48,15 +46,22 @@
 
 (unless (= emacs-major-version
 	   (car (version-to-list tramp-compat-emacs-compiled-version)))
-  (warn "Tramp has been compiled with Emacs %s, this is Emacs %s"
+  (lwarn 'tramp :warning
+	 "Tramp has been compiled with Emacs %s, this is Emacs %s"
 	tramp-compat-emacs-compiled-version emacs-version))
 
 (with-eval-after-load 'docker-tramp
-  (warn (concat "Package `docker-tramp' has been obsoleted, "
-		"please use integrated package `tramp-container'")))
+  (lwarn 'tramp :warning
+	 (concat "Package `docker-tramp' has been obsoleted, "
+		 "please use integrated package `tramp-container'")))
 (with-eval-after-load 'kubernetes-tramp
-  (warn (concat "Package `kubernetes-tramp' has been obsoleted, "
-		"please use integrated package `tramp-container'")))
+  (lwarn 'tramp :warning
+	 (concat "Package `kubernetes-tramp' has been obsoleted, "
+		 "please use integrated package `tramp-container'")))
+(with-eval-after-load 'tramp-nspawn
+  (lwarn 'tramp :warning
+	 (concat "Package `tramp-nspawn' has been obsoleted, "
+		 "please use integrated package `tramp-container'")))
 
 ;; For not existing functions, obsolete functions, or functions with a
 ;; changed argument list, there are compiler warnings.  We want to
@@ -68,10 +73,17 @@
      (with-no-warnings (funcall ,function ,@arguments))))
 
 ;; We must use a local directory.  If it is remote, we could run into
-;; an infloop.
+;; an infloop.  We try to follow the XDG specification, for security reasons.
 (defconst tramp-compat-temporary-file-directory
-  (eval (car (get 'temporary-file-directory 'standard-value)) t)
-  "The default value of `temporary-file-directory'.")
+  (file-name-as-directory
+   (if-let ((xdg (xdg-cache-home))
+	    ((file-directory-p xdg))
+	    ((file-writable-p xdg)))
+       ;; We can use `file-name-concat' starting with Emacs 28.1.
+       (prog1 (setq xdg (concat (file-name-as-directory xdg) "emacs"))
+	 (make-directory xdg t))
+     (eval (car (get 'temporary-file-directory 'standard-value)) t)))
+  "The default value of `temporary-file-directory' for Tramp.")
 
 (defsubst tramp-compat-make-temp-name ()
   "Generate a local temporary file name (compat function)."
@@ -86,153 +98,6 @@ Add the extension of F, if existing."
    (expand-file-name
     tramp-temp-name-prefix tramp-compat-temporary-file-directory)
    dir-flag (file-name-extension f t)))
-
-;; `file-name-quoted-p', `file-name-quote' and `file-name-unquote' got
-;; a second argument in Emacs 27.1.
-;;;###tramp-autoload
-(defalias 'tramp-compat-file-name-quoted-p
-  (if (equal (func-arity #'file-name-quoted-p) '(1 . 2))
-      #'file-name-quoted-p
-    (lambda (name &optional top)
-      "Whether NAME is quoted with prefix \"/:\".
-If NAME is a remote file name and TOP is nil, check the local part of NAME."
-      (let ((file-name-handler-alist (unless top file-name-handler-alist)))
-	(string-prefix-p "/:" (file-local-name name))))))
-
-(defalias 'tramp-compat-file-name-quote
-  (if (equal (func-arity #'file-name-quote) '(1 . 2))
-      #'file-name-quote
-    (lambda (name &optional top)
-      "Add the quotation prefix \"/:\" to file NAME.
-If NAME is a remote file name and TOP is nil, the local part of NAME is quoted."
-      (let ((file-name-handler-alist (unless top file-name-handler-alist)))
-	(if (tramp-compat-file-name-quoted-p name top)
-            name
-	  (concat (file-remote-p name) "/:" (file-local-name name)))))))
-
-(defalias 'tramp-compat-file-name-unquote
-  (if (equal (func-arity #'file-name-unquote) '(1 . 2))
-      #'file-name-unquote
-    (lambda (name &optional top)
-      "Remove quotation prefix \"/:\" from file NAME.
-If NAME is a remote file name and TOP is nil, the local part of
-NAME is unquoted."
-      (let* ((file-name-handler-alist (unless top file-name-handler-alist))
-             (localname (file-local-name name)))
-	(when (tramp-compat-file-name-quoted-p localname top)
-	  (setq
-	   localname
-	   (if (tramp-compat-length= localname 2) "/" (substring localname 2))))
-	(concat (file-remote-p name) localname)))))
-
-;; `tramp-syntax' has changed its meaning in Emacs 26.1.  We still
-;; support old settings.
-(defsubst tramp-compat-tramp-syntax ()
-  "Return proper value of `tramp-syntax'."
-  (cond ((eq tramp-syntax 'ftp) 'default)
-	((eq tramp-syntax 'sep) 'separate)
-	(t tramp-syntax)))
-
-;; The signature of `tramp-make-tramp-file-name' has been changed.
-;; Therefore, we cannot use `url-tramp-convert-url-to-tramp' prior
-;; Emacs 26.1.  We use `temporary-file-directory' as indicator.
-(defconst tramp-compat-use-url-tramp-p (fboundp 'temporary-file-directory)
-  "Whether to use url-tramp.el.")
-
-;; `exec-path' is new in Emacs 27.1.
-(defalias 'tramp-compat-exec-path
-  (if (fboundp 'exec-path)
-      #'exec-path
-    (lambda ()
-      "List of directories to search programs to run in remote subprocesses."
-      (if (tramp-tramp-file-p default-directory)
-	  (tramp-file-name-handler 'exec-path)
-	exec-path))))
-
-;; `time-equal-p' has appeared in Emacs 27.1.
-(defalias 'tramp-compat-time-equal-p
-  (if (fboundp 'time-equal-p)
-      #'time-equal-p
-    (lambda (t1 t2)
-      "Return non-nil if time value T1 is equal to time value T2.
-A nil value for either argument stands for the current time."
-      (equal (or t1 (current-time)) (or t2 (current-time))))))
-
-;; `flatten-tree' has appeared in Emacs 27.1.
-(defalias 'tramp-compat-flatten-tree
-  (if (fboundp 'flatten-tree)
-      #'flatten-tree
-    (lambda (tree)
-      "Take TREE and \"flatten\" it."
-      (let (elems)
-	(setq tree (list tree))
-	(while (let ((elem (pop tree)))
-		 (cond ((consp elem)
-			(setq tree (cons (car elem) (cons (cdr elem) tree))))
-                       (elem
-			(push elem elems)))
-		 tree))
-	(nreverse elems)))))
-
-;; `progress-reporter-update' got argument SUFFIX in Emacs 27.1.
-(defalias 'tramp-compat-progress-reporter-update
-  (if (equal (func-arity #'progress-reporter-update) '(1 . 3))
-      #'progress-reporter-update
-    (lambda (reporter &optional value _suffix)
-      (progress-reporter-update reporter value))))
-
-;; `ignore-error' is new in Emacs 27.1.
-(defmacro tramp-compat-ignore-error (condition &rest body)
-  "Execute BODY; if the error CONDITION occurs, return nil.
-Otherwise, return result of last form in BODY.
-
-CONDITION can also be a list of error conditions."
-  (declare (debug t) (indent 1))
-  `(condition-case nil (progn ,@body) (,condition nil)))
-
-;; `rx' in Emacs 26 doesn't know the `literal', `anychar' and
-;; `multibyte' constructs.  The `not' construct requires an `any'
-;; construct as argument.  The `regexp' construct requires a literal
-;; string.
-(defvar tramp-compat-rx--runtime-params)
-
-(defun tramp-compat-rx--transform-items (items)
-  (mapcar #'tramp-compat-rx--transform-item items))
-
-;; There is an error in Emacs 26.  `(rx "a" (? ""))' => "a?".
-;; We must protect the string in regexp and literal, therefore.
-(defun tramp-compat-rx--transform-item (item)
-  (pcase item
-    ('anychar 'anything)
-    ('multibyte 'nonascii)
-    (`(not ,expr)
-     (if (consp expr) item (list 'not (list 'any expr))))
-    (`(regexp ,expr)
-     (setq tramp-compat-rx--runtime-params t)
-     `(regexp ,(list '\, `(concat "\\(?:" ,expr "\\)"))))
-    (`(literal ,expr)
-     (setq tramp-compat-rx--runtime-params t)
-     `(regexp ,(list '\, `(concat "\\(?:" (regexp-quote ,expr) "\\)"))))
-    (`(eval . ,_) item)
-    (`(,head . ,rest) (cons head (tramp-compat-rx--transform-items rest)))
-    (_ item)))
-
-(defun tramp-compat-rx--transform (items)
-  (let* ((tramp-compat-rx--runtime-params nil)
-         (new-rx (cons ': (tramp-compat-rx--transform-items items))))
-    (if tramp-compat-rx--runtime-params
-        `(rx-to-string ,(list '\` new-rx) t)
-      (rx-to-string new-rx t))))
-
-(if (ignore-errors (rx-to-string '(literal "a"))) ;; Emacs 27+.
-    (defalias 'tramp-compat-rx #'rx)
-  (defmacro tramp-compat-rx (&rest items)
-    (tramp-compat-rx--transform items)))
-
-;; This is needed for compilation in the Emacs source tree.
-;;;###autoload (defalias 'tramp-compat-rx #'rx)
-
-(put #'tramp-compat-rx 'tramp-autoload t)
 
 ;; `file-modes', `set-file-modes' and `set-file-times' got argument
 ;; FLAG in Emacs 28.1.
@@ -345,7 +210,7 @@ CONDITION can also be a list of error conditions."
 	(let ((matches 0)
               (case-fold-search nil))
 	  (goto-char start)
-	  (while (re-search-forward regexp end t)
+	  (while (search-forward-regexp regexp end t)
             (replace-match replacement t)
             (setq matches (1+ matches)))
 	  (and (not (zerop matches))
@@ -370,6 +235,16 @@ CONDITION can also be a list of error conditions."
     (lambda (sequence length)
       (= (length sequence) length))))
 
+;; `always' is introduced with Emacs 28.1.
+(defalias 'tramp-compat-always
+  (if (fboundp 'always)
+      #'always
+    (lambda (&rest _arguments)
+      "Do nothing and return t.
+This function accepts any number of ARGUMENTS, but ignores them.
+Also see `ignore'."
+      t)))
+
 ;; `permission-denied' is introduced in Emacs 29.1.
 (defconst tramp-permission-denied
   (if (get 'permission-denied 'error-conditions) 'permission-denied 'file-error)
@@ -381,10 +256,12 @@ CONDITION can also be a list of error conditions."
       (tramp-error vec tramp-permission-denied file)
     (tramp-error vec tramp-permission-denied "Permission denied: %s" file)))
 
-;; Function `auth-info-password' is new in Emacs 29.1.
+;; Function `auth-info-password' is new in Emacs 29.1.  Finally,
+;; Bug#49289 is fixed in Emacs 30.1 for the `secrets' and `plstore'
+;; auth-sources backends.
 (defalias 'tramp-compat-auth-info-password
-  (if (fboundp 'auth-info-password)
-      #'auth-info-password
+  (if (>= emacs-major-version 30)
+      'auth-info-password
     (lambda (auth-info)
       (let ((secret (plist-get auth-info :secret)))
 	(while (functionp secret)
@@ -426,8 +303,77 @@ CONDITION can also be a list of error conditions."
       (autoload 'netrc-parse "netrc")
       (netrc-parse file))))
 
+;; Function `seq-keep' is new in Emacs 29.1.
+(defalias 'tramp-compat-seq-keep
+  (if (fboundp 'seq-keep)
+      #'seq-keep
+    (lambda (function sequence)
+      (delq nil (seq-map function sequence)))))
+
+;; User option `connection-local-default-application' is new in Emacs 29.1.
+(unless (boundp 'connection-local-default-application)
+  (defvar connection-local-default-application 'tramp
+    "Default application in connection-local functions, a symbol.
+This variable must not be changed globally."))
+
+;; User option `password-colon-equivalents' is new in Emacs 30.1.
+(if (boundp 'password-colon-equivalents)
+    (defvaralias
+      'tramp-compat-password-colon-equivalents
+      'password-colon-equivalents)
+  (defvar tramp-compat-password-colon-equivalents
+    '(?\N{COLON}
+      ?\N{FULLWIDTH COLON}
+      ?\N{SMALL COLON}
+      ?\N{PRESENTATION FORM FOR VERTICAL COLON}
+      ?\N{KHMER SIGN CAMNUC PII KUUH})
+    "List of characters equivalent to trailing colon in \"password\" prompts."))
+
+;; Macros `connection-local-p' and `connection-local-value' are new in
+;; Emacs 30.1.
+(if (macrop 'connection-local-p)
+    (defalias 'tramp-compat-connection-local-p 'connection-local-p)
+  (defmacro tramp-compat-connection-local-p (variable &optional application)
+    "Non-nil if VARIABLE has a connection-local binding in `default-directory'.
+`default-directory' must be a remote file name.
+If APPLICATION is nil, the value of
+`connection-local-default-application' is used."
+    (declare (debug (symbolp &optional form)))
+    (unless (symbolp variable)
+      (signal 'wrong-type-argument (list 'symbolp variable)))
+    `(let* ((connection-local-default-application
+	     (or ,application connection-local-default-application))
+	    (criteria (connection-local-criteria-for-default-directory))
+            connection-local-variables-alist file-local-variables-alist)
+       (when criteria
+	 (hack-connection-local-variables criteria)
+	 (and (assq ',variable connection-local-variables-alist) t)))))
+
+(if (macrop 'connection-local-value)
+    (defalias 'tramp-compat-connection-local-value 'connection-local-value)
+  (defmacro tramp-compat-connection-local-value (variable &optional application)
+    "Return connection-local VARIABLE for APPLICATION in `default-directory'.
+`default-directory' must be a remote file name.
+If APPLICATION is nil, the value of
+`connection-local-default-application' is used.
+If VARIABLE does not have a connection-local binding, the return
+value is the default binding of the variable."
+    (declare (debug (symbolp &optional form)))
+    (unless (symbolp variable)
+      (signal 'wrong-type-argument (list 'symbolp variable)))
+    `(let* ((connection-local-default-application
+	     (or ,application connection-local-default-application))
+	    (criteria (connection-local-criteria-for-default-directory))
+            connection-local-variables-alist file-local-variables-alist)
+       (if (not criteria)
+           ,variable
+	 (hack-connection-local-variables criteria)
+	 (if-let ((result (assq ',variable connection-local-variables-alist)))
+             (cdr result)
+           ,variable)))))
+
 (dolist (elt (all-completions "tramp-compat-" obarray 'functionp))
-  (put (intern elt) 'tramp-suppress-trace t))
+  (function-put (intern elt) 'tramp-suppress-trace t))
 
 (add-hook 'tramp-unload-hook
 	  (lambda ()
@@ -439,9 +385,18 @@ CONDITION can also be a list of error conditions."
 ;;; TODO:
 ;;
 ;; * Starting with Emacs 27.1, there's no need to escape open
-;;   parentheses with a backslash in docstrings anymore.
+;;   parentheses with a backslash in docstrings anymore.  However,
+;;   `outline-minor-mode' has still problems with this.  Since there
+;;   are developers using `outline-minor-mode' in Lisp files, we still
+;;   keep this quoting.
 ;;
-;; * Starting with Emacs 27.1, there's `make-empty-file'.  Could be
-;;   used instead of `(write-region "" ...)'.
+;; * Starting with Emacs 29.1, use `buffer-match-p'.
+;;
+;; * Starting with Emacs 29.1, use `string-split'.
+;;
+;; * Starting with Emacs 30.1, there is `handler-bind'.  Use it
+;;   instead of `condition-case' when the origin of an error shall be
+;;   kept, for example when the HANDLER propagates the error with
+;;   `(signal (car err) (cdr err)'.
 
 ;;; tramp-compat.el ends here

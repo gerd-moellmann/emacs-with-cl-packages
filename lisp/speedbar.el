@@ -1,6 +1,6 @@
 ;;; speedbar.el --- quick access to files and tags in a frame  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1996-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2025 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: file, tags, tools
@@ -294,6 +294,7 @@ A nil value means don't show the file in the list."
 				       (border-width . 0)
 				       (menu-bar-lines . 0)
 				       (tool-bar-lines . 0)
+				       (tab-bar-lines . 0)
 				       (unsplittable . t)
 				       (left-fringe . 0)
 				       )
@@ -304,7 +305,8 @@ attached to and added to this list before the new frame is initialized."
   :group 'speedbar
   :type '(repeat (cons :format "%v"
 		       (symbol :tag "Parameter")
-		       (sexp :tag "Value"))))
+		       (sexp :tag "Value")))
+  :version "30.1")
 
 (defcustom speedbar-use-imenu-flag t
   "Non-nil means use imenu for file parsing, nil to use etags.
@@ -631,7 +633,7 @@ function `speedbar-extension-list-to-regex'.")
   (append '(".[ch]\\(\\+\\+\\|pp\\|c\\|h\\|xx\\)?" ".tex\\(i\\(nfo\\)?\\)?"
 	    ".el" ".emacs" ".l" ".lsp" ".p" ".java" ".js" ".f\\(90\\|77\\|or\\)?")
 	  (if speedbar-use-imenu-flag
-	      '(".ad[abs]" ".p[lm]" ".tcl" ".m" ".scm" ".pm" ".py" ".g"
+	      '(".ad[abs]" ".p[lm]" ".tcl" ".m" ".scm" ".pm" ".py" ".g" ".lua"
 		;; html is not supported by default, but an imenu tags package
 		;; is available.  Also, html files are nice to be able to see.
 		".s?html"
@@ -662,7 +664,7 @@ the dot should NOT be quoted in with \\.  Other regular expression
 matchers are allowed however.  EXTENSION may be a single string or a
 list of strings."
   (interactive "sExtension: ")
-  (if (not (listp extension)) (setq extension (list extension)))
+  (setq extension (ensure-list extension))
   (while extension
     (if (member (car extension) speedbar-supported-extension-expressions)
 	nil
@@ -677,8 +679,7 @@ list of strings."
 This function will modify `speedbar-ignored-directory-regexp' and add
 DIRECTORY-EXPRESSION to `speedbar-ignored-directory-expressions'."
   (interactive "sDirectory regex: ")
-  (if (not (listp directory-expression))
-      (setq directory-expression (list directory-expression)))
+  (setq directory-expression (ensure-list directory-expression))
   (while directory-expression
     (if (member (car directory-expression) speedbar-ignored-directory-expressions)
 	nil
@@ -2591,13 +2592,12 @@ interrupted by the user."
   (if (not speedbar-stealthy-update-recurse)
       (let ((l (speedbar-initial-stealthy-functions))
 	    (speedbar-stealthy-update-recurse t))
-	(unwind-protect
-	    (speedbar-with-writable
-	      (while (and l (funcall (car l)))
-		;;(sit-for 0)
-		(setq l (cdr l))))
-	  ;;(dframe-message "Exit with %S" (car l))
-	  ))))
+	(speedbar-with-writable
+	  (while (and l (funcall (car l)))
+	    ;;(sit-for 0)
+	    (setq l (cdr l))))
+	;;(dframe-message "Exit with %S" (car l))
+	)))
 
 (defun speedbar-reset-scanners ()
   "Reset any variables used by functions in the stealthy list as state.
@@ -3490,7 +3490,7 @@ functions to do caching and flushing if appropriate."
 
     nil
 
-(eval-when-compile (condition-case nil (require 'imenu) (error nil)))
+(eval-when-compile (require 'imenu))
 (declare-function imenu--make-index-alist "imenu" (&optional no-error))
 
 (defun speedbar-fetch-dynamic-imenu (file)
@@ -3532,7 +3532,7 @@ to be at the beginning of a line in the etags buffer.
 
 This variable is ignored if `speedbar-use-imenu-flag' is non-nil.")
 
-(defcustom speedbar-fetch-etags-command "etags"
+(defcustom speedbar-fetch-etags-command etags-program-name
   "Command used to create an etags file.
 This variable is ignored if `speedbar-use-imenu-flag' is t."
   :group 'speedbar
@@ -3551,9 +3551,7 @@ This variable is ignored if `speedbar-use-imenu-flag' is t."
   "Toggle FLAG in `speedbar-fetch-etags-arguments'.
 FLAG then becomes a member of etags command line arguments.  If flag
 is \"sort\", then toggle the value of `speedbar-sort-tags'.  If its
-value is \"show\" then toggle the value of
-`speedbar-show-unknown-files'."
-  (interactive)
+value is \"show\" then toggle the value of `speedbar-show-unknown-files'."
   (cond
    ((equal flag "sort")
     (setq speedbar-sort-tags (not speedbar-sort-tags)))
@@ -3572,38 +3570,36 @@ value is \"show\" then toggle the value of
   "For FILE, run etags and create a list of symbols extracted.
 Each symbol will be associated with its line position in FILE."
   (let ((newlist nil))
-    (unwind-protect
-	(save-excursion
-	  (if (get-buffer "*etags tmp*")
-	      (kill-buffer "*etags tmp*"))	;kill to clean it up
-	  (if (<= 1 speedbar-verbosity-level)
-	      (dframe-message "Fetching etags..."))
-	  (set-buffer (get-buffer-create "*etags tmp*"))
-	  (apply 'call-process speedbar-fetch-etags-command nil
-		 (current-buffer) nil
-		 (append speedbar-fetch-etags-arguments (list file)))
-	  (goto-char (point-min))
-	  (if (<= 1 speedbar-verbosity-level)
-	      (dframe-message "Fetching etags..."))
-	  (let ((expr
-		 (let ((exprlst speedbar-fetch-etags-parse-list)
-		       (ans nil))
-		   (while (and (not ans) exprlst)
-		     (if (string-match (car (car exprlst)) file)
-			 (setq ans (car exprlst)))
-		     (setq exprlst (cdr exprlst)))
-		   (cdr ans))))
-	    (if expr
-		(let (tnl)
-		  (set-buffer (get-buffer-create "*etags tmp*"))
-		  (while (not (save-excursion (end-of-line) (eobp)))
-		    (save-excursion
-		      (setq tnl (speedbar-extract-one-symbol expr)))
-		    (if tnl (setq newlist (cons tnl newlist)))
-		    (forward-line 1)))
-	      (dframe-message
-	       "Sorry, no support for a file of that extension"))))
-      )
+    (save-excursion
+      (if (get-buffer "*etags tmp*")
+	  (kill-buffer "*etags tmp*"))	;kill to clean it up
+      (if (<= 1 speedbar-verbosity-level)
+	  (dframe-message "Fetching etags..."))
+      (set-buffer (get-buffer-create "*etags tmp*"))
+      (apply 'call-process speedbar-fetch-etags-command nil
+	     (current-buffer) nil
+	     (append speedbar-fetch-etags-arguments (list file)))
+      (goto-char (point-min))
+      (if (<= 1 speedbar-verbosity-level)
+	  (dframe-message "Fetching etags..."))
+      (let ((expr
+	     (let ((exprlst speedbar-fetch-etags-parse-list)
+		   (ans nil))
+	       (while (and (not ans) exprlst)
+		 (if (string-match (car (car exprlst)) file)
+		     (setq ans (car exprlst)))
+		 (setq exprlst (cdr exprlst)))
+	       (cdr ans))))
+	(if expr
+	    (let (tnl)
+	      (set-buffer (get-buffer-create "*etags tmp*"))
+	      (while (not (save-excursion (end-of-line) (eobp)))
+		(save-excursion
+		  (setq tnl (speedbar-extract-one-symbol expr)))
+		(if tnl (setq newlist (cons tnl newlist)))
+		(forward-line 1)))
+	  (dframe-message
+	   "Sorry, no support for a file of that extension"))))
     (if speedbar-sort-tags
 	(sort newlist (lambda (a b) (string< (car a) (car b))))
       (reverse newlist))))

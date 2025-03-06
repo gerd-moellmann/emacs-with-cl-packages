@@ -1,6 +1,6 @@
 /* Test whether a file has a nontrivial ACL.  -*- coding: utf-8 -*-
 
-   Copyright (C) 2002-2003, 2005-2024 Free Software Foundation, Inc.
+   Copyright (C) 2002-2003, 2005-2025 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -28,10 +28,122 @@
 #include "acl.h"
 
 #include "acl-internal.h"
+#include "attribute.h"
+#include "minmax.h"
 
-#if GETXATTR_WITH_POSIX_ACLS
+#if USE_ACL && HAVE_LINUX_XATTR_H && HAVE_LISTXATTR
+# include <stdckdint.h>
+# include <string.h>
+# include <arpa/inet.h>
 # include <sys/xattr.h>
 # include <linux/xattr.h>
+# ifndef XATTR_NAME_NFSV4_ACL
+#  define XATTR_NAME_NFSV4_ACL "system.nfs4_acl"
+# endif
+# ifndef XATTR_NAME_POSIX_ACL_ACCESS
+#  define XATTR_NAME_POSIX_ACL_ACCESS "system.posix_acl_access"
+# endif
+# ifndef XATTR_NAME_POSIX_ACL_DEFAULT
+#  define XATTR_NAME_POSIX_ACL_DEFAULT "system.posix_acl_default"
+# endif
+
+enum {
+  /* ACE4_ACCESS_ALLOWED_ACE_TYPE = 0x00000000, */
+  ACE4_ACCESS_DENIED_ACE_TYPE  = 0x00000001,
+  ACE4_IDENTIFIER_GROUP        = 0x00000040
+};
+
+/* Return true if ATTR is in the set represented by the NUL-terminated
+   strings in LISTBUF, which is of size LISTSIZE.  */
+
+ATTRIBUTE_PURE static bool
+have_xattr (char const *attr, char const *listbuf, ssize_t listsize)
+{
+  char const *blim = listbuf + listsize;
+  for (char const *b = listbuf; b < blim; b += strlen (b) + 1)
+    for (char const *a = attr; *a == *b; a++, b++)
+      if (!*a)
+        return true;
+  return false;
+}
+
+/* Return 1 if given ACL in XDR format is non-trivial, 0 if it is trivial.
+   -1 upon failure to determine it.  Possibly change errno.  Assume that
+   the ACL is valid, except avoid undefined behavior even if invalid.
+
+   See <https://linux.die.net/man/5/nfs4_acl>.  The NFSv4 acls are
+   defined in Internet RFC 7530 and as such, every NFSv4 server
+   supporting ACLs should support NFSv4 ACLs (they differ from from
+   POSIX draft ACLs).  The ACLs can be obtained via the
+   nfsv4-acl-tools, e.g., the nfs4_getfacl command.  Gnulib provides
+   only basic support of NFSv4 ACLs, i.e., recognize trivial vs
+   nontrivial ACLs.  */
+
+static int
+acl_nfs4_nontrivial (uint32_t *xattr, ssize_t nbytes)
+{
+  enum { BYTES_PER_NETWORK_UINT = 4};
+
+  /* Grab the number of aces in the acl.  */
+  nbytes -= BYTES_PER_NETWORK_UINT;
+  if (nbytes < 0)
+    return -1;
+  uint32_t num_aces = ntohl (*xattr++);
+  if (6 < num_aces)
+    return 1;
+  int ace_found = 0;
+
+  for (int ace_n = 0; ace_n < num_aces; ace_n++)
+    {
+      /* Get the acl type and flag.  Skip the mask; it's too risky to
+         test it and it does not seem to be needed.  Get the wholen.  */
+      nbytes -= 4 * BYTES_PER_NETWORK_UINT;
+      if (nbytes < 0)
+        return -1;
+      uint32_t type = ntohl (xattr[0]);
+      uint32_t flag = ntohl (xattr[1]);
+      uint32_t wholen = ntohl (xattr[3]);
+      xattr += 4;
+      int whowords = (wholen / BYTES_PER_NETWORK_UINT
+                      + (wholen % BYTES_PER_NETWORK_UINT != 0));
+      int64_t wholen4 = whowords;
+      wholen4 *= BYTES_PER_NETWORK_UINT;
+
+      /* Trivial ACLs have only ACE4_ACCESS_ALLOWED_ACE_TYPE or
+         ACE4_ACCESS_DENIED_ACE_TYPE.  */
+      if (ACE4_ACCESS_DENIED_ACE_TYPE < type)
+        return 1;
+
+      /* RFC 7530 says FLAG should be 0, but be generous to NetApp and
+         also accept the group flag.  */
+      if (flag & ~ACE4_IDENTIFIER_GROUP)
+        return 1;
+
+      /* Get the who string.  Check NBYTES - WHOLEN4 before storing
+         into NBYTES, to avoid truncation on conversion.  */
+      if (nbytes - wholen4 < 0)
+        return -1;
+      nbytes -= wholen4;
+
+      /* For a trivial ACL, max 6 (typically 3) ACEs, 3 allow, 3 deny.
+         Check that there is at most one ACE of each TYPE and WHO.  */
+      int who2
+        = (wholen == 6 && memcmp (xattr, "OWNER@", 6) == 0 ? 0
+           : wholen == 6 && memcmp (xattr, "GROUP@", 6) == 0 ? 2
+           : wholen == 9 && memcmp (xattr, "EVERYONE@", 9) == 0 ? 4
+           : -1);
+      if (who2 < 0)
+        return 1;
+      int ace_found_bit = 1 << (who2 | type);
+      if (ace_found & ace_found_bit)
+        return 1;
+      ace_found |= ace_found_bit;
+
+      xattr += whowords;
+    }
+
+  return 0;
+}
 #endif
 
 /* Return 1 if NAME has a nontrivial access control list,
@@ -48,25 +160,95 @@ file_has_acl (char const *name, struct stat const *sb)
   if (! S_ISLNK (sb->st_mode))
     {
 
-# if GETXATTR_WITH_POSIX_ACLS
+# if HAVE_LINUX_XATTR_H && HAVE_LISTXATTR
+      int initial_errno = errno;
 
-      ssize_t ret;
+      /* The max length of a trivial NFSv4 ACL is 6 words for owner,
+         6 for group, 7 for everyone, all times 2 because there are
+         both allow and deny ACEs.  There are 6 words for owner
+         because of type, flag, mask, wholen, "OWNER@"+pad and
+         similarly for group; everyone is another word to hold
+         "EVERYONE@".  */
+      typedef uint32_t trivial_NFSv4_xattr_buf[2 * (6 + 6 + 7)];
 
-      ret = getxattr (name, XATTR_NAME_POSIX_ACL_ACCESS, NULL, 0);
-      if (ret < 0 && errno == ENODATA)
-        ret = 0;
-      else if (ret > 0)
-        return 1;
+      /* A buffer large enough to hold any trivial NFSv4 ACL,
+         and also useful as a small array of char.  */
+      union {
+        trivial_NFSv4_xattr_buf xattr;
+        char ch[sizeof (trivial_NFSv4_xattr_buf)];
+      } stackbuf;
 
-      if (ret == 0 && S_ISDIR (sb->st_mode))
+      char *listbuf = stackbuf.ch;
+      ssize_t listbufsize = sizeof stackbuf.ch;
+      char *heapbuf = NULL;
+      ssize_t listsize;
+
+      /* Use listxattr first, as this means just one syscall in the
+         typical case where the file lacks an ACL.  Try stackbuf
+         first, falling back on malloc if stackbuf is too small.  */
+      while ((listsize = listxattr (name, listbuf, listbufsize)) < 0
+             && errno == ERANGE)
         {
-          ret = getxattr (name, XATTR_NAME_POSIX_ACL_DEFAULT, NULL, 0);
-          if (ret < 0 && errno == ENODATA)
-            ret = 0;
-          else if (ret > 0)
-            return 1;
+          free (heapbuf);
+          ssize_t newsize = listxattr (name, NULL, 0);
+          if (newsize <= 0)
+            return newsize;
+
+          /* Grow LISTBUFSIZE to at least NEWSIZE.  Grow it by a
+             nontrivial amount too, to defend against denial of
+             service by an adversary that fiddles with ACLs.  */
+          bool overflow = ckd_add (&listbufsize, listbufsize, listbufsize >> 1);
+          listbufsize = MAX (listbufsize, newsize);
+          if (overflow || SIZE_MAX < listbufsize)
+            {
+              errno = ENOMEM;
+              return -1;
+            }
+
+          listbuf = heapbuf = malloc (listbufsize);
+          if (!listbuf)
+            return -1;
         }
 
+      /* In Fedora 39, a file can have both NFSv4 and POSIX ACLs,
+         but if it has an NFSv4 ACL that's the one that matters.
+         In earlier Fedora the two types of ACLs were mutually exclusive.
+         Attempt to work correctly on both kinds of systems.  */
+      bool nfsv4_acl
+        = 0 < listsize && have_xattr (XATTR_NAME_NFSV4_ACL, listbuf, listsize);
+      int ret
+        = (listsize <= 0 ? listsize
+           : (nfsv4_acl
+              || have_xattr (XATTR_NAME_POSIX_ACL_ACCESS, listbuf, listsize)
+              || (S_ISDIR (sb->st_mode)
+                  && have_xattr (XATTR_NAME_POSIX_ACL_DEFAULT,
+                                 listbuf, listsize))));
+      free (heapbuf);
+
+      /* If there is an NFSv4 ACL, follow up with a getxattr syscall
+         to see whether the NFSv4 ACL is nontrivial.  */
+      if (nfsv4_acl)
+        {
+          ret = getxattr (name, XATTR_NAME_NFSV4_ACL,
+                          stackbuf.xattr, sizeof stackbuf.xattr);
+          if (ret < 0)
+            switch (errno)
+              {
+              case ENODATA: return 0;
+              case ERANGE : return 1; /* ACL must be nontrivial.  */
+              }
+          else
+            {
+              /* It looks like a trivial ACL, but investigate further.  */
+              ret = acl_nfs4_nontrivial (stackbuf.xattr, ret);
+              if (ret < 0)
+                {
+                  errno = EINVAL;
+                  return ret;
+                }
+              errno = initial_errno;
+            }
+        }
       if (ret < 0)
         return - acl_errno_valid (errno);
       return ret;

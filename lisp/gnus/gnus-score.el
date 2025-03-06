@@ -1,6 +1,6 @@
 ;;; gnus-score.el --- scoring code for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1995-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1995-2025 Free Software Foundation, Inc.
 
 ;; Author: Per Abrahamsen <amanda@iesd.auc.dk>
 ;;	Lars Magne Ingebrigtsen <larsi@gnus.org>
@@ -119,11 +119,11 @@ the `a' symbolic prefix to the score commands will always use
 		(function-item gnus-score-find-hierarchical)
 		(function-item gnus-score-find-bnews)
 		(repeat :tag "List of functions"
-			(choice (function :tag "Other" :value 'ignore)
+                        (choice (function :tag "Other" :value ignore)
 				(function-item gnus-score-find-single)
 				(function-item gnus-score-find-hierarchical)
 				(function-item gnus-score-find-bnews)))
-		(function :tag "Other" :value 'ignore)))
+                (function :tag "Other" :value ignore)))
 
 (defcustom gnus-score-interactive-default-score 1000
   "Scoring commands will raise/lower the score with this number as the default."
@@ -190,7 +190,7 @@ It can be:
    * `(regexp file-name ...)'
      If the `regexp' matches the group name, the first `file-name'
      will be used as the home score file.  (Multiple filenames are
-     allowed so that one may use gnus-score-file-single-match-alist to
+     allowed so that one may use `gnus-score-file-single-match-alist' to
      set this variable.)
 
    * A function.
@@ -517,6 +517,35 @@ of the last successful match.")
     "t" #'gnus-score-find-trace
     "w" #'gnus-score-find-favorite-words))
 
+
+
+;; Touch screen ``character reading'' routines for
+;; `gnus-summary-increase-score' and friends.
+
+(defun gnus-read-char (prompt options)
+  "Read a character from the keyboard.
+
+On Android, if `use-dialog-box-p' returns non-nil, display a
+dialog box containing PROMPT, with buttons representing each of
+item in the list of characters OPTIONS instead.
+
+Value is the character read, as with `read-char', or nil upon
+failure."
+  (if (and (display-graphic-p) (featurep 'android)
+           (use-dialog-box-p))
+      ;; Set up the dialog box.
+      (let ((dialog (cons prompt ; Message displayed in dialog box.
+                          (mapcar (lambda (arg)
+                                    (cons (char-to-string arg)
+                                          arg))
+                                  options))))
+        ;; Display the dialog box.
+        (x-popup-dialog t dialog))
+    ;; Fall back to read-char.
+    (read-char)))
+
+
+
 ;; Summary score file commands
 
 ;; Much modification of the kill (ahem, score) code and lots of the
@@ -564,18 +593,18 @@ current score file."
 	    (?d "date" nil nil date)
 	    (?f "followup" nil nil string)
 	    (?t "thread" "message-id" nil string)))
-	 (char-to-type
+	 (char-to-types
 	  '((?s s "substring" string)
 	    (?e e "exact string" string)
 	    (?f f "fuzzy string" string)
-	    (?r r "regexp string" string)
+	    (?r r "regexp string" string date)
 	    (?z s "substring" body-string)
 	    (?p r "regexp string" body-string)
 	    (?b before "before date" date)
 	    (?a after "after date" date)
 	    (?n at "this date" date)
-	    (?< < "less than number" number)
-	    (?> > "greater than number" number)
+	    (?< < "less than number" number date)
+	    (?> > "greater than number" number date)
 	    (?= = "equal to number" number)))
 	 (current-score-file gnus-current-score-file)
 	 (char-to-perm
@@ -588,21 +617,23 @@ current score file."
 		     (aref (symbol-name gnus-score-default-type) 0)))
 	 (pchar (and gnus-score-default-duration
 		     (aref (symbol-name gnus-score-default-duration) 0)))
-	 entry temporary type match extra)
+	 entry temporary type match extra header-string)
 
     (unwind-protect
 	(progn
-
+          (setq header-string
+                (format "%s header (%s?): " (if increase "Increase" "Lower")
+		        (mapconcat (lambda (s) (char-to-string (car s)))
+				   char-to-header "")))
 	  ;; First we read the header to score.
 	  (while (not hchar)
 	    (if mimic
 		(progn
 		  (sit-for 1)
 		  (message "%c-" prefix))
-	      (message "%s header (%s?): " (if increase "Increase" "Lower")
-		       (mapconcat (lambda (s) (char-to-string (car s)))
-				  char-to-header "")))
-	    (setq hchar (read-char))
+	      (message header-string))
+	    (setq hchar (gnus-read-char header-string
+                                        (mapcar #'car char-to-header)))
 	    (when (or (= hchar ??) (= hchar ?\C-h))
 	      (setq hchar nil)
 	      (gnus-score-insert-help "Match on header" char-to-header 1)))
@@ -621,21 +652,23 @@ current score file."
 	  (let ((legal-types
 		 (delq nil
 		       (mapcar (lambda (s)
-				 (if (eq (nth 4 entry)
-					 (nth 3 s))
+				 (if (member (nth 4 entry) (nthcdr 3 s))
 				     s nil))
-			       char-to-type))))
+			       char-to-types))))
+            (setq header-string
+                  (format "%s header `%s' with match type (%s?): "
+			  (if increase "Increase" "Lower")
+			  (nth 1 entry)
+			  (mapconcat (lambda (s) (char-to-string (car s)))
+				     legal-types "")))
 	    ;; We continue reading - the type.
 	    (while (not tchar)
 	      (if mimic
 		  (progn
 		    (sit-for 1) (message "%c %c-" prefix hchar))
-		(message "%s header `%s' with match type (%s?): "
-			 (if increase "Increase" "Lower")
-			 (nth 1 entry)
-			 (mapconcat (lambda (s) (char-to-string (car s)))
-				    legal-types "")))
-	      (setq tchar (read-char))
+		(message header-string))
+	      (setq tchar (gnus-read-char header-string
+                                          (mapcar #'car legal-types)))
 	      (when (or (= tchar ??) (= tchar ?\C-h))
 		(setq tchar nil)
 		(gnus-score-insert-help "Match type" legal-types 2)))
@@ -651,15 +684,19 @@ current score file."
 	      (message ""))
 	    (setq pchar (or pchar ?t)))
 
+          (setq header-string
+                (format "%s permanence (%s?): " (if increase "Increase" "Lower")
+		        (mapconcat (lambda (s) (char-to-string (car s)))
+				   char-to-perm "")))
+
 	  ;; We continue reading.
 	  (while (not pchar)
 	    (if mimic
 		(progn
 		  (sit-for 1) (message "%c %c %c-" prefix hchar tchar))
-	      (message "%s permanence (%s?): " (if increase "Increase" "Lower")
-		       (mapconcat (lambda (s) (char-to-string (car s)))
-				  char-to-perm "")))
-	    (setq pchar (read-char))
+	      (message header-string))
+	    (setq pchar (gnus-read-char header-string
+                                        (mapcar #'car char-to-perm)))
 	    (when (or (= pchar ??) (= pchar ?\C-h))
 	      (setq pchar nil)
 	      (gnus-score-insert-help "Match permanence" char-to-perm 2)))
@@ -855,9 +892,18 @@ If optional argument `EXTRA' is non-nil, it's a non-standard overview header."
 				 (t "permanent"))
 			   header
 			   (if (< score 0) "lower" "raise"))
-		   (if (numberp match)
-		       (int-to-string match)
-		     match))))
+                   (cond ((numberp match) (int-to-string match))
+                         ;; Provide better defaults if we're scoring on date header
+                         ((string= header "date")
+                          (if (or (eq type '<) (eq type '>))
+                              ;; Determine the time difference in days between today
+                              ;; and the article's date
+                              (format-seconds "%d"
+                                              (time-subtract
+                                               (current-time)
+                                               (gnus-date-get-time match)))
+                            (gnus-date-iso8601 match)))
+                         (t match)))))
 
     ;; If this is an integer comparison, we transform from string to int.
     (if (eq (nth 2 (assoc header gnus-header-index)) 'gnus-score-integer)
@@ -866,16 +912,13 @@ If optional argument `EXTRA' is non-nil, it's a non-standard overview header."
       (set-text-properties 0 (length match) nil match))
 
     ;; Modify match and type for article age scoring.
-    (if (string= "date" (nth 0 (assoc header gnus-header-index)))
-	(let ((age (string-to-number match)))
-	  (if (or (< age 0)
-		  (string= "0" match))
-	      (user-error "Article age must be a positive number"))
-	  (setq match age
-		type (cond ((eq type 'after)
-			    '<)
-			   ((eq type 'before)
-			    '>)))))
+    (when (and (string= header "date")
+               (or (eq type '<) (eq type '>)))
+      (let ((age (string-to-number match)))
+        (if (or (< age 0)
+                (string= "0" match))
+            (user-error "Article age must be a positive number"))
+        (setq match age)))
 
     (unless (eq date 'now)
       ;; Add the score entry to the score file.
@@ -1763,7 +1806,7 @@ score in `gnus-newsgroup-scored' by SCORE."
 	   ((eq type 'at)
 	    (setq match-func 'string=
 		  match (gnus-date-iso8601 (nth 0 kill))))
-	   ((eq type 'regexp)
+	   ((or (eq type 'regexp) (eq type 'r))
 	    (setq match-func 'string-match
 		  match (nth 0 kill)))
 	   (t (error "Invalid match type: %s" type)))
@@ -1790,6 +1833,8 @@ score in `gnus-newsgroup-scored' by SCORE."
 		 (gnus-score-set 'touched '(t) alist)
 		 (setcdr entries (cdr rest))
 		 (setq rest entries)))
+          (when (stringp (nth 0 kill))
+            (set-text-properties 0 1 nil (nth 0 kill)))
 	  (setq entries rest)))))
   nil)
 
@@ -2956,10 +3001,7 @@ The list is determined from the variable `gnus-score-file-alist'."
 	(group (or group gnus-newsgroup-name))
 	score-files)
     (when group
-      ;; Make sure funcs is a list.
-      (and funcs
-	   (not (listp funcs))
-	   (setq funcs (list funcs)))
+      (setq funcs (ensure-list funcs))
       (when gnus-score-use-all-scores
 	;; Get the initial score files for this group.
 	(when funcs
@@ -3066,12 +3108,8 @@ The list is determined from the variable `gnus-score-file-alist'."
 (defun gnus-home-score-file (group &optional adapt)
   "Return the home score file for GROUP.
 If ADAPT, return the home adaptive file instead."
-  (let ((list (if adapt gnus-home-adapt-file gnus-home-score-file))
+  (let ((list (ensure-list (if adapt gnus-home-adapt-file gnus-home-score-file)))
 	elem found)
-    ;; Make sure we have a list.
-    (unless (listp list)
-      (setq list (list list)))
-    ;; Go through the list and look for matches.
     (while (and (not found)
 		(setq elem (pop list)))
       (setq found

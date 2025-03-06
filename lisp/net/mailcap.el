@@ -1,6 +1,6 @@
 ;;; mailcap.el --- MIME media types configuration -*- lexical-binding: t -*-
 
-;; Copyright (C) 1998-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2025 Free Software Foundation, Inc.
 
 ;; Author: William M. Perry <wmperry@aventail.com>
 ;;	Lars Magne Ingebrigtsen <larsi@gnus.org>
@@ -510,7 +510,7 @@ If SOURCE, mark the entry with this as the source."
 	  (skip-chars-forward "^;\n")
 	  ;; skip \;
 	  (while (eq (char-before) ?\\)
-	    (backward-delete-char 1)
+	    (delete-char -1)
 	    (forward-char)
 	    (skip-chars-forward "^;\n"))
 	  (if (eq (or (char-after save-pos) 0) ?')
@@ -689,9 +689,9 @@ to supply to the test."
 	 status cache result)
     (cond ((not (or (stringp viewer) (fboundp viewer)))
 	   nil)				; Non-existent Lisp function
+	  ((null test-info) t)		; No test clause
 	  ((setq cache (assoc test mailcap-viewer-test-cache))
 	   (cadr cache))
-	  ((not test-info) t)		; No test clause
 	  (t
 	   (setq
 	    result

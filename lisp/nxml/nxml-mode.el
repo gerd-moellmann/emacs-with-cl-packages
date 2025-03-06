@@ -1,9 +1,9 @@
 ;;; nxml-mode.el --- a new XML mode  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2003-2004, 2007-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2004, 2007-2025 Free Software Foundation, Inc.
 
 ;; Author: James Clark
-;; Keywords: wp, hypermedia, languages, XML
+;; Keywords: text, hypermedia, languages, XML
 
 ;; This file is part of GNU Emacs.
 
@@ -151,15 +151,15 @@ This is not used directly, but only via inheritance by other faces."
 This is not used directly, but only via inheritance by other faces."
   :group 'nxml-faces)
 
-(defface nxml-delimiter
-  nil
-  "Face used to highlight delimiters.
-This is not used directly, but only via inheritance by other faces."
+(defface nxml-text
+  '((t (:inherit default)))
+  "Face used to highlight text."
   :group 'nxml-faces)
 
-(defface nxml-text
-  nil
-  "Face used to highlight text."
+(defface nxml-delimiter
+  '((t (:inherit nxml-text)))
+  "Face used to highlight delimiters.
+This is not used directly, but only via inheritance by other faces."
   :group 'nxml-faces)
 
 (defface nxml-processing-instruction-delimiter
@@ -230,7 +230,7 @@ This includes the `x' in hex references."
   :group 'nxml-faces)
 
 (defface nxml-element-colon
-  nil
+  '((t (:inherit nxml-delimiter)))
   "Face used for the colon in element names."
   :group 'nxml-faces)
 
@@ -390,7 +390,6 @@ reference.")
   "C-c C-u" #'nxml-insert-named-char
   "C-c C-o" nxml-outline-prefix-map
   "/"       #'nxml-electric-slash
-  "M-TAB"   #'completion-at-point
   "S-<mouse-2>" #'nxml-mouse-hide-direct-text-content)
 
 (defvar nxml-font-lock-keywords
@@ -532,6 +531,7 @@ Many aspects this mode can be customized using
   (setq-local comment-end-skip "[ \t\r\n]*-->")
   (setq-local comment-line-break-function #'nxml-newline-and-indent)
   (setq-local comment-quote-nested-function #'nxml-comment-quote-nested)
+  (setq-local comment-continue "") ; avoid double-hyphens as a padding
   (save-excursion
     (save-restriction
       (widen)

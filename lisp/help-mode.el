@@ -1,6 +1,6 @@
 ;;; help-mode.el --- `help-mode' used by *Help* buffers  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1985-1986, 1993-1994, 1998-2024 Free Software
+;; Copyright (C) 1985-1986, 1993-1994, 1998-2025 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -177,6 +177,11 @@ The format is (FUNCTION ARGS...).")
   'help-function 'describe-variable
   'help-echo (purecopy "mouse-2, RET: describe this variable"))
 
+(define-button-type 'help-type
+  :supertype 'help-xref
+  'help-function #'cl-describe-type
+  'help-echo (purecopy "mouse-2, RET: describe this type"))
+
 (define-button-type 'help-face
   :supertype 'help-xref
   'help-function 'describe-face
@@ -260,7 +265,9 @@ The format is (FUNCTION ARGS...).")
     (require 'find-func)
     (when (eq file 'C-source)
       (setq file
-            (help-C-file-name (indirect-function fun) 'fun)))
+            (if (memq type '(variable defvar))
+                (help-C-file-name fun 'var)
+              (help-C-file-name (indirect-function fun) 'fun))))
     ;; Don't use find-function-noselect because it follows
     ;; aliases (which fails for built-in functions).
     (let* ((location
@@ -498,6 +505,20 @@ This should be called very early, before the output buffer is cleared,
 because we want to record the \"previous\" position of point so we can
 restore it properly when going back."
   (with-current-buffer (help-buffer)
+    ;; Disable `outline-minor-mode' in a reused Help buffer
+    ;; created by `describe-bindings' that enables this mode.
+    (when (bound-and-true-p outline-minor-mode)
+      (outline-minor-mode -1)
+      (mapc #'kill-local-variable
+            '(outline-search-function
+              outline-regexp
+              outline-heading-end-regexp
+              outline-level
+              outline-minor-mode-cycle
+              outline-minor-mode-highlight
+              outline-minor-mode-use-buttons
+              outline-default-state
+              outline-default-rules)))
     (when help-xref-stack-item
       (push (cons (point) help-xref-stack-item) help-xref-stack)
       (setq help-xref-forward-stack nil))
@@ -531,6 +552,9 @@ it does not already exist."
         (or (and (boundp symbol) (not (keywordp symbol)))
             (get symbol 'variable-documentation)))
      ,#'describe-variable)
+    ;; FIXME: We could go crazy and add another entry so describe-symbol can be
+    ;; used with the slot names of CL structs (and/or EIEIO objects).
+    ("type" ,#'cl-find-class ,#'cl-describe-type)
     ("face" ,#'facep ,(lambda (s _b _f) (describe-face s))))
   "List of providers of information about symbols.
 Each element has the form (NAME TESTFUN DESCFUN) where:

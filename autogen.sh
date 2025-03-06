@@ -1,7 +1,7 @@
 #!/bin/sh
 ### autogen.sh - tool to help build Emacs from a repository checkout
 
-## Copyright (C) 2011-2024 Free Software Foundation, Inc.
+## Copyright (C) 2011-2025 Free Software Foundation, Inc.
 
 ## Author: Glenn Morris <rgm@gnu.org>
 ## Maintainer: emacs-devel@gnu.org
@@ -239,6 +239,16 @@ Please report any problems with this script to bug-gnu-emacs@gnu.org .'
 
   fi                            # do_check
 
+  # Stale caches can confuse autoconf.
+  rm -fr autom4te.cache exec/autom4te.cache || exit
+
+  # In build-aux save config.guess, config.sub and install-sh
+  # in case autoreconf overwrites them, as we rely on the copies
+  # in Git, which are updated by admin/merge-gnulib.
+  for file in config.guess config.sub install-sh; do
+    cp -p build-aux/$file build-aux/$file.tmp || exit
+  done
+
   # Build aclocal.m4 here so that autoreconf need not use aclocal.
   # aclocal is part of Automake and might not be installed, and
   # autoreconf skips aclocal if aclocal.m4 is already supplied.
@@ -256,6 +266,25 @@ Please report any problems with this script to bug-gnu-emacs@gnu.org .'
   ## Let autoreconf figure out what, if anything, needs doing.
   ## Use autoreconf's -f option in case autoreconf itself has changed.
   autoreconf -fi -I m4 || exit
+
+  echo "Building 'aclocal.m4' in exec ..."
+
+  # Create a placeholder aclocal.m4 in exec, preventing autoreconf
+  # from running aclocal.
+
+  echo "" > exec/aclocal.m4
+
+  echo "Running 'autoreconf -fi' in exec ..."
+
+  # Now, run autoreconf inside the exec directory to generate its
+  # configure script.
+  autoreconf -fi exec || exit
+
+  # Restore config.guess etc. in build-aux, and copy them to exec.
+  for file in config.guess config.sub install-sh; do
+    cp build-aux/$file.tmp exec/$file &&
+    mv build-aux/$file.tmp build-aux/$file || exit
+  done
 fi
 
 
@@ -340,7 +369,8 @@ git_config diff.texinfo.xfuncname \
 tailored_hooks=
 sample_hooks=
 
-for hook in commit-msg pre-commit prepare-commit-msg; do
+for hook in commit-msg pre-commit prepare-commit-msg post-commit \
+            pre-push commit-msg-files.awk; do
     cmp -- build-aux/git-hooks/$hook "$hooks/$hook" >/dev/null 2>&1 ||
 	tailored_hooks="$tailored_hooks $hook"
 done

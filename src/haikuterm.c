@@ -1,5 +1,5 @@
 /* Haiku window system support
-   Copyright (C) 2021-2024 Free Software Foundation, Inc.
+   Copyright (C) 2021-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -804,6 +804,86 @@ haiku_draw_underwave (struct glyph_string *s, int width, int x)
   BView_EndClip (view);
 }
 
+/* Draw a dashed underline of thickness THICKNESS and width WIDTH onto F
+   at a vertical offset of OFFSET from the position of the glyph string
+   S, with each segment SEGMENT pixels in length.  */
+
+static void
+haiku_draw_dash (struct frame *f, struct glyph_string *s, int width,
+		 int segment, int offset, int thickness)
+{
+  int y_center, which, length, x, doffset;
+  void *view;
+
+  /* Configure the thickness of the view's strokes.  */
+  view = FRAME_HAIKU_VIEW (s->f);
+  BView_SetPenSize (view, thickness);
+
+  /* Offset the origin of the line by half the line width. */
+  y_center = s->ybase + offset + thickness / 2;
+
+  /* Remove redundant portions of OFFSET.  */
+  doffset = s->x % (segment * 2);
+
+  /* Set which to the phase of the first dash that ought to be drawn and
+     length to its length.  */
+  which = doffset < segment;
+  length = segment - (s->x % segment);
+
+  /* Begin drawing this dash.  */
+  for (x = s->x; x < s->x + width; x += length, length = segment)
+    {
+      if (which)
+	BView_StrokeLine (view, x, y_center,
+			  min (x + length - 1,
+			       s->x + width - 1),
+			  y_center);
+
+      which = !which;
+    }
+}
+
+/* Draw an underline of STYLE onto F at an offset of POSITION from the
+   baseline of the glyph string S, S->WIDTH in length, and THICKNESS in
+   height.  */
+
+static void
+haiku_fill_underline (struct frame *f, struct glyph_string *s,
+		      enum face_underline_type style, int position,
+		      int thickness)
+{
+  int segment;
+  void *view;
+
+  segment = thickness * 3;
+  view = FRAME_HAIKU_VIEW (f);
+
+  switch (style)
+    {
+      /* FACE_UNDERLINE_DOUBLE_LINE is treated identically to SINGLE, as
+	 the second line will be filled by another invocation of this
+	 function.  */
+    case FACE_UNDERLINE_SINGLE:
+    case FACE_UNDERLINE_DOUBLE_LINE:
+      BView_FillRectangle (view, s->x, s->ybase + position,
+			   s->width, thickness);
+      break;
+
+    case FACE_UNDERLINE_DOTS:
+      segment = thickness;
+      FALLTHROUGH;
+
+    case FACE_UNDERLINE_DASHES:
+      haiku_draw_dash (f, s, s->width, segment, position, thickness);
+      break;
+
+    case FACE_NO_UNDERLINE:
+    case FACE_UNDERLINE_WAVE:
+    default:
+      emacs_abort ();
+    }
+}
+
 static void
 haiku_draw_text_decoration (struct glyph_string *s, struct face *face,
 			    int width, int x)
@@ -827,15 +907,15 @@ haiku_draw_text_decoration (struct glyph_string *s, struct face *face,
       else
 	BView_SetHighColor (view, face->foreground);
 
-      if (face->underline == FACE_UNDER_WAVE)
+      if (face->underline == FACE_UNDERLINE_WAVE)
 	haiku_draw_underwave (s, width, x);
-      else if (face->underline == FACE_UNDER_LINE)
+      else if (face->underline >= FACE_UNDERLINE_SINGLE)
 	{
 	  unsigned long thickness, position;
-	  int y;
 
 	  if (s->prev
-	      && s->prev->face->underline == FACE_UNDER_LINE
+	      && (s->prev->face->underline != FACE_UNDERLINE_WAVE
+		  && s->prev->face->underline >= FACE_UNDERLINE_SINGLE)
 	      && (s->prev->face->underline_at_descent_line_p
 		  == s->face->underline_at_descent_line_p)
 	      && (s->prev->face->underline_pixels_above_descent_line
@@ -908,9 +988,20 @@ haiku_draw_text_decoration (struct glyph_string *s, struct face *face,
 	    thickness = (s->y + s->height) - (s->ybase + position);
 	  s->underline_thickness = thickness;
 	  s->underline_position = position;
-	  y = s->ybase + position;
 
-	  BView_FillRectangle (view, s->x, y, s->width, thickness);
+	  haiku_fill_underline (s->f, s, s->face->underline,
+				position, thickness);
+
+	  /* Place a second underline above the first if this was
+	     requested in the face specification.  */
+
+	  if (s->face->underline == FACE_UNDERLINE_DOUBLE_LINE)
+	    {
+	      /* Compute the position of the second underline.  */
+	      position = position - thickness - 1;
+	      haiku_fill_underline (s->f, s, s->face->underline,
+				    position, thickness);
+	    }
 	}
     }
 
@@ -1219,7 +1310,7 @@ static void
 haiku_draw_glyphless_glyph_string_foreground (struct glyph_string *s)
 {
   struct glyph *glyph = s->first_glyph;
-  unsigned char2b[8];
+  static unsigned char2b[8];
   int x, i, j;
   struct face *face = s->face;
   unsigned long color;
@@ -3472,7 +3563,7 @@ haiku_read_socket (struct terminal *terminal, struct input_event *hold_quit)
 		if (!NILP (Vmouse_autoselect_window))
 		  {
 		    static Lisp_Object last_mouse_window;
-		    Lisp_Object window = window_from_coordinates (f, b->x, b->y, 0, 0, 0);
+		    Lisp_Object window = window_from_coordinates (f, b->x, b->y, 0, 0, 0, 0);
 
 		    if (WINDOWP (window)
 			&& !EQ (window, last_mouse_window)
@@ -3555,7 +3646,7 @@ haiku_read_socket (struct terminal *terminal, struct input_event *hold_quit)
 		int x = b->x;
 		int y = b->y;
 
-		window = window_from_coordinates (f, x, y, 0, true, true);
+		window = window_from_coordinates (f, x, y, 0, true, true, true);
 		tab_bar_p = EQ (window, f->tab_bar_window);
 
 		if (tab_bar_p)
@@ -3573,7 +3664,7 @@ haiku_read_socket (struct terminal *terminal, struct input_event *hold_quit)
 		int x = b->x;
 		int y = b->y;
 
-		window = window_from_coordinates (f, x, y, 0, true, true);
+		window = window_from_coordinates (f, x, y, 0, true, true, true);
 		tool_bar_p = (EQ (window, f->tool_bar_window)
 			      && (type != BUTTON_UP
 				  || f->last_tool_bar_item != -1));
@@ -3834,7 +3925,7 @@ haiku_read_socket (struct terminal *terminal, struct input_event *hold_quit)
 
 	    BView_get_mouse (FRAME_HAIKU_VIEW (f), &x, &y);
 
-	    wheel_window = window_from_coordinates (f, x, y, 0, false, false);
+	    wheel_window = window_from_coordinates (f, x, y, 0, false, false, false);
 
 	    if (NILP (wheel_window))
 	      {
@@ -4042,6 +4133,19 @@ haiku_read_socket (struct terminal *terminal, struct input_event *hold_quit)
 	     handled in Lisp.  */
 	  haiku_handle_font_change_event (buf, &inev);
 	  break;
+
+	case NOTIFICATION_CLICK_EVENT:
+	  /* This code doesn't function, but the why is unknown.  */
+#if 0
+	  {
+	    struct haiku_notification_click_event *b = buf;
+
+	    inev.kind = NOTIFICATION_CLICKED_EVENT;
+	    inev.arg  = make_int (b->id);
+	    break;
+	  }
+#endif /* 0 */
+
 	case KEY_UP:
 	case DUMMY_EVENT:
 	default:
@@ -4165,7 +4269,8 @@ haiku_flash (struct frame *f)
 
       BView_InvertRect (view, flash_left,
 			(height - flash_height
-			 - FRAME_INTERNAL_BORDER_WIDTH (f)),
+			 - FRAME_INTERNAL_BORDER_WIDTH (f)
+			 - FRAME_BOTTOM_MARGIN_HEIGHT (f)),
 			width, flash_height);
     }
   else
@@ -4210,7 +4315,8 @@ haiku_flash (struct frame *f)
 
       BView_InvertRect (view, flash_left,
 			(height - flash_height
-			 - FRAME_INTERNAL_BORDER_WIDTH (f)),
+			 - FRAME_INTERNAL_BORDER_WIDTH (f)
+			 - FRAME_BOTTOM_MARGIN_HEIGHT (f)),
 			width, flash_height);
     }
   else
@@ -4420,7 +4526,7 @@ haiku_term_init (void)
     {
       nbytes = sizeof "GNU Emacs" + sizeof " at ";
 
-      if (INT_ADD_WRAPV (nbytes, SBYTES (system_name), &nbytes))
+      if (ckd_add (&nbytes, nbytes, SBYTES (system_name)))
 	memory_full (SIZE_MAX);
 
       name_buffer = alloca (nbytes);
@@ -4465,14 +4571,16 @@ haiku_clear_under_internal_border (struct frame *f)
       int width = FRAME_PIXEL_WIDTH (f);
       int height = FRAME_PIXEL_HEIGHT (f);
       int margin = FRAME_TOP_MARGIN_HEIGHT (f);
-      int face_id =
-	(FRAME_PARENT_FRAME (f)
-	 ? (!NILP (Vface_remapping_alist)
-	    ? lookup_basic_face (NULL, f, CHILD_FRAME_BORDER_FACE_ID)
-	    : CHILD_FRAME_BORDER_FACE_ID)
-	 : (!NILP (Vface_remapping_alist)
-	    ? lookup_basic_face (NULL, f, INTERNAL_BORDER_FACE_ID)
-	    : INTERNAL_BORDER_FACE_ID));
+      int bottom_margin = FRAME_BOTTOM_MARGIN_HEIGHT (f);
+      int face_id = (FRAME_PARENT_FRAME (f)
+		     ? (!NILP (Vface_remapping_alist)
+			? lookup_basic_face (NULL, f,
+					     CHILD_FRAME_BORDER_FACE_ID)
+			: CHILD_FRAME_BORDER_FACE_ID)
+		     : (!NILP (Vface_remapping_alist)
+			? lookup_basic_face (NULL, f,
+					     INTERNAL_BORDER_FACE_ID)
+			: INTERNAL_BORDER_FACE_ID));
       struct face *face = FACE_FROM_ID_OR_NULL (f, face_id);
       void *view = FRAME_HAIKU_DRAWABLE (f);
 
@@ -4492,7 +4600,8 @@ haiku_clear_under_internal_border (struct frame *f)
       BView_FillRectangle (view, 0, 0, border, height);
       BView_FillRectangle (view, 0, margin, width, border);
       BView_FillRectangle (view, width - border, 0, border, height);
-      BView_FillRectangle (view, 0, height - border, width, border);
+      BView_FillRectangle (view, 0, height - bottom_margin - border,
+			   width, border);
       BView_EndClip (view);
       BView_draw_unlock (view);
       unblock_input ();

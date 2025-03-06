@@ -1,6 +1,6 @@
 @c -*- mode: texinfo; coding: utf-8 -*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990--1994, 1998--2024 Free Software Foundation, Inc.
+@c Copyright (C) 1990--1994, 1998--2025 Free Software Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Keymaps
 @chapter Keymaps
@@ -459,9 +459,9 @@ Here's an example:
 @kindex :repeat
 @kindex repeat-mode
 @cindex repeatable key bindings
-Each command in the keymap can be marked as `repeatable', i.e. usable
+Each command in the keymap can be marked as `repeatable', i.e.@: usable
 in @code{repeat-mode}, by putting a @code{repeat-map} property on it,
-e.g.
+for example:
 
 @lisp
 (put 'undo 'repeat-map 'undo-repeat-map)
@@ -480,7 +480,7 @@ following values are available:
 This means all the commands in the keymap are repeatable, and is the
 most common usage.
 
-@item (:enter (commands ...) :exit (commands ...))
+@item (:enter (commands ...) :exit (commands ...) :hints ((command . "hint") ...))
 This specifies that the commands in the @code{:enter} list enter
 @code{repeat-mode}, and the commands in the @code{:exit} list exit
 repeat mode.
@@ -494,6 +494,10 @@ If the @code{:exit} list is empty then no commands in the map exit
 @code{repeat-mode}.  Specifying one or more commands in this list is
 useful if the keymap being defined contains a command that should not
 have the @code{repeat-map} property.
+
+The @code{:hints} list can contain cons pairs where the @sc{car} is
+a command and the @sc{cdr} is a string that is displayed alongside of
+the repeatable key in the echo area.
 @end table
 
 In order to make e.g.@: @kbd{u} repeat the @code{undo} command, the
@@ -1106,7 +1110,7 @@ are used before @code{minor-mode-map-alist} and
 @end defvar
 
 @cindex transient keymap
-@defun set-transient-map keymap &optional keep-pred on-exit
+@defun set-transient-map keymap &optional keep-pred on-exit message timeout
 This function adds @var{keymap} as a @dfn{transient} keymap, which
 takes precedence over other keymaps for one (or more) subsequent keys.
 
@@ -2044,6 +2048,15 @@ to turn the character that follows into a Hyper character:
 @end group
 @end example
 
+@cindex accessing events within a key translation function
+@vindex current-key-remap-sequence
+A key translation function might want to adjust its behavior based on
+parameters to events within a key sequence containing non-key events
+(@pxref{Input Events}.)  This information is available from the
+variable @code{current-key-remap-sequence}, which is bound to the key
+sub-sequence being translated around calls to key translation
+functions.
+
 @subsection Interaction with normal keymaps
 
 The end of a key sequence is detected when that key sequence either is bound
@@ -2588,6 +2601,12 @@ function should return the binding to use instead.
 Emacs can call this function at any time that it does redisplay or
 operates on menu data structures, so you should write it so it can
 safely be called at any time.
+
+@item :wrap @var{wrap-p}
+If @var{wrap-p} is non-@code{nil} inside a tool bar, the menu item is
+not displayed, but instead causes subsequent items to be displayed on
+a new line.  This is not supported when Emacs uses the GTK+ or
+Nextstep toolkits.
 @end table
 
 @node Menu Separators
@@ -3094,6 +3113,16 @@ specifies the local map to make the definition in.  The argument
 @code{tool-bar-add-item-from-menu}.
 @end defun
 
+@vindex secondary-tool-bar-map
+In addition to the tool bar items defined in @code{tool-bar-map},
+Emacs also supports displaying an additional row of ``secondary'' tool
+bar items specified in the keymap @code{secondary-tool-bar-map}.
+These items are normally displayed below those defined within
+@code{tool-bar-map} if the tool bar is positioned at the top of its
+frame, but are displayed above them if the tool bar is positioned at
+the bottom (@pxref{Layout Parameters}.)  They are not displayed if the
+tool bar is positioned at the left or right of a frame.
+
 @defvar auto-resize-tool-bars
 If this variable is non-@code{nil}, the tool bar automatically resizes to
 show all defined tool bar items---but not larger than a quarter of the
@@ -3214,7 +3243,8 @@ contents are given by @var{menu}.
 
 If @var{symbol} is non-@code{nil}, it should be a symbol; then this
 macro defines @var{symbol} as a function for popping up the menu
-(@pxref{Pop-Up Menus}), with @var{doc} as its documentation string.
+(@pxref{Pop-Up Menus}), with @var{doc} as its documentation string.  It
+also defines @var{symbol} as a variable whose value is the menu.
 @var{symbol} should not be quoted.
 
 Regardless of the value of @var{symbol}, if @var{maps} is a keymap,

@@ -1,6 +1,6 @@
 ;;; cc-mode.el --- major mode for editing C and similar languages -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985, 1987, 1992-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1985, 1987, 1992-2025 Free Software Foundation, Inc.
 
 ;; Authors:    2003- Alan Mackenzie
 ;;             1998- Martin Stjernholm
@@ -66,7 +66,7 @@
 ;; You can get the latest version of CC Mode, including PostScript
 ;; documentation and separate individual files from:
 ;;
-;;     https://cc-mode.sourceforge.net/
+;;     https://www.nongnu.org/cc-mode/
 ;;
 ;; You can join a moderated CC Mode announcement-only mailing list by
 ;; visiting
@@ -172,8 +172,8 @@
 ;; `c-font-lock-init' too to set up CC Mode's font lock support.
 ;;
 ;; See cc-langs.el for further info.  A small example of a derived mode
-;; is also available at <https://cc-mode.sourceforge.net/
-;; derived-mode-ex.el>.
+;; is also available at
+;; <https://www.nongnu.org/cc-mode/derived-mode-ex.el>.
 
 (defun c-leave-cc-mode-mode ()
   (when c-buffer-is-cc-mode
@@ -254,6 +254,13 @@ control).  See \"cc-mode.el\" for more info."
                         'c-electric-indent-local-mode-hook)))
 	;; Will try initialization hooks again if they failed.
 	(put 'c-initialize-cc-mode initprop c-initialization-ok))))
+
+  ;; Set up text conversion, for Emacs >= 30.0
+  ;; This is needed here because CC-mode's implementation of
+  ;; electricity does not rely on `post-self-insert-hook' (which is
+  ;; already handled adequately by `analyze-text-conversion').
+  (when (boundp 'post-text-conversion-hook)
+    (add-hook 'post-text-conversion-hook #'c-post-text-conversion nil t))
 
   (unless new-style-init
     (c-init-language-vars-for 'c-mode)))
@@ -1275,7 +1282,9 @@ Note that the style variables are always made local to the buffer."
   ;; VALUE (which should not be nil).
   ;; `(let ((-pos- ,pos)
   ;;	 (-value- ,value))
-  (c-put-char-property pos 'syntax-table value)
+  (if (equal value '(15))
+      (c-put-string-fence pos)
+    (c-put-char-property pos 'syntax-table value))
   (c-put-char-property pos 'c-fl-syn-tab value)
   (cond
    ((null c-min-syn-tab-mkr)
@@ -1367,7 +1376,15 @@ Note that the style variables are always made local to the buffer."
 		      (and		;(< (point) end)
 		       (not (nth 3 s))
 		       (c-get-char-property (1- (point)) 'c-fl-syn-tab))
-		    (c-put-char-property pos 'syntax-table '(1)))
+		    (c-put-char-property pos 'syntax-table '(1))
+		    ;; Remove syntax-table text properties from template
+		    ;; delimiters.
+		    (c-clear-char-property-with-value
+		     (1+ pos) (c-point 'eol pos)
+		     'syntax-table c-<-as-paren-syntax)
+		    (c-clear-char-property-with-value
+		     (1+ pos) (c-point 'eol pos)
+		     'syntax-table c->-as-paren-syntax))
 		  (setq pos (point)))
 	      (setq pos (1+ pos)))))))))
 
@@ -1384,6 +1401,9 @@ Note that the style variables are always made local to the buffer."
 	   (setq pos
 		 (c-min-property-position pos c-max-syn-tab-mkr 'c-fl-syn-tab))
 	   (< pos c-max-syn-tab-mkr))
+	(when (and (equal (c-get-char-property pos 'syntax-table) '(1))
+		   (equal (c-get-char-property pos 'c-fl-syn-tab) '(15)))
+	  (c-clear-char-properties (1+ pos) (c-point 'eol pos) 'syntax-table))
 	(c-put-char-property pos 'syntax-table
 			     (c-get-char-property pos 'c-fl-syn-tab))
 	(setq pos (1+ pos))))))
@@ -2443,9 +2463,7 @@ with // and /*, not more generic line and block comments."
 			   (backward-char)
 			   (setq pseudo (c-cheap-inside-bracelist-p (c-parse-state)))))))
 	       (goto-char pseudo))
-	     t)
-	   (or (> (point) bod-lim)
-	       (eq bod-lim (point-min)))
+	     (or pseudo (> (point) bod-lim)))
 	   ;; Move forward to the start of the next declaration.
 	   (progn (c-forward-syntactic-ws)
 		  ;; Have we got stuck in a comment at EOB?
@@ -2720,18 +2738,18 @@ This function is called from `c-common-init', once per mode initialization."
 ;; Emacs < 22 and XEmacs
 (defmacro c-advise-fl-for-region (function)
   (declare (debug t))
-  `(defadvice ,function (before get-awk-region activate)
-     ;; Make sure that any string/regexp is completely font-locked.
-     (when c-buffer-is-cc-mode
-       (save-excursion
-	 (ad-set-arg 1 c-new-END)   ; end
-	 (ad-set-arg 0 c-new-BEG)))))	; beg
+  (unless (boundp 'font-lock-extend-after-change-region-function)
+    `(defadvice ,function (before get-awk-region activate)
+       ;; Make sure that any string/regexp is completely font-locked.
+       (when c-buffer-is-cc-mode
+	 (save-excursion
+	   (ad-set-arg 1 c-new-END)   ; end
+	   (ad-set-arg 0 c-new-BEG))))))	; beg
 
-(unless (boundp 'font-lock-extend-after-change-region-function)
-  (c-advise-fl-for-region font-lock-after-change-function)
-  (c-advise-fl-for-region jit-lock-after-change)
-  (c-advise-fl-for-region lazy-lock-defer-rest-after-change)
-  (c-advise-fl-for-region lazy-lock-defer-line-after-change))
+(c-advise-fl-for-region font-lock-after-change-function)
+(c-advise-fl-for-region jit-lock-after-change)
+(c-advise-fl-for-region lazy-lock-defer-rest-after-change)
+(c-advise-fl-for-region lazy-lock-defer-line-after-change)
 
 ;; Connect up to `electric-indent-mode' (Emacs 24.4 and later).
 (defun c-electric-indent-mode-hook ()
@@ -2861,7 +2879,7 @@ Key bindings:
                                      "\\|" id "::"
                                      "\\|" id ws-maybe "=\\)"
               "\\|" "\\(?:inline" ws "\\)?namespace"
-                    "\\(:?" ws "\\(?:" id "::\\)*" id "\\)?" ws-maybe "{"
+                    "\\(?:" ws "\\(?:" id "::\\)*" id "\\)?" ws-maybe "{"
               "\\|" "class"     ws id
                     "\\(?:" ws "final" "\\)?" ws-maybe "[:{;\n]"
               "\\|" "struct"     ws id "\\(?:" ws "final" ws-maybe "[:{\n]"
@@ -2884,15 +2902,19 @@ This function attempts to use file contents to determine whether
 the code is C or C++ and based on that chooses whether to enable
 `c-mode' or `c++-mode'."
   (interactive)
-  (if (save-excursion
-        (save-restriction
-          (save-match-data
-            (widen)
-            (goto-char (point-min))
-            (re-search-forward c-or-c++-mode--regexp
-                               (+ (point) c-guess-region-max) t))))
-      (c++-mode)
-    (c-mode)))
+  (let ((mode
+	 (if (save-excursion
+	       (save-restriction
+		 (save-match-data
+		   (widen)
+		   (goto-char (point-min))
+		   (re-search-forward c-or-c++-mode--regexp
+				      (+ (point) c-guess-region-max) t))))
+	     'c++-mode
+	   'c-mode)))
+    (funcall (if (fboundp 'major-mode-remap)
+		 (major-mode-remap mode)
+	       mode))))
 
 
 ;; Support for C++
@@ -3303,6 +3325,22 @@ Key bindings:
 	      (insert "Package: " c-mode-bug-package)))
 	(insert (format "Buffer Style: %s\nc-emacs-features: %s\n"
 			style c-features)))))))
+
+
+;; Make entries in `major-mode-remap-defaults' to ensure that when CC
+;; Mode has been loaded, the symbols `c-mode' etc., will call CC Mode's
+;; modes rather than c-ts-mode etc..
+(when (boundp 'major-mode-remap-defaults)
+  (add-to-list 'major-mode-remap-defaults '(c++-mode . c++-ts-mode))
+  (add-to-list 'major-mode-remap-defaults '(c-mode . c-ts-mode))
+  (add-to-list 'major-mode-remap-defaults '(c-or-c++-mode . c-or-c++-ts-mode))
+  (let (entry)
+    (dolist (mode '(c-mode c++-mode c-or-c++-mode))
+      (if (and (setq entry (assq mode major-mode-remap-defaults))
+	       (null (cdr entry)))
+	  (setq major-mode-remap-defaults
+		(delq entry major-mode-remap-defaults)))
+      (push (cons mode nil) major-mode-remap-defaults))))
 
 
 (cc-provide 'cc-mode)

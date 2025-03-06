@@ -1,6 +1,6 @@
 ;;; erc-pcomplete.el --- Provides programmable completion for ERC  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2002-2004, 2006-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2004, 2006-2025 Free Software Foundation, Inc.
 
 ;; Author: Sacha Chua <sacha@free.net.ph>
 ;; Maintainer: Amin Bandali <bandali@gnu.org>, F. Jason Park <jp@neverwas.me>
@@ -56,7 +56,11 @@ add this string to nicks completed."
   "If t, order nickname completions with the most recent speakers first."
   :type 'boolean)
 
+;;;###autoload(put 'Completion 'erc--module 'completion)
+;;;###autoload(put 'pcomplete 'erc--module 'completion)
+;;;###autoload(put 'completion 'erc--feature 'erc-pcomplete)
 ;;;###autoload(autoload 'erc-completion-mode "erc-pcomplete" nil t)
+(put 'completion 'erc-group 'erc-pcomplete)
 (define-erc-module pcomplete Completion
   "In ERC Completion mode, the TAB key does completion whenever possible."
   ((add-hook 'erc-mode-hook #'pcomplete-erc-setup)

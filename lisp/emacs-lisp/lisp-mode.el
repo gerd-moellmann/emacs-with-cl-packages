@@ -1,6 +1,6 @@
 ;;; lisp-mode.el --- Lisp mode, and its idiosyncratic commands  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1999-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1985-1986, 1999-2025 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: lisp, languages
@@ -30,11 +30,6 @@
 
 (eval-when-compile (require 'cl-lib))
 (eval-when-compile (require 'subr-x))
-
-(defvar font-lock-comment-face)
-(defvar font-lock-doc-face)
-(defvar font-lock-keywords-case-fold-search)
-(defvar font-lock-string-face)
 
 (define-abbrev-table 'lisp-mode-abbrev-table ()
   "Abbrev table for Lisp mode.")
@@ -134,7 +129,7 @@
 	 (purecopy (concat "^\\s-*("
 			   (regexp-opt
 			    '(;; Elisp
-                              "defconst" "defcustom"
+                              "defconst" "defcustom" "defvar-keymap"
                               ;; CL
                               "defconstant"
 			      "defparameter" "define-symbol-macro")
@@ -348,7 +343,7 @@ This will generate compile-time constants from BINDINGS."
      (lisp-vdefs '("defvar"))
      (lisp-kw '("cond" "if" "while" "let" "let*" "progn" "prog1"
                 "prog2" "lambda" "unwind-protect" "condition-case"
-                "when" "unless" "with-output-to-string"
+                "when" "unless" "with-output-to-string" "handler-bind"
                 "ignore-errors" "dotimes" "dolist" "declare"))
      (lisp-errs '("warn" "error" "signal"))
      ;; Elisp constructs.  Now they are update dynamically
@@ -361,7 +356,7 @@ This will generate compile-time constants from BINDINGS."
                  "define-globalized-minor-mode" "define-skeleton"
                  "define-widget" "ert-deftest"))
      (el-vdefs '("defconst" "defcustom" "defvaralias" "defvar-local"
-                 "defface"))
+                 "defface" "define-error"))
      (el-tdefs '("defgroup" "deftheme"))
      (el-errs '("user-error"))
      ;; Common-Lisp constructs supported by EIEIO.  FIXME: namespace.
@@ -381,7 +376,7 @@ This will generate compile-time constants from BINDINGS."
      (cl-kw '("block" "break" "case" "ccase" "compiler-let" "ctypecase"
               "declaim" "destructuring-bind" "do" "do*"
               "ecase" "etypecase" "eval-when" "flet" "flet*"
-              "go" "handler-case" "handler-bind" "in-package" ;; "inline"
+              "go" "handler-case" "in-package" ;; "inline"
               "labels" "letf" "locally" "loop"
               "macrolet" "multiple-value-bind" "multiple-value-prog1"
               "proclaim" "prog" "prog*" "progv"
@@ -876,7 +871,7 @@ complete sexp in the innermost containing list at position
 2 (counting from 0).  This is important for Lisp indentation."
   (unless pos (setq pos (point)))
   (let ((pss (syntax-ppss pos)))
-    (if (nth 9 pss)
+    (if (and (not (nth 2 pss)) (nth 9 pss))
         (let ((sexp-start (car (last (nth 9 pss)))))
           (parse-partial-sexp sexp-start pos nil nil (syntax-ppss sexp-start)))
       pss)))
@@ -1351,10 +1346,7 @@ Lisp function does not specify a special indentation."
 (put 'catch 'lisp-indent-function 1)
 (put 'condition-case 'lisp-indent-function 2)
 (put 'handler-case 'lisp-indent-function 1) ;CL
-(put 'handler-bind 'lisp-indent-function 1) ;CL
 (put 'unwind-protect 'lisp-indent-function 1)
-(put 'with-output-to-temp-buffer 'lisp-indent-function 1)
-(put 'closure 'lisp-indent-function 2)
 
 (defun indent-sexp (&optional endpos)
   "Indent each line of the list starting just after point.
@@ -1426,14 +1418,15 @@ A prefix argument specifies pretty-printing."
 
 ;;;; Lisp paragraph filling commands.
 
-(defcustom emacs-lisp-docstring-fill-column 65
+(defcustom emacs-lisp-docstring-fill-column 72
   "Value of `fill-column' to use when filling a docstring.
 Any non-integer value means do not use a different value of
 `fill-column' when filling docstrings."
   :type '(choice (integer)
                  (const :tag "Use the current `fill-column'" t))
   :safe (lambda (x) (or (eq x t) (integerp x)))
-  :group 'lisp)
+  :group 'lisp
+  :version "30.1")
 
 (defun lisp-fill-paragraph (&optional justify)
   "Like \\[fill-paragraph], but handle Emacs Lisp comments and docstrings.
@@ -1453,7 +1446,7 @@ and initial semicolons."
       ;; are buffer-local, but we avoid changing them so that they can be set
       ;; to make `forward-paragraph' and friends do something the user wants.
       ;;
-      ;; `paragraph-start': The `(' in the character alternative and the
+      ;; `paragraph-start': The `(' in the bracket expression and the
       ;; left-singlequote plus `(' sequence after the \\| alternative prevent
       ;; sexps and backquoted sexps that follow a docstring from being filled
       ;; with the docstring.  This setting has the consequence of inhibiting

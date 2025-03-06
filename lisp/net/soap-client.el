@@ -1,15 +1,18 @@
 ;;; soap-client.el --- Access SOAP web services       -*- lexical-binding: t -*-
 
-;; Copyright (C) 2009-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2025 Free Software Foundation, Inc.
 
 ;; Author: Alexandru Harsanyi <AlexHarsanyi@gmail.com>
 ;; Author: Thomas Fitzsimmons <fitzsim@fitzsim.org>
 ;; Created: December, 2009
-;; Version: 3.2.1
+;; Version: 3.2.3
 ;; Keywords: soap, web-services, comm, hypermedia
 ;; Package: soap-client
 ;; URL: https://github.com/alex-hhh/emacs-soap-client
 ;; Package-Requires: ((emacs "24.1") (cl-lib "0.6.1"))
+
+;; This is a GNU ELPA :core package.  Avoid functionality that is not
+;; compatible with the version of Emacs recorded above.
 
 ;; This file is part of GNU Emacs.
 
@@ -717,9 +720,9 @@ representing leap seconds."
                 second)
               minute hour day month year second-fraction datatype time-zone)
       (let ((time
-	     (encode-time (list
-			   (if new-decode-time new-decode-time-second second)
-			   minute hour day month year nil nil time-zone))))
+             ;; Call encode-time the old way, for Emacs<27.
+             (encode-time (if new-decode-time new-decode-time-second second)
+                          minute hour day month year time-zone)))
         (if new-decode-time
             (with-no-warnings (decode-time time nil t))
           (decode-time time))))))
@@ -946,7 +949,7 @@ This is a specialization of `soap-encode-attributes' for
    (t nil)))
 
 (defun soap-type-is-array? (type)
-  "Return t if TYPE defines an ARRAY."
+  "Return t if TYPE is an ARRAY."
   (and (soap-xs-complex-type-p type)
        (eq (soap-xs-complex-type-indicator type) 'array)))
 
@@ -1317,7 +1320,7 @@ See also `soap-wsdl-resolve-references'."
   "Validate VALUE against the basic type TYPE."
   (let* ((kind (soap-xs-basic-type-kind type)))
     (cl-case kind
-      ((anyType Array byte[])
+      ((anyType Array byte\[\])
        value)
       (t
        (let ((convert (get kind 'rng-xsd-convert)))

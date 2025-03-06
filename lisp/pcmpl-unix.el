@@ -1,6 +1,6 @@
 ;;; pcmpl-unix.el --- standard UNIX completions  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2025 Free Software Foundation, Inc.
 
 ;; Package: pcomplete
 
@@ -227,7 +227,7 @@ documentation), this function returns nil."
 ;;;###autoload(defalias 'pcomplete/sha224sum 'pcomplete/md5sum)
 ;;;###autoload(defalias 'pcomplete/sha256sum 'pcomplete/md5sum)
 ;;;###autoload(defalias 'pcomplete/sha384sum 'pcomplete/md5sum)
-;;;###autoload(defalias 'pcomplete/sha521sum 'pcomplete/md5sum)
+;;;###autoload(defalias 'pcomplete/sha512sum 'pcomplete/md5sum)
 
 ;;;###autoload
 (defun pcomplete/sort ()
@@ -684,6 +684,14 @@ Includes files as well as host names followed by a colon."
   (funcall pcomplete-command-completion-function)
   (funcall (or (pcomplete-find-completion-function (pcomplete-arg 1))
 	       pcomplete-default-completion-function)))
+
+;;;###autoload
+(defun pcomplete/doas ()
+  "Completion for the `doas' command."
+  (pcomplete-opt "C(pcomplete-entries)Lnsu(pcmpl-unix-user-names)")
+  (funcall pcomplete-command-completion-function)
+  (funcall (or (pcomplete-find-completion-function (pcomplete-arg 1))
+               pcomplete-default-completion-function)))
 
 (provide 'pcmpl-unix)
 

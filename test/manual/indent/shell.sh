@@ -140,6 +140,7 @@ foo () {
         5) hello ;;
         4) hello ;&
         4) hello ;;&
+        4) hello ;|
         5) hello ;;
         5) hello ;;
     esac
@@ -187,4 +188,11 @@ bar () {
         fi
 
     fi
+}
+
+case $i {                       # Bug#55764
+    *pattern)
+        (cd .; echo hi);
+        do1 ;;
+    *pattern2) do2 ;;
 }

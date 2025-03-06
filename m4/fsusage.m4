@@ -1,12 +1,12 @@
+# fsusage.m4
 # serial 35
-# Obtaining file system usage information.
+dnl Copyright (C) 1997-1998, 2000-2001, 2003-2025 Free Software
+dnl Foundation, Inc.
+dnl This file is free software; the Free Software Foundation
+dnl gives unlimited permission to copy and/or distribute it,
+dnl with or without modifications, as long as this notice is preserved.
 
-# Copyright (C) 1997-1998, 2000-2001, 2003-2024 Free Software
-# Foundation, Inc.
-#
-# This file is free software; the Free Software Foundation
-# gives unlimited permission to copy and/or distribute it,
-# with or without modifications, as long as this notice is preserved.
+# Obtaining file system usage information.
 
 # Written by Jim Meyering.
 
@@ -270,7 +270,7 @@ int check_f_blocks_size[sizeof fsd.f_blocks * CHAR_BIT <= 32 ? -1 : 1];
 
 # Check for SunOS statfs brokenness wrt partitions 2GB and larger.
 # If <sys/vfs.h> exists and struct statfs has a member named f_spare,
-# enable the work-around code in fsusage.c.
+# enable the workaround code in fsusage.c.
 AC_DEFUN([gl_STATFS_TRUNCATES],
 [
   AC_CACHE_CHECK([for statfs that truncates block counts],

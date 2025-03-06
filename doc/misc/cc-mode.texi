@@ -167,7 +167,7 @@ CC Mode
 @copying
 This manual is for CC Mode in Emacs.
 
-Copyright @copyright{} 1995--2024 Free Software Foundation, Inc.
+Copyright @copyright{} 1995--2025 Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -182,7 +182,7 @@ modify this GNU manual.''
 @end quotation
 @end copying
 
-@comment Info directory entry for use by install-info. The indentation
+@comment Info directory entry for use by install-info.  The indentation
 @comment here is by request from the FSF folks.
 @dircategory Emacs editing modes
 @direntry
@@ -330,6 +330,7 @@ Syntactic Symbols
 * Multiline Macro Symbols::
 * Objective-C Method Symbols::
 * Java Symbols::
+* Constraint Symbols::
 * Statement Block Symbols::
 * K&R Symbols::
 
@@ -580,7 +581,7 @@ you are going to be editing AWK files, @file{README} describes how to
 configure your (X)Emacs so that @ccmode{} will supersede the obsolete
 @code{awk-mode.el} which might have been supplied with your (X)Emacs.
 @ccmode{} might not work with older versions of Emacs or XEmacs.  See
-the @ccmode{} release notes at @uref{https://cc-mode.sourceforge.net}
+the @ccmode{} release notes at @uref{https://www.nongnu.org/cc-mode/}
 for the latest information on Emacs version and package compatibility
 (@pxref{Updating CC Mode}).
 
@@ -834,12 +835,14 @@ Emacs Manual}, for fuller details.  @code{comment-region} isn't
 actually part of @ccmode{}; it is given a @ccmode{} binding for
 convenience.
 
-@item @kbd{M-;} (@code{comment-dwim} or @code{indent-for-comment} @footnote{The name of this command varies between (X)Emacs versions.})
+@item @kbd{M-;} (@code{comment-dwim} or @code{indent-for-comment})
 @kindex M-;
 @findex comment-dwim
 @findex indent-for-comment
 Insert a comment at the end of the current line, if none is there
-already.  Then reindent the comment according to @code{comment-column}
+already@footnote{The name of this command varies between (X)Emacs
+versions.}.  Then reindent the comment according to
+@code{comment-column}
 @ifclear XEMACS
 (@pxref{Options for Comments,,, emacs, GNU Emacs Manual})
 @end ifclear
@@ -1220,15 +1223,17 @@ also suppresses auto-newline mode.
 Toggle auto-newline minor mode.  When the command turns the mode on,
 it also enables electric minor mode.
 
-@item @kbd{M-x c-toggle-hungry-state}@footnote{Prior to @ccmode{} 5.31, this command was bound to @kbd{C-c C-d}.}
+@item @kbd{M-x c-toggle-hungry-state}
 @findex c-toggle-hungry-state
 @findex toggle-hungry-state @r{(c-)}
-Toggle hungry-delete minor mode.
+Toggle hungry-delete minor mode@footnote{Prior to @ccmode{} 5.31, this
+command was bound to @kbd{C-c C-d}.}.
 
-@item @kbd{M-x c-toggle-auto-hungry-state}@footnote{Prior to @ccmode{} 5.31, this command was bound to @kbd{C-c C-t}.}
+@item @kbd{M-x c-toggle-auto-hungry-state}
 @findex c-toggle-auto-hungry-state
 @findex toggle-auto-hungry-state @r{(c-)}
-Toggle both auto-newline and hungry delete minor modes.
+Toggle both auto-newline and hungry delete minor modes@footnote{Prior to
+@ccmode{} 5.31, this command was bound to @kbd{C-c C-t}.}.
 
 @item @kbd{C-c C-w} (@code{M-x subword-mode})
 @kindex C-c C-w
@@ -1424,7 +1429,7 @@ continuation of the preceding @code{if}.
 @findex abbrev-mode
 @cindex Abbrev mode
 @ccmode{} uses Abbrev mode (@pxref{Abbrevs,,,@emacsman{}, @emacsmantitle{}})
-to accomplish this. It's therefore turned on by default in all language
+to accomplish this.  It's therefore turned on by default in all language
 modes except IDL mode, since CORBA IDL doesn't have any statements.
 @end deffn
 
@@ -1568,7 +1573,7 @@ perform @code{c-hungry-delete-backwards} and
 rather than using the minor mode toggling.
 
 @table @asis
-@item @kbd{C-c C-@key{DEL}}, or @kbd{C-c @key{DEL}} (@code{c-hungry-delete-backwards})@footnote{This command was formerly known as @code{c-hungry-backspace}.}
+@item @kbd{C-c C-@key{DEL}}, or @kbd{C-c @key{DEL}} (@code{c-hungry-delete-backwards})
 @kindex C-c C-Backspace
 @kindex C-c Backspace
 @kindex C-c C-DEL
@@ -1579,7 +1584,8 @@ Delete any amount of whitespace in the backwards direction (regardless
 whether hungry-delete mode is enabled or not).  This command is bound
 to both @kbd{C-c C-@key{DEL}} and @kbd{C-c @key{DEL}}, since the more
 natural one, @kbd{C-c C-@key{DEL}}, is sometimes difficult to type at
-a character terminal.
+a character terminal@footnote{This command was formerly known as
+@code{c-hungry-backspace}.}.
 
 @item @kbd{C-c C-d}, @kbd{C-c C-@key{DELETE}}, or @kbd{C-c @key{DELETE}} (@code{c-hungry-delete-forward})
 @kindex C-c C-d
@@ -2168,6 +2174,23 @@ which aren't of the default style will be fontified with
 @section Miscellaneous Font Locking
 @comment !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+Some compilers, notably GCC, allow the character @samp{$} to be a
+constituent of identifiers in the languages C, C++, and Objective C.
+CC Mode defaults to accepting these @samp{$} characters and fontifying
+the identifiers in which they appear like any others.
+
+However, the compiler you're using, or your project coding standards
+may disallow such use.  In such cases, you can set
+@code{c-warn-ids-with-dollar} to non-@code{nil}.  This causes these
+invalid identifiers to be fontified distinctively.
+
+@defvar c-warn-ids-with-dollar
+@vindex warn-ids-with-dollar (c-)
+When this customization option is non-@code{nil}, identifiers
+containing the @samp{$} character are fontified with
+@code{font-lock-warning-face}.
+@end defvar
+
 In some languages, particularly in C++, there are constructs which are
 syntactically ambiguous---they could be either declarations or
 expressions, and @ccmode{} cannot tell for sure which.  Often such a
@@ -2681,7 +2704,7 @@ for C code in GNU programs.
 
 @item k&r
 @cindex K&R style
-The classic Kernighan and Ritchie style for C code. If you're looking
+The classic Kernighan and Ritchie style for C code.  If you're looking
 for the style used in the 2nd edition of their book ``The C
 Programming Language'', then check out the @code{stroustrup} style.
 
@@ -3166,11 +3189,11 @@ margins of the texts kept intact:
 @cindex Filladapt mode
 It's also possible to use other adaptive filling packages, notably Kyle
 E. Jones' Filladapt package@footnote{It's available from
-@uref{http://www.wonderworks.com/}.  As of version 2.12, it does however
+@uref{https://elpa.gnu.org/packages/filladapt.html}.  As of version 2.12, it does however
 lack a feature that makes it work suboptimally when
 @code{c-comment-prefix-regexp} matches the empty string (which it does
 by default).  A patch for that is available from
-@uref{https://cc-mode.sourceforge.net/,, the CC Mode web site}.},
+@uref{https://www.nongnu.org/cc-mode/,, the CC Mode web site}.},
 @c 2005/11/22:  The above is still believed to be the case.
 which handles things like bulleted lists nicely.  There's a convenience
 function @code{c-setup-filladapt} that tunes the relevant variables in
@@ -4234,6 +4257,9 @@ The first line in a ``topmost'' definition.  @ref{Function Symbols}.
 Topmost definition continuation lines.  This is only used in the parts
 that aren't covered by other symbols such as @code{func-decl-cont} and
 @code{knr-argdecl}.  @ref{Function Symbols}.
+@item constraint-cont
+Continuation line of a topmost C++20 concept or requires clause.
+@ref{Constraint Symbols}.
 @item annotation-top-cont
 Topmost definition continuation lines where all previous items are
 annotations.  @ref{Java Symbols}.
@@ -4397,6 +4423,7 @@ Java.  @ref{Java Symbols}.
 * Multiline Macro Symbols::
 * Objective-C Method Symbols::
 * Java Symbols::
+* Constraint Symbols::
 * Statement Block Symbols::
 * K&R Symbols::
 @end menu
@@ -4484,6 +4511,13 @@ for C and Objective-C@.  For consistency, structs in all supported
 languages are syntactically equivalent to classes.  Note however that
 the keyword @code{class} is meaningless in C and Objective-C.}.
 Similarly, line 18 is assigned @code{class-close} syntax.
+
+Note that @code{class-open} and @code{class-close} syntactic elements
+have two anchor points.  The first is the position of the beginning of
+the statement, the second is the position of the keyword which defines
+the construct (e.g.  @code{class}).  These are usually the same
+position, but differ when the statement starts off with
+@code{template} (C++ Mode) or @code{generic} (Java Mode) or similar.
 
 @ssindex inher-intro
 @ssindex inher-cont
@@ -5069,6 +5103,39 @@ continuation of a topmost introduction with an annotation symbol preceding
 the current line.  Similarly, line 4 is assigned the @code{annotation-var-cont}
 syntax due to it being a continuation of a variable declaration where preceding
 the declaration is an annotation.
+
+@comment !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+@node    Constraint Symbols
+@subsection C++ Constraint Symbols
+@comment !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+The C++20 standard introduced the notion of @dfn{concepts} and
+@dfn{requirements}, a typical instance of which looks something like
+this:
+
+@example
+ 1: template <typename T>
+ 2: requires
+ 3:   requires (T t) @{
+ 4:     @{ ++t; @}
+ 5:   @}
+ 6:   && std::is_integral<T>
+ 7:   int foo();
+@end example
+
+@ssindex constraint-cont
+Line 1 is assigned the familiar @code{topmost-intro}.  Line 2 gets
+@code{topmost-intro-cont}, being the keyword which introduces a
+@dfn{requires clause}.  Lines 3, 6, and 7 are assigned the syntax
+@code{constraint-cont}, being continuations of the requires clause
+started on line 2.  Lines 4 and 5 get the syntaxes
+@code{defun-block-intro} and @code{defun-close}, being analyzed as
+though part of a function.
+
+Note that the @code{requires} on Line 3 begins a @dfn{requires
+expression}, not a requires clause, hence its components are not
+assigned @code{constraint-cont}.  See
+@url{https://en.cppreference.com/w/cpp/language/requires}.
 
 @comment !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 @node    Statement Block Symbols
@@ -5980,7 +6047,7 @@ Line up the second entry of a brace block under the first, when the
 first line is also contained in an arglist or an enclosing brace
 @emph{on that line}.
 
-I.e. handle something like the following:
+In other words, handle something like the following:
 
 @example
 @group
@@ -6014,7 +6081,7 @@ Line up the second entry of a class (etc.) initializer
 @code{c-basic-offset} characters in from the identifier when:
 @enumerate
 @item
-The type is a class, struct, union, etc. (but not an enum);
+The type is a class, struct, union, etc.@: (but not an enum);
 @item
 There is a brace block in the type declaration, specifying it; and
 @item
@@ -6022,7 +6089,7 @@ The first element of the initializer is on the same line as its
 opening brace.
 @end enumerate
 
-I.e. we have a construct like this:
+In other words, we have a construct like this:
 
 @example
 @group
@@ -6056,7 +6123,7 @@ Line up the second entry of a class (etc.) initializer after its
 opening brace when:
 @enumerate
 @item
-The type is a class, struct, union, etc. (but not an enum);
+The type is a class, struct, union, etc.@: (but not an enum);
 @item
 There is a brace block in the type declaration, specifying it; and
 @item
@@ -6064,7 +6131,7 @@ The first element of the initializer is on the same line as its
 opening brace.
 @end enumerate
 
-I.e. we have a construct like this:
+In other words, we have a construct like this:
 
 @example
 @group
@@ -6208,6 +6275,16 @@ opening @samp{<}.
 
 To allow this function to be used in a list expression, @code{nil} is
 returned if there's no template argument on the first line.
+
+@workswith @code{template-args-cont}.
+@end defun
+
+@comment ------------------------------------------------------------
+
+@defun c-lineup-template-args-indented-from-margin
+@findex lineup-template-args-indented-from-margin (c-)
+Indent a template argument line @code{c-basic-offset} from the
+left-hand margin of the line with the containing <.
 
 @workswith @code{template-args-cont}.
 @end defun
@@ -6368,7 +6445,7 @@ function is the same as specifying a list @code{(c-lineup-assignments
 @defun c-lineup-ternary-bodies
 @findex lineup-ternary-bodies @r{(c-)}
 Line up true and false branches of a ternary operator
-(i.e. @code{?:}).  More precisely, if the line starts with a colon
+(i.e., @code{?:}).  More precisely, if the line starts with a colon
 which is a part of a said operator, align it with corresponding
 question mark.  For example:
 
@@ -6941,7 +7018,7 @@ is @code{nil}, all lines inside macro definitions are analyzed as
 @end defopt
 
 Sometimes you may want to indent particular directives
-(e.g. @code{#pragma}) as though they were statements.  To do this, see
+(e.g., @code{#pragma}) as though they were statements.  To do this, see
 @ref{Indenting Directives}.
 
 Because a macro can expand into anything at all, near where one is
@@ -7133,7 +7210,7 @@ after the mode hooks have run.
 @comment !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 Sometimes you may want to indent particular preprocessor directives
-(e.g. @code{#pragma}) as though they were statements.  To do this,
+(e.g., @code{#pragma}) as though they were statements.  To do this,
 first set up @code{c-cpp-indent-to-body-directives} to include the
 directive name(s), then enable the ``indent to body'' feature with
 @code{c-toggle-cpp-indent-to-body}.
@@ -7514,7 +7591,7 @@ Started}.
 @kindex C-M-\
 @emph{How do I reindent the whole file?}
 
-Visit the file and hit @kbd{C-x h} to mark the whole buffer. Then hit
+Visit the file and hit @kbd{C-x h} to mark the whole buffer.  Then hit
 @kbd{C-M-\}.  @xref{Indentation Commands}.
 
 @item
@@ -7583,7 +7660,7 @@ have old versions of @ccmode{} and so should be upgraded.  Access to the
 compatibility, etc.@: are all available on the web site:
 
 @quotation
-@uref{https://cc-mode.sourceforge.net/}
+@uref{https://www.nongnu.org/cc-mode/}
 @end quotation
 
 
@@ -7617,7 +7694,7 @@ the GNU Bug Tracker at @url{https://debbugs.gnu.org}, then sends it on
 to @email{bug-cc-mode@@gnu.org}.  You can also send reports, other
 questions, and suggestions (kudos?@: @t{;-)} to that address.  It's a
 mailing list which you can join or browse an archive of; see the web site at
-@uref{https://cc-mode.sourceforge.net/} for further details.
+@uref{https://www.nongnu.org/cc-mode/} for further details.
 
 @cindex announcement mailing list
 If you want to get announcements of new @ccmode{} releases, send the

@@ -1,6 +1,6 @@
 ;;; reftex-index.el --- index support with RefTeX  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1997-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2025 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <dominik@science.uva.nl>
 ;; Maintainer: auctex-devel@gnu.org
@@ -536,14 +536,10 @@ SPC=view TAB=goto RET=goto+hide [e]dit [q]uit [r]escan [f]ollow [?]Help
                    (nth 2 (car reftex-index-restriction-data))
                  reftex-index-restriction-indicator)))
 
-      (if (reftex-use-fonts)
+      (if reftex-use-fonts
           (put-text-property (point-min) (point)
                              'face reftex-index-header-face))
-      (if (fboundp 'cursor-intangible-mode)
-          (cursor-intangible-mode 1)
-        ;; If `cursor-intangible' is not available, fallback on the old
-        ;; intrusive `intangible' property.
-        (put-text-property (point-min) (point) 'intangible t))
+      (cursor-intangible-mode 1)
       (add-text-properties (point-min) (point)
                            '(cursor-intangible t
                              front-sticky (cursor-intangible)
@@ -571,7 +567,7 @@ SPC=view TAB=goto RET=goto+hide [e]dit [q]uit [r]escan [f]ollow [?]Help
          (context-indent (concat indent "  "))
          (section-chars (mapcar #'identity reftex-index-section-letters))
          (this-section-char 0)
-         (font (reftex-use-fonts))
+         (font reftex-use-fonts)
          (bor (car reftex-index-restriction-data))
          (eor (nth 1 reftex-index-restriction-data))
          (mouse-face
@@ -1267,7 +1263,7 @@ This gets refreshed in every phrases command.")
 (defun reftex-index-phrase-selection-or-word (arg)
   "Add current selection or word at point to the phrases buffer.
 \\<reftex-index-phrases-mode-map>
-When you are in transient-mark-mode and the region is active, the
+When you are in `transient-mark-mode' and the region is active, the
 selection will be used - otherwise the word at point.
 You get a chance to edit the entry in the phrases buffer - finish with
 \\[reftex-index-phrases-save-and-return]."
@@ -1368,8 +1364,8 @@ If the buffer is non-empty, delete the old header first."
 ;;;###autoload
 (define-derived-mode reftex-index-phrases-mode fundamental-mode "Phrases"
   "Major mode for managing the Index phrases of a LaTeX document.
-This buffer was created with RefTeX. \\<reftex-index-phrases-mode-map>
-
+This buffer was created with RefTeX.
+\\<reftex-index-phrases-mode-map>
 To insert new phrases, use
  - `C-c \\' in the LaTeX document to copy selection or word
  - `\\[reftex-index-new-phrase]' in the phrases buffer.
@@ -1445,20 +1441,19 @@ match, the user will be asked to confirm the replacement."
                   (as-words reftex-index-phrases-search-whole-words))
              (unless macro-data
                (error "No macro associated with key %c" char))
-             (unwind-protect
-                 (let ((overlay-arrow-string "=>")
-                       (overlay-arrow-position
-                        reftex-index-phrases-marker)
-                       (replace-count 0))
-                   ;; Show the overlay arrow
-                   (move-marker reftex-index-phrases-marker
-                                (match-beginning 0) (current-buffer))
-                   ;; Start the query-replace
-                   (reftex-query-index-phrase-globally
-                    files phrase macro-fmt
-                    index-key repeat as-words)
-                   (message "%s replaced"
-                            (reftex-number replace-count "occurrence"))))))
+             (let ((overlay-arrow-string "=>")
+                   (overlay-arrow-position
+                    reftex-index-phrases-marker)
+                   (replace-count 0))
+               ;; Show the overlay arrow
+               (move-marker reftex-index-phrases-marker
+                            (match-beginning 0) (current-buffer))
+               ;; Start the query-replace
+               (reftex-query-index-phrase-globally
+                files phrase macro-fmt
+                index-key repeat as-words)
+               (message "%s replaced"
+                        (reftex-number replace-count "occurrence")))))
           (t (error "Cannot parse this line")))))
 
 (defun reftex-index-all-phrases ()

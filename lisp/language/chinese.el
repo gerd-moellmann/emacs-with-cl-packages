@@ -1,6 +1,6 @@
 ;;; chinese.el --- support for Chinese -*- coding: utf-8; lexical-binding: t; -*-
 
-;; Copyright (C) 2001-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2025 Free Software Foundation, Inc.
 ;; Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
 ;;   2005, 2006, 2007, 2008, 2009, 2010, 2011
 ;;   National Institute of Advanced Industrial Science and Technology (AIST)
@@ -111,6 +111,7 @@
 (set-language-info-alist
  "Chinese-GB" '((charset chinese-gb2312 chinese-sisheng)
 		(iso639-language . zh)
+                (cjk-locale-symbol . zh_CN)
 		(setup-function . (lambda ()
 				    (use-cjk-char-width-table 'zh_CN)))
 		(exit-function . use-default-char-width-table)
@@ -142,6 +143,7 @@
 (set-language-info-alist
  "Chinese-BIG5" '((charset chinese-big5-1 chinese-big5-2)
 		  (iso639-language . zh)
+                  (cjk-locale-symbol . zh_HK)
 		  (setup-function . (lambda ()
 				      (use-cjk-char-width-table 'zh_HK)))
 		  (exit-function . use-default-char-width-table)
@@ -198,6 +200,7 @@
 			  chinese-cns11643-5 chinese-cns11643-6
 			  chinese-cns11643-7)
 		 (iso639-language . zh)
+                 (cjk-locale-symbol . zh_TW)
 		 (setup-function . (lambda ()
 				     (use-cjk-char-width-table 'zh_TW)))
 		 (exit-function . use-default-char-width-table)
@@ -218,6 +221,7 @@ accepts Big5 for input also (which is then converted to CNS)."))
 			     chinese-cns11643-5 chinese-cns11643-6
 			     chinese-cns11643-7 chinese-big5-1 chinese-big5-2)
 		    (iso639-language . zh)
+                    (cjk-locale-symbol . zh_TW)
 		    (setup-function . (lambda ()
 					(use-cjk-char-width-table 'zh_TW)))
 		    (exit-function . use-default-char-width-table)
@@ -248,6 +252,7 @@ converted to CNS)."))
 (set-language-info-alist
  "Chinese-GBK" '((charset chinese-gbk)
 		 (iso639-language . zh)
+                 (cjk-locale-symbol . zh_CN)
 		 (setup-function . (lambda ()
 				     (use-cjk-char-width-table 'zh_CN)))
 		 (exit-function . use-default-char-width-table)

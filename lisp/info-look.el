@@ -1,7 +1,6 @@
 ;;; info-look.el --- major-mode-sensitive Info index lookup facility -*- lexical-binding: t -*-
-;; An older version of this was known as libc.el.
 
-;; Copyright (C) 1995-1999, 2001-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1995-1999, 2001-2025 Free Software Foundation, Inc.
 
 ;; Author: Ralph Schleicher <rs@ralph-schleicher.de>
 ;; Keywords: help languages
@@ -28,11 +27,11 @@
 
 ;; Some additional sources of (Tex)info files for non-GNU packages:
 ;;
-;; Scheme: <URL:http://groups.csail.mit.edu/mac/ftpdir/scm/r5rs.info.tar.gz>
-;; LaTeX:
-;;  <URL:http://ctan.tug.org/tex-archive/info/latex2e-help-texinfo/latex2e.texi>
+;; Scheme: https://groups.csail.mit.edu/mac/ftpdir/scm/r5rs.info.tar.gz
+;; LaTeX: https://mirrors.ctan.org/info/latex2e-help-texinfo/latex2e.texi
 ;;  (or CTAN mirrors)
-;; Perl: <URL:http://ftp.cpan.org/pub/CPAN/doc/manual/texinfo/> (or CPAN mirrors)
+;; Python: https://www.python.org/ftp/python/doc/
+;; SICP: https://github.com/webframp/sicp-info
 
 ;; Traditionally, makeinfo quoted `like this', but version 5 and later
 ;; quotes 'like this' or ‘like this’.  Doc specs with patterns
@@ -56,13 +55,13 @@ Automatically becomes buffer local when set in any fashion.")
 (make-variable-buffer-local 'info-lookup-mode)
 
 (defcustom info-lookup-other-window-flag t
-  "Non-nil means pop up the Info buffer in another window."
-  :group 'info-lookup :type 'boolean)
+ "Non-nil means pop up the Info buffer in another window."
+ :type 'boolean)
 
 (defcustom info-lookup-highlight-face 'match
   "Face for highlighting looked up help items.
 Setting this variable to nil disables highlighting."
-  :group 'info-lookup :type 'face)
+  :type 'face)
 
 (defvar info-lookup-highlight-overlay nil
   "Overlay object used for highlighting.")
@@ -76,7 +75,7 @@ List elements are cons cells of the form
 
 If a file name matches REGEXP, then use help mode MODE instead of the
 buffer's major mode."
-  :group 'info-lookup :type '(repeat (cons (regexp :tag "Regexp")
+  :type '(repeat (cons (regexp :tag "Regexp")
 					   (symbol :tag "Mode"))))
 
 (defvar info-lookup-history nil
@@ -170,13 +169,13 @@ the value of `:mode' as HELP-MODE, etc..
 
 If no topic or mode option has been specified, then the help topic defaults
 to `symbol', and the help mode defaults to the current major mode."
-  (apply 'info-lookup-add-help* nil arg))
+  (apply #'info-lookup-add-help* nil arg))
 
 (defun info-lookup-maybe-add-help (&rest arg)
   "Add a help specification if none is defined.
 See the documentation of the function `info-lookup-add-help'
 for more details."
-  (apply 'info-lookup-add-help* t arg))
+  (apply #'info-lookup-add-help* t arg))
 
 (defun info-lookup-add-help* (maybe &rest arg)
   (let (topic mode regexp ignore-case doc-spec
@@ -330,8 +329,11 @@ string of `info-lookup-alist'.
 If optional argument QUERY is non-nil, query for the help mode."
   (let* ((mode (cond (query
 		      (info-lookup-change-mode topic))
-		     ((info-lookup->mode-value topic (info-lookup-select-mode))
-		      info-lookup-mode)
+		     ((when-let
+                          ((info (info-lookup->mode-value
+                                  topic (info-lookup-select-mode))))
+                        (info-lookup--expand-info info))
+                      info-lookup-mode)
 		     ((info-lookup-change-mode topic))))
 	 (completions (info-lookup->completions topic mode))
 	 (default (info-lookup-guess-default topic mode))
@@ -352,18 +354,18 @@ If optional argument QUERY is non-nil, query for the help mode."
 	(setq file-name-alist (cdr file-name-alist)))))
 
   ;; If major-mode has no setups in info-lookup-alist, under any topic, then
-  ;; search up through derived-mode-parent to find a parent mode which does
-  ;; have some setups.  This means that a `define-derived-mode' with no
+  ;; search up through `derived-mode-all-parents' to find a parent mode which
+  ;; does have some setups.  This means that a `define-derived-mode' with no
   ;; setups of its own will select its parent mode for lookups, if one of
   ;; its parents has some setups.  Good for example on `makefile-gmake-mode'
   ;; and similar derivatives of `makefile-mode'.
   ;;
-  (let ((mode major-mode)) ;; Look for `mode' with some setups.
-    (while (and mode (not info-lookup-mode))
+  (let ((modes (derived-mode-all-parents major-mode))) ;; Look for `mode' with some setups.
+    (while (and modes (not info-lookup-mode))
       (dolist (topic-cell info-lookup-alist) ;; Usually only two topics here.
-        (if (info-lookup->mode-value (car topic-cell) mode)
-            (setq info-lookup-mode mode)))
-      (setq mode (get mode 'derived-mode-parent))))
+        (if (info-lookup->mode-value (car topic-cell) (car modes))
+            (setq info-lookup-mode (car modes))))
+      (setq modes (cdr modes))))
 
   (or info-lookup-mode (setq info-lookup-mode major-mode)))
 
@@ -375,12 +377,13 @@ If optional argument QUERY is non-nil, query for the help mode."
 				  (cons (symbol-name mode-spec) mode-spec)))
 			      (info-lookup->topic-value topic)))
 	 (mode (completing-read
-		(format "Use %s help mode: " topic)
+		(format "Major mode whose manuals to search for this %s: "
+                        topic)
 		completions nil t nil 'info-lookup-history)))
     (or (setq mode (cdr (assoc mode completions)))
-	(error "No %s help available" topic))
+	(error "No manuals available for %s" topic))
     (or (info-lookup->mode-value topic mode)
-	(error "No %s help available for `%s'" topic mode))
+	(error "The manuals of `%s' have no %s help" mode topic))
     (setq info-lookup-mode mode)))
 
 (defun info-lookup--item-to-mode (item mode)
@@ -407,9 +410,6 @@ If SAME-WINDOW, reuse the current window.  If nil, pop to a
 different window."
   (or mode (setq mode (info-lookup-select-mode)))
   (setq mode (info-lookup--item-to-mode item mode))
-  (if-let ((info (info-lookup->mode-value topic mode)))
-      (info-lookup--expand-info info)
-    (error "No %s help available for `%s'" topic mode))
   (let* ((completions (info-lookup->completions topic mode))
          (ignore-case (info-lookup->ignore-case topic mode))
          (entry (or (assoc (if ignore-case (downcase item) item) completions)
@@ -529,7 +529,7 @@ different window."
 		(nconc (condition-case nil
 			   (info-lookup-make-completions topic mode)
 			 (error nil))
-		       (apply 'append
+		       (apply #'append
 			      (mapcar (lambda (arg)
 					(info-lookup->completions topic arg))
 				      refer-modes))))
@@ -988,9 +988,8 @@ Return nil if there is nothing appropriate in the buffer near point."
                                  finally return "(python)Index")))))
 
 (info-lookup-maybe-add-help
- :mode 'cperl-mode
- :regexp "[$@%][^a-zA-Z]\\|\\$\\^[A-Z]\\|[$@%]?[a-zA-Z][_a-zA-Z0-9]*"
- :other-modes '(perl-mode))
+ :mode 'perl-mode
+ :regexp "[$@%][^a-zA-Z]\\|\\$\\^[A-Z]\\|[$@%]?[a-zA-Z][_a-zA-Z0-9]*")
 
 (info-lookup-maybe-add-help
  :mode 'latex-mode
@@ -1085,6 +1084,7 @@ Return nil if there is nothing appropriate in the buffer near point."
    ("srecode" "Index")
    ("tramp" "Variable Index" "Function Index")
    ("url" "Variable Index" "Function Index")
+   ("use-package" "Index")
    ("vhdl" "(vhdl-mode)Variable Index" "(vhdl-mode)Command Index")
    ("viper" "Variable Index" "Function Index")
    ("vtable" "Index")

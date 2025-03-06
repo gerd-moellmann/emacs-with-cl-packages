@@ -1,6 +1,6 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990--1993, 1998--1999, 2001--2024 Free Software
+@c Copyright (C) 1990--1993, 1998--1999, 2001--2025 Free Software
 @c Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node GNU Emacs Internals
@@ -735,14 +735,15 @@ Emacs session.
 @section C Dialect
 @cindex C programming language
 
-The C part of Emacs is portable to C99 or later: C11-specific features such
-as @samp{<stdalign.h>} and @samp{_Noreturn} are not used without a check,
+The C part of Emacs is portable to C99 or later: later C features such
+as @samp{<stdckdint.h>} and @samp{[[noreturn]]} are not used without a check,
 typically at configuration time, and the Emacs build procedure
-provides a substitute implementation if necessary.  Some C11 features,
+provides a substitute implementation if necessary.  Some later features,
 such as anonymous structures and unions, are too difficult to emulate,
 so they are avoided entirely.
 
-At some point in the future the base C dialect will no doubt change to C11.
+At some point in the future the base C dialect will no doubt change to
+something later than C99.
 
 @node Writing Emacs Primitives
 @section Writing Emacs Primitives
@@ -897,15 +898,17 @@ Currently, only the following attributes are recognized:
 @table @code
 @item noreturn
 Declares the C function as one that never returns.  This corresponds
-to the C11 keyword @code{_Noreturn} and to @w{@code{__attribute__
-((__noreturn__))}} attribute of GCC (@pxref{Function Attributes,,,
-gcc, Using the GNU Compiler Collection}).
+to C23's @code{[[noreturn]]}, to C11's @code{_Noreturn}, and to GCC's
+@w{@code{__attribute__ ((__noreturn__))}} (@pxref{Function
+Attributes,,, gcc, Using the GNU Compiler Collection}).  (Internally,
+Emacs's own C code uses @code{_Noreturn} as it can be defined as a
+macro on C platforms that do not support it.)
 
 @item const
 Declares that the function does not examine any values except its
 arguments, and has no effects except the return value.  This
-corresponds to @w{@code{__attribute__ ((__const__))}} attribute of
-GCC.
+corresponds to C23's @code{[[unsequenced]]} and to GCC's
+@w{@code{__attribute__ ((__const__))}}.
 
 @item noinline
 This corresponds to @w{@code{__attribute__ ((__noinline__))}}
@@ -1018,7 +1021,7 @@ comment.  @xref{Documentation Basics}, for more details.
 (@code{int} and @code{bool}), the name of the C variable is the name
 of the Lisp variable with @code{-} replaced by @code{_}.  When the
 variable has type @code{Lisp_Object}, the convention is to also prefix
-the C variable name with @code{V}.  i.e.
+the C variable name with @code{V}.  This is an example:
 
 @smallexample
 DEFVAR_INT ("my-int-variable", my_int_variable,
@@ -1035,7 +1038,6 @@ with @code{let}.  In C sources, this is done by defining a
 corresponding, constant symbol, and using @code{specbind}.  By
 convention, @code{Qmy_lisp_variable} corresponds to
 @code{Vmy_lisp_variable}; to define it, use the @code{DEFSYM} macro.
-i.e.
 
 @smallexample
 DEFSYM (Qmy_lisp_variable, "my-lisp-variable");
@@ -1047,17 +1049,17 @@ DEFSYM (Qmy_lisp_variable, "my-lisp-variable");
 specbind (Qmy_lisp_variable, Qt);
 @end smallexample
 
-  In Lisp symbols sometimes need to be quoted, to achieve the same
-effect in C you again use the corresponding constant symbol
+  In Lisp, symbols sometimes need to be quoted.  To achieve the same
+effect in C, you again use the corresponding constant symbol
 @code{Qmy_lisp_variable}.  For example, when creating a buffer-local
-variable (@pxref{Buffer-Local Variables}) in Lisp you would write:
+variable (@pxref{Buffer-Local Variables}) in Lisp, you would write:
 
 @smallexample
 (make-variable-buffer-local 'my-lisp-variable)
 @end smallexample
 
-In C the corresponding code uses @code{Fmake_variable_buffer_local} in
-combination with @code{DEFSYM}, i.e.
+In C, the corresponding code uses @code{Fmake_variable_buffer_local} in
+combination with @code{DEFSYM}:
 
 @smallexample
 DEFSYM (Qmy_lisp_variable, "my-lisp-variable");
@@ -1161,7 +1163,8 @@ functions.
 
   If you define a function which is side-effect free or pure, give it
 a non-@code{nil} @code{side-effect-free} or @code{pure} property,
-respectively (@pxref{Standard Properties}).
+respectively (@pxref{Standard Properties}).  See the lists defined in
+@samp{byte-opt.el}.
 
 @node Writing Dynamic Modules
 @section Writing Dynamically-Loaded Modules
@@ -1573,7 +1576,7 @@ return values from module functions.  For this purpose, the module
 Emacs Lisp objects communicated via the @acronym{API}; it is the
 functional equivalent of the @code{Lisp_Object} type used in Emacs C
 primitives (@pxref{Writing Emacs Primitives}).  This section describes
-the parts of the module @acronym{API} that allow to create
+the parts of the module @acronym{API} that allow creating
 @code{emacs_value} objects corresponding to basic Lisp data types, and
 how to access from C data in @code{emacs_value} objects that
 correspond to Lisp objects.
@@ -2525,7 +2528,6 @@ when the buffer is not current.
 
 @item mode_line_format
 @itemx header_line_format
-@itemx case_fold_search
 @itemx tab_width
 @itemx fill_column
 @itemx left_margin
@@ -2743,7 +2745,7 @@ The window-relative vertical position of the line containing
 @item window_end_valid
 This field is set to a non-zero value if @code{window_end_pos} and
 @code{window_end_vpos} are truly valid.  This is zero if nontrivial
-redisplay is pre-empted, since in that case the display that
+redisplay is preempted, since in that case the display that
 @code{window_end_pos} was computed for did not get onto the screen.
 
 @item cursor

@@ -1,5 +1,6 @@
-# fchmodat.m4 serial 7
-dnl Copyright (C) 2004-2024 Free Software Foundation, Inc.
+# fchmodat.m4
+# serial 8
+dnl Copyright (C) 2004-2025 Free Software Foundation, Inc.
 dnl This file is free software; the Free Software Foundation
 dnl gives unlimited permission to copy and/or distribute it,
 dnl with or without modifications, as long as this notice is preserved.
@@ -97,6 +98,6 @@ AC_DEFUN([gl_FUNC_FCHMODAT],
 # Prerequisites of lib/fchmodat.c.
 AC_DEFUN([gl_PREREQ_FCHMODAT],
 [
-  AC_CHECK_FUNCS_ONCE([readlinkat])
+  gl_CHECK_FUNCS_ANDROID([readlinkat], [[#include <unistd.h>]])
   :
 ])

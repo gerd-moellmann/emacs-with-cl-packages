@@ -1,6 +1,6 @@
 ;;; dockerfile-ts-mode.el --- tree-sitter support for Dockerfiles  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2025 Free Software Foundation, Inc.
 
 ;; Author     : Randy Taylor <dev@rjt.dev>
 ;; Maintainer : Randy Taylor <dev@rjt.dev>
@@ -149,6 +149,11 @@ Return nil if there is no name or if NODE is not a stage node."
     (setq-local treesit-simple-indent-rules
                 dockerfile-ts-mode--indent-rules)
 
+    ;; Navigation
+    (setq-local treesit-thing-settings
+                `((dockerfile
+                   (sentence "instruction"))))
+
     ;; Font-lock.
     (setq-local treesit-font-lock-settings
                 dockerfile-ts-mode--font-lock-settings)
@@ -159,6 +164,8 @@ Return nil if there is no name or if NODE is not a stage node."
                   (bracket delimiter error operator)))
 
     (treesit-major-mode-setup)))
+
+(derived-mode-add-parents 'dockerfile-ts-mode '(dockerfile-mode))
 
 (if (treesit-ready-p 'dockerfile)
     (add-to-list 'auto-mode-alist

@@ -1,6 +1,6 @@
 ;;; em-dirs.el --- directory navigation commands  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2025 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -47,7 +47,7 @@
 (require 'ring)
 (require 'esh-opt)
 
-;;;###autoload
+;;;###esh-module-autoload
 (progn
 (defgroup eshell-dirs nil
   "Directory navigation involves changing directories, examining the
@@ -253,11 +253,20 @@ Thus, this does not include the current directory.")
     (throw 'eshell-replace-command
 	   (eshell-parse-command "cd" (flatten-tree args)))))
 
+(defun eshell-expand-user-reference (file)
+  "Expand a user reference in FILE to its real directory name."
+  (replace-regexp-in-string
+   (rx bos (group "~" (*? anychar)) (or "/" eos))
+   #'expand-file-name file))
+
 (defun eshell-parse-user-reference ()
   "An argument beginning with ~ is a filename to be expanded."
   (when (and (not eshell-current-argument)
-	     (eq (char-after) ?~))
-    (add-to-list 'eshell-current-modifiers 'expand-file-name)
+             (not eshell-current-quoted)
+             (eq (char-after) ?~))
+    ;; Apply this modifier fairly early so it happens before things
+    ;; like glob expansion.
+    (add-hook 'eshell-current-modifiers #'eshell-expand-user-reference -50)
     (forward-char)
     (char-to-string (char-before))))
 
@@ -281,17 +290,34 @@ Thus, this does not include the current directory.")
   (let ((arg (pcomplete-actual-arg)))
     (when (string-match "\\`~[a-z]*\\'" arg)
       (setq pcomplete-stub (substring arg 1)
-	    pcomplete-last-completion-raw t)
-      (throw 'pcomplete-completions
-	     (progn
-	       (eshell-read-user-names)
-	       (pcomplete-uniquify-list
-		(mapcar
-                 (lambda (user)
-                   (file-name-as-directory (cdr user)))
-		 eshell-user-names)))))))
+            pcomplete-last-completion-raw t)
+      (eshell-read-user-names)
+      (let ((names (pcomplete-uniquify-list
+                    (mapcar (lambda (user)
+                              (file-name-as-directory (cdr user)))
+                            eshell-user-names))))
+        (throw 'pcomplete-completions
+               ;; Provide a programmed completion table.  This works
+               ;; just like completing over the list of names, except
+               ;; it always returns the completed string for
+               ;; `try-completion', never `t'.  That's because this is
+               ;; only completing a directory name, and so the
+               ;; completion isn't actually finished yet.
+               (lambda (string pred action)
+                 (pcase action
+                   ('nil                  ; try-completion
+                    (let ((result (try-completion string names pred)))
+                      (if (eq result t) string result)))
+                   ('t                    ; all-completions
+                    (all-completions string names pred))
+                   ('lambda               ; test-completion
+                    (test-completion string names pred))
+                   ('metadata
+                    '(metadata (category . file)))
+                   (`(boundaries . ,suffix)
+                    `(boundaries 0 . ,(string-search "/" suffix))))))))))
 
-(defun eshell/pwd (&rest _args)
+(defun eshell/pwd ()
   "Change output from `pwd' to be cleaner."
   (let* ((path default-directory)
 	 (len (length path)))
@@ -374,13 +400,12 @@ in the minibuffer:
 		(index 0))
 	    (if (= len 0)
 		(error "Directory ring empty"))
-	    (eshell-init-print-buffer)
-	    (while (< index len)
-	      (eshell-buffered-print
-	       (concat (number-to-string index) ": "
-		       (ring-ref eshell-last-dir-ring index) "\n"))
-	      (setq index (1+ index)))
-	    (eshell-flush)
+            (eshell-with-buffered-print
+              (while (< index len)
+                (eshell-buffered-print
+                 (concat (number-to-string index) ": "
+                         (ring-ref eshell-last-dir-ring index) "\n"))
+                (setq index (1+ index))))
 	    (setq handled t)))))
      (path
       (setq path (eshell-expand-multiple-dots path))))
@@ -397,9 +422,13 @@ in the minibuffer:
 	  (and eshell-cd-shows-directory
 	       (eshell-printn result)))
 	(run-hooks 'eshell-directory-change-hook)
-	(if eshell-list-files-after-cd
-	    ;; Let-bind eshell-last-command around this?
-	    (eshell-plain-command "ls" (cdr args)))
+        (when eshell-list-files-after-cd
+          ;; Call "ls", but don't update the last-command information.
+          (let ((eshell-last-command-name)
+                (eshell-last-command-status)
+                (eshell-last-arguments))
+            (eshell-protect
+             (eshell-plain-command "ls" (cdr args)))))
 	nil))))
 
 (put 'eshell/cd 'eshell-no-numeric-conversions t)
@@ -569,9 +598,4 @@ in the minibuffer:
 			 'no-message))))))))
 
 (provide 'em-dirs)
-
-;; Local Variables:
-;; generated-autoload-file: "esh-groups.el"
-;; End:
-
 ;;; em-dirs.el ends here

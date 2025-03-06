@@ -9,7 +9,7 @@
 @copying
 This file documents Message, the Emacs message composition mode.
 
-Copyright @copyright{} 1996--2024 Free Software Foundation, Inc.
+Copyright @copyright{} 1996--2025 Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -289,12 +289,7 @@ supersede the message in the current buffer.
 
 @vindex message-ignored-supersedes-headers
 Headers matching the @code{message-ignored-supersedes-headers} are
-removed before popping up the new message buffer.  The default is@*
-@samp{^Path:\\|^Date\\|^NNTP-Posting-Host:\\|^Xref:\\|^Lines:\\|@*
-^Received:\\|^X-From-Line:\\|^X-Trace:\\|^X-Complaints-To:\\|@*
-Return-Path:\\|^Supersedes:\\|^NNTP-Posting-Date:\\|^X-Trace:\\|@*
-^X-Complaints-To:\\|^Cancel-Lock:\\|^Cancel-Key:\\|^X-Hashcash:\\|@*
-^X-Payment:\\|^Approved:}.
+removed before popping up the new message buffer.
 
 
 
@@ -1338,8 +1333,8 @@ your PGP implementation, so we refer to it.
 
 If you have imported your old PGP 2.x key into GnuPG, and want to send
 signed and encrypted messages to your fellow PGP 2.x users, you'll
-discover that the receiver cannot understand what you send. One
-solution is to use PGP 2.x instead. You could also convince your
+discover that the receiver cannot understand what you send.  One
+solution is to use PGP 2.x instead.  You could also convince your
 fellow PGP 2.x users to convert to GnuPG@.
 @vindex mml-signencrypt-style-alist
 As a final workaround, you can make the sign and encryption work in
@@ -1687,8 +1682,8 @@ Allegedly.
 @item message-default-headers
 @vindex message-default-headers
 Header lines to be inserted in outgoing messages before you edit the
-message, so you can edit or delete their lines. If set to a string, it
-is directly inserted. If set to a function, it is called and its
+message, so you can edit or delete their lines.  If set to a string, it
+is directly inserted.  If set to a function, it is called and its
 result is inserted.
 
 @item message-subject-re-regexp
@@ -1948,11 +1943,9 @@ requires the @acronym{POP}-before-@acronym{SMTP} authentication.
 @cindex X-Message-SMTP-Method
 If you have a complex @acronym{SMTP} setup, and want some messages to
 go via one mail server, and other messages to go through another, you
-can use the @samp{X-Message-SMTP-Method} header.  These are the
-supported values:
-
-@table @samp
-@item smtpmail
+can use the @samp{X-Message-SMTP-Method} header to override the
+default by using the keyword @samp{smtp} followed by the server
+information:
 
 @example
 X-Message-SMTP-Method: smtp smtp.fsf.org 587
@@ -1968,16 +1961,19 @@ This is the same as the above, but uses @samp{other-user} as the user
 name when authenticating.  This is handy if you have several
 @acronym{SMTP} accounts on the same server.
 
-@item sendmail
+This header may also be used to specify an alternative MTA by using a
+@samp{mailer} keyword, where @samp{mailer} is the name of an MTA with
+a corresponding @code{message-send-mail-with-'mailer'} function.  For
+example:
 
 @example
 X-Message-SMTP-Method: sendmail
 @end example
 
-This will send the message via the locally installed sendmail/exim/etc
-installation.
+will send the message via the locally installed sendmail program.  The
+recognized values of @samp{mailer} are sendmail, qmail, mh, and
+mailclient.
 
-@end table
 
 @item message-mh-deletable-headers
 @vindex message-mh-deletable-headers
@@ -2189,7 +2185,7 @@ posting a prepared news message.
 @table @code
 @item message-cite-style
 @vindex message-cite-style
-The overall style to be used when replying to messages. This controls
+The overall style to be used when replying to messages.  This controls
 things like where the reply should be put relative to the original,
 how the citation is formatted, where the signature goes, etc.
 
@@ -2197,12 +2193,12 @@ Value is either @code{nil} (no variable overrides) or a let-style list
 of pairs @code{(VARIABLE VALUE)} to override default values.
 
 See @code{gnus-posting-styles} to set this variable for specific
-groups. Presets to impersonate popular mail agents are available in the
+groups.  Presets to impersonate popular mail agents are available in the
 @code{message-cite-style-*} variables.
 
 @item message-cite-reply-position
 @vindex message-cite-reply-position
-Where the reply should be positioned. Available styles are
+Where the reply should be positioned.  Available styles are
 @code{traditional} to reply inline, @code{above} for top-posting, and
 @code{below} for bottom-posting
 
@@ -2564,8 +2560,8 @@ into the message headers as the SMTP Method.  If @var{cond} is a
 function, it will be called in the message buffer without any
 arguments, and the corresponding @var{method} will be inserted into
 the message headers as the SMTP Method if the function returns a
-non-@code{nil} value; if @var{method} is nil, the value returned by
-the function @code{cond} is used instead.
+non-@code{nil} value; if @var{method} is @code{nil}, the value
+returned by the function @code{cond} is used instead.
 
 @end table
 

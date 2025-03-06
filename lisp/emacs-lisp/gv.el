@@ -1,6 +1,6 @@
 ;;; gv.el --- generalized variables  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2012-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2025 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Keywords: extensions
@@ -416,9 +416,9 @@ The return value is the last VAL in the list.
   (lambda (do key alist &optional default remove testfn)
     (macroexp-let2 macroexp-copyable-p k key
       (gv-letplace (getter setter) alist
-        (macroexp-let2 nil p `(if (and ,testfn (not (eq ,testfn 'eq)))
-                                  (assoc ,k ,getter ,testfn)
-                                (assq ,k ,getter))
+        (macroexp-let2 nil p (if (member testfn '(nil 'eq #'eq))
+                                 `(assq ,k ,getter)
+                               `(assoc ,k ,getter ,testfn))
           (funcall do (if (null default) `(cdr ,p)
                         `(if ,p (cdr ,p) ,default))
                    (lambda (v)
@@ -638,6 +638,13 @@ REF must have been previously obtained with `gv-ref'."
 
 ;;; Generalized variables.
 
+;; You'd think no one would write `(setf (error ...) ..)' but it
+;; appears naturally as the result of macroexpansion of things like
+;; (setf (pcase-exhaustive ...)).
+;; We could generalize this to `throw' and `signal', but it seems
+;; preferable to wait until there's a concrete need.
+(gv-define-expander error (lambda (_do &rest args) `(error . ,args)))
+
 ;; Some Emacs-related place types.
 (gv-define-simple-setter buffer-file-name set-visited-file-name t)
 (make-obsolete-generalized-variable
@@ -813,18 +820,6 @@ REF must have been previously obtained with `gv-ref'."
                      (,v ,(funcall setter val))
                      ((eq ,getter ,val) ,(funcall setter `(not ,val))))))))))
 (make-obsolete-generalized-variable 'eq nil "29.1")
-
-(gv-define-expander substring
-  (lambda (do place from &optional to)
-    (gv-letplace (getter setter) place
-      (macroexp-let2* nil ((start from) (end to))
-        (funcall do `(substring ,getter ,start ,end)
-                 (lambda (v)
-                   (macroexp-let2 nil v v
-                     `(progn
-                        ,(funcall setter `(cl--set-substring
-                                           ,getter ,start ,end ,v))
-                        ,v))))))))
 
 (provide 'gv)
 ;;; gv.el ends here

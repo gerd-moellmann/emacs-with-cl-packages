@@ -1,6 +1,6 @@
 ;;; esh-proc-tests.el --- esh-proc test suite  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -23,6 +23,7 @@
 (require 'ert)
 (require 'esh-mode)
 (require 'eshell)
+(require 'em-prompt)                    ; For `eshell-previous-prompt'
 
 (require 'eshell-tests-helpers
          (expand-file-name "eshell-tests-helpers"
@@ -43,6 +44,8 @@
           "if [ -t 2 ]; then echo stderr; fi"
           "'")
   "A shell command that prints the standard streams connected as TTYs.")
+
+(defvar eshell-test-value nil)
 
 ;;; Tests:
 
@@ -86,7 +89,7 @@
       "\\`\\'"))
     (should (equal (buffer-string) "stdout\nstderr\n"))))
 
-(ert-deftest esh-var-test/output/remote-redirect ()
+(ert-deftest esh-proc-test/output/remote-redirect ()
   "Check that redirecting stdout for a remote process works."
   (skip-unless (and (eshell-tests-remote-accessible-p)
                     (executable-find "echo")))
@@ -129,6 +132,20 @@
      (should (= eshell-last-command-status 1))
      (should (eq eshell-last-command-result nil)))))
 
+(ert-deftest esh-proc-test/sentinel/change-buffer ()
+  "Check that changing the current buffer while running a command works.
+See bug#71778."
+  (eshell-with-temp-buffer bufname ""
+    (with-temp-eshell
+      (let (eshell-test-value)
+        (eshell-insert-command
+         (concat (format "for i in 1 2 {sleep 1; echo hello} > #<%s>; " bufname)
+                 "setq eshell-test-value t"))
+        (with-current-buffer bufname
+          (eshell-wait-for (lambda () eshell-test-value))
+          (should (equal (buffer-string) "hellohello")))
+        (eshell-match-command-output "echo goodbye" "\\`goodbye\n")))))
+
 
 ;; Pipelines
 
@@ -136,19 +153,21 @@
   "Test that a SIGPIPE is properly sent to a process if a pipe closes"
   (skip-unless (and (executable-find "sh")
                     (executable-find "echo")
-                    (executable-find "sleep")))
-  (with-temp-eshell
-   (eshell-match-command-output
-    ;; The first command is like `yes' but slower.  This is to prevent
-    ;; it from taxing Emacs's process filter too much and causing a
-    ;; hang.  Note that we use "|&" to connect the processes so that
-    ;; Emacs doesn't create an extra pipe process for the first "sh"
-    ;; invocation.
-    (concat "sh -c 'while true; do echo y; sleep 1; done' |& "
-            "sh -c 'read NAME; echo ${NAME}'")
-    "y\n")
-   (eshell-wait-for-subprocess t)
-   (should (eq (process-list) nil))))
+                    (executable-find "sleep")
+                    (not (eq system-type 'windows-nt))))
+  (let ((starting-process-list (process-list)))
+    (with-temp-eshell
+     (eshell-match-command-output
+      ;; The first command is like `yes' but slower.  This is to prevent
+      ;; it from taxing Emacs's process filter too much and causing a
+      ;; hang.  Note that we use "|&" to connect the processes so that
+      ;; Emacs doesn't create an extra pipe process for the first "sh"
+      ;; invocation.
+      (concat "sh -c 'while true; do echo y; sleep 1; done' |& "
+              "sh -c 'read NAME; echo ${NAME}'")
+      "y\n")
+     (eshell-wait-for-subprocess t)
+     (should (equal (process-list) starting-process-list)))))
 
 (ert-deftest esh-proc-test/pipeline-connection-type/no-pipeline ()
   "Test that all streams are PTYs when a command is not in a pipeline."
@@ -173,23 +192,72 @@
 pipeline."
   (skip-unless (and (executable-find "sh")
                     (executable-find "cat")))
-  ;; An `eshell-pipe-broken' signal might occur internally; let Eshell
-  ;; handle it!
-  (let ((debug-on-error nil))
-    (eshell-command-result-equal
-     (concat "echo hi | " esh-proc-test--detect-pty-cmd " | cat")
-     nil)))
+  (eshell-command-result-equal
+   (concat "(ignore) | " esh-proc-test--detect-pty-cmd " | cat")
+   nil))
 
 (ert-deftest esh-proc-test/pipeline-connection-type/last ()
   "Test that only output streams are PTYs when a command ends a pipeline."
   (skip-unless (executable-find "sh"))
-  ;; An `eshell-pipe-broken' signal might occur internally; let Eshell
-  ;; handle it!
-  (let ((debug-on-error nil))
-    (eshell-command-result-equal
-     (concat "echo hi | " esh-proc-test--detect-pty-cmd)
-     (unless (eq system-type 'windows-nt)
-       "stdout\nstderr\n"))))
+  (eshell-command-result-equal
+   (concat "(ignore) | " esh-proc-test--detect-pty-cmd)
+   (unless (eq system-type 'windows-nt)
+     "stdout\nstderr\n")))
+
+
+;; Synchronous processes
+
+;; These tests check that synchronous subprocesses (only used on
+;; MS-DOS by default) work correctly.  To help them run on MS-DOS as
+;; well, we use the Emacs executable as our subprocess to test
+;; against; that way, users don't need to have GNU coreutils (or
+;; similar) installed.
+
+(defsubst esh-proc-test/emacs-command (command)
+  "Evaluate COMMAND in a new Emacs batch instance."
+  ;; Call `eshell-quote-argument' from within an Eshell buffer since its
+  ;; behavior depends on activating various Eshell modules.
+  (mapconcat (lambda (arg) (with-temp-eshell (eshell-quote-argument arg)))
+             `(,(expand-file-name invocation-name invocation-directory)
+               "-Q" "--batch" "--eval" ,(prin1-to-string command))
+             " "))
+
+(defvar esh-proc-test/emacs-echo
+  (esh-proc-test/emacs-command '(princ "hello\n"))
+  "A command that prints \"hello\" to stdout using Emacs.")
+
+(defvar esh-proc-test/emacs-upcase
+  (esh-proc-test/emacs-command
+   '(princ (upcase (concat (read-string "") "\n"))))
+  "A command that upcases the text from stdin using Emacs.")
+
+(ert-deftest esh-proc-test/synchronous-proc/simple/interactive ()
+  "Test that synchronous processes work in an interactive shell."
+  (let ((eshell-supports-asynchronous-processes nil))
+    (with-temp-eshell
+     (eshell-match-command-output esh-proc-test/emacs-echo
+                                  "\\`hello\n"))))
+
+(ert-deftest esh-proc-test/synchronous-proc/simple/command-result ()
+  "Test that synchronous processes work via `eshell-command-result'."
+  (let ((eshell-supports-asynchronous-processes nil))
+    (eshell-command-result-equal esh-proc-test/emacs-echo
+                                 "hello\n")))
+
+(ert-deftest esh-proc-test/synchronous-proc/pipeline/interactive ()
+  "Test that synchronous pipelines work in an interactive shell."
+  (let ((eshell-supports-asynchronous-processes nil))
+    (with-temp-eshell
+     (eshell-match-command-output (concat esh-proc-test/emacs-echo " | "
+                                          esh-proc-test/emacs-upcase)
+                                  "\\`HELLO\n"))))
+
+(ert-deftest esh-proc-test/synchronous-proc/pipeline/command-result ()
+  "Test that synchronous pipelines work via `eshell-command-result'."
+  (let ((eshell-supports-asynchronous-processes nil))
+    (eshell-command-result-equal (concat esh-proc-test/emacs-echo " | "
+                                          esh-proc-test/emacs-upcase)
+                                 "HELLO\n")))
 
 
 ;; Killing processes
@@ -220,6 +288,15 @@ prompt.  See bug#54136."
    (eshell-wait-for-subprocess)
    (should (eshell-match-output "\\[sh\\(\\.exe\\)?\\] [[:digit:]]+\n"))))
 
+(ert-deftest esh-proc-test/kill-process/redirect-message ()
+  "Test that killing a process with a redirected stderr omits the exit status."
+  (skip-unless (executable-find "sleep"))
+  (eshell-with-temp-buffer bufname ""
+    (with-temp-eshell
+     (eshell-insert-command (format "sleep 100 2> #<buffer %s>" bufname))
+     (kill-process (eshell-head-process)))
+    (should (equal (buffer-string) ""))))
+
 (ert-deftest esh-proc-test/kill-pipeline ()
   "Test that killing a pipeline of processes only emits a single
 prompt.  See bug#54136."
@@ -228,19 +305,26 @@ prompt.  See bug#54136."
                     (executable-find "sleep")))
   ;; This test doesn't work on EMBA with AOT nativecomp, but works
   ;; fine elsewhere.
-  (skip-unless (not (getenv "EMACS_EMBA_CI")))
+  (skip-when (getenv "EMACS_EMBA_CI"))
   (with-temp-eshell
-   (eshell-insert-command
-    (concat "sh -c 'while true; do echo y; sleep 1; done' | "
-            "sh -c 'while true; do read NAME; done'"))
-   (let ((output-start (eshell-beginning-of-output)))
-     (eshell-kill-process)
-     (eshell-wait-for-subprocess t)
-     (should (string-match-p
-              ;; "interrupt\n" is for MS-Windows.
-              (rx (or "interrupt\n" "killed\n" "killed: 9\n"))
-              (buffer-substring-no-properties
-               output-start (eshell-end-of-output)))))))
+    (ert-info (#'eshell-get-debug-logs :prefix "Command logs: ")
+      (eshell-insert-command
+       (concat "sh -c 'while true; do echo y; sleep 1; done' | "
+               "sh -c 'while true; do read NAME; done'"))
+      (let ((output-start (eshell-beginning-of-output)))
+        (eshell-kill-process)
+        (eshell-wait-for-subprocess t)
+        ;; We expect at most one exit message here (from the tail
+        ;; process).  If the tail process has time to exit normally
+        ;; after we kill the head, then we'll see no exit message.
+        (should (string-match-p
+                 (rx bos (? (or "interrupt" (seq "killed" (* nonl))) "\n") eos)
+                 (buffer-substring-no-properties
+                  output-start (eshell-end-of-output))))
+        ;; Make sure Eshell only emitted one prompt by going back one
+        ;; prompt and checking the command input.
+        (eshell-previous-prompt)
+        (should (string-prefix-p "sh -c" (field-string)))))))
 
 (ert-deftest esh-proc-test/kill-pipeline-head ()
   "Test that killing the first process in a pipeline doesn't
@@ -249,20 +333,21 @@ write the exit status to the pipe.  See bug#54136."
                     (executable-find "echo")
                     (executable-find "sleep")))
   (with-temp-eshell
-   (eshell-insert-command
-    (concat "sh -c 'while true; do sleep 1; done' | "
-            "sh -c 'while read NAME; do echo =${NAME}=; done'"))
-   (let ((output-start (eshell-beginning-of-output)))
-     (kill-process (eshell-head-process))
-     (eshell-wait-for-subprocess t)
-     (should (equal (buffer-substring-no-properties
-                     output-start (eshell-end-of-output))
-                    "")))))
+    (ert-info (#'eshell-get-debug-logs :prefix "Command logs: ")
+      (eshell-insert-command
+       (concat "sh -c 'while true; do sleep 1; done' | "
+               "sh -c 'while read NAME; do echo =${NAME}=; done'"))
+      (let ((output-start (eshell-beginning-of-output)))
+        (kill-process (eshell-head-process))
+        (eshell-wait-for-subprocess t)
+        (should (equal (buffer-substring-no-properties
+                        output-start (eshell-end-of-output))
+                       ""))))))
 
 
 ;; Remote processes
 
-(ert-deftest esh-var-test/remote/remote-path ()
+(ert-deftest esh-proc-test/remote/remote-path ()
   "Ensure that setting the remote PATH in Eshell doesn't interfere with Tramp.
 See bug#65551."
   (skip-unless (and (eshell-tests-remote-accessible-p)

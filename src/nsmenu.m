@@ -1,5 +1,5 @@
 /* NeXT/Open/GNUstep and macOS Cocoa menu and toolbar module.
-   Copyright (C) 2007-2024 Free Software Foundation, Inc.
+   Copyright (C) 2007-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -47,7 +47,6 @@ Carbon version by Yamamoto Mitsuharu. */
 #endif
 
 
-extern long context_menu_value;
 EmacsMenu *svcsMenu;
 /* Nonzero means a menu is currently active.  */
 static int popup_activated_flag;
@@ -768,6 +767,10 @@ prettify_key (const char *key)
 			     pressure: 0];
 
   context_menu_value = -1;
+#ifdef NS_IMPL_COCOA
+  /* Don't let the system add a Services menu here.  */
+  self.allowsContextMenuPlugIns = NO;
+#endif
   [NSMenu popUpContextMenu: self withEvent: event forView: view];
   retVal = context_menu_value;
   context_menu_value = 0;

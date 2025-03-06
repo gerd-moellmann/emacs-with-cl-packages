@@ -1,8 +1,8 @@
 \input texinfo   @c -*- mode: texinfo; coding: utf-8 -*-
 @comment %**start of header
 @setfilename ../../info/flymake.info
-@set VERSION 1.2.2
-@set UPDATED November 2021
+@set VERSION 1.3.4
+@set UPDATED April 2023
 @settitle GNU Flymake @value{VERSION}
 @include docstyle.texi
 @syncodeindex pg cp
@@ -13,7 +13,7 @@
 @copying
 This manual is for GNU Flymake (version @value{VERSION}, @value{UPDATED}).
 
-Copyright @copyright{} 2004--2024 Free Software Foundation, Inc.
+Copyright @copyright{} 2004--2025 Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -59,15 +59,10 @@ types of diagnostics.
 
 To learn about using Flymake, @pxref{Using Flymake}.
 
-When the Emacs LSP support mode Eglot is enabled, Flymake will use
-that as an additional back-end.  @xref{Eglot Features,,, eglot, Eglot:
-The Emacs LSP Client}  Flymake is also designed to be easily extended
-to support new backends via an Elisp interface.  @xref{Extending
-Flymake}.
-
-Historically, Flymake used to accept diagnostics from a single
-backend.  Although obsolete, it is still functional.  To learn how to
-use and customize it, @pxref{The legacy Proc backend}.
+When the Emacs LSP support mode Eglot is enabled, Flymake will use that
+as an additional back-end.  @xref{Eglot Features,,, eglot, Eglot: The
+Emacs LSP Client}.  Flymake is also designed to be easily extended to
+support new backends via an Elisp interface.  @xref{Extending Flymake}.
 
 @ifnottex
 @insertcopying
@@ -98,7 +93,7 @@ write your own Flymake backend functions.  @xref{Backend functions}.
 
 When the Emacs LSP support mode Eglot is enabled, Flymake will use
 that as an additional back-end automatically.  @xref{Eglot Features,,,
-eglot, Eglot: The Emacs LSP Client}
+eglot, Eglot: The Emacs LSP Client}.
 
 @menu
 * Starting Flymake::
@@ -149,6 +144,12 @@ highlighted regions to learn what the specific problem
 is.  Alternatively, place point on the highlighted regions and use the
 commands @code{eldoc} or @code{display-local-help}.
 
+Another easy way to get instant access to the diagnostic text is to
+set @code{flymake-show-diagnostics-at-end-of-line} to a non-@code{nil}
+value.  This makes the diagnostic messages appear at the end of the
+line where the regular annotation is located (@pxref{Customizable
+variables})
+
 @cindex next and previous diagnostic
 If the diagnostics are outside the visible region of the buffer,
 @code{flymake-goto-next-error} and @code{flymake-goto-prev-error} are
@@ -193,7 +194,7 @@ The following statuses are defined:
 @item [@var{nerrors} @var{nwarnings} ...]
 @tab Normal operation. @var{nerrors} and @var{nwarnings} are, respectively,
 the total number of errors and warnings found during the last buffer
-check, for all backends. They may be followed by other totals for
+check, for all backends.  They may be followed by other totals for
 other types of diagnostics (@pxref{Flymake error types}).
 
 @item @code{Wait}
@@ -307,6 +308,12 @@ reported.
 A custom face for highlighting regions for which a note has been
 reported.
 
+@item flymake-indicator-type
+The indicator type which Flymake should use to indicate lines with
+errors or warnings.
+Depending on your preference, this can either use @code{fringes} or
+@code{margins} for indicating errors.
+
 @item flymake-error-bitmap
 A bitmap used in the fringe to mark lines for which an error has
 been reported.
@@ -318,9 +325,37 @@ been reported.
 @item flymake-fringe-indicator-position
 Which fringe (if any) should show the warning/error bitmaps.
 
+@item flymake-margin-indicators-string
+Specifies the string and face to use for the margin indicators, for
+each error type.
+
+@item flymake-margin-indicator-position
+Which margin (if any) should show the warning/error strings.
+
+@item flymake-autoresize-margins
+If non-@code{nil}, Flymake will resize the margins when
+@code{flymake-mode} is turned on or off.
+Only relevant if @code{flymake-indicator-type} is set to @code{margins}.
+
 @item flymake-wrap-around
 If non-@code{nil}, moving to errors with @code{flymake-goto-next-error} and
 @code{flymake-goto-prev-error} wraps around buffer boundaries.
+
+@item flymake-show-diagnostics-at-end-of-line
+If non-@code{nil}, show summarized descriptions of diagnostics at the
+end of the line.  Depending on your preference, this can either be
+distracting and easily confused with actual code, or a significant
+early aid that relieves you from moving around or reaching for the
+mouse to consult an error message.
+
+@item flymake-error-eol
+A custom face for summarizing diagnostic error messages.
+
+@item flymake-warning-eol
+A custom face for summarizing diagnostic warning messages.
+
+@item flymake-note-eol
+A custom face for summarizing diagnostic notes.
 @end vtable
 
 @node Extending Flymake
@@ -370,6 +405,14 @@ variables}).  It is overridden by any @code{before-string} overlay
 property.
 
 @item
+@cindex margin of diagnostic
+@code{flymake-margin-string}, a string displayed in the margin
+according to @code{flymake-margin-indicator-position}.
+The value actually follows the syntax of @code{flymake-margin-indicators-string}
+(@pxref{Customizable variables}).  It is overridden by any
+@code{before-string} overlay property.
+
+@item
 @code{flymake-overlay-control}, an alist ((@var{OVPROP} . @var{VALUE})
 @var{...}) of further properties used to affect the appearance of
 Flymake annotations.  With the exception of @code{category} and
@@ -401,7 +444,7 @@ its @code{flymake-overlay-control} property:
 
 @item
 @cindex severity of diagnostic
-@code{flymake-severity} is a non-negative integer specifying the
+@code{severity} is a non-negative integer specifying the
 diagnostic's severity.  The higher the value, the more serious is the
 error.  If the overlay property @code{priority} is not specified in
 @code{flymake-overlay-control}, @code{flymake-severity} is used to set
@@ -416,6 +459,17 @@ type, in case the name of the symbol associated with it is very long.
 @vindex flymake-category
 @code{flymake-category} is a symbol whose property list is considered
 the default for missing values of any other properties.
+
+@item
+@cindex mode-line appearance of a diagnostic
+@code{mode-line-face} is a face specifier controlling the appearance
+of the indicator of this type of diagnostic in the mode line.
+
+@item
+@cindex summarized appearance of a diagnostic
+@code{echo-face} is a face specifier controlling the appearance of the
+summarized description of this diagnostic when reading diagnostic
+messages (@pxref{Finding diagnostics}).
 @end itemize
 
 @cindex predefined diagnostic types
@@ -528,7 +582,7 @@ function was called for the buffer.  If the list is empty, this
 indicates that no changes have been recorded.  If it is the first time
 that this backend function is called for this activation of
 @code{flymake-mode}, then this argument isn't provided at all
-(i.e. it's not merely nil).
+(in other words, it's not merely nil).
 
 Each element is in the form (@var{beg} @var{end} @var{text}) where
 @var{beg} and @var{end} are buffer positions, and @var{text} is a

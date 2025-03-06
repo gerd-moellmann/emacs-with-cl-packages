@@ -1,8 +1,8 @@
 ;;; AT386.el --- terminal support package for IBM AT keyboards  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1992, 2001-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1992, 2001-2025 Free Software Foundation, Inc.
 
-;; Author: Eric S. Raymond <esr@snark.thyrsus.com>
+;; Author: Eric S. Raymond <esr@thyrsus.com>
 ;; Keywords: terminals
 
 ;; This file is part of GNU Emacs.

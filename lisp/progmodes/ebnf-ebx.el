@@ -1,9 +1,9 @@
 ;;; ebnf-ebx.el --- parser for EBNF used to specify XML (EBNFX)  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2001-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2025 Free Software Foundation, Inc.
 
 ;; Author: Vinicius Jose Latorre <viniciusjl.gnu@gmail.com>
-;; Keywords: wp, ebnf, PostScript
+;; Keywords: text, ebnf, PostScript
 ;; Old-Version: 1.2
 ;; Package: ebnf2ps
 

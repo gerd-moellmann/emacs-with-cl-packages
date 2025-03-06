@@ -1,5 +1,5 @@
 @c This is part of the Emacs manual.  -*- coding: utf-8 -*-
-@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2024 Free Software
+@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2025 Free Software
 @c Foundation, Inc.
 @c See file emacs.texi for copying conditions.
 @node Calendar/Diary
@@ -106,7 +106,7 @@ commands for moving by characters and by lines.  Just as @kbd{C-n}
 usually moves to the same column in the following line, in Calendar
 mode it is bound to @code{calendar-forward-week}, which moves to the
 same day in the following week.  And @kbd{C-p}
-(@code{calendar-backward-week} moves to the same day in the previous
+(@code{calendar-backward-week}) moves to the same day in the previous
 week.  @kbd{C-f} (@code{calendar-forward-day}) and @kbd{C-b}
 (@code{calendar-backward-day}) move forward and back by days.
 

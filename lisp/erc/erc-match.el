@@ -1,6 +1,6 @@
 ;;; erc-match.el --- Highlight messages matching certain regexps  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2002-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2025 Free Software Foundation, Inc.
 
 ;; Author: Andreas Fuchs <asf@void.at>
 ;; Maintainer: Amin Bandali <bandali@gnu.org>, F. Jason Park <jp@neverwas.me>
@@ -52,8 +52,16 @@ they are hidden or highlighted.  This is controlled via the variables
 `erc-current-nick-highlight-type'.  For all these highlighting types,
 you can decide whether the entire message or only the sending nick is
 highlighted."
-  ((add-hook 'erc-insert-modify-hook #'erc-match-message 'append))
-  ((remove-hook 'erc-insert-modify-hook #'erc-match-message)))
+  ((add-hook 'erc-insert-modify-hook #'erc-match-message 50)
+   (add-hook 'erc-mode-hook #'erc-match--setup)
+   (unless erc--updating-modules-p (erc-buffer-do #'erc-match--setup))
+   (add-hook 'erc-insert-post-hook #'erc-match--on-insert-post 50)
+   (erc--modify-local-map t "C-c C-k" #'erc-go-to-log-matches-buffer))
+  ((remove-hook 'erc-insert-modify-hook #'erc-match-message)
+   (remove-hook 'erc-insert-post-hook #'erc-match--on-insert-post)
+   (remove-hook 'erc-mode-hook #'erc-match--setup)
+   (erc-buffer-do #'erc-match--setup)
+   (erc--modify-local-map nil "C-c C-k" #'erc-go-to-log-matches-buffer)))
 
 ;; Remaining customizations
 
@@ -226,10 +234,11 @@ for beeping to work."
 		 (const :tag "Don't beep" nil)))
 
 (defcustom erc-text-matched-hook '(erc-log-matches)
-  "Hook run when text matches a given match-type.
-Functions in this hook are passed as arguments:
-\(match-type nick!user@host message) where MATCH-TYPE is a symbol of:
-current-nick, keyword, pal, dangerous-host, fool."
+  "Abnormal hook for visiting text matching a predefined \"type\".
+ERC calls members with the arguments (MATCH-TYPE NUH MESSAGE),
+where MATCH-TYPE is one of the symbols `current-nick', `keyword',
+`pal', `dangerous-host', `fool', and NUH is an `erc-response'
+sender, like bob!~bob@example.org."
   :options '(erc-log-matches erc-hide-fools erc-beep-on-match)
   :type 'hook)
 
@@ -482,7 +491,9 @@ Use this defun with `erc-insert-modify-hook'."
          (message (buffer-substring message-beg (point-max))))
     (when (and vector
 	       (not (and erc-match-exclude-server-buffer
-			 (erc-server-buffer-p))))
+                         ;; FIXME replace with `erc--server-buffer-p'
+                         ;; or explain why that's unwise.
+                         (erc-server-or-unjoined-channel-buffer-p))))
       (mapc
        (lambda (match-type)
 	 (goto-char (point-min))
@@ -647,21 +658,44 @@ See `erc-log-match-format'."
 					(get-buffer (car buffer-cons))))))
     (switch-to-buffer buffer-name)))
 
-(define-key erc-mode-map "\C-c\C-k" #'erc-go-to-log-matches-buffer)
-
 (defun erc-hide-fools (match-type _nickuserhost _message)
- "Hide foolish comments.
-This function should be called from `erc-text-matched-hook'."
- (when (eq match-type 'fool)
-   (erc-put-text-properties (point-min) (point-max)
-			    '(invisible intangible)
-			    (current-buffer))))
+  "Hide comments from designated fools."
+  (when (and erc--msg-props (eq match-type 'fool))
+    (puthash 'erc--invisible 'erc-match-fool erc--msg-props)))
+
+;; FIXME remove, make public, or only add locally.
+;;
+;; ERC modules typically don't add internal functions to public hooks
+;; globally.  However, ERC 5.6 will likely include a general
+;; (internal) facility for adding invisible props, which will obviate
+;; the need for this function.  IOW, leaving this internal for now is
+;; an attempt to avoid the hassle of the deprecation process.
+(defun erc-match--on-insert-post ()
+  "Hide messages marked with the `erc--invisible' prop."
+  (when (erc--check-msg-prop 'erc--invisible 'erc-match-fool)
+    (remhash 'erc--invisible erc--msg-props)
+    (erc--hide-message 'match-fools)))
 
 (defun erc-beep-on-match (match-type _nickuserhost _message)
   "Beep when text matches.
 This function is meant to be called from `erc-text-matched-hook'."
   (when (member match-type erc-beep-match-types)
     (beep)))
+
+(defun erc-match--setup ()
+  "Add an `erc-match' property to the local spec."
+  ;; Hopefully, this will be extended to do the same for other
+  ;; invisible properties managed by this module.
+  (if erc-match-mode
+      (erc-match-toggle-hidden-fools +1)
+    (erc-match-toggle-hidden-fools -1)))
+
+(defun erc-match-toggle-hidden-fools (arg)
+  "Toggle fool visibility.
+Expect the function `erc-hide-fools' or similar to be present in
+`erc-text-matched-hook'."
+  (interactive "P")
+  (erc--toggle-hidden 'match-fools arg))
 
 (provide 'erc-match)
 

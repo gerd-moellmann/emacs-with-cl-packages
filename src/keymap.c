@@ -1,5 +1,5 @@
 /* Manipulation of keymaps
-   Copyright (C) 1985-1988, 1993-1995, 1998-2024 Free Software
+   Copyright (C) 1985-1988, 1993-1995, 1998-2025 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -610,7 +610,7 @@ map_keymap_canonical (Lisp_Object map, map_keymap_function_t fun, Lisp_Object ar
 {
   /* map_keymap_canonical may be used from redisplay (e.g. when building menus)
      so be careful to ignore errors and to inhibit redisplay.  */
-  map = safe_call1 (Qkeymap_canonicalize, map);
+  map = safe_calln (Qkeymap_canonicalize, map);
   /* No need to use `map_keymap' here because canonical map has no parent.  */
   map_keymap_internal (map, fun, args, data);
 }
@@ -642,7 +642,7 @@ usage: (map-keymap FUNCTION KEYMAP)  */)
   (Lisp_Object function, Lisp_Object keymap, Lisp_Object sort_first)
 {
   if (! NILP (sort_first))
-    return call2 (intern ("map-keymap-sorted"), function, keymap);
+    return call2 (Qmap_keymap_sorted, function, keymap);
 
   map_keymap (keymap, map_keymap_call, function, NULL, 1);
   return Qnil;
@@ -1334,7 +1334,7 @@ recognize the default bindings, just as `read-key-sequence' does.  */)
   /* Initialize the unicode case table, if it wasn't already.  */
   if (NILP (unicode_case_table))
     {
-      unicode_case_table = uniprop_table (intern ("lowercase"));
+      unicode_case_table = uniprop_table (Qlowercase);
       /* uni-lowercase.el might be unavailable during bootstrap.  */
       if (NILP (unicode_case_table))
 	return found;
@@ -1367,7 +1367,7 @@ recognize the default bindings, just as `read-key-sequence' does.  */)
 		{
 		  USE_SAFE_ALLOCA;
 		  ptrdiff_t size = SCHARS (key_item), n;
-		  if (INT_MULTIPLY_WRAPV (size, MAX_MULTIBYTE_LENGTH, &n))
+		  if (ckd_mul (&n, size, MAX_MULTIBYTE_LENGTH))
 		    n = PTRDIFF_MAX;
 		  unsigned char *dst = SAFE_ALLOCA (n);
 		  unsigned char *p = dst;
@@ -1415,7 +1415,7 @@ recognize the default bindings, just as `read-key-sequence' does.  */)
 
 	  USE_SAFE_ALLOCA;
 	  ptrdiff_t size = SCHARS (lc_key), n;
-	  if (INT_MULTIPLY_WRAPV (size, MAX_MULTIBYTE_LENGTH, &n))
+	  if (ckd_mul (&n, size, MAX_MULTIBYTE_LENGTH))
 	    n = PTRDIFF_MAX;
 	  unsigned char *dst = SAFE_ALLOCA (n);
 
@@ -1745,12 +1745,22 @@ like in the respective argument of `key-binding'.  */)
 		  && XFIXNUM (pos) >= 0
 		  && XFIXNUM (pos) < SCHARS (string))
 		{
-		  Lisp_Object map = Fget_text_property (pos, Qlocal_map, string);
-		  if (!NILP (map))
+		  Lisp_Object map = Fget_text_property (pos, Qlocal_map,
+							string);
+		  Lisp_Object pos_area = POSN_POSN (position);
+		  /* For clicks on mode line or header line, override
+		     the maps we found at POSITION unconditionally, even
+		     if the corresponding properties of the mode- or
+		     header-line string are nil, because propertries at
+		     point are not relevant in that case.  */
+		  if (!NILP (map)
+		      || EQ (pos_area, Qmode_line)
+		      || EQ (pos_area, Qheader_line))
 		    local_map = map;
-
 		  map = Fget_text_property (pos, Qkeymap, string);
-		  if (!NILP (map))
+		  if (!NILP (map)
+		      || EQ (pos_area, Qmode_line)
+		      || EQ (pos_area, Qheader_line))
 		    keymap = map;
 		}
 	    }
@@ -2101,7 +2111,7 @@ For an approximate inverse of this, see `kbd'.  */)
 
   /* This has one extra element at the end that we don't pass to Fconcat.  */
   ptrdiff_t size4;
-  if (INT_MULTIPLY_WRAPV (nkeys + nprefix, 4, &size4))
+  if (ckd_mul (&size4, nkeys + nprefix, 4))
     memory_full (SIZE_MAX);
   SAFE_ALLOCA_LISP (args, size4);
 
@@ -2125,7 +2135,7 @@ For an approximate inverse of this, see `kbd'.  */)
 	  if (STRINGP (list))
 	    {
 	      int c = fetch_string_char_advance (list, &i, &i_byte);
-	      if (SINGLE_BYTE_CHAR_P (c) && (c & 0200))
+	      if (!STRING_MULTIBYTE (list) && (c & 0200))
 		c ^= 0200 | meta_modifier;
 	      key = make_fixnum (c);
 	    }
@@ -2885,7 +2895,7 @@ You type        Translation\n\
     {
       Lisp_Object msg = build_unibyte_string ("Key translations");
       CALLN (Ffuncall,
-	     Qdescribe_map_tree,
+	     Qhelp__describe_map_tree,
 	     Vkey_translation_map, Qnil, Qnil, prefix,
 	     msg, nomenu, Qt, Qnil, Qnil, buffer);
     }
@@ -2899,7 +2909,7 @@ You type        Translation\n\
     {
       Lisp_Object msg = build_unibyte_string ("\f\nOverriding Bindings");
       CALLN (Ffuncall,
-	     Qdescribe_map_tree,
+	     Qhelp__describe_map_tree,
 	     start1, Qt, shadow, prefix,
 	     msg, nomenu, Qnil, Qnil, Qnil, buffer);
       shadow = Fcons (start1, shadow);
@@ -2912,7 +2922,7 @@ You type        Translation\n\
     {
       Lisp_Object msg = build_unibyte_string ("\f\nOverriding Bindings");
       CALLN (Ffuncall,
-	     Qdescribe_map_tree,
+	     Qhelp__describe_map_tree,
 	     start1, Qt, shadow, prefix,
 	     msg, nomenu, Qnil, Qnil, Qnil, buffer);
       shadow = Fcons (start1, shadow);
@@ -2935,7 +2945,7 @@ You type        Translation\n\
 	{
 	  Lisp_Object msg = build_unibyte_string ("\f\n`keymap' Property Bindings");
 	  CALLN (Ffuncall,
-		 Qdescribe_map_tree,
+		 Qhelp__describe_map_tree,
 		 start1, Qt, shadow, prefix,
 		 msg, nomenu, Qnil, Qnil, Qnil, buffer);
 	  shadow = Fcons (start1, shadow);
@@ -2946,7 +2956,7 @@ You type        Translation\n\
 	{
 	  /* The title for a minor mode keymap
 	     is constructed at run time.
-	     We let describe-map-tree do the actual insertion
+	     We let `help--describe-map-tree' do the actual insertion
 	     because it takes care of other features when doing so.  */
 	  char *title, *p;
 
@@ -2968,7 +2978,7 @@ You type        Translation\n\
 
 	  Lisp_Object msg = build_unibyte_string (title);
 	  CALLN (Ffuncall,
-		 Qdescribe_map_tree,
+		 Qhelp__describe_map_tree,
 		 maps[i], Qt, shadow, prefix,
 		 msg, nomenu, Qnil, Qnil, Qnil, buffer);
 	  shadow = Fcons (maps[i], shadow);
@@ -2986,7 +2996,7 @@ You type        Translation\n\
 		       build_unibyte_string ("\f\n`%s' Major Mode Bindings"),
 		       XBUFFER (buffer)->major_mode_);
 	      CALLN (Ffuncall,
-		     Qdescribe_map_tree,
+		     Qhelp__describe_map_tree,
 		     start1, Qt, shadow, prefix,
 		     msg, nomenu, Qnil, Qnil, Qnil, buffer);
 	    }
@@ -2994,7 +3004,7 @@ You type        Translation\n\
 	    {
 	      Lisp_Object msg = build_unibyte_string ("\f\n`local-map' Property Bindings");
 	      CALLN (Ffuncall,
-		     Qdescribe_map_tree,
+		     Qhelp__describe_map_tree,
 		     start1, Qt, shadow, prefix,
 		     msg, nomenu, Qnil, Qnil, Qnil, buffer);
 	    }
@@ -3005,7 +3015,7 @@ You type        Translation\n\
 
   Lisp_Object msg = build_unibyte_string ("\f\nGlobal Bindings");
   CALLN (Ffuncall,
-	 Qdescribe_map_tree,
+	 Qhelp__describe_map_tree,
 	 current_global_map, Qt, shadow, prefix,
 	 msg, nomenu, Qnil, Qt, Qnil, buffer);
 
@@ -3014,7 +3024,7 @@ You type        Translation\n\
     {
       Lisp_Object msg = build_unibyte_string ("\f\nFunction key map translations");
       CALLN (Ffuncall,
-	     Qdescribe_map_tree,
+	     Qhelp__describe_map_tree,
 	     KVAR (current_kboard, Vlocal_function_key_map), Qnil, Qnil, prefix,
 	     msg, nomenu, Qt, Qnil, Qnil, buffer);
     }
@@ -3024,7 +3034,7 @@ You type        Translation\n\
     {
       Lisp_Object msg = build_unibyte_string ("\f\nInput decoding map translations");
       CALLN (Ffuncall,
-	     Qdescribe_map_tree,
+	     Qhelp__describe_map_tree,
 	     KVAR (current_kboard, Vinput_decode_map), Qnil, Qnil, prefix,
 	     msg, nomenu, Qt, Qnil, Qnil, buffer);
     }
@@ -3053,7 +3063,7 @@ DESCRIBER is the output function used; nil means use `princ'.  */)
 {
   specpdl_ref count = SPECPDL_INDEX ();
   if (NILP (describer))
-    describer = intern ("princ");
+    describer = Qprinc;
   specbind (Qstandard_output, Fcurrent_buffer ());
   CHECK_VECTOR_OR_CHAR_TABLE (vector);
   describe_vector (vector, Qnil, describer, describe_vector_princ, 0,
@@ -3169,7 +3179,7 @@ describe_vector (Lisp_Object vector, Lisp_Object prefix, Lisp_Object args,
   Lisp_Object kludge = make_nil_vector (1);
 
   if (partial)
-    suppress = intern ("suppress-keymap");
+    suppress = Qsuppress_keymap;
 
   /* STOP is a boundary between normal characters (-#x3FFF7F) and
      8-bit characters (#x3FFF80-), used below when VECTOR is a
@@ -3341,7 +3351,8 @@ void
 syms_of_keymap (void)
 {
   DEFSYM (Qkeymap, "keymap");
-  DEFSYM (Qdescribe_map_tree, "describe-map-tree");
+  DEFSYM (Qhelp__describe_map_tree, "help--describe-map-tree");
+  DEFSYM (Qmap_keymap_sorted, "map-keymap-sorted");
 
   DEFSYM (Qkeymap_canonicalize, "keymap-canonicalize");
 
@@ -3485,6 +3496,7 @@ that describe key bindings.  That is why the default is nil.  */);
 
   DEFSYM (Qkey_parse, "key-parse");
   DEFSYM (Qkey_valid_p, "key-valid-p");
-
   DEFSYM (Qnon_key_event, "non-key-event");
+  DEFSYM (Qprinc, "princ");
+  DEFSYM (Qsuppress_keymap, "suppress-keymap");
 }

@@ -1,6 +1,6 @@
 ;;; elisp-mode.el --- Emacs Lisp mode  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1999-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1985-1986, 1999-2025 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: lisp, languages
@@ -40,9 +40,10 @@ It has `lisp-mode-abbrev-table' as its parent."
 
 (defvar emacs-lisp-mode-syntax-table
   (let ((table (make-syntax-table lisp-data-mode-syntax-table)))
-    ;; These are redundant, now.
-    ;;(modify-syntax-entry ?\[ "(]  " table)
-    ;;(modify-syntax-entry ?\] ")[  " table)
+    ;; Remove the "p" flag from the entry of `@' because we use instead
+    ;; `syntax-propertize' to take care of `,@', which is more precise.
+    ;; FIXME: We should maybe do the same in other Lisp modes?  (bug#24542)
+    (modify-syntax-entry ?@ "_" table)
     table)
   "Syntax table used in `emacs-lisp-mode'.")
 
@@ -221,7 +222,7 @@ All commands in `lisp-mode-shared-map' are inherited by this map."
   (load (byte-compile-dest-file buffer-file-name)))
 
 (declare-function native-compile "comp")
-(declare-function comp-write-bytecode-file "comp")
+(declare-function comp--write-bytecode-file "comp")
 
 (defun emacs-lisp-native-compile ()
   "Native-compile the current buffer's file (if it has changed).
@@ -233,7 +234,7 @@ visited by the current buffer."
          (byte-to-native-output-buffer-file nil)
          (eln (native-compile buffer-file-name)))
     (when eln
-      (comp-write-bytecode-file eln))))
+      (comp--write-bytecode-file eln))))
 
 (defun emacs-lisp-native-compile-and-load ()
   "Native-compile the current buffer's file (if it has changed), then load it.
@@ -271,6 +272,9 @@ Comments in the form will be lost."
       ;; Empty symbol.
       ("##" (0 (unless (nth 8 (syntax-ppss))
                  (string-to-syntax "_"))))
+      ;; Prevent the @ from becoming part of a following symbol.
+      (",@" (0 (unless (nth 8 (syntax-ppss))
+                 (string-to-syntax "'"))))
       ;; Unicode character names.  (The longest name is 88 characters
       ;; long.)
       ("\\?\\\\N{[-A-Za-z0-9 ]\\{,100\\}}"
@@ -306,7 +310,7 @@ Comments in the form will be lost."
 INTERACTIVE non-nil means ask the user for confirmation; this
 happens in interactive invocations."
   (interactive "p")
-  (if lexical-binding
+  (if (and (local-variable-p 'lexical-binding) lexical-binding)
       (when interactive
         (message "lexical-binding already enabled!")
         (ding))
@@ -331,9 +335,10 @@ mouse-1: Enable lexical-binding mode"
 		      mouse-face mode-line-highlight
                       local-map ,elisp--dynlex-modeline-map)))
   "Major mode for editing Lisp code to run in Emacs.
-Commands:
-Delete converts tabs to spaces as it moves back.
-Blank lines separate paragraphs.  Semicolons start comments.
+\\<emacs-lisp-mode-map>
+- \\[backward-delete-char-untabify] converts tabs to spaces as it moves back.
+- Blank lines separate paragraphs.
+- Semicolons start comments.
 
 When editing Lisp data (as opposed to code), `lisp-data-mode' can
 be used instead.
@@ -363,10 +368,16 @@ be used instead.
             #'elisp-completion-at-point nil 'local)
   (add-hook 'flymake-diagnostic-functions #'elisp-flymake-checkdoc nil t)
   (add-hook 'flymake-diagnostic-functions
-              #'elisp-flymake-byte-compile nil t)
+            #'elisp-flymake-byte-compile nil t)
   (add-hook 'context-menu-functions #'elisp-context-menu 10 t))
 
 ;; Font-locking support.
+
+(defun elisp--font-lock-shorthand (_limit)
+  ;; Add faces on shorthands between point and LIMIT.
+  ;; ...
+  ;; Return nil to tell font-lock, that there's nothing left to do.
+  nil)
 
 (defun elisp--font-lock-flush-elisp-buffers (&optional file)
   ;; We're only ever called from after-load-functions, load-in-progress can
@@ -430,6 +441,43 @@ be used instead.
 
 (defvar warning-minimum-log-level)
 
+(defvar elisp--local-macroenv
+  `((cl-eval-when . ,(lambda (&rest args) `(progn . ,(cdr args))))
+    (eval-when-compile . ,(lambda (&rest args) `(progn . ,args)))
+    (eval-and-compile . ,(lambda (&rest args) `(progn . ,args))))
+  "Environment to use while tentatively expanding macros.
+This is used to try and avoid the most egregious problems linked to the
+use of `macroexpand-all' as a way to find the \"underlying raw code\".")
+
+(defvar elisp--macroexpand-untrusted-warning t)
+
+(defun elisp--safe-macroexpand-all (sexp)
+  (if (not (trusted-content-p))
+      ;; FIXME: We should try and do better here, either using a notion
+      ;; of "safe" macros, or with `bwrap', or ...
+      (progn
+        (when elisp--macroexpand-untrusted-warning
+          (setq-local elisp--macroexpand-untrusted-warning nil) ;Don't spam!
+          (let ((inhibit-message t))      ;Only log.
+            (message "Completion of local vars is disabled in %s (untrusted content)"
+                     (buffer-name))))
+        sexp)
+    (let ((macroexpand-advice
+           (lambda (expander form &rest args)
+             (condition-case err
+                 (apply expander form args)
+               (error
+                (message "Ignoring macroexpansion error: %S" err) form)))))
+      (unwind-protect
+          ;; Silence any macro expansion errors when
+          ;; attempting completion at point (bug#58148).
+          (let ((inhibit-message t)
+                (macroexp-inhibit-compiler-macros t)
+                (warning-minimum-log-level :emergency))
+            (advice-add 'macroexpand-1 :around macroexpand-advice)
+            (macroexpand-all sexp elisp--local-macroenv))
+        (advice-remove 'macroexpand-1 macroexpand-advice)))))
+
 (defun elisp--local-variables ()
   "Return a list of locally let-bound variables at point."
   (save-excursion
@@ -445,22 +493,8 @@ be used instead.
                        (car (read-from-string
                              (concat txt "elisp--witness--lisp" closer)))
                      ((invalid-read-syntax end-of-file) nil)))
-             (macroexpand-advice (lambda (expander form &rest args)
-                                   (condition-case nil
-                                       (apply expander form args)
-                                     (error form))))
-             (sexp
-              (unwind-protect
-                  ;; Silence any macro expansion errors when
-                  ;; attempting completion at point (bug#58148).
-                  (let ((inhibit-message t)
-                        (warning-minimum-log-level :emergency))
-                    (advice-add 'macroexpand :around macroexpand-advice)
-                    (condition-case nil
-                        (macroexpand-all sexp)
-                      (error sexp)))
-                (advice-remove 'macroexpand macroexpand-advice)))
-             (vars (elisp--local-variables-1 nil sexp)))
+             (vars (elisp--local-variables-1
+                    nil (elisp--safe-macroexpand-all sexp))))
         (delq nil
               (mapcar (lambda (var)
                         (and (symbolp var)
@@ -645,12 +679,13 @@ functions are annotated with \"<f>\" via the
 		    (save-excursion
 		      (backward-sexp 1)
 		      (skip-chars-forward "`',‘#")
-		      (point))
+		      (min (point) pos))
 		  (scan-error pos)))
 	   (end
-	    (unless (or (eq beg (point-max))
-			(member (char-syntax (char-after beg))
-                                '(?\" ?\()))
+	    (cond
+	     ((and (< beg (point-max))
+		   (memq (char-syntax (char-after beg))
+		                   '(?w ?\\ ?_)))
 	      (condition-case nil
 		  (save-excursion
 		    (goto-char beg)
@@ -658,7 +693,11 @@ functions are annotated with \"<f>\" via the
                     (skip-chars-backward "'’")
 		    (when (>= (point) pos)
 		      (point)))
-		(scan-error pos))))
+		(scan-error pos)))
+             ((or (>= beg (point-max))
+                  (memq (char-syntax (char-after beg))
+		        '(?\) ?\s)))
+              beg)))
            ;; t if in function position.
            (funpos (eq (char-before beg) ?\())
            (quoted (elisp--form-quoted-p beg))
@@ -970,6 +1009,10 @@ namespace but with lower confidence."
                                  cl-defmethod cl-defgeneric)))
             ;; (defun FUNC (... IDENT
             'variable)
+           ((and (eql j 2)
+                 (eq j-head 'defclass))
+            ;; (defclass CLASS (... IDENT
+            'function)
            ((eq j-head 'cond)
             ;; (cond ... (... IDENT
             'variable)
@@ -1287,11 +1330,10 @@ Like Lisp mode except that \\[eval-print-last-sexp] evals the Lisp expression
 before point, and prints its value into the buffer, advancing point.
 Note that printing is controlled by `eval-expression-print-length'
 and `eval-expression-print-level'.
-
-Commands:
-Delete converts tabs to spaces as it moves back.
-Paragraphs are separated only by blank lines.
-Semicolons start comments.
+\\<lisp-interaction-mode-map>
+- \\[backward-delete-char-untabify] converts tabs to spaces as it moves back.
+- Paragraphs are separated only by blank lines.
+- Semicolons start comments.
 
 \\{lisp-interaction-mode-map}"
   :abbrev-table nil
@@ -1382,9 +1424,9 @@ BEG and END are the start and end of the output in current buffer.
 VALUE is the Lisp value printed, ALT1 and ALT2 are strings for the
 alternative printed representations that can be displayed."
   (let ((map (make-sparse-keymap)))
-    (define-key map "\C-m" 'elisp-last-sexp-toggle-display)
-    (define-key map [down-mouse-2] 'mouse-set-point)
-    (define-key map [mouse-2] 'elisp-last-sexp-toggle-display)
+    (define-key map "\C-m" #'elisp-last-sexp-toggle-display)
+    (define-key map [down-mouse-2] #'mouse-set-point)
+    (define-key map [mouse-2] #'elisp-last-sexp-toggle-display)
     (add-text-properties
      beg end
      `(printed-value (,value ,alt1 ,alt2)
@@ -1441,7 +1483,7 @@ If CHAR is not a character, return nil."
 		     (lambda (modif)
 		       (cond ((eq modif 'super) "\\s-")
 			     (t (string ?\\ (upcase (aref (symbol-name modif) 0)) ?-))))
-		     mods "")
+		     mods)
 		    (cond
 		     ((memq c '(?\; ?\( ?\) ?\{ ?\} ?\[ ?\] ?\" ?\' ?\\)) (string ?\\ c))
 		     ((eq c 127) "\\C-?")
@@ -1517,7 +1559,7 @@ If CHAR is not a character, return nil."
                   `(call-interactively
                     (lambda (&rest args) ,expr args))))
 	  expr)))))
-(define-obsolete-function-alias 'preceding-sexp 'elisp--preceding-sexp "25.1")
+(define-obsolete-function-alias 'preceding-sexp #'elisp--preceding-sexp "25.1")
 
 (defun elisp--eval-last-sexp (eval-last-sexp-arg-internal)
   "Evaluate sexp before point; print value in the echo area.
@@ -1529,13 +1571,16 @@ character)."
   (pcase-let*
       ((`(,insert-value ,no-truncate ,char-print-limit)
         (eval-expression-get-print-arguments eval-last-sexp-arg-internal)))
-    ;; Setup the lexical environment if lexical-binding is enabled.
-    (elisp--eval-last-sexp-print-value
-     (eval (macroexpand-all
-            (eval-sexp-add-defvars
-             (elisp--eval-defun-1 (macroexpand (elisp--preceding-sexp)))))
-           lexical-binding)
-     (if insert-value (current-buffer) t) no-truncate char-print-limit)))
+    ;; The expression might change to a different buffer, so record the
+    ;; desired output stream now.
+    (let ((output (if insert-value (current-buffer) t)))
+      ;; Setup the lexical environment if lexical-binding is enabled.
+      (elisp--eval-last-sexp-print-value
+       (eval (macroexpand-all
+              (eval-sexp-add-defvars
+               (elisp--eval-defun-1 (macroexpand (elisp--preceding-sexp)))))
+             lexical-binding)
+       output no-truncate char-print-limit))))
 
 (defun elisp--eval-last-sexp-print-value
     (value output &optional no-truncate char-print-limit)
@@ -1560,9 +1605,6 @@ character)."
 			       unabbreviated
 			       (buffer-substring-no-properties beg end))
 	))))
-
-
-(defvar elisp--eval-last-sexp-fake-value (make-symbol "t"))
 
 (defun eval-sexp-add-defvars (exp &optional pos)
   "Prepend EXP with all the `defvar's that precede it in the buffer.
@@ -1605,16 +1647,13 @@ integer value is also printed as a character of that codepoint.
 If `eval-expression-debug-on-error' is non-nil, which is the default,
 this command arranges for all errors to enter the debugger."
   (interactive "P")
-  (if (null eval-expression-debug-on-error)
-      (values--store-value
-       (elisp--eval-last-sexp eval-last-sexp-arg-internal))
-    (let ((value
-	   (let ((debug-on-error elisp--eval-last-sexp-fake-value))
-	     (cons (elisp--eval-last-sexp eval-last-sexp-arg-internal)
-		   debug-on-error))))
-      (unless (eq (cdr value) elisp--eval-last-sexp-fake-value)
-	(setq debug-on-error (cdr value)))
-      (car value))))
+  (funcall
+   ;; Not sure why commit 4428c27c1ae7d stored into `values' only when
+   ;; `eval-expression-debug-on-error' was nil, but let's preserve that.
+   (if eval-expression-debug-on-error #'identity #'values--store-value)
+   (handler-bind ((error (if eval-expression-debug-on-error
+                             #'eval-expression--debug #'ignore)))
+     (elisp--eval-last-sexp eval-last-sexp-arg-internal))))
 
 (defun elisp--eval-defun-1 (form)
   "Treat some expressions in FORM specially.
@@ -1645,9 +1684,8 @@ Reinitialize the face according to the `defface' specification."
 		    ;; The second arg is an expression that evaluates to
 		    ;; an expression.  The second evaluation is the one
 		    ;; normally performed not by normal execution but by
-		    ;; custom-initialize-set (for example), which does not
-		    ;; use lexical-binding.
-		    (eval (eval (nth 2 form) lexical-binding))))
+		    ;; custom-initialize-set (for example).
+		    (eval (eval (nth 2 form) lexical-binding) t)))
 	 form)
 	;; `defface' is macroexpanded to `custom-declare-face'.
 	((eq (car form) 'custom-declare-face)
@@ -1674,8 +1712,7 @@ Return the result of evaluation."
   ;; FIXME: the print-length/level bindings should only be applied while
   ;; printing, not while evaluating.
   (defvar elisp--eval-defun-result)
-  (let ((debug-on-error eval-expression-debug-on-error)
-        (edebugging edebug-all-defs)
+  (let ((edebugging edebug-all-defs)
         elisp--eval-defun-result)
     (save-excursion
       ;; Arrange for eval-region to "read" the (possibly) altered form.
@@ -1754,15 +1791,9 @@ which see."
 	 (defvar edebug-all-defs)
 	 (eval-defun (not edebug-all-defs)))
 	(t
-	 (if (null eval-expression-debug-on-error)
-	     (elisp--eval-defun)
-	   (let (new-value value)
-	     (let ((debug-on-error elisp--eval-last-sexp-fake-value))
-	       (setq value (elisp--eval-defun))
-	       (setq new-value debug-on-error))
-	     (unless (eq elisp--eval-last-sexp-fake-value new-value)
-	       (setq debug-on-error new-value))
-	     value)))))
+	 (handler-bind ((error (if eval-expression-debug-on-error
+	                           #'eval-expression--debug #'ignore)))
+	   (elisp--eval-defun)))))
 
 ;;; ElDoc Support
 
@@ -1787,7 +1818,7 @@ Elements are as follows:
     (or (progn (elisp-eldoc-var-docstring callback) str)
         (progn (elisp-eldoc-funcall callback) str))))
 
-(defalias 'elisp-eldoc-documentation-function 'elisp--documentation-one-liner
+(defalias 'elisp-eldoc-documentation-function #'elisp--documentation-one-liner
   "Return Elisp documentation for the thing at point as one-line string.
 This is meant as a backward compatibility aide to the \"old\"
 Elisp eldoc behavior.  Consider variable docstrings and function
@@ -2141,8 +2172,13 @@ Calls REPORT-FN directly."
                                  (point-max)))
                   collect (flymake-make-diagnostic
                            (current-buffer)
-                           (if (= beg end) (1- beg) beg)
-                           end
+                           (if (= beg end)
+                               (max (1- beg) (point-min))
+                             beg)
+                           (if (= beg end)
+                               (min (max beg (1+ (point-min)))
+                                    (point-max))
+                             end)
                            level
                            string)))))))
 
@@ -2159,11 +2195,21 @@ directory of the buffer being compiled, and nothing else.")
                                   (dolist (path x t) (unless (stringp path)
                                                        (throw 'tag nil)))))))
 
+(defvar bytecomp--inhibit-lexical-cookie-warning)
+
 ;;;###autoload
 (defun elisp-flymake-byte-compile (report-fn &rest _args)
   "A Flymake backend for elisp byte compilation.
 Spawn an Emacs process that byte-compiles a file representing the
 current buffer state and calls REPORT-FN when done."
+  (unless (trusted-content-p)
+    ;; FIXME: Use `bwrap' and friends to compile untrusted content.
+    ;; FIXME: We emit a message *and* signal an error, because by default
+    ;; Flymake doesn't display the warning it puts into "*flmake log*".
+    (message "Disabling elisp-flymake-byte-compile in %s (untrusted content)"
+             (buffer-name))
+    (user-error "Disabling elisp-flymake-byte-compile in %s (untrusted content)"
+                (buffer-name)))
   (when elisp-flymake--byte-compile-process
     (when (process-live-p elisp-flymake--byte-compile-process)
       (kill-process elisp-flymake--byte-compile-process)))
@@ -2174,7 +2220,13 @@ current buffer state and calls REPORT-FN when done."
     (save-restriction
       (widen)
       (write-region (point-min) (point-max) temp-file nil 'nomessage))
-    (let* ((output-buffer (generate-new-buffer " *elisp-flymake-byte-compile*")))
+    (let* ((output-buffer (generate-new-buffer " *elisp-flymake-byte-compile*"))
+           ;; Hack: suppress warning about missing lexical cookie in
+           ;; *scratch* buffers.
+           (warning-suppression-opt
+            (and (derived-mode-p 'lisp-interaction-mode)
+                 '("--eval"
+                   "(setq bytecomp--inhibit-lexical-cookie-warning t)"))))
       (setq
        elisp-flymake--byte-compile-process
        (make-process
@@ -2186,6 +2238,7 @@ current buffer state and calls REPORT-FN when done."
                    ;; "--eval" "(setq load-prefer-newer t)" ; for testing
                    ,@(mapcan (lambda (path) (list "-L" path))
                              elisp-flymake-byte-compile-load-path)
+                   ,@warning-suppression-opt
                    "-f" "elisp-flymake--batch-compile-for-flymake"
                    ,temp-file)
         :connection-type 'pipe

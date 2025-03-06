@@ -1,6 +1,6 @@
 ;;; lunar-tests.el --- tests for calendar/lunar.el  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2020-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 ;; Author: Stefan Kangas <stefankangas@gmail.com>
 
@@ -41,10 +41,10 @@
    (should (equal (lunar-phase 1)
                   '((1 8 1900) "05:40" 1 "")))))
 
-(ert-deftest lunar-test-eclipse-check ()
+(ert-deftest lunar-test-check-for-eclipse ()
   (with-lunar-test
-   (should (equal (eclipse-check 10.0 1) ""))
-   (should (equal (eclipse-check 10.0 2) "** Lunar Eclipse **"))))
+   (should (equal (lunar-check-for-eclipse 10.0 1) ""))
+   (should (equal (lunar-check-for-eclipse 10.0 2) "** Lunar Eclipse **"))))
 
 (ert-deftest lunar-test-phase-list ()
   (with-lunar-test

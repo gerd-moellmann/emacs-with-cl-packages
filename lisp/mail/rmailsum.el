@@ -1,6 +1,6 @@
 ;;; rmailsum.el --- make summary buffers for the mail reader  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985, 1993-1996, 2000-2024 Free Software Foundation,
+;; Copyright (C) 1985, 1993-1996, 2000-2025 Free Software Foundation,
 ;; Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -52,7 +52,7 @@ Setting this option to nil might speed up the generation of summaries."
 
 (defcustom rmail-summary-progressively-narrow nil
   "Non-nil means progressively narrow the set of messages produced by summary.
-This allows to apply the summary criteria on top one another,
+This enables you to apply the summary criteria on top one another,
 thus progressively narrowing the selection of the messages produced
 by each summary criteria.
 For example, applying `rmail-summary-by-senders' on top
@@ -437,7 +437,9 @@ headers of the messages."
 		 (= (length rmail-summary-message-parents-vector)
 		    (1+ rmail-total-messages)))
       (rmail-summary-fill-message-parents-and-descs-vectors)))
-  (let ((enc-msgs (make-bool-vector (1+ rmail-total-messages) nil)))
+  (let ((enc-msgs
+         (with-current-buffer rmail-buffer
+           (make-bool-vector (1+ rmail-total-messages) nil))))
     (rmail-summary--walk-thread-message-recursively msgnum enc-msgs)
     (rmail-new-summary (format "thread containing message %d" msgnum)
 		       (list 'rmail-summary-by-thread msgnum)
@@ -742,13 +744,14 @@ message."
 	  (setq rmail-summary-buffer nil)))
     (save-excursion
       (let ((rbuf (current-buffer))
-	    (total rmail-total-messages))
+	    (total 0))
 	(set-buffer sumbuf)
 	;; Set up the summary buffer's contents.
 	(let ((buffer-read-only nil))
 	  (erase-buffer)
 	  (while summary-msgs
 	    (princ (cdr (car summary-msgs)) sumbuf)
+            (setq total (1+ total))
 	    (setq summary-msgs (cdr summary-msgs)))
 	  (goto-char (point-min)))
 	;; Set up the rest of its state and local variables.

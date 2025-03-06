@@ -1,6 +1,6 @@
 ;;; epg.el --- the EasyPG Library -*- lexical-binding: t -*-
 
-;; Copyright (C) 1999-2000, 2002-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2000, 2002-2025 Free Software Foundation, Inc.
 
 ;; Author: Daiki Ueno <ueno@unixuser.org>
 ;; Keywords: PGP, GnuPG
@@ -595,7 +595,12 @@ callback data (if any)."
 		       (if (epg-context-textmode context) '("--textmode"))
 		       (if (epg-context-output-file context)
 			   (list "--output" (epg-context-output-file context)))
-		       (if (epg-context-pinentry-mode context)
+		       (if (and (epg-context-pinentry-mode context)
+				(not
+				 ;; loopback doesn't work with gpgsm
+				 (and (eq (epg-context-protocol context) 'CMS)
+				      (eq (epg-context-pinentry-mode context)
+					  'loopback))))
 			   (list "--pinentry-mode"
 				 (symbol-name (epg-context-pinentry-mode
 					       context))))
@@ -671,10 +676,14 @@ callback data (if any)."
 				    :command (cons (epg-context-program context)
 						   args)
 				    :connection-type 'pipe
-				    :coding 'raw-text
+				    :coding '(raw-text . nil)
 				    :filter #'epg--process-filter
 				    :stderr error-process
 				    :noquery t))))
+    ;; We encode and decode ourselves the text sent/received from gpg,
+    ;; so the below disables automatic encoding and decoding by
+    ;; subprocess communications routines.
+    (set-process-coding-system process 'raw-text 'raw-text-unix)
     (setf (epg-context-process context) process)))
 
 (defun epg--process-filter (process input)
@@ -1264,8 +1273,7 @@ callback data (if any)."
 	keys string field index)
     (if name
 	(progn
-	  (unless (listp name)
-	    (setq name (list name)))
+          (setq name (ensure-list name))
 	  (while name
 	    (setq args (append args (list list-keys-option (car name)))
 		  name (cdr name))))

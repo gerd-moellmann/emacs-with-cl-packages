@@ -1,6 +1,6 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990--1995, 1998--1999, 2001--2024 Free Software
+@c Copyright (C) 1990--1995, 1998--1999, 2001--2025 Free Software
 @c Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Numbers
@@ -270,10 +270,6 @@ two NaNs as equal when their
 signs and significands agree.  Significands of NaNs are
 machine-dependent, as are the digits in their string representation.
 
-  NaNs are not available on systems which do not use IEEE
-floating-point arithmetic; if the read syntax for a NaN is used on a
-VAX, for example, the reader signals an error.
-
   When NaNs and signed zeros are involved, non-numeric functions like
 @code{eql}, @code{equal}, @code{sxhash-eql}, @code{sxhash-equal} and
 @code{gethash} determine whether values are indistinguishable, not
@@ -291,6 +287,12 @@ Here are read syntaxes for these special floating-point values:
 @item not-a-number
 @samp{0.0e+NaN} and @samp{-0.0e+NaN}
 @end table
+
+  Infinities and NaNs are not available on legacy systems that lack
+IEEE floating-point arithmetic.  On a circa 1980 VAX, for example,
+Lisp reads @samp{1.0e+INF} as a large but finite floating-point number,
+and @samp{0.0e+NaN} as some other non-numeric Lisp object that provokes an
+error if used numerically.
 
   The following functions are specialized for handling floating-point
 numbers:
@@ -474,6 +476,7 @@ This function tests whether its arguments are numerically equal, and
 returns @code{t} if they are not, and @code{nil} if they are.
 @end defun
 
+@anchor{definition of <}
 @defun <  number-or-marker &rest number-or-markers
 This function tests whether each argument is strictly less than the
 following argument.  It returns @code{t} if so, @code{nil} otherwise.
@@ -889,13 +892,13 @@ reproducing the same pattern moved over.
 
   The bitwise operations in Emacs Lisp apply only to integers.
 
-@defun ash integer1 count
+@defun ash integer count
 @cindex arithmetic shift
-@code{ash} (@dfn{arithmetic shift}) shifts the bits in @var{integer1}
+@code{ash} (@dfn{arithmetic shift}) shifts the bits in @var{integer}
 to the left @var{count} places, or to the right if @var{count} is
 negative.  Left shifts introduce zero bits on the right; right shifts
 discard the rightmost bits.  Considered as an integer operation,
-@code{ash} multiplies @var{integer1} by
+@code{ash} multiplies @var{integer} by
 @ifnottex
 2**@var{count},
 @end ifnottex
@@ -964,20 +967,20 @@ Here are examples of shifting left or right by two bits:
 @end smallexample
 @end defun
 
-@defun lsh integer1 count
+@defun lsh integer count
 @cindex logical shift
 @code{lsh}, which is an abbreviation for @dfn{logical shift}, shifts the
-bits in @var{integer1} to the left @var{count} places, or to the right
+bits in @var{integer} to the left @var{count} places, or to the right
 if @var{count} is negative, bringing zeros into the vacated bits.  If
-@var{count} is negative, then @var{integer1} must be either a fixnum
+@var{count} is negative, then @var{integer} must be either a fixnum
 or a positive bignum, and @code{lsh} treats a negative fixnum as if it
 were unsigned by subtracting twice @code{most-negative-fixnum} before
 shifting, producing a nonnegative result.  This quirky behavior dates
 back to when Emacs supported only fixnums; nowadays @code{ash} is a
 better choice.
 
-As @code{lsh} behaves like @code{ash} except when @var{integer1} and
-@var{count1} are both negative, the following examples focus on these
+As @code{lsh} behaves like @code{ash} except when @var{integer} and
+@var{count} are both negative, the following examples focus on these
 exceptional cases.  These examples assume 30-bit fixnums.
 
 @smallexample

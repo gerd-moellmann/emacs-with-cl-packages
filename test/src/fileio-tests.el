@@ -1,6 +1,6 @@
 ;;; fileio-tests.el --- unit tests for src/fileio.c      -*- lexical-binding: t; -*-
 
-;; Copyright 2017-2024 Free Software Foundation, Inc.
+;; Copyright 2017-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -50,7 +50,7 @@ Also check that an encoding error can appear in a symlink."
   ;; Some Windows versions don't support symlinks, and those which do
   ;; will pop up UAC elevation prompts, so we disable this test on
   ;; MS-Windows.
-  (skip-unless (not (eq system-type 'windows-nt)))
+  (skip-when (eq system-type 'windows-nt))
   (should (equal nil (fileio-tests--symlink-failure))))
 
 (ert-deftest fileio-tests--directory-file-name ()
@@ -197,8 +197,7 @@ Also check that an encoding error can appear in a symlink."
   (skip-unless (file-exists-p "/dev/urandom"))
   (with-temp-buffer
     (set-buffer-multibyte nil)
-    ;; Fails in Emacs 29 because /dev/urandom is typically seekable (bug#65156)
-    ;(should-error (insert-file-contents "/dev/urandom" nil 5 10))
+    (should-error (insert-file-contents "/dev/urandom" nil 5 10))
     (insert-file-contents "/dev/urandom" nil nil 10)
     (should (= (buffer-size) 10))))
 

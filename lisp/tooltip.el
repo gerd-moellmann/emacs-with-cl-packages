@@ -1,6 +1,6 @@
 ;;; tooltip.el --- show tooltip windows  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1997, 1999-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 1999-2025 Free Software Foundation, Inc.
 
 ;; Author: Gerd Moellmann <gerd@acm.org>
 ;; Keywords: help c mouse tools
@@ -135,8 +135,8 @@ of the `tooltip' face are used instead."
      :inherit variable-pitch))
   "Face for tooltips.
 
-When using the GTK toolkit, this face will only be used if
-`x-gtk-use-system-tooltips' is non-nil."
+When using the GTK toolkit, NS, or Haiku, this face will only
+be used if `use-system-tooltips' is nil."
   :group 'tooltip
   :group 'basic-faces)
 
@@ -178,7 +178,7 @@ rest are not called.")
   "Return the buffer over which event EVENT occurred.
 This might return nil if the event did not occur over a buffer."
   (let ((window (posn-window (event-end event))))
-    (and window (window-buffer window))))
+    (and (windowp window) (window-buffer window))))
 
 
 ;;; Timeout for tooltip display
@@ -194,13 +194,13 @@ This might return nil if the event did not occur over a buffer."
 (defun tooltip-cancel-delayed-tip ()
   "Disable the tooltip timeout."
   (when tooltip-timeout-id
-    (disable-timeout tooltip-timeout-id)
+    (cancel-timer tooltip-timeout-id)
     (setq tooltip-timeout-id nil)))
 
 (defun tooltip-start-delayed-tip ()
   "Add a one-shot timeout to call function `tooltip-timeout'."
   (setq tooltip-timeout-id
-	(add-timeout (tooltip-delay) 'tooltip-timeout nil)))
+        (run-with-timer (tooltip-delay) nil 'tooltip-timeout nil)))
 
 (defun tooltip-timeout (_object)
   "Function called when timer with id `tooltip-timeout-id' fires."

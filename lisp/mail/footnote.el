@@ -1,6 +1,6 @@
 ;;; footnote.el --- footnote support for message mode  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1997, 2000-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 2000-2025 Free Software Foundation, Inc.
 
 ;; Author: Steven L Baur <steve@xemacs.org> (1997-2011)
 ;;         Boruch Baum <boruch_baum@gmx.com> (2017-)
@@ -347,10 +347,11 @@ Use Unicode characters for footnoting."
     ("ק" "ר" "ש" "ת" "תק" "תר" "תש" "תת" "תתק")))
 
 (defconst footnote-hebrew-numeric-regex
-  (let ((numchars (string-to-list
-		   (apply #'concat (apply #'append footnote-hebrew-numeric)))))
+  (let ((numchars
+         (delete-dups
+          (string-to-list
+           (apply #'concat (apply #'append footnote-hebrew-numeric))))))
     (rx-to-string `(1+ (in ?' ,@numchars)))))
-;; (defconst footnote-hebrew-numeric-regex "\\([אבגדהוזחט]'\\)?\\(ת\\)?\\(ת\\)?\\([קרשת]\\)?\\([טיכלמנסעפצ]\\)?\\([אבגדהוזחט]\\)?")
 
 (defun footnote--hebrew-numeric (n)
   "Supports 9999 footnotes, then rolls over."

@@ -1,10 +1,9 @@
 ;;; use-package-core.el --- A configuration macro for simplifying your .emacs  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2012-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2025 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@newartisans.com>
 ;; Maintainer: John Wiegley <johnw@newartisans.com>
-;; Package: use-package
 
 ;; This file is part of GNU Emacs.
 
@@ -77,6 +76,7 @@
     :functions
     :preface
     :if :when :unless
+    :vc
     :no-require
     :catch
     :after
@@ -114,7 +114,8 @@ Note that `:disabled' is special in this list, as it causes
 nothing at all to happen, even if the rest of the `use-package'
 declaration is incorrect."
   :type '(repeat symbol)
-  :group 'use-package)
+  :group 'use-package
+  :version "29.1")
 
 (defcustom use-package-deferring-keywords
   '(:bind-keymap
@@ -128,21 +129,24 @@ function symbols that can be autoloaded from the module; whereas
 the default keywords provided here always defer loading unless
 otherwise requested."
   :type '(repeat symbol)
-  :group 'use-package)
+  :group 'use-package
+  :version "29.1")
 
 (defcustom use-package-ignore-unknown-keywords nil
   "If non-nil, warn instead of signaling error for unknown keywords.
 The unknown keyword and its associated arguments will be ignored
 in the `use-package' expansion."
   :type 'boolean
-  :group 'use-package)
+  :group 'use-package
+  :version "29.1")
 
 (defcustom use-package-use-theme t
   "If non-nil, use a custom theme to avoid saving :custom
 variables twice (once in the Custom file, once in the use-package
 call)."
   :type 'boolean
-  :group 'use-package)
+  :group 'use-package
+  :version "29.1")
 
 (defcustom use-package-verbose nil
   "Whether to report about loading and configuration details.
@@ -154,25 +158,29 @@ then the expanded macros do their job silently."
                  (const :tag "Quiet" nil)
                  (const :tag "Verbose" t)
                  (const :tag "Debug" debug))
-  :group 'use-package)
+  :group 'use-package
+  :version "29.1")
 
 (defcustom use-package-check-before-init nil
   "If non-nil, check that package exists before executing its `:init' block.
 This check is performed by calling `locate-library'."
   :type 'boolean
-  :group 'use-package)
+  :group 'use-package
+  :version "29.1")
 
 (defcustom use-package-always-defer nil
   "If non-nil, assume `:defer t' unless `:demand' is used.
 See also `use-package-defaults', which uses this value."
   :type 'boolean
-  :group 'use-package)
+  :group 'use-package
+  :version "29.1")
 
 (defcustom use-package-always-demand nil
   "If non-nil, assume `:demand t' unless `:defer' is used.
 See also `use-package-defaults', which uses this value."
   :type 'boolean
-  :group 'use-package)
+  :group 'use-package
+  :version "29.1")
 
 (defcustom use-package-defaults
   '(;; this '(t) has special meaning; see `use-package-handler/:config'
@@ -214,7 +222,8 @@ attempted."
           (list (symbol :tag "Keyword")
                 (choice :tag "Default value" sexp function)
                 (choice :tag "Enable if non-nil" sexp function)))
-  :group 'use-package)
+  :group 'use-package
+  :version "29.1")
 
 (defcustom use-package-merge-key-alist
   '((:if    . (lambda (new old) `(and ,new ,old)))
@@ -238,21 +247,24 @@ handler is called only once."
                                   use-package-keywords)
                         (const :tag "Any" t))
                 function))
-  :group 'use-package)
+  :group 'use-package
+  :version "29.1")
 
 (defcustom use-package-hook-name-suffix "-hook"
   "Text append to the name of hooks mentioned by :hook.
 Set to nil if you don't want this to happen; it's only a
 convenience."
   :type '(choice string (const :tag "No suffix" nil))
-  :group 'use-package)
+  :group 'use-package
+  :version "29.1")
 
 (defcustom use-package-minimum-reported-time 0.1
   "Minimal load time that will be reported.
 Note that `use-package-verbose' has to be set to a non-nil value
 for anything to be reported at all."
   :type 'number
-  :group 'use-package)
+  :group 'use-package
+  :version "29.1")
 
 (defcustom use-package-inject-hooks nil
   "If non-nil, add hooks to the `:init' and `:config' sections.
@@ -278,7 +290,8 @@ user-supplied configuration is not evaluated, so be certain to
 return t if you only wish to add behavior to what the user had
 specified."
   :type 'boolean
-  :group 'use-package)
+  :group 'use-package
+  :version "29.1")
 
 (defcustom use-package-expand-minimally nil
   "If non-nil, make the expanded code as minimal as possible.
@@ -293,7 +306,8 @@ configuration works, it will make the byte-compiled file as
 minimal as possible.  It can also help with reading macro-expanded
 definitions, to understand the main intent of what's happening."
   :type 'boolean
-  :group 'use-package)
+  :group 'use-package
+  :version "29.1")
 
 (defcustom use-package-form-regexp-eval
   `(concat ,(eval-when-compile
@@ -306,7 +320,8 @@ definitions, to understand the main intent of what's happening."
 This is used by `use-package-jump-to-package-form' and
 `use-package-enable-imenu-support'."
   :type 'sexp
-  :group 'use-package)
+  :group 'use-package
+  :version "29.1")
 
 (defcustom use-package-enable-imenu-support nil
   "If non-nil, cause imenu to see `use-package' declarations.
@@ -325,14 +340,18 @@ Must be set before loading `use-package'."
                  (remove (list "Packages" ,use-package-form-regexp-eval 2)
                          lisp-imenu-generic-expression))))
       (set-default sym value))
-  :group 'use-package)
+  :group 'use-package
+  :version "29.1")
 
+;; Redundant in Emacs 26 or later, which already highlights macro names.
 (defconst use-package-font-lock-keywords
   '(("(\\(use-package\\)\\_>[ \t']*\\(\\(?:\\sw\\|\\s_\\)+\\)?"
      (1 font-lock-keyword-face)
      (2 font-lock-constant-face nil t))))
-
-(font-lock-add-keywords 'emacs-lisp-mode use-package-font-lock-keywords)
+(make-obsolete-variable 'use-package-font-lock-keywords
+                        'lisp-el-font-lock-keywords "30.1")
+(when (< emacs-major-version 26)
+  (font-lock-add-keywords 'emacs-lisp-mode use-package-font-lock-keywords))
 
 (defcustom use-package-compute-statistics nil
   "If non-nil, compute statistics concerned `use-package' declarations.
@@ -341,6 +360,21 @@ if this option is enabled, you must require `use-package' in your
 user init file at loadup time, or you will see errors concerning
 undefined variables."
   :type 'boolean
+  :group 'use-package
+  :version "29.1")
+
+(defcustom use-package-vc-prefer-newest nil
+  "Prefer the newest commit over the latest release.
+By default, much like GNU ELPA and NonGNU ELPA, the `:vc' keyword
+tracks the latest stable release of a package.  If this option is
+non-nil, the latest commit is preferred instead.  This has the
+same effect as specifying `:rev :newest' in every invocation of
+`:vc'.
+
+Note that always tracking a package's latest commit might lead to
+stability issues."
+  :type 'boolean
+  :version "30.1"
   :group 'use-package)
 
 (defvar use-package-statistics (make-hash-table))
@@ -518,6 +552,24 @@ This is in contrast to merely setting it to 0."
        (let ((xs (use-package-split-list (apply-partially #'eq key) lst)))
          (cons (car xs) (use-package-split-list-at-keys key (cddr xs))))))
 
+(defun use-package-split-when (pred xs)
+  "Repeatedly split a list according to PRED.
+Split XS every time PRED returns t.  Keep the delimiters, and
+arrange the result in an alist.  For example:
+
+  (use-package-split-when #\\='keywordp \\='(:a 1 :b 2 3 4 :c 5))
+  ;; => \\='((:a 1) (:b 2 3 4) (:c 5))
+
+  (use-package-split-when (lambda (x) (> x 2)) \\='(10 1 3 2 4 -1 8 9))
+  ;; => \\='((10 1) (3 2) (4 -1) (8) (9))"
+  (unless (seq-empty-p xs)
+    (pcase-let* ((`(,first . ,rest) (if (funcall pred (car xs))
+                                        (cons (car xs) (cdr xs))
+                                      (use-package-split-list pred xs)))
+                 (`(,val . ,recur) (use-package-split-list pred rest)))
+      (cons (cons first val)
+            (use-package-split-when pred recur)))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;;; Keywords
@@ -691,9 +743,9 @@ extending any keys already present."
 
     ;; If at this point no :load, :defer or :no-require has been seen, then
     ;; :load the package itself.
-    (when (and (not (plist-member args :load))
-               (not (plist-member args :defer))
-               (not (plist-member args :no-require)))
+    (when (and (not (plist-get args :load))
+               (not (plist-get args :defer))
+               (not (plist-get args :no-require)))
       (setq args (append args `(:load (,name)))))
 
     ;; Sort the list of keywords based on the order of `use-package-keywords'.
@@ -1036,15 +1088,23 @@ meaning:
   Configured        :config has been processed (the package is loaded!)
   Initialized       :init has been processed (load status unknown)
   Prefaced          :preface has been processed
-  Declared          the use-package declaration was seen"
+  Declared          the use-package declaration was seen
+
+Customize the user option `use-package-compute-statistics' to
+enable gathering statistics."
   (interactive)
-  (with-current-buffer (get-buffer-create "*use-package statistics*")
-    (setq tabulated-list-entries
-          (mapcar #'use-package-statistics-convert
-                  (hash-table-keys use-package-statistics)))
-    (use-package-statistics-mode)
-    (tabulated-list-print)
-    (display-buffer (current-buffer))))
+  (let ((statistics (hash-table-keys use-package-statistics)))
+    (unless statistics
+      (if use-package-compute-statistics
+          (user-error "No use-package statistics available")
+        (user-error (concat "Customize `use-package-compute-statistics'"
+                            " to enable reporting"))))
+    (with-current-buffer (get-buffer-create "*use-package statistics*")
+      (setq tabulated-list-entries
+            (mapcar #'use-package-statistics-convert statistics))
+      (use-package-statistics-mode)
+      (tabulated-list-print)
+      (display-buffer (current-buffer)))))
 
 (defvar use-package-statistics-status-order
   '(("Declared"    . 0)
@@ -1055,6 +1115,7 @@ meaning:
 (define-derived-mode use-package-statistics-mode tabulated-list-mode
   "use-package statistics"
   "Show current statistics gathered about `use-package' declarations."
+  :interactive nil
   (setq tabulated-list-format
         ;; The sum of column width is 80 characters:
         [("Package" 25 t)
@@ -1152,7 +1213,8 @@ meaning:
     #'use-package-normalize-paths))
 
 (defun use-package-handler/:load-path (name _keyword arg rest state)
-  (let ((body (use-package-process-keywords name rest state)))
+  (let ((body (use-package-process-keywords name rest
+                (plist-put state :load-path arg))))
     (use-package-concat
      (mapcar #'(lambda (path)
                  `(eval-and-compile (add-to-list 'load-path ,path)))
@@ -1314,11 +1376,16 @@ meaning:
           (when fun
             (mapcar
              #'(lambda (sym)
-                 `(add-hook
-                   (quote ,(intern
-                            (concat (symbol-name sym)
-                                    use-package-hook-name-suffix)))
-                   (function ,fun)))
+                 (let ((symname (symbol-name sym)))
+                   (if (and (boundp sym)
+                            ;; Mode variables are usually bound, but
+                            ;; their hooks are named FOO-mode-hook.
+                            (not (string-suffix-p "-mode" symname)))
+                       `(add-hook (quote ,sym) (function ,fun))
+                     `(add-hook
+                       (quote ,(intern
+                                (concat symname use-package-hook-name-suffix)))
+                       (function ,fun)))))
              (use-package-hook-handler-normalize-mode-symbols syms)))))
     (use-package-normalize-commands args))))
 
@@ -1578,6 +1645,122 @@ no keyword implies `:all'."
      (when use-package-compute-statistics
        `((use-package-statistics-gather :config ',name t))))))
 
+;;;; :vc
+
+(defun use-package-vc-install (arg &optional local-path)
+  "Install a package with `package-vc.el'.
+ARG is a list of the form (NAME OPTIONS REVISION), as returned by
+`use-package-normalize--vc-arg'.  If LOCAL-PATH is non-nil, call
+`package-vc-install-from-checkout'; otherwise, indicating a
+remote host, call `package-vc-install' instead."
+  (pcase-let* ((`(,name ,opts ,rev) arg)
+               (spec (if opts (cons name opts) name)))
+    (unless (package-installed-p name)
+      (if local-path
+          (package-vc-install-from-checkout local-path (symbol-name name))
+        (package-vc-install spec rev)))))
+
+(defun use-package-handler/:vc (name _keyword arg rest state)
+  "Generate code to install package NAME, or do so directly.
+When the use-package declaration is part of a byte-compiled file,
+install the package during compilation; otherwise, add it to the
+macro expansion and wait until runtime.  The remaining arguments
+are as follows:
+
+_KEYWORD is ignored.
+
+ARG is the normalized input to the `:vc' keyword, as returned by
+the `use-package-normalize/:vc' function.
+
+REST is a plist of other (following) keywords and their
+arguments, each having already been normalized by the respective
+function.
+
+STATE is a plist of any state that keywords processed before
+`:vc' (see `use-package-keywords') may have accumulated.
+
+Also see the Info node `(use-package) Creating an extension'."
+  (let ((body (use-package-process-keywords name rest state))
+        (local-path (car (plist-get state :load-path))))
+    ;; See `use-package-handler/:ensure' for an explanation.
+    (if (bound-and-true-p byte-compile-current-file)
+        (funcall #'use-package-vc-install arg local-path)        ; compile time
+      (push `(use-package-vc-install ',arg ,local-path) body))   ; runtime
+    body))
+
+(defconst use-package-vc-valid-keywords
+  '( :url :branch :lisp-dir :main-file :vc-backend :rev
+     :shell-command :make :ignored-files)
+  "Valid keywords for the `:vc' keyword.
+See Info node `(emacs)Fetching Package Sources'.")
+
+(defun use-package-normalize--vc-arg (arg)
+  "Normalize possible arguments to the `:vc' keyword.
+ARG is a cons-cell of approximately the form that
+`package-vc-selected-packages' accepts, plus an additional `:rev'
+keyword.  If `:rev' is not given, it defaults to `:last-release'.
+
+Returns a list (NAME SPEC REV), where (NAME . SPEC) is compliant
+with `package-vc-selected-packages' and REV is a (possibly nil,
+indicating the latest commit) revision."
+  (cl-flet* ((ensure-string (s)
+               (if (and s (stringp s)) s (symbol-name s)))
+             (ensure-symbol (s)
+               (if (and s (stringp s)) (intern s) s))
+             (normalize (k v)
+               (pcase k
+                 (:rev (pcase v
+                         ('nil (if use-package-vc-prefer-newest nil :last-release))
+                         (:last-release :last-release)
+                         (:newest nil)
+                         (_ (ensure-string v))))
+                 (:vc-backend (ensure-symbol v))
+                 (:ignored-files (if (listp v) v (list v)))
+                 (_ (ensure-string v)))))
+    (pcase-let* ((`(,name . ,opts) arg))
+      (if (stringp opts)                ; (NAME . VERSION-STRING) ?
+          (list name opts)
+        (let ((opts (use-package-split-when
+                     (lambda (el)
+                       (seq-contains-p use-package-vc-valid-keywords el))
+                     opts)))
+          ;; Error handling
+          (cl-loop for (k . _) in opts
+                   if (not (member k use-package-vc-valid-keywords))
+                   do (use-package-error
+                       (format "Keyword :vc received unknown argument: %s. Supported keywords are: %s"
+                               k use-package-vc-valid-keywords)))
+          ;; Actual normalization
+          (list name
+                (cl-loop for (k . v) in opts
+                         if (not (eq k :rev))
+                         nconc (list k (normalize k (if (length= v 1) (car v) v))))
+                (normalize :rev (car (alist-get :rev opts)))))))))
+
+(defun use-package-normalize/:vc (name _keyword args)
+  "Normalize possible arguments to the `:vc' keyword.
+NAME is the name of the `use-package' declaration, _KEYWORD is
+ignored, and ARGS it a list of arguments given to the `:vc'
+keyword, the cdr of which is ignored.
+
+See `use-package-normalize--vc-arg' for most of the actual
+normalization work.  Also see the Info
+node `(use-package) Creating an extension'."
+  (let ((arg (car args)))
+    (pcase arg
+      ((or 'nil 't) (list name))                 ; guess name
+      ((pred symbolp) (list arg))                ; use this name
+      ((pred stringp) (list name arg))           ; version string + guess name
+      (`(,(pred keywordp) . ,(pred listp))       ; list + guess name
+       (use-package-normalize--vc-arg (cons name arg)))
+      (`(,(pred symbolp) . ,(or (pred listp)     ; list/version string + name
+                                (pred stringp)))
+       (use-package-normalize--vc-arg arg))
+      (_ (use-package-error "Unrecognized argument to :vc.\
+ The keyword wants an argument of nil, t, a name of a package,\
+ or a cons-cell as accepted by `package-vc-selected-packages', where \
+ the accepted plist is augmented by a `:rev' keyword.")))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;;; The main macro
@@ -1667,7 +1850,9 @@ Usage:
                  (compare with `custom-set-variables').
 :custom-face     Call `custom-set-faces' with each face definition.
 :ensure          Loads the package using package.el if necessary.
-:pin             Pin the package to an archive."
+:pin             Pin the package to an archive.
+:vc              Install the package directly from a version control system
+                 (using `package-vc.el')."
   (declare (indent defun))
   (unless (memq :disabled args)
     (macroexp-progn

@@ -1,6 +1,6 @@
 ;;; cus-start.el --- define customization properties of builtins  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1997, 1999-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1997, 1999-2025 Free Software Foundation, Inc.
 
 ;; Author: Per Abrahamsen <abraham@dina.kvl.dk>
 ;; Keywords: internal
@@ -231,6 +231,7 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 	     (inverse-video display boolean)
 	     (visible-bell display boolean)
 	     (no-redraw-on-reenter display boolean)
+	     (mouse-prefer-closest-glyph display boolean)
 
              ;; doc.c
              (text-quoting-style display
@@ -310,6 +311,7 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
                       (const :tag "Off" :value nil)
                       (const :tag "On" :value t)
                       (const :tag "Auto-raise" :value auto-raise)) "26.1")
+             (yes-or-no-prompt menu string "30.1")
 	     ;; fontset.c
 	     ;; FIXME nil is the initial value, fontset.el setqs it.
 	     (vertical-centering-font-regexp display
@@ -359,6 +361,10 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 	     ;; fringe.c
 	     (overflow-newline-into-fringe fringe boolean)
 	     ;; image.c
+             (image-scaling-factor image
+                                   (choice number
+                                           (const :tag "Automatically compute" auto))
+                                   "26.1")
 	     (imagemagick-render-type image integer "24.1")
 	     ;; indent.c
 	     (indent-tabs-mode indent boolean)
@@ -369,6 +375,7 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 	     (auto-save-timeout auto-save (choice (const :tag "off" nil)
 						  (integer :format "%v")))
 	     (echo-keystrokes minibuffer number)
+             (echo-keystrokes-help minibuffer boolean "30.1")
 	     (polling-period keyboard float)
 	     (double-click-time mouse (restricted-sexp
 				       :match-alternatives (integerp 'nil 't)))
@@ -827,6 +834,8 @@ This should only be chosen under exceptional circumstances,
 since it could result in memory overflow and make Emacs crash."
 					      nil))
 			       "27.1")
+             ;; w32fns.c
+             (w32-follow-system-dark-mode display boolean "30.1")
 	     ;; window.c
 	     (temp-buffer-show-function windows (choice (const nil) function))
 	     (next-screen-context-lines windows integer)
@@ -1064,6 +1073,8 @@ since it could result in memory overflow and make Emacs crash."
 	     (x-select-enable-clipboard-manager killing boolean "24.1")
 	     ;; xsettings.c
 	     (font-use-system-font font-selection boolean "23.2")
+             ;; xwidget.c
+             (xwidget-webkit-disable-javascript xwidget boolean "30.1")
              ;; haikuterm.c
              (haiku-debug-on-fatal-error debug boolean "29.1")
              ;; haikufns.c
@@ -1129,6 +1140,8 @@ since it could result in memory overflow and make Emacs crash."
 			      (symbol-name symbol))
 		       ;; Any function from fontset.c will do.
 		       (fboundp 'new-fontset))
+                      ((string-match "xwidget-" (symbol-name symbol))
+                       (boundp 'xwidget-internal))
 		      (t t))))
     (if (not (boundp symbol))
 	;; If variables are removed from C code, give an error here!

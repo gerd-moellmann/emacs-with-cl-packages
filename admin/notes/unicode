@@ -1,6 +1,6 @@
                                             -*-mode: text; coding: utf-8;-*-
 
-Copyright (C) 2002-2024 Free Software Foundation, Inc.
+Copyright (C) 2002-2025 Free Software Foundation, Inc.
 See the end of the file for license conditions.
 
 Importing a new Unicode Standard version into Emacs
@@ -39,9 +39,9 @@ repository).
 
 Next, review the assignment of default values of the Bidi Class
 property to blocks in the file extracted/DerivedBidiClass.txt from the
-UCD (search for "unassigned" in that file).  Any changes should be
-reflected in the unidata-gen.el file, where it sets up the default
-values around line 210.
+UCD (search for "unassigned" and "@missing" in that file).  Any
+changes should be reflected in the unidata-gen.el file, where it sets
+up the default values around line 210.
 
 Then Emacs should be rebuilt for them to take effect.  Rebuilding
 Emacs updates several derived files elsewhere in the Emacs source
@@ -61,9 +61,10 @@ Next, review the changes in UnicodeData.txt vs the previous version
 used by Emacs.  Any changes, be it introduction of new scripts or
 addition of codepoints to existing scripts, might need corresponding
 changes in the data used for filling the category-table, case-table,
-and char-width-table.  The additional scripts should cause automatic
-updates in charscript.el, but it is a good idea to look at the results
-and see if any changes in admin/unidata/blocks.awk are required.
+and char-width-table in characters.el.  The additional scripts should
+cause automatic updates in charscript.el, but it is a good idea to
+look at the results and see if any changes in admin/unidata/blocks.awk
+are required.
 
 The setting of char-width-table around line 1200 of characters.el
 should be checked against the latest version of the Unicode file
@@ -72,7 +73,10 @@ characters are those marked with W or F in that file.  Zero-width
 characters are not taken from EastAsianWidth.txt, they are those whose
 Unicode General Category property is one of Mn, Me, or Cf, and also
 Hangul jungseong and jongseong characters (a.k.a. "Jamo medial vowels"
-and "Jamo final consonants").
+and "Jamo final consonants").  The list of "ambiguous-width
+characters" recorded in the ambiguous-width-chars table (around line
+1400 of characters.el) should also be checked against the latest
+Unicode data in EastAsianWidth.txt.
 
 Any new scripts added by UnicodeData.txt will also need updates to
 script-representative-chars defined in fontset.el, and also the list
@@ -96,12 +100,18 @@ Specifically, the values of 'ucs-normalize-composition-exclusions' and
 verified against the latest Unicode data files.
 
 Next, test normalization functions against NormalizationTests.txt,
-in the test/ directory run:
+in the top-level directory run:
 
-  make lisp/international/ucs-normalize-tests
+  make -C test lisp/international/ucs-normalize-tests
 
 See commentary in test/lisp/international/ucs-normalize-tests.el
 regarding failing lines.
+
+Changes in UTS#46 and other relevant Unicode data might break our
+features that detect confusable and suspicious text, so run
+test/lisp-international/textsec-tests to check that:
+
+  make -C test lisp/international/textsec-tests
 
 The file BidiCharacterTest.txt should be copied to the test suite, and
 if its format has changed, the file biditest.el there should be
@@ -307,6 +317,12 @@ nontrivial changes to the build process.
 
 	src/msdos.c
 
+ * iso-latin-1
+
+     This file is used to test Emacs encoding.
+
+        test/lisp/gnus/mm-decode-resources/win1252-multipart.bin
+
  * iso-2022-cn-ext
 
      This file is externally generated from leim/MISC-DIC/cangjie-table.b5
@@ -357,19 +373,27 @@ nontrivial changes to the build process.
      Some of the entries in this list are patterns, and stand for any
      files with the listed extension.
 
+	*.bmp
+	*.cur
+	*.gif
+	*.gpg
 	*.gz
 	*.icns
 	*.ico
+	*.jpg
+	*.kbx
+	*.key
 	*.pbm
 	*.pdf
+	*.pif
 	*.png
 	*.sig
+	*.tiff
+	*.webp
+	*.zip
 	etc/e/eterm-color
-	etc/package-keyring.gpg
-	msdos/emacs.pif
-	nextstep/GNUstep/Emacs.base/Resources/emacs.tiff
-	nt/icons/hand.cur
-
+	etc/e/eterm-direct
+	java/emacs.keystore
 
 This file is part of GNU Emacs.
 

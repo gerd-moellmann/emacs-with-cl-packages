@@ -1,6 +1,6 @@
 ;;; vc-hg.el --- VC backend for the mercurial version control system  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2006-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2025 Free Software Foundation, Inc.
 
 ;; Author: Ivan Kanis
 ;; Maintainer: emacs-devel@gnu.org
@@ -77,6 +77,7 @@
 ;; - make-version-backups-p (file)             ??
 ;; - previous-revision (file rev)              OK
 ;; - next-revision (file rev)                  OK
+;; - file-name-changes (rev)                   OK
 ;; - check-headers ()                          ??
 ;; - delete-file (file)                        TEST IT
 ;; - rename-file (old new)                     OK
@@ -216,8 +217,9 @@ If `ask', you will be prompted for a branch type."
 
 (defun vc-hg-state (file)
   "Hg-specific version of `vc-state'."
-  (let ((state (vc-hg-state-fast file)))
-    (if (eq state 'unsupported) (vc-hg-state-slow file) state)))
+  (unless (file-directory-p file)
+    (let ((state (vc-hg-state-fast file)))
+      (if (eq state 'unsupported) (vc-hg-state-slow file) state))))
 
 (defun vc-hg-state-slow (file)
   "Determine status of FILE by running hg."
@@ -351,47 +353,24 @@ specific file to query."
 
 (defun vc-hg-mode-line-string (file)
   "Hg-specific version of `vc-mode-line-string'."
-  (let* ((backend-name "Hg")
-         (truename (file-truename file))
-         (state (vc-state truename))
-         (state-echo nil)
-         (face nil)
-         (rev (and state
-                   (let ((default-directory
-                          (expand-file-name (vc-hg-root truename))))
-                     (vc-hg--symbolic-revision
-                      "."
-                      (and vc-hg-use-file-version-for-mode-line-version
-                           truename)))))
-         (rev (or rev "???")))
-    (propertize
-     (cond ((or (eq state 'up-to-date)
-                (eq state 'needs-update))
-            (setq state-echo "Up to date file")
-            (setq face 'vc-up-to-date-state)
-            (concat backend-name "-" rev))
-           ((eq state 'added)
-            (setq state-echo "Locally added file")
-            (setq face 'vc-locally-added-state)
-            (concat backend-name "@" rev))
-           ((eq state 'conflict)
-            (setq state-echo "File contains conflicts after the last merge")
-            (setq face 'vc-conflict-state)
-            (concat backend-name "!" rev))
-           ((eq state 'removed)
-            (setq state-echo "File removed from the VC system")
-            (setq face 'vc-removed-state)
-            (concat backend-name "!" rev))
-           ((eq state 'missing)
-            (setq state-echo "File tracked by the VC system, but missing from the file system")
-            (setq face 'vc-missing-state)
-            (concat backend-name "?" rev))
-           (t
-            (setq state-echo "Locally modified file")
-            (setq face 'vc-edited-state)
-            (concat backend-name ":" rev)))
-     'face face
-     'help-echo (concat state-echo " under the " backend-name
+  (pcase-let* ((backend-name "Hg")
+               (truename (file-truename file))
+               (state (vc-state truename))
+               (`(,state-echo ,face ,indicator)
+                (vc-mode-line-state state))
+               (rev (and state
+                         (let ((default-directory
+                                (expand-file-name (vc-hg-root truename))))
+                           (vc-hg--symbolic-revision
+                            "."
+                            (and vc-hg-use-file-version-for-mode-line-version
+                                 truename)))))
+               (rev (or rev "???"))
+               (state-string (concat (unless (eq vc-display-status 'no-backend)
+                                       backend-name)
+                                     indicator rev)))
+    (propertize state-string 'face face 'help-echo
+                (concat state-echo " under the " backend-name
                         " version control system"))))
 
 ;;; History functions
@@ -500,7 +479,6 @@ This requires hg 4.4 or later, for the \"-L\" option of \"hg log\"."
     map))
 
 (defvar vc-hg--log-view-long-font-lock-keywords nil)
-(defvar font-lock-keywords)
 (defvar vc-hg-region-history-font-lock-keywords
   '((vc-hg-region-history-font-lock)))
 
@@ -581,7 +559,7 @@ This requires hg 4.4 or later, for the \"-L\" option of \"hg log\"."
 (defun vc-hg-annotate-command (file buffer &optional revision)
   "Execute \"hg annotate\" on FILE, inserting the contents in BUFFER.
 Optional arg REVISION is a revision to annotate from."
-  (apply #'vc-hg-command buffer 0 file "annotate" "-dq" "-n"
+  (apply #'vc-hg-command buffer 'async file "annotate" "-dq" "-n"
 	 (append (vc-switches 'hg 'annotate)
                  (if revision (list (concat "-r" revision))))))
 
@@ -606,8 +584,8 @@ Optional arg REVISION is a revision to annotate from."
     (vc-annotate-convert-time
      (let ((str (match-string-no-properties 2)))
        (encode-time 0 0 0
-                    (string-to-number (substring str 6 8))
-                    (string-to-number (substring str 4 6))
+                    (string-to-number (substring str 8 10))
+                    (string-to-number (substring str 5 7))
                     (string-to-number (substring str 0 4)))))))
 
 (defun vc-hg-annotate-extract-revision-at-line ()
@@ -1226,6 +1204,22 @@ REV is ignored."
         (vc-hg-command buffer 0 file "cat" "-r" rev)
       (vc-hg-command buffer 0 file "cat"))))
 
+(defun vc-hg-file-name-changes (rev)
+  (unless (member "--follow" vc-hg-log-switches)
+    (with-temp-buffer
+      (let ((root (vc-hg-root default-directory)))
+        (vc-hg-command (current-buffer) t nil
+                       "log" "-g" "-p" "-r" rev)
+        (let (res)
+          (goto-char (point-min))
+          (while (re-search-forward "^diff --git a/\\([^ \n]+\\) b/\\([^ \n]+\\)" nil t)
+            (when (not (equal (match-string 1) (match-string 2)))
+              (push (cons
+                     (expand-file-name (match-string 1) root)
+                     (expand-file-name (match-string 2) root))
+                    res)))
+          (nreverse res))))))
+
 (defun vc-hg-find-ignore-file (file)
   "Return the root directory of the repository of FILE."
   (expand-file-name ".hgignore"
@@ -1375,17 +1369,28 @@ REV is the revision to check out into WORKFILE."
 ;; Follows vc-exec-after.
 (declare-function vc-set-async-update "vc-dispatcher" (process-buffer))
 
+(defvar vc-hg--program-version nil)
+
+(defun vc-hg--program-version ()
+  (or vc-hg--program-version
+      (setq vc-hg--program-version
+            (with-temp-buffer
+              (condition-case _ (vc-hg-command t 0 nil "version")
+                (error "0")
+                (:success
+                 (goto-char (point-min))
+                 (re-search-forward "Mercurial Distributed SCM (version \\([0-9][0-9.]+\\)")
+                 (string-trim-right (match-string 1) "\\.")))))))
+
 (defun vc-hg-dir-status-files (dir files update-function)
   ;; XXX: We can't pass DIR directly to 'hg status' because that
   ;; returns all ignored files if FILES is non-nil (bug#22481).
   (let ((default-directory dir))
-    ;; TODO: Use "--config 'status.relative=1'" instead of "re:"
-    ;; when we're allowed to depend on Mercurial 4.2+
-    ;; (it's a bit faster).
-    (vc-hg-command (current-buffer) 'async files
-                   "status" "re:" "-I" "."
-                   (concat "-mardu" (if files "i"))
-                   "-C"))
+    (apply #'vc-hg-command (current-buffer) 'async files
+           "status" (concat "-mardu" (if files "i")) "-C"
+           (if (version<= "4.2" (vc-hg--program-version))
+               '("--config" "commands.status.relative=1")
+             '("re:" "-I" "."))))
   (vc-run-delayed
     (vc-hg-after-dir-status update-function)))
 
@@ -1548,7 +1553,7 @@ This runs the command \"hg merge\"."
 
 (defun vc-hg-command (buffer okstatus file-or-list &rest flags)
   "A wrapper around `vc-do-command' for use in vc-hg.el.
-This function differs from vc-do-command in that it invokes
+This function differs from `vc-do-command' in that it invokes
 `vc-hg-program', and passes `vc-hg-global-switches' to it before FLAGS."
   ;; Disable pager.
   (let ((process-environment (cons "HGPLAIN=1" process-environment))

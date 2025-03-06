@@ -1,6 +1,6 @@
 ;;; manoj-dark-theme.el --- A dark theme from Manoj  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2011-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2025 Free Software Foundation, Inc.
 
 ;; Author: Manoj Srivastava <srivasta@ieee.org>
 ;; Keywords: lisp, faces
@@ -37,7 +37,7 @@
 ;; viewed, for example, the Gnus group buffer, consistent and logical
 ;; color choices are the only sane option.  Gnus groups can be newa
 ;; (blueish) or mail (greenish), have states (large number of under
-;; messages, normal, and empty). The large number unread groups have
+;; messages, normal, and empty).  The large number unread groups have
 ;; highest luminance (appear brighter), and the empty one have lower
 ;; luminance (appear grayer), but have the same chroma and saturation.
 ;; Sub states and group priorities are rendered using a color series
@@ -411,10 +411,10 @@ jarring angry fruit salad look to reduce eye fatigue."
 
  '(cursor ((t (:background "orchid"))))
  '(custom-button-face ((t (:background "lightgrey" :foreground "black"
-                                       :box '(:line-width 2 :style released-button)))))
+                                       :box (:line-width 2 :style released-button)))))
  '(custom-button-pressed-face ((t (:background "lightgrey"
                                                :foreground "black"
-                                               :box '(:line-width 2 :style pressed-button)))))
+                                               :box (:line-width 2 :style pressed-button)))))
  '(custom-changed-face ((t (:foreground "wheat" :background "blue"))))
  '(custom-comment-face ((t (:background "dim gray"))))
  '(custom-comment-tag-face ((t (:foreground "gray80"))))
@@ -430,7 +430,7 @@ jarring angry fruit salad look to reduce eye fatigue."
  '(custom-variable-button-face ((t (:bold t :underline t :weight bold
                                           :background "lightgrey"
                                           :foreground "black"
-                                          :box '(:line-width 2 :style released-button)))))
+                                          :box (:line-width 2 :style released-button)))))
  '(custom-variable-tag-face ((t (:bold t :foreground "light blue"
                                          :weight bold :height 1.2))))
 
@@ -526,8 +526,8 @@ jarring angry fruit salad look to reduce eye fatigue."
  '(widget-mouse-face  ((t (:background "darkseagreen2" :foreground "blue"))))
 
  '(highlight-beyond-fill-column-face ((t (:underline t))))
- '(highlight-changes ((t (:foreground nil :background "#382f2f"))))
- '(highlight-changes-delete ((t (:foreground nil :background "#916868"))))
+ '(highlight-changes ((t (:foreground unspecified :background "#382f2f"))))
+ '(highlight-changes-delete ((t (:foreground unspecified :background "#916868"))))
 
  '(holiday ((t (:background "chocolate4"))))
  '(holiday-face ((t (:background "chocolate4"))))
@@ -586,15 +586,16 @@ jarring angry fruit salad look to reduce eye fatigue."
  '(match ((t (:background "RoyalBlue3"))))
  '(minibuffer-prompt ((t (:foreground "cyan"))))
  '(mode-line ((t (:background "grey75" :foreground "Blue"
-                  :box '(:line-width -1 :style released-button)
+                  :box (:line-width -1 :style released-button)
                   :height 0.9))))
  '(mode-line-buffer-id ((t (:background "grey65" :foreground "red"
                                         :bold t :weight bold :height 0.9))))
  '(mode-line-emphasis ((t (:bold t :weight bold))))
  '(mode-line-highlight ((t (:box (:line-width 2 :color "grey40"
-                                              :style released-button :height 0.9)))))
+                                              :style released-button)
+                                 :height 0.9))))
  '(mode-line-inactive ((t (:background "grey30" :foreground "grey80"
-                                       :box '(:line-width -1 :color "grey40")
+                                       :box (:line-width -1 :color "grey40")
                                        :weight light :height 0.9))))
  '(mouse ((t (:background "OrangeRed"))))
 
@@ -703,4 +704,4 @@ jarring angry fruit salad look to reduce eye fatigue."
 
 (provide-theme 'manoj-dark)
 
-;;; manoj-dark.el ends here
+;;; manoj-dark-theme.el ends here

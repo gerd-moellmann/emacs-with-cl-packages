@@ -1,9 +1,9 @@
 ;;; lisp-mnt.el --- utility functions for Emacs Lisp maintainers  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1992, 1994, 1997, 2000-2024 Free Software Foundation,
+;; Copyright (C) 1992, 1994, 1997, 2000-2025 Free Software Foundation,
 ;; Inc.
 
-;; Author: Eric S. Raymond <esr@snark.thyrsus.com>
+;; Author: Eric S. Raymond <esr@thyrsus.com>
 ;; Maintainer: emacs-devel@gnu.org
 ;; Created: 14 Jul 1992
 ;; Keywords: docs
@@ -52,7 +52,7 @@
 ;;
 ;;    * Copyright line, which looks more or less like this:
 ;;
-;;       ;; Copyright (C) 1999, 2000, 2001 Free Software Foundation, Inc.
+;;       ;; Copyright (C) 1999-2001 Free Software Foundation, Inc.
 ;;
 ;;    * A blank line
 ;;
@@ -68,11 +68,11 @@
 ;; ;;	Noah Friedman <friedman@ai.mit.edu>
 ;; ;;	Joe Wells <jbw@maverick.uswest.com>
 ;; ;;	Dave Brennan <brennan@hal.com>
-;; ;;	Eric Raymond <esr@snark.thyrsus.com>
+;; ;;	Eric S. Raymond <esr@thyrsus.com>
 ;;
 ;;    * Maintainer line --- should be a single name/address as in the Author
-;; line, or an address only.  If there is no maintainer
-;; line, the person(s) in the Author field are presumed to be it.
+;; line, or an address only.  If there is no maintainer line, the person(s) in
+;; the Author field are presumed to be it.
 ;;    The idea behind these two fields is to be able to write a Lisp function
 ;; that does "send mail to the author" without having to mine the name out by
 ;; hand.  Please be careful about surrounding the network address with <> if
@@ -187,7 +187,6 @@ If the given section does not exist, return nil."
       (goto-char (point-min))
       (if (re-search-forward (lm-get-header-re header 'section) nil t)
           (line-beginning-position (if after 2))))))
-(defalias 'lm-section-mark 'lm-section-start)
 
 (defun lm-section-end (header)
   "Return the buffer location of the end of a given section.
@@ -230,12 +229,10 @@ a section."
 (defun lm-code-start ()
   "Return the buffer location of the `Code' start marker."
   (lm-section-start "Code"))
-(defalias 'lm-code-mark 'lm-code-start)
 
 (defun lm-commentary-start ()
   "Return the buffer location of the `Commentary' start marker."
   (lm-section-start lm-commentary-header))
-(defalias 'lm-commentary-mark 'lm-commentary-start)
 
 (defun lm-commentary-end ()
   "Return the buffer location of the `Commentary' section end."
@@ -244,7 +241,6 @@ a section."
 (defun lm-history-start ()
   "Return the buffer location of the `History' start marker."
   (lm-section-start lm-history-header))
-(defalias 'lm-history-mark 'lm-history-start)
 
 (defun lm-copyright-mark ()
   "Return the buffer location of the `Copyright' line."
@@ -258,7 +254,7 @@ a section."
   "Return the contents of the header named HEADER."
   (goto-char (point-min))
   (let ((case-fold-search t))
-    (when (and (re-search-forward (lm-get-header-re header) (lm-code-mark) t)
+    (when (and (re-search-forward (lm-get-header-re header) (lm-code-start) t)
 	       ;;   RCS ident likes format "$identifier: data$"
 	       (looking-at
 		(if (save-excursion
@@ -402,7 +398,7 @@ ISO-DATE non-nil means return the date in ISO 8601 format."
     (when (progn (goto-char (point-min))
 		 (re-search-forward
 		  "\\$[I]d: [^ ]+ [^ ]+ \\([^/]+\\)/\\([^/]+\\)/\\([^ ]+\\) "
-		  (lm-code-mark) t))
+                  (lm-code-start) t))
       (let ((dd (match-string 3))
 	    (mm (match-string 2))
 	    (yyyy (match-string 1)))
@@ -420,7 +416,7 @@ ISO-DATE non-nil means return the date in ISO 8601 format."
 This can be found in an RCS or SCCS header."
   (lm-with-file file
     (or (lm-header "version")
-	(let ((header-max (lm-code-mark)))
+        (let ((header-max (lm-code-start)))
 	  (goto-char (point-min))
 	  (cond
 	   ;; Look for an RCS header
@@ -438,6 +434,38 @@ This can be found in an RCS or SCCS header."
 	      "\t\\([012345679.]*\\)")
 	     header-max t)
 	    (match-string-no-properties 1)))))))
+
+(defun lm--prepare-package-dependencies (deps)
+  "Turn DEPS into an acceptable list of dependencies.
+
+Any parts missing a version string get a default version string
+of \"0\" (meaning any version) and an appropriate level of lists
+is wrapped around any parts requiring it."
+  (cond
+   ((not (listp deps))
+    (error "Invalid requirement specifier: %S" deps))
+   (t (mapcar (lambda (dep)
+                (cond
+                 ((symbolp dep) `(,dep "0"))
+                 ((stringp dep)
+                  (error "Invalid requirement specifier: %S" dep))
+                 ((and (listp dep) (null (cdr dep)))
+                  (list (car dep) "0"))
+                 (t dep)))
+              deps))))
+
+(declare-function package-read-from-string "package" (str))
+
+(defun lm-package-requires (&optional file)
+  "Return dependencies listed in file FILE, or current buffer if FILE is nil.
+The return value is a list of elements of the form (PACKAGE VERSION)
+where PACKAGE is the package name (a symbol) and VERSION is the
+package version (a string)."
+  (require 'package)
+  (lm-with-file file
+    (and-let* ((require-lines (lm-header-multiline "package-requires")))
+      (lm--prepare-package-dependencies
+       (package-read-from-string (mapconcat #'identity require-lines " "))))))
 
 (defun lm-keywords (&optional file)
   "Return the keywords given in file FILE, or current buffer if FILE is nil.
@@ -524,6 +552,7 @@ says display \"OK\" in temp buffer for files that have no problems.
 Optional argument VERBOSE specifies verbosity level.
 Optional argument NON-FSF-OK if non-nil means a non-FSF
 copyright notice is allowed."
+  ;; FIXME: Make obsolete in favor of checkdoc?
   (interactive (list nil nil t))
   (let* ((ret (and verbose "Ok"))
 	 name)
@@ -557,19 +586,18 @@ copyright notice is allowed."
 		"`Keywords:' tag missing")
 	       ((not (lm-keywords-finder-p))
 		"`Keywords:' has no valid finder keywords (see `finder-known-keywords')")
-	       ((not (lm-commentary-mark))
+               ((not (lm-commentary-start))
 		"Can't find a `Commentary' section marker")
-	       ((not (lm-history-mark))
+               ((not (lm-history-start))
 		"Can't find a `History' section marker")
-	       ((not (lm-code-mark))
+               ((not (lm-code-start))
 		"Can't find a `Code' section marker")
 	       ((progn
 		  (goto-char (point-max))
 		  (not
 		   (re-search-backward
-		    (concat "^;;;[ \t]+" name "[ \t]+ends here[ \t]*$"
-			    "\\|^;;;[ \t]+ End of file[ \t]+" name)
-		    nil t)))
+                    (rx bol ";;; " (regexp name) " ends here")
+                    nil t)))
 		"Can't find the footer line")
 	       ((not (and (lm-copyright-mark) (lm-crack-copyright)))
 		"Can't find a valid copyright notice")
@@ -630,6 +658,11 @@ Prompts for bug subject TOPIC.  Leaves you in a mail buffer."
     (newline 2)
     (message "%s"
      (substitute-command-keys "Type \\[mail-send] to send bug report."))))
+
+(define-obsolete-function-alias 'lm-section-mark #'lm-section-start "30.1")
+(define-obsolete-function-alias 'lm-code-mark #'lm-code-start "30.1")
+(define-obsolete-function-alias 'lm-commentary-mark #'lm-commentary-start "30.1")
+(define-obsolete-function-alias 'lm-history-mark #'lm-history-start "30.1")
 
 (provide 'lisp-mnt)
 

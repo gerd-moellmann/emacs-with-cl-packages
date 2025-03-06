@@ -20,7 +20,7 @@ This is the @cite{GNU Emacs Manual},
 @end ifclear
 updated for Emacs version @value{EMACSVER}.
 
-Copyright @copyright{} 1985--2024 Free Software Foundation, Inc.
+Copyright @copyright{} 1985--2025 Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -89,8 +89,8 @@ developing GNU and promoting software freedom.''
 
 @sp 2
 Published by the Free Software Foundation @*
-51 Franklin Street, Fifth Floor @*
-Boston, MA 02110-1301 USA @*
+31 Milk Street, # 960789 @*
+Boston, MA 02196 @*
 ISBN 978-0-9831592-8-5
 
 @sp 2
@@ -149,6 +149,7 @@ Important General Concepts
                           editing action.
 * Mouse Input::         Using the mouse and keypads.
 * Commands::            Named functions run by key sequences to do editing.
+* Other Input::         Input besides the mouse, keyboard and keypads.
 * Entering Emacs::      Starting Emacs from the shell.
 * Exiting::             Stopping or killing Emacs.
 
@@ -219,10 +220,10 @@ Appendices
 * GNU Free Documentation License:: The license for this documentation.
 * Emacs Invocation::    Hairy startup options.
 * X Resources::         X resources for customizing Emacs.
-* Antinews::            Information about Emacs version 28.
-* Mac Port::            Using Emacs under macOS with the Mac port.
+* Antinews::            Information about Emacs version 29.
 * Mac OS / GNUstep::     Using Emacs under macOS and GNUstep.
 * Haiku::               Using Emacs on Haiku.
+* Android::             Using Emacs on Android.
 * Microsoft Windows::   Using Emacs on Microsoft Windows and MS-DOS.
 * Manifesto::           What's GNU?  Gnu's Not Unix!
 
@@ -256,6 +257,10 @@ The Organization of the Screen
 * Echo Area::           Short messages appear at the bottom of the screen.
 * Mode Line::           Interpreting the mode line.
 * Menu Bar::            How to use the menu bar.
+
+Touchscreen Input and Virtual Keyboards
+* Touchscreens::        Interacting with Emacs from touchscreens.
+* On-Screen Keyboards:: Text input with virtual keyboards.
 
 Basic Editing Commands
 
@@ -457,7 +462,7 @@ File Handling
 * Copying and Naming::  Copying, naming and renaming files.
 * Misc File Ops::       Other things you can do on files.
 * Compressed Files::    Accessing compressed files.
-* File Archives::       Operating on tar, zip, jar etc. archive files.
+* File Archives::       Operating on tar, zip, jar etc.@: archive files.
 * Remote Files::        Accessing files on other machines.
 * Quoted File Names::   Quoting special characters in file names.
 * File Name Cache::     Completion against a list of files you often use.
@@ -524,6 +529,7 @@ Multiple Windows
 * Temporary Displays::  Displaying non-editable buffers.
 * Window Convenience::  Convenience functions for window handling.
 * Tab Line::            Window tab line.
+* Window Tool Bar::     A tool bar that is attached to windows.
 
 Displaying a Buffer in a Window
 
@@ -582,7 +588,7 @@ International Character Set Support
 
 Major and Minor Modes
 
-* Major Modes::         Text mode vs. Lisp mode vs. C mode...
+* Major Modes::         Text mode vs.@: Lisp mode vs.@: C mode...
 * Minor Modes::         Each minor mode is a feature you can turn on
                           independently of any others.
 * Choosing Modes::      How modes are chosen when visiting files.
@@ -903,7 +909,7 @@ Tags Tables
 Merging Files with Emerge
 
 * Overview of Emerge::  How to start Emerge.  Basic concepts.
-* Submodes of Emerge::  Fast mode vs. Edit mode.
+* Submodes of Emerge::  Fast mode vs.@: Edit mode.
                           Skip Prefers mode and Auto Advance mode.
 * State of Difference:: You do the merge by specifying state A or B
                           for each difference.
@@ -1115,7 +1121,7 @@ Hyperlinking and Navigation Features
 * Embedded WebKit Widgets:: Embedding browser widgets in Emacs buffers.
 * Browse-URL::          Following URLs.
 * Goto Address mode::   Activating URLs.
-* FFAP::                Finding files etc. at point.
+* FFAP::                Finding files etc.@: at point.
 
 Emacs Lisp Packages
 
@@ -1162,6 +1168,10 @@ Local Variables in Files
 
 * Specifying File Variables:: Specifying file local variables.
 * Safe File Variables::       Making sure file local variables are safe.
+
+Local Variables in Directories
+
+* EditorConfig support::  Per-Directory Variables via EditorConfig
 
 Customizing Key Bindings
 
@@ -1271,6 +1281,18 @@ Emacs and Haiku
 * Haiku Basics::        Basic Emacs usage and installation under Haiku.
 * Haiku Fonts::         The various options for displaying fonts on Haiku.
 
+Emacs and Android
+
+* What is Android?::            Preamble.
+* Android Startup::             Starting up Emacs on Android.
+* Android File System::         The Android file system.
+* Android Document Providers::  Accessing files from other programs.
+* Android Environment::         Running Emacs under Android.
+* Android Windowing::           The Android window system.
+* Android Fonts::               Font selection under Android.
+* Android Troubleshooting::     Dealing with problems.
+* Android Software::            Getting extra software.
+
 Emacs and Microsoft Windows/MS-DOS
 
 * Windows Startup::     How to start Emacs on Windows.
@@ -1339,7 +1361,7 @@ when and how to report Emacs bugs (@pxref{Bugs}).
 
   To find the documentation of a particular command, look in the index.
 Keys (character commands) and command names have separate indexes.
-There is also a glossary, with a cross reference for each term.
+There is also a glossary, with a cross-reference for each term.
 
   This manual is available as a printed book and also as an Info file.
 The Info file is for reading from Emacs itself, or with the Info program.
@@ -1420,8 +1442,8 @@ If you need to contact the Free Software Foundation, see
 
 @display
 Free Software Foundation
-51 Franklin Street, Fifth Floor
-Boston, MA 02110-1301
+31 Milk Street, # 960789
+Boston, MA 02196
 USA
 @end display
 
@@ -1453,10 +1475,10 @@ Dershowitz, Dave Detlefs, Matthieu Devin, Christophe de Dinechin, Eri
 Ding, Jan Djärv, Lawrence R. Dodd, Carsten Dominik, Scott Draves,
 Benjamin Drieu, Viktor Dukhovni, Jacques Duthen, Dmitry Dzhus, John
 Eaton, Rolf Ebert, Carl Edman, David Edmondson, Paul Eggert, Stephen
-Eglen, Christian Egli, Torbjörn Einarsson, Tsugutomo Enami, David
-Engster, Hans Henrik Eriksen, Michael Ernst, Ata Etemadi, Frederick
-Farnbach, Oscar Figueiredo, Fred Fish, Steve Fisk, Thomas Fitzsimmons, Karl Fogel, Gary
-Foster, Eric S. Fraga, Romain Francoise, Noah Friedman, Andreas
+Eglen, Christian Egli, Torbjörn Einarsson, Helmut Eller, Tsugutomo
+Enami, David Engster, Hans Henrik Eriksen, Michael Ernst, Ata Etemadi, Frederick
+Farnbach, Oscar Figueiredo, Jared Finder, Fred Fish, Steve Fisk, Thomas Fitzsimmons,
+Karl Fogel, Gary Foster, Eric S. Fraga, Romain Francoise, Noah Friedman, Andreas
 Fuchs, Shigeru Fukaya, Xue Fuqiao, Hallvard Furuseth, Keith Gabryelski, Peter S.
 Galbraith, Kevin Gallagher, Fabián E. Gallina, Kevin Gallo, Juan León Lahoz García,
 Howard Gayle, Daniel German, Stephen Gildea, Julien Gilles, David
@@ -1474,8 +1496,8 @@ Thorsten Jolitz, Michael K. Johnson, Kyle Jones, Terry Jones, Simon
 Josefsson, Alexandre Julliard, Arne Jørgensen, Tomoji Kagatani,
 Brewster Kahle, Tokuya Kameshima, Lute Kamstra, Stefan Kangas, Ivan Kanis, David
 Kastrup, David Kaufman, Henry Kautz, Taichi Kawabata, Taro Kawagishi,
-Howard Kaye, Michael Kifer, Richard King, Peter Kleiweg, Karel
-Klíč, Shuhei Kobayashi, Pavel Kobyakov, Larry K. Kolodney, David
+Howard Kaye, Michael Kifer, Richard King, Wilhelm Kirschbaum, Peter Kleiweg,
+Karel Klíč, Shuhei Kobayashi, Pavel Kobyakov, Larry K. Kolodney, David
 M. Koppelman, Koseki Yoshinori, Robert Krawitz, Sebastian Kremer,
 Ryszard Kubiak, Tak Kunihiro, Igor Kuzmin, David Kågedal, Daniel LaLiberte, Karl
 Landstrom, Mario Lang, Aaron Larson, James R. Larus, Gemini Lasswell, Vinicius Jose
@@ -1490,7 +1512,7 @@ Yukihiro Matsumoto, Tomohiro Matsuyama, David Maus, Thomas May, Will Mengarini, 
 Megginson, Jimmy Aguilar Mena, Stefan Merten, Ben A. Mesander, Wayne Mesard, Brad
 Miller, Lawrence Mitchell, Richard Mlynarik, Gerd Möllmann, Dani Moncayo, Stefan
 Monnier, Keith Moore, Jan Moringen, Morioka Tomohiko, Glenn Morris,
-Don Morrison, Diane Murray, Riccardo Murri, Sen Nagata, Erik Naggum,
+Don Morrison, John Muhl, Diane Murray, Riccardo Murri, Sen Nagata, Erik Naggum,
 Gergely Nagy, Nobuyoshi Nakada, Thomas Neumann, Mike Newton, Thien-Thi Nguyen,
 Jurgen Nickelsen, Dan Nicolaescu, Hrvoje Nikšić, Jeff Norden,
 Andrew Norman, Theresa O'Connor, Kentaro Ohkouchi, Christian Ohler,
@@ -1500,8 +1522,8 @@ Jeff Peck, Damon Anton Permezel, Tom Perrine, William M. Perry, Per
 Persson, Jens Petersen, Nicolas Petton, Daniel Pfeiffer, Justus Piater, Richard L.
 Pieri, Fred Pierresteguy, François Pinard, Daniel Pittman, Christian
 Plaunt, Alexander Pohoyda, David Ponce, Noam Postavsky, Francesco A. Potortì,
-Michael D. Prange, Mukesh Prasad, Steve Purcell, Ken Raeburn, Marko Rahamaa, Ashwin
-Ram, Eric S. Raymond, Paul Reilly, Edward M. Reingold, David
+Michael D. Prange, Mukesh Prasad, Steve Purcell, Vincenzo Pupillo, Ken Raeburn,
+Marko Rahamaa, Ashwin Ram, Eric S. Raymond, Paul Reilly, Edward M. Reingold, David
 Reitter, Alex Rezinsky, Rob Riepel, Lara Rios, Adrian Robert, Nick
 Roberts, Roland B. Roberts, John Robinson, Denis B. Roegel, Danny
 Roozendaal, Sebastian Rose, William Rosenblatt, Markus Rost, Guillermo
@@ -1511,9 +1533,9 @@ Timo Savola, Jorgen Schäfer, Holger Schauer, William Schelter, Ralph
 Schleicher, Gregor Schmid, Michael Schmidt, Ronald S. Schnell,
 Philippe Schnoebelen, Jan Schormann, Alex Schroeder, Stefan Schoef,
 Rainer Schöpf, Raymond Scholz, Eric Schulte, Andreas Schwab, Randal
-Schwartz, Oliver Seidel, Manuel Serrano, Paul Sexton, Hovav Shacham,
-Stanislav Shalunov, Marc Shapiro, Richard Sharman, Olin Shivers, Tibor
-Šimko, Espen Skoglund, Rick Sladkey, Lynn Slater, Chris Smith,
+Schwartz, Oliver Seidel, Daniel Semyonov, Manuel Serrano, Paul Sexton,
+Hovav Shacham, Stanislav Shalunov, Marc Shapiro, Richard Sharman, Olin
+Shivers, Tibor Šimko, Espen Skoglund, Rick Sladkey, Lynn Slater, Chris Smith,
 David Smith, JD Smith, Paul D. Smith, Wilson Snyder, William Sommerfeld, Simon
 South, Andre Spiegel, Michael Staats, Thomas Steffen, Ulf Stegemann,
 Reiner Steib, Sam Steingold, Ake Stenhoff, Philipp Stephani, Peter Stephenson, Ken
@@ -1521,15 +1543,15 @@ Stevens, Andy Stewart, Jonathan Stigelman, Martin Stjernholm, Kim F.
 Storm, Steve Strassmann, Christopher Suckling, Olaf Sylvester, Naoto
 Takahashi, Steven Tamm, Jan Tatarik, João Távora, Luc Teirlinck,
 Jean-Philippe Theberge, Jens T.@: Berger Thielemann, Spencer Thomas,
-Jim Thompson, Toru Tomabechi, David O'Toole, Markus Triska, Tom Tromey, Eli
-Tziperman, Daiki Ueno, Masanobu Umeda, Rajesh Vaidheeswarran, Neil
+Jim Thompson, Theodor Thornhill, Toru Tomabechi, David O'Toole, Markus Triska,
+Tom Tromey, Eli Tziperman, Daiki Ueno, Masanobu Umeda, Rajesh Vaidheeswarran, Neil
 W. Van Dyke, Didier Verna, Joakim Verona, Ulrik Vieth, Geoffrey
 Voelker, Johan Vromans, Inge Wallin, John Paul Wallington, Colin
 Walters, Barry Warsaw, Christoph Wedler, Ilja Weis, Zhang Weize,
 Morten Welinder, Joseph Brian Wells, Rodney Whitby, John Wiegley,
 Sascha Wilde, Ed Wilkinson, Mike Williams, Roland Winkler, Bill
 Wohler, Steven A. Wood, Dale R. Worley, Francis J. Wright, Felix
-S. T. Wu, Tom Wurgler, Yamamoto Mitsuharu, Katsumi Yamaoka,
+S. T. Wu, Tom Wurgler, Yamamoto Mitsuharu, Po Lu, Katsumi Yamaoka,
 Masatake Yamato, Jonathan Yavner, Ryan Yeske, Ilya Zakharevich, Milan
 Zamazal, Victor Zandy, Eli Zaretskii, Jamie Zawinski, Andrew Zhilin,
 Shenghuo Zhu, Piotr Zieliński, Ian T. Zimmermann, Reto Zimmermann,
@@ -1642,6 +1664,7 @@ Lisp programming.
 @include macport.texi
 @include macos.texi
 @include haiku.texi
+@include android.texi
 @c Includes msdos-xtra.
 @include msdos.texi
 @include gnu.texi

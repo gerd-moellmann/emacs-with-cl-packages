@@ -1,6 +1,6 @@
 ;;; esh-io-tests.el --- esh-io test suite  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -31,11 +31,8 @@
 
 (defvar eshell-test-value nil)
 
-(defun eshell-test-file-string (file)
-  "Return the contents of FILE as a string."
-  (with-temp-buffer
-    (insert-file-contents file)
-    (buffer-string)))
+(defvar eshell-test-value-with-fun nil)
+(defun eshell-test-value-with-fun ())
 
 (defun eshell/test-output ()
   "Write some test output separately to stdout and stderr."
@@ -117,6 +114,13 @@
      (eshell-insert-command "echo new >> #'eshell-test-value"))
     (should (equal eshell-test-value "oldnew"))))
 
+(ert-deftest esh-io-test/redirect-symbol/with-function-slot ()
+  "Check that redirecting to a symbol with function slot set works."
+  (let ((eshell-test-value-with-fun))
+    (with-temp-eshell
+     (eshell-insert-command "echo hi > #'eshell-test-value-with-fun"))
+    (should (equal eshell-test-value-with-fun "hi"))))
+
 (ert-deftest esh-io-test/redirect-marker ()
   "Check that redirecting to a marker works."
   (with-temp-buffer
@@ -145,6 +149,45 @@
                bufname bufname)))
      (should (equal (buffer-string) "new"))
      (should (equal eshell-test-value "new")))))
+
+(ert-deftest esh-io-test/redirect-subcommands ()
+  "Check that redirecting subcommands applies to all subcommands."
+  (eshell-with-temp-buffer bufname "old"
+    (with-temp-eshell
+     (eshell-insert-command (format "{echo foo; echo bar} > #<%s>" bufname)))
+    (should (equal (buffer-string) "foobar"))))
+
+(ert-deftest esh-io-test/redirect-subcommands/override ()
+  "Check that redirecting subcommands applies to all subcommands.
+Include a redirect to another location in the subcommand to
+ensure only its statement is redirected."
+  (eshell-with-temp-buffer bufname "old"
+    (eshell-with-temp-buffer bufname-2 "also old"
+      (with-temp-eshell
+       (eshell-insert-command
+        (format "{echo foo; echo bar > #<%s>; echo baz} > #<%s>"
+                bufname-2 bufname)))
+      (should (equal (buffer-string) "bar")))
+    (should (equal (buffer-string) "foobaz"))))
+
+(ert-deftest esh-io-test/redirect-subcommands/dev-null ()
+  "Check that redirecting subcommands applies to all subcommands.
+Include a redirect to /dev/null to ensure it only applies to its
+statement."
+  (eshell-with-temp-buffer bufname "old"
+    (with-temp-eshell
+     (eshell-insert-command
+      (format "{echo foo; echo bar > /dev/null; echo baz} > #<%s>"
+              bufname)))
+    (should (equal (buffer-string) "foobaz"))))
+
+(ert-deftest esh-io-test/redirect-subcommands/interpolated ()
+  "Check that redirecting interpolated subcommands applies to all subcommands."
+  (eshell-with-temp-buffer bufname "old"
+    (with-temp-eshell
+     (eshell-insert-command
+      (format "echo ${echo foo; echo bar} > #<%s>" bufname)))
+    (should (equal (buffer-string) "foobar"))))
 
 
 ;; Redirecting specific handles
@@ -262,24 +305,67 @@ stdout originally pointed (the terminal)."
                                   "stderr\n"))
     (should (equal (buffer-string) "stdout\n"))))
 
-(ert-deftest esh-io-test/redirect-pipe ()
-  "Check that \"redirecting\" to a pipe works."
-  ;; `|' should only redirect stdout.
+
+;; Pipelines
+
+(ert-deftest esh-io-test/pipeline/default ()
+  "Check that `|' only pipes stdout."
+  (skip-unless (executable-find "rev"))
   (eshell-command-result-equal "test-output | rev"
-                               "stderr\ntuodts\n")
-  ;; `|&' should redirect stdout and stderr.
+                               "stderr\ntuodts\n"))
+
+
+(ert-deftest esh-io-test/pipeline/all ()
+  "Check that `|&' only pipes stdout and stderr."
+  (skip-unless (executable-find "rev"))
   (eshell-command-result-equal "test-output |& rev"
                                "tuodts\nrredts\n"))
+
+(ert-deftest esh-io-test/pipeline/subcommands ()
+  "Check that all commands in a subcommand are properly piped."
+  (skip-unless (executable-find "rev"))
+  (with-temp-eshell
+   (eshell-match-command-output "{echo foo; echo bar} | rev"
+                                "\\`raboof\n?")))
+
+(ert-deftest esh-io-test/pipeline/stdin-to-head ()
+  "Check that standard input is sent to the head process in a pipeline."
+  (skip-unless (and (executable-find "tr")
+                    (executable-find "rev")))
+  (with-temp-eshell
+   (eshell-insert-command "tr a-z A-Z | rev")
+   (eshell-insert-command "hello")
+   (eshell-send-eof-to-process)
+   (eshell-wait-for-subprocess)
+   (should (eshell-match-output "OLLEH\n"))))
 
 
 ;; Virtual targets
 
-(ert-deftest esh-io-test/virtual-dev-eshell ()
+(ert-deftest esh-io-test/virtual/dev-null ()
+  "Check that redirecting to /dev/null works."
+  (with-temp-eshell
+   (eshell-match-command-output "echo hi > /dev/null" "\\`\\'")))
+
+(ert-deftest esh-io-test/virtual/dev-null/multiple ()
+  "Check that redirecting to /dev/null works alongside other redirections."
+  (eshell-with-temp-buffer bufname "old"
+    (with-temp-eshell
+     (eshell-match-command-output
+      (format "echo new > /dev/null > #<%s>" bufname) "\\`\\'"))
+    (should (equal (buffer-string) "new")))
+  (eshell-with-temp-buffer bufname "old"
+    (with-temp-eshell
+     (eshell-match-command-output
+      (format "echo new > #<%s> > /dev/null" bufname) "\\`\\'"))
+    (should (equal (buffer-string) "new"))))
+
+(ert-deftest esh-io-test/virtual/dev-eshell ()
   "Check that redirecting to /dev/eshell works."
   (with-temp-eshell
    (eshell-match-command-output "echo hi > /dev/eshell" "hi")))
 
-(ert-deftest esh-io-test/virtual-dev-kill ()
+(ert-deftest esh-io-test/virtual/dev-kill ()
   "Check that redirecting to /dev/kill works."
   (with-temp-eshell
    (eshell-insert-command "echo one > /dev/kill")
@@ -288,5 +374,20 @@ stdout originally pointed (the terminal)."
    (should (equal (car kill-ring) "two"))
    (eshell-insert-command "echo three >> /dev/kill")
    (should (equal (car kill-ring) "twothree"))))
+
+(ert-deftest esh-io-test/virtual/device-close ()
+  "Check that the close function for `eshell-function-target' works."
+  (let* ((data nil)
+         (status nil)
+         (eshell-virtual-targets
+          `(("/dev/virtual"
+             ,(eshell-function-target-create
+               (lambda (d) (setq data d))
+               (lambda (s) (setq status s)))
+             nil))))
+    (with-temp-eshell
+     (eshell-insert-command "echo hello > /dev/virtual")
+     (should (equal data "hello"))
+     (should (equal status t)))))
 
 ;;; esh-io-tests.el ends here

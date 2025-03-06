@@ -1,6 +1,6 @@
 ;;; bindings.el --- define standard key bindings and some variables  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1985-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1985-2025 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: internal
@@ -298,11 +298,107 @@ Value is used for `mode-line-frame-identification', which see."
 ;;;###autoload
 (put 'mode-line-frame-identification 'risky-local-variable t)
 
+(defvar mode-line-window-dedicated-keymap
+  (let ((map (make-sparse-keymap)))
+    (define-key map [mode-line mouse-1] #'toggle-window-dedicated)
+    (purecopy map)) "\
+Keymap for what is displayed by `mode-line-window-dedicated'.")
+
+(defun mode-line-window-control ()
+  "Compute mode line construct for window dedicated state.
+Value is used for `mode-line-window-dedicated', which see."
+  (cond
+   ((eq (window-dedicated-p) t)
+    (propertize
+     "D"
+     'help-echo "Window strongly dedicated to its buffer\nmouse-1: Toggle"
+     'local-map mode-line-window-dedicated-keymap
+     'mouse-face 'mode-line-highlight))
+   ((window-dedicated-p)
+    (propertize
+     "d"
+     'help-echo "Window dedicated to its buffer\nmouse-1: Toggle"
+     'local-map mode-line-window-dedicated-keymap
+     'mouse-face 'mode-line-highlight))
+   (t "")))
+
+(defvar mode-line-window-dedicated '(:eval (mode-line-window-control))
+  "Mode line construct to describe the current window.")
+;;;###autoload
+(put 'mode-line-window-dedicated 'risky-local-variable t)
+
 (defvar-local mode-line-process nil
   "Mode line construct for displaying info on process status.
 Normally nil in most modes, since there is no process to display.")
 ;;;###autoload
 (put 'mode-line-process 'risky-local-variable t)
+
+(defcustom mode-line-right-align-edge 'window
+  "Where function `mode-line-format-right-align' should align to.
+Internally, that function uses `:align-to' in a display property,
+so aligns to the left edge of the given area.  See info node
+`(elisp)Pixel Specification'.
+
+Must be set to a symbol.  Acceptable values are:
+- `window': align to extreme right of window, regardless of margins
+  or fringes
+- `right-fringe': align to right-fringe
+- `right-margin': align to right-margin"
+  :type '(choice (const right-margin)
+                 (const right-fringe)
+                 (const window))
+  :group 'mode-line
+  :version "30.1")
+
+(defun mode--line-format-right-align ()
+  "Right-align all following mode-line constructs.
+
+When the symbol `mode-line-format-right-align' appears in
+`mode-line-format', return a string of one space, with a display
+property to make it appear long enough to align anything after
+that symbol to the right of the rendered mode line.  Exactly how
+far to the right is controlled by `mode-line-right-align-edge'.
+
+It is important that the symbol `mode-line-format-right-align' be
+included in `mode-line-format' (and not another similar construct
+such as `(:eval (mode-line-format-right-align)').  This is because
+the symbol `mode-line-format-right-align' is processed by
+`format-mode-line' as a variable."
+  (let* ((rest (cdr (memq 'mode-line-format-right-align
+			  mode-line-format)))
+	 (rest-str (format-mode-line `("" ,@rest)))
+	 (rest-width (progn
+                       (add-face-text-property
+                        0 (length rest-str) 'mode-line t rest-str)
+                       (string-pixel-width rest-str))))
+    (propertize " " 'display
+		;; The `right' spec doesn't work on TTY frames
+		;; when windows are split horizontally (bug#59620)
+		(if (and (display-graphic-p)
+                         (not (eq mode-line-right-align-edge 'window)))
+		    `(space :align-to (- ,mode-line-right-align-edge
+                                         (,rest-width)))
+		  `(space :align-to (,(- (window-pixel-width)
+                                         (window-scroll-bar-width)
+                                         (window-right-divider-width)
+                                         (* (or (car (window-margins)) 0)
+                                            (frame-char-width))
+                                         ;; Manually account for value of
+                                         ;; `mode-line-right-align-edge' even
+                                         ;; when display is non-graphical
+                                         (pcase mode-line-right-align-edge
+                                           ('right-margin
+                                            (or (cdr (window-margins)) 0))
+                                           ('right-fringe
+                                            ;; what here?
+                                            (or (cadr (window-fringes)) 0))
+                                           (_ 0))
+                                         rest-width)))))))
+
+(defvar mode-line-format-right-align '(:eval (mode--line-format-right-align))
+  "Mode line construct to right align all following constructs.")
+;;;###autoload
+(put 'mode-line-format-right-align 'risky-local-variable t)
 
 (defun bindings--define-key (map key item)
   "Define KEY in keymap MAP according to ITEM from a menu.
@@ -609,12 +705,14 @@ By default, this shows the information specified by `global-mode-string'.")
 	            'mode-line-mule-info
 	            'mode-line-client
 	            'mode-line-modified
-	            'mode-line-remote)
-              'display '(min-width (5.0)))
+		    'mode-line-remote
+		    'mode-line-window-dedicated)
+              'display '(min-width (6.0)))
 	     'mode-line-frame-identification
 	     'mode-line-buffer-identification
 	     "   "
 	     'mode-line-position
+	     '(project-mode-line project-mode-line-format)
 	     '(vc-mode vc-mode)
 	     "  "
 	     'mode-line-modes
@@ -670,6 +768,8 @@ or not."
   "Return the value of symbol VAR if it is bound, else nil.
 Note that if `lexical-binding' is in effect, this function isn't
 meaningful if it refers to a lexically bound variable."
+  (unless (symbolp var)
+    (signal 'wrong-type-argument (list 'symbolp var)))
   `(and (boundp (quote ,var)) ,var))
 
 ;; Use mode-line-mode-menu for local minor-modes only.
@@ -703,6 +803,11 @@ meaningful if it refers to a lexically bound variable."
   '(menu-item "Flyspell (Fly)" flyspell-mode
 	      :help "Spell checking on the fly"
 	      :button (:toggle . (bound-and-true-p flyspell-mode))))
+(bindings--define-key mode-line-mode-menu [completion-preview-mode]
+  '(menu-item "Completion Preview (CP)" completion-preview-mode
+              :help "Show preview of completion suggestions as you type"
+              :enable completion-at-point-functions
+              :button (:toggle . (bound-and-true-p completion-preview-mode))))
 (bindings--define-key mode-line-mode-menu [auto-revert-tail-mode]
   '(menu-item "Auto revert tail (Tail)" auto-revert-tail-mode
 	      :help "Revert the tail of the buffer when the file on disk grows"
@@ -725,7 +830,7 @@ meaningful if it refers to a lexically bound variable."
   "Describe minor mode for EVENT on minor modes area of the mode line."
   (interactive "@e")
   (let ((indicator (car (nth 4 (car (cdr event))))))
-    (describe-minor-mode-from-indicator indicator)))
+    (describe-minor-mode-from-indicator indicator event)))
 
 (defvar mode-line-defining-kbd-macro (propertize " Def" 'face 'font-lock-warning-face)
   "String displayed in the mode line in keyboard macro recording mode.")
@@ -873,9 +978,8 @@ language you are using."
 ;;        It seems that they can't because they're handled via
 ;;        special-event-map which is used at very low-level.  -stef
 (global-set-key [delete-frame] 'handle-delete-frame)
-(global-set-key [iconify-frame] 'ignore-event)
-(global-set-key [make-frame-visible] 'ignore-event)
-
+(global-set-key [iconify-frame] 'ignore)
+(global-set-key [make-frame-visible] 'ignore)
 
 ;These commands are defined in editfns.c
 ;but they are not assigned to keys there.
@@ -1216,6 +1320,10 @@ if `inhibit-field-text-motion' is non-nil."
 (define-key global-map [insertchar]	'overwrite-mode)
 (define-key global-map [C-insertchar]	'kill-ring-save)
 (define-key global-map [S-insertchar]	'yank)
+;; The next three keys are used on MS Windows and Android.
+(define-key global-map [copy]		'kill-ring-save)
+(define-key global-map [paste]		'yank)
+(define-key global-map [cut]		'kill-region)
 (define-key global-map [undo]		'undo)
 (define-key global-map [redo]		'repeat-complex-command)
 (define-key global-map [again]		'repeat-complex-command) ; Sun keyboard
@@ -1534,6 +1642,9 @@ if `inhibit-field-text-motion' is non-nil."
 ;; Signal handlers
 (define-key special-event-map [sigusr1] 'ignore)
 (define-key special-event-map [sigusr2] 'ignore)
+
+;; Text conversion
+(define-key global-map [text-conversion] 'analyze-text-conversion)
 
 ;; Don't look for autoload cookies in this file.
 ;; Local Variables:

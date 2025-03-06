@@ -1,6 +1,6 @@
 ;;; java-ts-mode-tests.el --- Tests for Tree-sitter-based Java mode  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2023-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2023-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -28,8 +28,6 @@
   (ert-test-erts-file (ert-resource-file "indent.erts")))
 
 (ert-deftest java-ts-mode-test-movement ()
-  :expected-result :failed              ;in emacs-29 no sexp
-                                        ;navigation
   (skip-unless (treesit-ready-p 'java))
   (ert-test-erts-file (ert-resource-file "movement.erts")))
 

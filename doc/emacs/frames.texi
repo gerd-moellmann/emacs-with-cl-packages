@@ -1,5 +1,5 @@
 @c This is part of the Emacs manual.
-@c Copyright (C) 1985--2024 Free Software Foundation, Inc.
+@c Copyright (C) 1985--2025 Free Software Foundation, Inc.
 @c See file emacs.texi for copying conditions.
 @node Frames
 @chapter Frames and Graphical Displays
@@ -1233,7 +1233,7 @@ or bottom of the window during drag.
   Emacs can also optionally drag the region with the mouse into
 another portion of this or another buffer.  To enable that, customize
 the variable @code{mouse-drag-and-drop-region} to a non-@code{nil}
-value.  Normally, the text is moved, i.e. cut and pasted, when the
+value.  Normally, the text is moved, i.e.@: cut and pasted, when the
 destination is the same buffer as the origin; dropping the region on
 another buffer copies the text instead.  If the value of this variable
 names a modifier key, such as @samp{shift}, @samp{control} or
@@ -1295,16 +1295,22 @@ menus' visual appearance.
 @node Tool Bars
 @section Tool Bars
 @cindex tool bar mode
+@cindex tool bar, attached to frame
 @cindex mode, Tool Bar
 @cindex icons, toolbar
 
-  On graphical displays, Emacs puts a @dfn{tool bar} at the top of
-each frame, just below the menu bar.  This is a row of icons which you
-can click on with the mouse to invoke various commands.
+  On graphical displays, Emacs puts a @dfn{tool bar} at the top of each
+frame, just below the menu bar.  This is a row of buttons with icons
+which you can click on with the mouse to invoke various commands.  Emacs
+can also optionally display a tool bar at the top of each window
+(@pxref{Window Tool Bar}).
 
+@vindex tool-bar-always-show-default
   The global (default) tool bar contains general commands.  Some major
 modes define their own tool bars; whenever a buffer with such a major
-mode is current, the mode's tool bar replaces the global tool bar.
+mode is current, the mode's tool bar replaces the global tool bar.  To
+prevent this replacement from happening, customize the variable
+@code{tool-bar-always-show-default}.
 
 @findex tool-bar-mode
 @vindex tool-bar-mode
@@ -1331,6 +1337,21 @@ therefore do not display it when a window is undecorated.  @xref{Frame
 Parameters,,, elisp, The Emacs Lisp Reference Manual}.  On macOS the
 tool bar is hidden when the frame is put into fullscreen, but can be
 displayed by moving the mouse pointer to the top of the screen.
+
+@vindex modifier-bar-mode
+@findex modifier-bar-mode
+@cindex displaying modifier keys in the tool bar
+@cindex mode, Modifier Bar
+@cindex Modifier Bar
+  Keyboards often lack one or more of the modifier keys that Emacs
+might want to use, making it difficult or impossible to input key
+sequences that contain them.  Emacs can optionally display a list of
+buttons that act as substitutes for modifier keys within the tool bar;
+these buttons are also referred to as the ``modifier bar''.  Clicking
+an icon within the modifier bar will cause a modifier key to be
+applied to the next keyboard event that is read.  The modifier bar is
+displayed when the global minor mode @code{modifier-bar-mode} is
+enabled; to do so, type @kbd{M-x modifier-bar-mode}.
 
 @node Tab Bars
 @section Tab Bars
@@ -1392,9 +1413,10 @@ the number of tabs created on each frame.
 
 @findex toggle-frame-tab-bar
   To toggle the use of the Tab Bar only on the selected frame, type
-@kbd{M-x toggle-frame-tab-bar}.  This command allows to enable the
-display of the Tab Bar on some frames and disable it on others,
-regardless of the values of @code{tab-bar-mode} and @code{tab-bar-show}.
+@kbd{M-x toggle-frame-tab-bar}.  This command facilitates selectively
+enabling the Tab Bar on some frames while keeping it disabled on
+others, irrespective of the values of @code{tab-bar-mode} and
+@code{tab-bar-show}.
 
 @kindex C-x t
   The prefix key @kbd{C-x t} is analogous to @kbd{C-x 5}.
@@ -1521,7 +1543,7 @@ After customizing the variable @code{tab-bar-select-tab-modifiers} to
 specify one or more @var{modifier} keys, you can select a tab by its
 ordinal number using one of the specified modifiers in combination
 with the tab number to select.  The number 9 can be used to select the
-last tab. You can select any modifiers supported by Emacs,
+last tab.  You can select any modifiers supported by Emacs,
 @pxref{Modifier Keys}.  To display the tab number alongside the tab
 name, you can customize another variable @code{tab-bar-tab-hints}.
 This will help you decide which numerical key to press to select the
@@ -1569,6 +1591,14 @@ the items that operate on the clicked tab.  Dragging the tab with
 @kbd{mouse-1} moves it to another position on the tab bar.  Mouse
 wheel scrolling switches to the next or previous tab.  Holding down
 the @key{SHIFT} key during scrolling moves the tab to the left or right.
+
+  Touch screen input (@pxref{Other Input}) can also be used to operate
+on tabs.  Long-pressing (@pxref{Touchscreens}) a tab will display a
+context menu with items that operate on the tab that was pressed, and
+long-pressing the tab bar itself will display a context menu which
+lets you create and remove tabs; tapping a tab itself will result in
+that tab's window configuration being selected, and tapping a button
+on the tab bar will behave as if it was clicked with @kbd{mouse-1}.
 
 @findex tab-bar-history-mode
   You can enable @code{tab-bar-history-mode} to remember window

@@ -1,6 +1,6 @@
 ;;; tex-mode.el --- TeX, LaTeX, and SliTeX mode commands  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1989, 1992, 1994-1999, 2001-2024 Free
+;; Copyright (C) 1985-1986, 1989, 1992, 1994-1999, 2001-2025 Free
 ;; Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -32,9 +32,6 @@
   (require 'compare-w)
   (require 'cl-lib)
   (require 'skeleton))
-
-(defvar font-lock-comment-face)
-(defvar font-lock-doc-face)
 
 (require 'shell)
 (require 'compile)
@@ -514,17 +511,26 @@ An alternative value is \" . \", if you use a font with a narrow period."
 	   ;; This would allow highlighting \newcommand\CMD but requires
 	   ;; adapting subgroup numbers below.
 	   ;; (arg "\\(?:{\\(\\(?:[^{}\\]+\\|\\\\.\\|{[^}]*}\\)+\\)\\|\\\\[a-z*]+\\)"))
-           (inbraces-re (lambda (re)
-                          (concat "\\(?:[^{}\\]\\|\\\\.\\|" re "\\)")))
-	   (arg (concat "{\\(" (funcall inbraces-re "{[^}]*}") "+\\)")))
-      `( ;; Highlight $$math$$ and $math$.
+           (inbraces-re
+            (lambda (n) ;; Level of nesting of braces we should support.
+              (let ((re "[^}]"))
+                (dotimes (_ n)
+                  (setq re
+                        (concat "\\(?:[^{}\\]\\|\\\\.\\|{" re "*}\\)")))
+                re)))
+	   (arg (concat "{\\(" (funcall inbraces-re 2) "+\\)")))
+      `(;; Verbatim-like args.
+        ;; Do it first, because we don't want to highlight them
+        ;; in comments (bug#68827), but we do want to highlight them
+        ;; in $math$.
+        (,(concat slash verbish opt arg) 3 'tex-verbatim keep)
+        ;; Highlight $$math$$ and $math$.
         ;; This is done at the very beginning so as to interact with the other
         ;; keywords in the same way as comments and strings.
         (,(concat "\\$\\$?\\(?:[^$\\{}]\\|\\\\.\\|{"
-                  (funcall inbraces-re
-                           (concat "{" (funcall inbraces-re "{[^}]*}") "*}"))
+                  (funcall inbraces-re 6)
                   "*}\\)+\\$?\\$")
-         (0 'tex-math))
+         (0 'tex-math keep))
         ;; Heading args.
         (,(concat slash headings "\\*?" opt arg)
          ;; If ARG ends up matching too much (if the {} don't match, e.g.)
@@ -546,8 +552,6 @@ An alternative value is \" . \", if you use a font with a narrow period."
         (,(concat slash variables " *" arg) 2 font-lock-variable-name-face)
         ;; Include args.
         (,(concat slash includes opt arg) 3 font-lock-builtin-face)
-        ;; Verbatim-like args.
-        (,(concat slash verbish opt arg) 3 'tex-verbatim t)
         ;; Definitions.  I think.
         ("^[ \t]*\\\\def *\\\\\\(\\(\\w\\|@\\)+\\)"
 	 1 font-lock-function-name-face))))
@@ -605,14 +609,14 @@ An alternative value is \" . \", if you use a font with a narrow period."
         (list (concat (regexp-opt '("``" "\"<" "\"`" "<<" "«") t)
                       "\\(\\(.\\|\n\\)+?\\)"
                       (regexp-opt `("''" "\">" "\"'" ">>" "»") t))
-              '(1 font-lock-keyword-face)
-              '(2 font-lock-string-face)
-              '(4 font-lock-keyword-face))
+              '(1 'font-lock-keyword-face)
+              '(2 'font-lock-string-face)
+              '(4 'font-lock-keyword-face))
 	;;
 	;; Command names, special and general.
 	(cons (concat slash specials-1) 'font-lock-warning-face)
 	(list (concat "\\(" slash specials-2 "\\)\\([^a-zA-Z@]\\|\\'\\)")
-	      1 'font-lock-warning-face)
+	      '(1 'font-lock-warning-face))
 	(concat slash general)
 	;;
 	;; Font environments.  It seems a bit dubious to use `bold' etc. faces
@@ -680,7 +684,7 @@ An alternative value is \" . \", if you use a font with a narrow period."
 (eval-when-compile
   (defconst tex-syntax-propertize-rules
     (syntax-propertize-precompile-rules
-    ("\\\\verb\\**\\([^a-z@*]\\)"
+     ("\\\\verb\\**\\([^a-z@*]\\)"
       (1 (prog1 "\""
            (tex-font-lock-verb
             (match-beginning 0) (char-after (match-beginning 1))))))))
@@ -764,7 +768,7 @@ automatically inserts its partner."
                            (regexp-quote (buffer-substring arg-start arg-end)))
                       (text-clone-create arg-start arg-end))))))))
       (scan-error nil)
-      (error (message "Error in latex-env-before-change: %s" err)))))
+      (error (message "Error in latex-env-before-change: %S" err)))))
 
 (defun tex-font-lock-unfontify-region (beg end)
   (font-lock-default-unfontify-region beg end)
@@ -852,7 +856,7 @@ START is the position of the \\ and DELIM is the delimiter char."
   (let ((char (nth 3 state)))
     (cond
      ((not char)
-      (if (eq 2 (nth 7 state)) 'tex-verbatim font-lock-comment-face))
+      (if (eq 2 (nth 7 state)) 'tex-verbatim 'font-lock-comment-face))
      ((eq char ?$) 'tex-math)
      ;; A \verb element.
      (t 'tex-verbatim))))
@@ -1032,14 +1036,20 @@ says which mode to use."
                  ;; `tex--guess-mode' really tries to guess the *type* of file,
                  ;; so we still need to consult `major-mode-remap-alist'
                  ;; to see which mode to use for that type.
-                 (alist-get mode major-mode-remap-alist mode))))))
+                 (major-mode-remap mode))))))
 
-;; The following three autoloaded aliases appear to conflict with
-;; AUCTeX.  We keep those confusing aliases for those users who may
-;; have files annotated with -*- LaTeX -*- (e.g. because they received
+;; Support files annotated with -*- LaTeX -*- (e.g. because they received
 ;; them from someone using AUCTeX).
-;; FIXME: Turn them into autoloads so that AUCTeX can override them
-;; with its own autoloads?  Or maybe rely on `major-mode-remap-alist'?
+;;;###autoload (add-to-list 'major-mode-remap-defaults '(TeX-mode . tex-mode))
+;;;###autoload (add-to-list 'major-mode-remap-defaults '(plain-TeX-mode . plain-tex-mode))
+;;;###autoload (add-to-list 'major-mode-remap-defaults '(LaTeX-mode . latex-mode))
+
+;; FIXME: These aliases conflict with AUCTeX, but we still need them
+;; because of packages out there which call these functions directly.
+;; They should be patched to use `major-mode-remap'.
+;; It would be nice to mark them obsolete somehow to encourage using
+;; something else, but the obsolete declaration would become invalid
+;; and confusing when AUCTeX *is* installed.
 ;;;###autoload (defalias 'TeX-mode #'tex-mode)
 ;;;###autoload (defalias 'plain-TeX-mode #'plain-tex-mode)
 ;;;###autoload (defalias 'LaTeX-mode #'latex-mode)
@@ -1265,8 +1275,8 @@ Entering SliTeX mode runs the hook `text-mode-hook', then the hook
   (setq-local facemenu-end-add-face "}")
   (setq-local facemenu-remove-face-function t)
   (setq-local font-lock-defaults
-	      '((tex-font-lock-keywords tex-font-lock-keywords-1
-                                        tex-font-lock-keywords-2 tex-font-lock-keywords-3)
+	      '(( tex-font-lock-keywords tex-font-lock-keywords-1
+                  tex-font-lock-keywords-2 tex-font-lock-keywords-3)
 		nil nil nil nil
 		;; Who ever uses that anyway ???
 		(font-lock-mark-block-function . mark-paragraph)
@@ -2025,7 +2035,8 @@ In the tex shell buffer this command behaves like `comint-send-input'."
 
 (defun tex-display-shell ()
   "Make the TeX shell buffer visible in a window."
-  (display-buffer (tex-shell-buf) display-tex-shell-buffer-action)
+  (with-suppressed-warnings ((obsolete display-tex-shell-buffer-action))
+    (display-buffer (tex-shell-buf) display-tex-shell-buffer-action))
   (tex-recenter-output-buffer nil))
 
 (defun tex-shell-sentinel (proc _msg)
@@ -2137,6 +2148,7 @@ If NOT-ALL is non-nil, save the `.dvi' file."
                   t "%r.pdf"))
               '("pdf" "xe" "lua"))
     ((concat tex-command
+             " " tex-start-options
 	     " " (if (< 0 (length tex-start-commands))
 		     (shell-quote-argument tex-start-commands))
              " %f")
@@ -2681,7 +2693,8 @@ line LINE of the window, or centered if LINE is nil."
     (if (null tex-shell)
 	(message "No TeX output buffer")
       (when-let ((window
-                  (display-buffer tex-shell display-tex-shell-buffer-action)))
+                  (with-suppressed-warnings ((obsolete display-tex-shell-buffer-action))
+                    (display-buffer tex-shell display-tex-shell-buffer-action))))
         (with-selected-window window
 	  (bury-buffer tex-shell)
 	  (goto-char (point-max))

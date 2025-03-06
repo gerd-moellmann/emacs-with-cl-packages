@@ -1,3 +1,54 @@
+  say "And this happens inbetween";
+	 @ture)
+	($sig,$na,@ture)
+($sig,$na,@ture)
+@ture)
+((squery 10 "SQUERY alis :help list")
+ (0.01 ":Alis@hub.uk NOTICE tester :See also: HELP EXAMPLES"))
+ (0.04 ":Alis@hub.uk NOTICE tester :[...]")
+ (0.01 ":Alis@hub.uk NOTICE tester :/SQUERY Alis LIST mask [-options]")
+ (0.08 ":Alis@hub.uk NOTICE tester :Searches for a channel")
+        (erc-scenarios-common-say "/SQUERY alis help list")
+  (should (equal '((regexp . "(string-match-p \"^[fo]+\" \"foobar\")\n    => 0"))
+       (or "comm" "comma" "comman" "command" "commands"
+      (when (and (not (or skipp erc-timestamp-format))
+      (unless skipp
+           (skipp (or (and erc-stamp--skip-when-invisible invisible)
+;; if you type "foo", but typing just "fo" doesn't show the preview.
+ (Emacs main thre), pid 32619 (org.gnu.emacs)
+F DEBUG   : pid: 32619, tid: 32644, name: Emacs main thre  >>> org.gnu.emacs <<<
+	bnez	$t2, .filld		# start filling longs
+	j	.filld			# fill either doubleword or byte
+.filld:
+
+ (0.01 ":bob!~u@q2weir96jk3r2.irc PRIVMSG #chan :[06:08:40] alice: My sons would never so dishonour me.")
+           interger intger lits bool boolen constant filename
+                with typess = (sort (mapcar #'comp-supertypes
+                for types in typess
+;; FIXME: normalise `seq', both the construct and implicit sequences,
+;; `intersection', we may end up normalising subtrees multiple times
+;; One way to avoid this is to aggressively normalise the entire tree
+;; Such normalisation could normalise synonyms, eliminate `minimal-match'
+                  ;; Normalise the constructor to `or' and the args recursively.
+  "Intersection of the normalised FORMS, as an interval set."
+FORM must be normalised (from `rx--normalise-char-pattern')."
+  "Optimise `or' arguments.  Return a new rx form.
+Each element of ARGS should have been normalised using
+    (search-forward "retur")             ; leaves point before the "n"
+with typess = (sort (mapcar #'comp-supertypes
+               (font-spec :registry "iso10646-1" :otf '(khmr nil (pres)))))
+(0.01 ":bob!~u@q2weir96jk3r2.irc PRIVMSG #chan :[06:08:40] alice: My sons would never so dishonour me.")
+ (0.05 ":bob!~u@q2weir96jk3r2.irc PRIVMSG #chan :alice: Pawn me to this your honour, she is his."))
+        (funcall expect 1 "Entirely honour"))
+ (0 ":bob!~u@rz2v467q4rwhy.irc PRIVMSG #chan :You have paid the heavens your function, and the prisoner the very debt of your calling. I have laboured for the poor gentleman to the extremest shore of my modesty; but my brother justice have I found so severe, that he hath forced me to tell him he is indeed Justice.")
+ (0.00 ":irc.example.net 501 tester x :is not a recognised user mode.")
+ (0.00 ":irc.example.net 501 dummy` x :is not a recognised user mode.")
+ (0.1 ":bob!~u@rz2v467q4rwhy.irc PRIVMSG #utf-8 :alice: Entirely honour; I would not be delay'd."))
+           integer integer list bool boolean constant filename
+           "def" "defi" "defin" "define"
+           "doc" "docu" "docum" "docume" "documen" "document"
+	  case Aadd : overflow = ckd_add (&a, accum, next); break;
+   And this the second, again with the same distinction therefrom.
 Bonus: Return a cons cell: (COMPILED . UPTODATE).
 Bonus: Return a cons cell: (COMPILED . UPTODATE)."
 (defun semantic-grammar-create-package (&optional force uptodate)
@@ -36,7 +87,7 @@ be shown.  On positions 3,4, and 7, the @samp{alog} function will be
 As is my wont, I started hacking on it almost immediately. I first
 The latter criterion is the "je ne sais quoi" of the artistic aspect of
 order but are now listed consecutively en bloc.
-      "mot de passe" "Mot de passe")
+     "mot de passe" "Mot de passe")
 	Reported by Mor Zahavi <morzahavi@me.com>.  (Bug#51271)
 	* etc/refcards/fr-refcard.tex (section{Formater}): Remove mention
 	Reported by Ture Pålsson.
@@ -57,7 +108,6 @@ order but are now listed consecutively en bloc.
 2003-06-11  Daniel Néri  <done@mayonnaise.net>
 2001-07-26 10:00:00  Steven E. Harris  <seh@speakeasy.org>
 2001-01-15  Jack Twilley  <jmt@tbe.net>
-
 	matching LAMDA as a word.  Noted by Stefan Monnier.
 	completion variant for every "LAMDA" name (bug#30513).
 	                    "foto"
@@ -195,7 +245,7 @@ mode setting.  With the Inverse flag [@code{alog}], this command is
 @r{    a b@:    I B     @:             @:     2  @:alog@:(a,b)  b^a}
 @r{    a b@:    I f I   @:             @:     2  @:alog@:(a,b)  b^a}
 	Change comment about the iif hook to reflect the actual reason.
-     "I + E (ln), L (exp), B (alog: B^X); f E (lnp1), f L (expm1)"
+     "\\`I' + \\`E' (ln), \\`L' (exp), \\`B' (alog: B^X); \\`f E' (lnp1), \\`f L' (expm1)"
   (let (numer denom)
     (setq numer (car (math-read-expr-list)))
     (if (and (Math-num-integerp numer)
@@ -1177,9 +1227,6 @@ In CLOS, the argument list is (CLASS OBJECT SLOT-NAME), but
     const char *cm_right;	/* right (nd) */
       (should (equal (ert-test-result-messages result) "a\nb\nc\nd\n")))))
       (insert "a\nb\nc\nd\n")
-      (insert "a\nb\nc\nd\n")
-    (insert "a\nb\nc\nd\n")
-      (insert "a\nb\nc\nd\n")
     (insert "a\nb\nc\nd\n")
     (should (string= (buffer-string) "Abc\nd efg\n(h ijk)."))))
 	       (nd (read-directory-name "Create directory: "
@@ -1191,7 +1238,6 @@ DESCRIPTION:In this meeting\\, we will cover topics from product and enginee
     "crate" ;; Cargo (Rust) packages.  Not in libarchive testsuite.
       ;; RFC5546 refers to uninvited attendees as "party crashers".
 That includes both spelling (e.g., "behavior", not "behaviour") and
-	* doc/lispref/control.texi (Signalling Errors)
 	* doc/lispref/control.texi (Signalling Errors)
 Re "behavior" vs "behaviour", etc.
 + [[https://protesilaos.com/codelog/2020-07-08-modus-themes-nuanced-colours/][Modus themes: major review of "nuanced" colours]] (2020-07-08)
@@ -1231,7 +1277,8 @@ Forward propagate immediate involed in assignments." ; FIXME: Typo.  Involved or
 		     (dt (- (if tend (min te tend) te)
                 te (match-string 3))
           (setq s (- (org-time-string-to-seconds te)
-    ("te"  :babel-ini-only "telugu" :polyglossia "telugu" :lang-name "Telugu")
+      ("te" :babel-ini-only "telugu" :polyglossia "telugu" :lang-name "Telugu" :script "telugu" :script-tag "telu")
+      ("bn"  :babel-ini-only "bengali" :polyglossia "bengali" :lang-name "Bengali" :script "bengali" :script-tag: "beng")
 2016-09-10  Toke Høiland-Jørgensen  <toke@toke.dk>  (tiny change)
 	Reported by Toke Høiland-Jørgensen <toke@toke.dk>.
 2012-07-17  Toke Høiland-Jørgensen  <toke@toke.dk>  (tiny change)
@@ -1256,7 +1303,6 @@ Put dialogue in buffer."
   "Given start brace BRA, and end brace KET, expand one line into many lines."
 		   (regexp-quote ket)
 			      (int-to-string (car vec)) ket sig-tail "\n"))
-  "Given start brace BRA, and end brace KET, expand one line into many lines."
 	    m | mo | mot | moti | motif )	val=motif ;;
     i | in | ino | inot | inoti | inotif | inotify )	val=inotify ;;
 2001-04-23  Kahlil Hodgson  <kahlil@discus.anu.edu.au>
@@ -1270,12 +1316,9 @@ Put dialogue in buffer."
 	Rename from whitespace-skipping-for-quotes-not-ouside.
 	(whitespace-skipping-for-quotes-not-ouside)
 Thread-Modell: posix
-Thread-Modell: posix
 (ert-deftest indent-sexp-cant-go ()
 (ert-deftest thunk-let-bound-vars-cant-be-set-test ()
 	       (mml-secure-cust-fpr-lookup context 'encrypt "sub@example.org")))
-       (let ((p-e-fprs (mml-secure-cust-fpr-lookup
-	     (p-s-fprs (mml-secure-cust-fpr-lookup
        (let ((p-e-fprs (mml-secure-cust-fpr-lookup
 	     (p-s-fprs (mml-secure-cust-fpr-lookup
        (let ((s-e-fprs (mml-secure-cust-fpr-lookup
@@ -1307,7 +1350,6 @@ doc/emacs/docstyle.texi:14: fied ==> field
 	(internal--after-with-seleted-window): New functions.
 	* follow.el (follow-inactive-menu): Rename from follow-deactive-menu.
 	* emacs-lisp/cconv.el (cconv-analyse-form): Warn use of ((λ ...) ...).
-	(feedmail-sendmail-f-doesnt-sell-me-out)
 	(feedmail-sendmail-f-doesnt-sell-me-out)
 	Respect feedmail-sendmail-f-doesnt-sell-me-out.
 	* terminal.el (te-get-char, te-tic-sentinel):
@@ -1401,7 +1443,6 @@ Paul Raines (raines at slac.stanford.edu),
 				     (car secnd))) ; fetch_date
 			 secnd (cdr secnd))
 				     (car secnd))) ; Keep_flag
-			 secnd (cdr secnd))
 				     (car secnd))) ; NOV_entry_position
 @c LocalWords: DesBrisay Dcc devel dir dired docstring filll forw
 Older versions of the themes provided options ~grayscale~ (or ~greyscale~)
@@ -1450,14 +1491,12 @@ DEFUN ("cond", Fcond, Scond, 0, UNEVALLED, 0,
 2006-10-12  Magnus Henoch  <mange@freemail.hu>
 2006-10-11  Magnus Henoch  <mange@freemail.hu>
 2006-10-09  Magnus Henoch  <mange@freemail.hu>
-2008-10-16  Magnus Henoch  <mange@freemail.hu>
 2007-12-31  Magnus Henoch  <mange@freemail.hu>
 2007-12-05  Magnus Henoch  <mange@freemail.hu>
 	(ENUMABLE): Remove; no longer needed.
 	* lisp.h (ENUMABLE) [!_AIX]: Don't define to 0 merely because we're
 	* lisp.h (ENUMABLE, DEFINE_GDB_SYMBOL_ENUM): New macros.
 	* lisp.h (ENUMABLE, DEFINE_GDB_SYMBOL_ENUM): Delete macros.
-	* lisp.h (ENUMABLE, DEFINE_GDB_SYMBOL_ENUM): New macros.
 2023-06-29  Andrew G Cohen  <cohen@andy.bu.edu>
 2023-05-07  Andrew G Cohen  <cohen@andy.bu.edu>
 	   C-x b fo
@@ -1467,9 +1506,7 @@ DEFUN ("cond", Fcond, Scond, 0, UNEVALLED, 0,
 2022-03-22  Andrew G Cohen  <cohen@andy.bu.edu>
 2022-03-20  Andrew G Cohen  <cohen@andy.bu.edu>
 2022-03-17  Andrew G Cohen  <cohen@andy.bu.edu>
-2022-03-17  Andrew G Cohen  <cohen@andy.bu.edu>
 2022-03-04  Andrew G Cohen  <cohen@andy.bu.edu>
-2022-02-18  Andrew G Cohen  <cohen@andy.bu.edu>
 2022-02-18  Andrew G Cohen  <cohen@andy.bu.edu>
 2022-02-11  Andrew G Cohen  <cohen@andy.bu.edu>
 2022-02-08  Andrew G Cohen  <cohen@andy.bu.edu>
@@ -1490,7 +1527,6 @@ extern struct servent *hes_getservbyname (/* char *, char * */);
       servent = hes_getservbyname (service, "tcp");
       if (servent)
       servent = getservbyname (service, "tcp");
-      if (servent)
 	  struct servent *srv = getservbyname (service, protocol);
 2003-04-10  Sebastian Tennant  <seb@albert.vcisp.net>  (tiny change)
 	Reported by Sebastian Tennant <sebyte@smolny.plus.com>.
@@ -1515,7 +1551,6 @@ extern struct servent *hes_getservbyname (/* char *, char * */);
 					    (substring strin pos end-pos))))))
 (defun dun-listify-string2 (strin)
     (while (setq end-pos (string-search " " (substring strin pos)))
-					    (substring strin pos end-pos))))))
 "any" "append" "as" "asc" "ascic" "async" "at_begin" "at_end" "audit"
 	   "attribute" "(d)eclaration or (s)pecification?" t) ?s)
 		 "quantity" "(f)ree, (b)ranch, or (s)ource quantity?" t)))
@@ -1549,3 +1584,202 @@ VERY VERY LONG STRIN | VERY VERY LONG STRIN
     (ert-info ("Joined by bouncer to #chan@foonet, pal persent")
     (ert-info ("Joined by bouncer to #chan@barnet, pal persent")
 .UE .
+ (0.03 ":bob!~u@euegh6mj3y8r2.irc PRIVMSG #chan :alice: See, by good hap, yonder's my lord; I have sweat to see his honour.")
+ (0.05 ":bob!~u@euegh6mj3y8r2.irc PRIVMSG #chan :alice: But, in defence, by mercy, 'tis most just.")
+               "n" "nu" "nul" "nulL" "nulll"
+	rin=\E[%p1%dT, rmacs=\E[10m, rmso=\E[m, rmul=\E[m,
+	(ede-load-project-file): Add new input DETECTIN.
+(defun ede-load-project-file (dir &optional detectin rootreturn)
+Optional DETECTIN is an autoload cons from `ede-detect-directory-for-project'
+	   (detect (or detectin (ede-directory-project-cons path)))
+				;; Postpone readin hook till we map
+	      ;; Don't make undo entries for readin.
+  :nicky!uhuser@host212223.dialin.fnordisp.net PRIVMSG #lazybastards :Hello!
+         (skipp (or (bound-and-true-p erc-stamp--display-margin-mode)
+         (erc--msg-prop-overrides `(,@(and skipp `((erc--skip stamp)))
+    ("\\.\\(flc\\|fli\\|rle\\|iff\\|pfx\\|avi\\|sme\\|rpza\\|dl\\|qt\\|rsrc\\|mov\\)$" "xanim")
+    ("\\.sme$" "video/sme")
+     ("pl" :default "Indeks tabel")
+    ("nn" "Fil"      "N" "Tidspunkt" "Overskrift" "Tid" "ALLE" "Total tid" "Filtid" "Tidsoversyn")
+            (setq te (org-insert-timestamp (or at-time now) 'with-hm 'inactive))
+		     (te (float-time
+     ("notin" "\\notin" t "&notin;" "[not an element of]" "[not an element of]" "∉")
+     ("nn" :default "Held fram frå førre side")
+     ("nn" :default "Held fram på neste side")
+     ("pl" :default "Spis treści" :html "Spis tre&#x015b;ci")
+    ("sme" . "UTF-8") ; MS-Windows Northern Sami (Norway)
+  '("\\(?:Entering\\|Leavin\\(g\\)\\) directory [`']\\(.+\\)'$" (2 . 1))
+    "dropping" "fillin" "from" "granularity" "hppp" "inwindow"
+    (".G1" . ".G2")			; grap
+  (let ((tagret nil)
+		(setq tagret (cons ans tagret))
+	      (setq tagret (append ans tagret)))
+    tagret))
+	    (setq tagret ans)
+	  (setq tagret (car ans)))
+    (cons objret tagret)))
+            (prevend (track-changes--state-end state))
+              (setq end prevend)
+            (when (< endb prevend)
+              (let ((new-end (+ end (- prevend endb))))
+                (cl-assert (= prevend (+ beg lenbefore)))
+            (cl-assert (<= beg prevbeg prevend endb))
+                         (- endb prevend)))
+                                                 (- endb prevend)))))
+ ;; etc... whereas "real" declmods are valid for all types, buildin
+              outin = ina | inb | \\=`constant;
+              out = outin;
+	comin comstart)
+	(setq comin (point))
+                                (buffer-substring comstart comin))))
+	      (comment-string-strip (buffer-substring comstart comin) nil t))
+		     (buffer-substring (point) comin))
+		  (buffer-substring (line-beginning-position) comin))))
+;; designate them are: eqn (e), grap (g), pic (p), tbl (t), vgrind
+	FLUSHO and PENDIN.
+      fo: { [x: any]: any } = {
+                           "\\<\\(?:\\(?:fals\\|tru\\)e\\)\\>")
+    (search-forward "tru")
+    (search-forward "Tru")
+    ("  fo.ba@example.com" 6 email "fo.ba@example.com")
+               "t" "tr" "tru" "truE" "truee"
+               "f" "fa" "fal" "fals" "falsE" "falsee"))
+    int eventState, notIn;
+    notIn = (down ? eventState & ~lastButtonState
+    if ((notIn & (MotionEvent.BUTTON_PRIMARY
+    if ((notIn & MotionEvent.BUTTON_PRIMARY) != 0)
+    if ((notIn & MotionEvent.BUTTON_SECONDARY) != 0)
+    if ((notIn & MotionEvent.BUTTON_TERTIARY) != 0)
+    if ((notIn & MotionEvent.BUTTON_BACK) != 0)
+    if ((notIn & MotionEvent.BUTTON_FORWARD) != 0)
+    if ((notIn & MotionEvent.BUTTON_STYLUS_PRIMARY) != 0)
+    if ((notIn & MotionEvent.BUTTON_STYLUS_SECONDARY) != 0)
+argument \\='general-category, is Decimal_Numbers (Nd).  It returns
+  (let (compos comin)
+			  (setq comin (point))))))
+	    (setq comin (point))))
+	  (let* ((comstart (buffer-substring compos comin))
+		         (te (float-time
+		         (dt (- (if tend (min te tend) te)
+2022-04-20  Jean Abou Samra  <jean@abou-samra.fr>  (tiny change)
+(string< "abc" "abd")
+(string< "abd" "abc")
+;; 	  ("a") ("ab") ("abc") ("abd") ("abf") ("zab") ("acb")
+;; `«(my-face)U:abd»'.
+;; `«(my-fibonacci-property):(1 1 2 3 5 8):abd»'.
+   :eval (string-collate-lessp "abc" "abd"))
+   :eval (string-lessp "abc" "abd")
+   :eval (string-greaterp "abd" "abc")
+   :eval (string-collate-lessp "abc" "abd")))
+  `(("abc" < "abd")
+    (abc < "abd")
+    (abc < abd)
+    ("abc" < ,(string-to-multibyte "abd"))
+    (,(string-to-multibyte "abc") < "abd")
+    (,(string-to-multibyte "abc") < ,(string-to-multibyte "abd"))
+                   ("" . "a") ("a" . "b") ("A" . "a") ("abc" . "abd")
+2004-05-05  Stephen Eglen  <stephen@anc.ed.ac.uk>
+;; location: http://www.anc.ed.ac.uk/~stephen/emacs/
+  :link '(url-link "https://www.anc.ed.ac.uk/~stephen/emacs/")
+              ((or (string-equal tag "anc") (string-equal tag "ancestor"))
+     ("ro" :default "Continuare de pe pagina precedentă")
+     ("ro" :default "Continuare pe pagina următoare")
+;;            avk@rtsg.mot.com (Andrew V. Klein)     for a Dired tip.
+Mitchell, Gergely Nagy, Michael Olson, Per Persson, Jorgen Sch@"afer,
+Fran@,{c}ois Pinard, Greg McGary, and Bruno Haible wrote @file{po.el},
+Pieri, Fred Pierresteguy, Fran@,{c}ois Pinard, Daniel Pittman, Christian
+Timo Savola, Jorgen Sch@"afer, Holger Schauer, William Schelter, Ralph
+	f9832e80b89 ; * lisp/textmodes/ispell.el (ispell-message): Add commen...
+	0bebd0e5f09 ; Remove 'build-module' and 'html-manual' directories fro...
+	1014bcc8e32 Fix fontification of method-invocations in js-ts-mode (bu...
+	1b9812af80b ; * etc/PROBLEMS: Document problem with GnuPG 2.4.1.  (Bu...
+	1fb2fb501f3 typescript-ts-mode, tsx-ts-mode: Fix syntax properties fo...
+	399433cc2b9 * lisp/progmodes/project.el: Filter out empty strings fro...
+	46fe7a17f53 Fix dragging mode line on text terminals with a mouse (bu...
+	4bf7cb71edc Fix go-ts-mode indentation and set indent offset to 8 (Bu...
+	527eb11de20 * lisp/minibuffer.el (completions-group-separator): Rever...
+	5b34fc07085 * lisp/treesit.el (treesit-node-at): Update docstring (bu...
+	5cf1de683b2 Fix python-fill-paragraph problems on filling strings (bu...
+	7678b7e46f2 Eglot: check server capability before sending didSave (bu...
+	9ac12592781 Fix display of menu-bar bindings of commands in *Help* bu...
+	9e105d483fa Fix c-ts-mode indentation for statement after preproc (bu...
+	When running emacs in a terminal (or at least, in iTerm), keys are not
+	b464e6c490b Make last change of w32 GUI dialogs conditional and rever...
+	b916ec88b2f Make eglot-ensure's post-command-hook run a bit later (bu...
+	e551dd72f79 * etc/PROBLEMS: Add entry about pinentry with gpgsm.  (Bu...
+	ed4cd3eddf7 dockerfile-ts-mode: Prevent empty categories in imenu (Bu...
+	edd36786e1e ; * lisp/bookmark.el (bookmark-bmenu-locate): Doc fix (bu...
+	f102145d381 ; * etc/PROBLEMS: Describe problems with MuPDF 1.21.  (Bu...
+	f49fe936abd * etc/NEWS: Note dotimes loop variable scoping change (bu...
+	performance reasons.  Fix a bug that could cause ghost (mis)matches
+2023-03-02  Sebastian Tennant  <sdt@sebyte.me>  (tiny change)
+2023-03-26  Andrew G Cohen  <cohen@andy.bu.edu>
+2023-04-01  Andrew G Cohen  <cohen@andy.bu.edu>
+2023-04-09  Andrew G Cohen  <cohen@andy.bu.edu>
+2023-04-11  Andrew G Cohen  <cohen@andy.bu.edu>
+2023-04-12  Andrew G Cohen  <cohen@andy.bu.edu>
+2023-04-14  Andrew G Cohen  <cohen@andy.bu.edu>
+2023-04-15  Andrew G Cohen  <cohen@andy.bu.edu>
+2023-04-17  Andrew G Cohen  <cohen@andy.bu.edu>
+2023-04-18  Andrew G Cohen  <cohen@andy.bu.edu>
+2023-04-30  Andrew G Cohen  <cohen@andy.bu.edu>
+2023-05-06  Andrew G Cohen  <cohen@andy.bu.edu>
+2023-06-20  Andrew G Cohen  <cohen@andy.bu.edu>
+2023-07-05  Andrew G Cohen  <cohen@andy.bu.edu>
+2024-05-10  Andrew G Cohen  <cohen@andy.bu.edu>
+	ce0ebb91f25 Improve documentation of read syntax and printed represen...
+	e110312ad95 ; * doc/lispref/minibuf.texi (Text from Minibuffer): Ment...
+2023-07-08  Vladimir Sedach  <vas@oneofus.la>
+	90fc6b987ad * lisp/savehist.el (savehist-save): Preserve shared struc...
+	ed3bab3cc72 Revert 'forward-sentence-default-function' to return poin...
+	b3e930d328e Revert inadvertent change to lisp/icomplete.el in previou...
+	973c1d24c6a ruby-ts-mode: Also don't reindent 'identifier' when insid...
+	e444115d026 Improve keymap-global-set and keymap-local-set interactiv...
+	8e9783b4ce4 Rebind in read-regexp-map ‘M-c’ to ‘M-s c’ compatible wit...
+	f12f72b0e09 ; * lisp/simple.el (primitive-undo): Clarify error messag...
+	cf327766226 ; * doc/lispref/parsing.texi (Using Parser): Remove delet...
+	b211a63455c Make tab-bar-tab-group-format-function also handle curren...
+	a3c310c11a Create new "use-package" themse and use it for :custom wit...
+	2a85d81c47 Add support for gathering statistics on use-package declar...
+            (let* ((nam (buffer-substring (match-beginning 2) (match-end 2)))
+	      (setq nmlst (cons nam nmlst)
+	(elisp--safe-macroexpand-all): Make the warning more discrete.
+|PACK|UNPK|INDX|BLD |LEN |... |
+@key{INDX} removes an integer @var{n}, then builds a vector of
+integers from 1 to @var{n}.  @kbd{INV INDX} takes three numbers
+(sref STRING INDX) returns the character in STRING at INDEX.  INDEX
+;; |PACK|UNPK|INDX|BLD |LEN |... |
+       ( "INDX"  (progn calc-num-prefix calc-index) "\C-u\excalc-index\r" )
+       (calc-enter-result 3 "indx" (cons 'calcFunc-index (calc-top-list-n 3)))
+     (calc-enter-result 0 "indx" (list 'calcFunc-index
+	(elisp--safe-macroexpand-all): Make the warning more discreet.
+	dee6b36286 If use-package-verbose is t, show loading times when :afte...
+	267fc6d00c4 ruby-smie-rules: Fix misindentation of a method call afte...
+	b0181dafb9e Improve documentation of 'enable-local-variables' in Emac...
+(string-lessp "abc" "abd")
+(string-lessp "abd" "abc")
+@item @code{\ine}
+            (idlwave-define-abbrev "ine" "IF N_Elements() EQ 0 THEN"
+@kbd{P l} (@code{mh-print-msg}) (the @i{l} is for @i{l}ine printer or
+	* cookie.el (cookie): Enhance it to handle both LINS files and
+                          "^(def\\(custom\\|face\\|group\\|ine\\(?:-globalized\\)?-minor-mode\\)" nil t)
+ine\\(?:-global\\)?-minor-mode\\|ine-compilation-mode\\|un-cvs-mode\\|\
+	(message "Transpose: c(har), l(ine), p(aragraph), s(-exp), w(ord),")
+	(t (message "Ask for: l(ine number), c(ursor position), p(age number)")
+;; * ITS-style LINS format (strings terminated by ASCII 0 characters,
+     "^\\(?:[Ee]rror on \\|[Ww]arning on\\( \\)\\)?[Ll]ine[ \t]+\\([0-9]+\\)[ \t]+\
+(idlwave-define-abbrev "ine" "if n_elements() eq 0 then" (idlwave-keyword-abbrev 11))
+        "copy" "def~ine" "del" "desc~ribe" "disc~onnect" "ed~it"
+        "undef~ine" "var~iable" "whenever")
+     (insert "abc abd"))
+   (should (string= (buffer-string) "abc abd"))
+  (let (node indx comma)
+	      indx (match-string 3 url))
+    (when (> (length indx) 0)
+		    indx)
+      (setq comma (match-string 2 indx))
+      (setq indx  (match-string 1 indx))
+      (Info-index indx)
+	(oarticle (make-symbol "gnus-setup-message-oarticle"))
+	   (,oarticle gnus-article-reply)
+	 (gnus-inews-add-send-actions ,winconf ,buffer ,oarticle ,config

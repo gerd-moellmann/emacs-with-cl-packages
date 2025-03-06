@@ -1,6 +1,6 @@
 ;;; subr-x.el --- extra Lisp functions  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2013-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2025 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: convenience
@@ -81,18 +81,22 @@ Note how the single `-' got converted into a list before
 threading."
   (declare (indent 0) (debug thread-first))
   `(internal--thread-argument nil ,@forms))
+
 (defsubst hash-table-empty-p (hash-table)
   "Check whether HASH-TABLE is empty (has 0 elements)."
+  (declare (side-effect-free t))
   (zerop (hash-table-count hash-table)))
 
 (defsubst hash-table-keys (hash-table)
   "Return a list of keys in HASH-TABLE."
+  (declare (side-effect-free t))
   (let ((keys nil))
     (maphash (lambda (k _) (push k keys)) hash-table)
     keys))
 
 (defsubst hash-table-values (hash-table)
   "Return a list of values in HASH-TABLE."
+  (declare (side-effect-free t))
   (let ((values nil))
     (maphash (lambda (_ v) (push v values)) hash-table)
     values))
@@ -102,6 +106,7 @@ threading."
   "Join all STRINGS using SEPARATOR.
 Optional argument SEPARATOR must be a string, a vector, or a list of
 characters; nil stands for the empty string."
+  (declare (pure t) (side-effect-free t))
   (mapconcat #'identity strings separator))
 
 (define-obsolete-function-alias 'string-reverse 'reverse "25.1")
@@ -112,6 +117,7 @@ characters; nil stands for the empty string."
 When truncating, \"...\" is always prepended to the string, so
 the resulting string may be longer than the original if LENGTH is
 3 or smaller."
+  (declare (pure t) (side-effect-free t))
   (let ((strlen (length string)))
     (if (<= strlen length)
 	string
@@ -124,16 +130,19 @@ the resulting string may be longer than the original if LENGTH is
   "Check whether STRING is either empty or only whitespace.
 The following characters count as whitespace here: space, tab, newline and
 carriage return."
+  (declare (pure t) (side-effect-free t))
   (string-match-p "\\`[ \t\n\r]*\\'" string))
 
 (defsubst string-remove-prefix (prefix string)
   "Remove PREFIX from STRING if present."
+  (declare (pure t) (side-effect-free t))
   (if (string-prefix-p prefix string)
       (substring string (length prefix))
     string))
 
 (defsubst string-remove-suffix (suffix string)
   "Remove SUFFIX from STRING if present."
+  (declare (pure t) (side-effect-free t))
   (if (string-suffix-p suffix string)
       (substring string 0 (- (length string) (length suffix)))
     string))
@@ -144,23 +153,27 @@ carriage return."
 All sequences of whitespaces in STRING are collapsed into a
 single space character, and leading/trailing whitespace is
 removed."
+  (declare (important-return-value t))
   (let ((blank "[[:blank:]\r\n]+"))
     (string-trim (replace-regexp-in-string blank " " string t t)
                  blank blank)))
 
-(defun string-fill (string length)
-  "Try to word-wrap STRING so that no lines are longer than LENGTH.
-Wrapping is done where there is whitespace.  If there are
-individual words in STRING that are longer than LENGTH, the
-result will have lines that are longer than LENGTH."
+;;;###autoload
+(defun string-fill (string width)
+  "Try to word-wrap STRING so that it displays with lines no wider than WIDTH.
+STRING is wrapped where there is whitespace in it.  If there are
+individual words in STRING that are wider than WIDTH, the result
+will have lines that are wider than WIDTH."
+  (declare (important-return-value t))
   (with-temp-buffer
     (insert string)
     (goto-char (point-min))
-    (let ((fill-column length)
+    (let ((fill-column width)
           (adaptive-fill-mode nil))
       (fill-region (point-min) (point-max)))
     (buffer-string)))
 
+;;;###autoload
 (defun string-limit (string length &optional end coding-system)
   "Return a substring of STRING that is (up to) LENGTH characters long.
 If STRING is shorter than or equal to LENGTH characters, return the
@@ -184,6 +197,7 @@ coding system that doesn't specify a BOM, like `utf-16le' or `utf-16be'.
 When shortening strings for display purposes,
 `truncate-string-to-width' is almost always a better alternative
 than this function."
+  (declare (important-return-value t))
   (unless (natnump length)
     (signal 'wrong-type-argument (list 'natnump length)))
   (if coding-system
@@ -241,6 +255,7 @@ than this function."
      (end (substring string (- (length string) length)))
      (t (substring string 0 length)))))
 
+;;;###autoload
 (defun string-pad (string length &optional padding start)
   "Pad STRING to LENGTH using PADDING.
 If PADDING is nil, the space character is used.  If not nil, it
@@ -252,6 +267,7 @@ is done.
 If START is nil (or not present), the padding is done to the end
 of the string, and if non-nil, padding is done to the start of
 the string."
+  (declare (pure t) (side-effect-free t))
   (unless (natnump length)
     (signal 'wrong-type-argument (list 'natnump length)))
   (let ((pad-length (- length (length string))))
@@ -259,8 +275,10 @@ the string."
           (start (concat (make-string pad-length (or padding ?\s)) string))
           (t (concat string (make-string pad-length (or padding ?\s)))))))
 
+;;;###autoload
 (defun string-chop-newline (string)
   "Remove the final newline (if any) from STRING."
+  (declare (pure t) (side-effect-free t))
   (string-remove-suffix "\n" string))
 
 (defun replace-region-contents (beg end replace-fn
@@ -298,9 +316,13 @@ it makes no sense to convert it to a string using
 Like `let', bind variables in BINDINGS and then evaluate BODY,
 but with the twist that BODY can evaluate itself recursively by
 calling NAME, where the arguments passed to NAME are used
-as the new values of the bound variables in the recursive invocation."
+as the new values of the bound variables in the recursive invocation.
+
+This construct can only be used with lexical binding."
   (declare (indent 2) (debug (symbolp (&rest (symbolp form)) body)))
   (require 'cl-lib)
+  (unless lexical-binding
+    (error "`named-let' requires lexical binding"))
   (let ((fargs (mapcar (lambda (b) (if (consp b) (car b) b)) bindings))
         (aargs (mapcar (lambda (b) (if (consp b) (cadr b))) bindings)))
     ;; According to the Scheme semantics of named let, `name' is not in scope
@@ -316,7 +338,12 @@ as the new values of the bound variables in the recursive invocation."
 
 ;;;###autoload
 (defun string-pixel-width (string)
-  "Return the width of STRING in pixels."
+  "Return the width of STRING in pixels.
+
+If you call this function to measure pixel width of a string
+with embedded newlines, it returns the width of the widest
+substring that does not include newlines."
+  (declare (important-return-value t))
   (if (zerop (length string))
       0
     ;; Keeping a work buffer around is more efficient than creating a
@@ -339,6 +366,7 @@ This takes into account combining characters and grapheme clusters:
 if compositions are enabled, each sequence of characters composed
 on display into a single grapheme cluster is treated as a single
 indivisible unit."
+  (declare (side-effect-free t))
   (let ((result nil)
         (start 0)
         comp)

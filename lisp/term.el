@@ -1,6 +1,6 @@
 ;;; term.el --- general command interpreter in a window stuff -*- lexical-binding: t -*-
 
-;; Copyright (C) 1988, 1990, 1992, 1994-1995, 2001-2024 Free Software
+;; Copyright (C) 1988, 1990, 1992, 1994-1995, 2001-2025 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Per Bothner <per@bothner.com>
@@ -658,8 +658,8 @@ executed once, when the buffer is created."
         ["Forward Output Group" term-next-prompt t]
         ["Kill Current Output Group" term-kill-output t]))
     map)
-  "Keymap for \"line mode\" in Term mode.  For custom keybindings purposes
-please note there is also `term-raw-map'")
+  "Keymap for \"line mode\" in Term mode.
+For custom keybindings purposes please note there is also `term-raw-map'")
 
 (defvar term-escape-char nil
   "Escape character for char sub-mode of term mode.
@@ -954,6 +954,9 @@ underlying shell."
     (define-key map [next] 'term-send-next)
     (define-key map [xterm-paste] #'term--xterm-paste)
     (define-key map [?\C-/] #'term-send-C-_)
+    (define-key map [?\C- ] #'term-send-C-@)
+    (define-key map [?\C-\M-/] #'term-send-C-M-_)
+    (define-key map [?\C-\M- ] #'term-send-C-M-@)
 
     (when term-bind-function-keys
       (dotimes (key 21)
@@ -977,12 +980,7 @@ For custom keybindings purposes please note there is also
 (defun term--update-term-menu (&optional force)
   (when (and (lookup-key term-mode-map [menu-bar terminal])
              (or force (frame-or-buffer-changed-p)))
-    (let ((buffer-list
-           (seq-filter
-            (lambda (buffer)
-              (provided-mode-derived-p (buffer-local-value 'major-mode buffer)
-                                       'term-mode))
-            (buffer-list))))
+    (let ((buffer-list (match-buffers '(derived-mode . term-mode))))
       (easy-menu-change
        nil
        "Terminal Buffers"
@@ -1090,6 +1088,8 @@ For custom keybindings purposes please note there is also
   (setq term-ansi-current-invisible nil)
   (setq term-ansi-current-bg-color 0))
 
+(defvar touch-screen-display-keyboard)
+
 (define-derived-mode term-mode fundamental-mode "Term"
   "Major mode for interacting with an inferior interpreter.
 The interpreter name is same as buffer name, sans the asterisks.
@@ -1097,7 +1097,7 @@ The interpreter name is same as buffer name, sans the asterisks.
 There are two submodes: line mode and char mode.  By default, you are
 in char mode.  In char sub-mode, each character (except
 `term-escape-char') is sent immediately to the subprocess.
-The escape character is equivalent to the usual meaning of C-x.
+The escape character is equivalent to the usual meaning of \\`C-x'.
 
 In line mode, you send a line of input at a time; use
 \\[term-send-input] to send.
@@ -1138,6 +1138,7 @@ Commands in line mode:
 \\{term-mode-map}
 
 Entry to this mode runs the hooks on `term-mode-hook'."
+  :interactive nil
   ;; we do not want indent to sneak in any tabs
   (setq indent-tabs-mode nil)
   (setq buffer-display-table term-display-table)
@@ -1147,6 +1148,9 @@ Entry to this mode runs the hooks on `term-mode-hook'."
   (setq-local term-last-input-start (make-marker))
   (setq-local term-last-input-end (make-marker))
   (setq-local term-last-input-match "")
+
+  ;; Always display the onscreen keyboard.
+  (setq-local touch-screen-display-keyboard t)
 
   ;; These local variables are set to their local values:
   (make-local-variable 'term-saved-home-marker)
@@ -1382,7 +1386,6 @@ Entry to this mode runs the hooks on `term-mode-hook'."
   (interactive "e")
   ;; Give temporary modes such as isearch a chance to turn off.
   (run-hooks 'mouse-leave-buffer-hook)
-  (setq this-command 'yank)
   (mouse-set-point click)
   ;; As we have moved point, bind `select-active-regions' to prevent
   ;; the `deactivate-mark' call in `term-send-raw-string' from
@@ -1429,6 +1432,9 @@ Entry to this mode runs the hooks on `term-mode-hook'."
 (defun term-send-del   () (interactive) (term-send-raw-string "\e[3~"))
 (defun term-send-backspace  () (interactive) (term-send-raw-string "\C-?"))
 (defun term-send-C-_  () (interactive) (term-send-raw-string "\C-_"))
+(defun term-send-C-@  () (interactive) (term-send-raw-string "\C-@"))
+(defun term-send-C-M-_  () (interactive) (term-send-raw-string "\e\C-_"))
+(defun term-send-C-M-@  () (interactive) (term-send-raw-string "\e\C-@"))
 
 (defun term-send-function-key ()
   "If bound to a function key, this will send that key to the underlying shell."
@@ -1453,7 +1459,7 @@ Entry to this mode runs the hooks on `term-mode-hook'."
 (defun term-char-mode ()
   "Switch to char (\"raw\") sub-mode of term mode.
 Each character you type is sent directly to the inferior without
-intervention from Emacs, except for the escape character (usually C-c)."
+intervention from Emacs, except for the escape character (usually \\`C-c')."
   (interactive)
   ;; FIXME: Emit message? Cfr ilisp-raw-message
   (when (term-in-line-mode)
@@ -1706,6 +1712,30 @@ Nil if unknown.")
                   "case $BASH_VERSION in [0123].*|4.[0123].*) exit 43;; esac")
                (error 0)))))))
 
+(defun term-generate-db-directory ()
+  "Return the name of a directory holding Emacs's terminfo files.
+If `data-directory' is accessible to subprocesses, as on systems besides
+Android, return the same and no more.  Otherwise, copy terminfo files
+from the same directory to a temporary location, and return the latter."
+  (if (not (featurep 'android))
+      data-directory
+    (progn
+      (let* ((dst-directory (expand-file-name "eterm-db/e"
+                                              temporary-file-directory))
+             (parent (directory-file-name
+                      (file-name-directory dst-directory)))
+             (src-directory (expand-file-name "e" data-directory)))
+        (when (file-newer-than-file-p src-directory dst-directory)
+          (message "Generating Terminfo database...")
+          (with-demoted-errors "Generating Terminfo database: %s"
+            (when (file-exists-p dst-directory)
+              ;; Arrange that the directory be writable.
+              (dolist (x (directory-files-recursively parent "" t t))
+                (set-file-modes x #o700))
+              (delete-directory dst-directory t))
+            (copy-directory src-directory dst-directory nil t t)))
+        parent))))
+
 ;; This auxiliary function cranks up the process for term-exec in
 ;; the appropriate environment.
 
@@ -1719,7 +1749,8 @@ Nil if unknown.")
 	 (nconc
 	  (list
 	   (format "TERM=%s" term-term-name)
-	   (format "TERMINFO=%s" data-directory)
+	   (format "TERMINFO=%s"
+                   (term-generate-db-directory))
 	   (format term-termcap-format "TERMCAP="
 		   term-term-name term-height term-width)
 
@@ -1741,7 +1772,12 @@ Nil if unknown.")
       (push (format "EMACS=%s (term:%s)" emacs-version term-protocol-version)
             process-environment))
     (apply #'start-process name buffer
-	   "/bin/sh" "-c"
+           ;; On Android, /bin doesn't exist, and the default shell is
+           ;; found as /system/bin/sh.
+	   (if (eq system-type 'android)
+               "/system/bin/sh"
+             "/bin/sh")
+           "-c"
 	   (format "stty -nl echo rows %d columns %d sane 2>%s;\
 if [ $1 = .. ]; then shift; fi; exec \"$@\""
 		   term-height term-width null-device)
@@ -2071,7 +2107,7 @@ See `term-replace-by-expanded-history'.  Returns t if successful."
 	       ;; We cannot know the interpreter's idea of input line numbers.
 	       (goto-char (match-end 0))
 	       (message "Absolute reference cannot be expanded"))
-	      ((looking-at "!-\\([0-9]+\\)\\(:?[0-9^$*-]+\\)?")
+	      ((looking-at "!-\\([0-9]+\\):?\\([0-9^$*-]+\\)?")
 	       ;; Just a number of args from `number' lines backward.
 	       (let ((number (1- (string-to-number
 				  (buffer-substring (match-beginning 1)
@@ -2094,7 +2130,7 @@ See `term-replace-by-expanded-history'.  Returns t if successful."
 		t t)
 	       (message "History item: previous"))
 	      ((looking-at
-		"!\\??\\({\\(.+\\)}\\|\\(\\sw+\\)\\)\\(:?[0-9^$*-]+\\)?")
+		"!\\??\\({\\(.+\\)}\\|\\(\\sw+\\)\\):?\\([0-9^$*-]+\\)?")
 	       ;; Most recent input starting with or containing (possibly
 	       ;; protected) string, maybe just a number of args.  Phew.
 	       (let* ((mb1 (match-beginning 1)) (me1 (match-end 1))
@@ -2973,7 +3009,7 @@ See `term-prompt-regexp'."
 ;; It emulates (most of the features of) a VT100/ANSI-style terminal.
 
 ;; References:
-;; [ctlseqs]: http://invisible-island.net/xterm/ctlseqs/ctlseqs.html
+;; [ctlseqs]: https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
 ;; [ECMA-48]: https://www.ecma-international.org/publications/standards/Ecma-048.htm
 ;; [vt100]: https://vt100.net/docs/vt100-ug/chapter3.html
 
@@ -4338,7 +4374,7 @@ Typing SPC flushes the help buffer."
       (display-completion-list (sort completions 'string-lessp)))
     (message "Hit space to flush")
     (let (key first)
-      (if (with-current-buffer (get-buffer "*Completions*")
+      (if (with-current-buffer "*Completions*"
 	    (setq key (read-key-sequence nil)
 		  first (aref key 0))
 	    (and (consp first)

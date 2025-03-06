@@ -1,6 +1,6 @@
 ;;; files-tests.el --- tests for files.el.  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2012-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -165,6 +165,27 @@ form.")
       (insert ";;; test-test.el --- tests  -*- lexical-binding: t; -*-\n\n")
       (hack-local-variables)
       (should (eq lexical-binding nil)))))
+
+(ert-deftest files-tests-safe-local-variable-directories ()
+  ;; safe-local-variable-directories should be risky,
+  ;; so use it as an arbitrary risky variable.
+  (let ((test-alist '((safe-local-variable-directories . "some_val")))
+        (fakedir default-directory)
+        (enable-local-eval t))
+    (with-temp-buffer
+      (setq safe-local-variable-directories (list fakedir))
+      (hack-local-variables-filter test-alist fakedir)
+      (should (equal file-local-variables-alist test-alist)))
+    (with-temp-buffer
+      (setq safe-local-variable-directories (list fakedir))
+      (setq noninteractive t)
+      (hack-local-variables-filter test-alist "wrong")
+      (should-not (equal file-local-variables-alist test-alist)))
+    (with-temp-buffer
+      (setq safe-local-variable-directories '())
+      (setq noninteractive t)
+      (hack-local-variables-filter test-alist fakedir)
+      (should-not (equal file-local-variables-alist test-alist)))))
 
 (defvar files-test-bug-18141-file
   (ert-resource-file "files-bug18141.el.gz")
@@ -1175,18 +1196,21 @@ unquoted file names."
                      "emacs" (current-buffer)
                      (concat invocation-directory invocation-name)
                      "--version")))
-          (accept-process-output proc)
-          (goto-char (point-min))
-          (should (search-forward emacs-version nil t))
-          ;; Don't stop the test run with a query, as the subprocess
-          ;; may or may not be dead by the time we reach here.
-          (set-process-query-on-exit-flag proc nil)
-          ;; On MS-Windows, wait for the process to die, since the OS
-          ;; will not let us delete a directory that is the cwd of a
-          ;; running process.
-          (when (eq system-type 'windows-nt)
-            (while (process-live-p proc)
-              (sleep-for 0.1)))))))
+          (unwind-protect
+              (progn
+                (accept-process-output proc)
+                (goto-char (point-min))
+                (should (search-forward emacs-version nil t))
+                ;; Don't stop the test run with a query, as the subprocess
+                ;; may or may not be dead by the time we reach here.
+                (set-process-query-on-exit-flag proc nil)
+                ;; On MS-Windows, wait for the process to die, since the OS
+                ;; will not let us delete a directory that is the cwd of a
+                ;; running process.
+                (when (eq system-type 'windows-nt)
+                  (while (process-live-p proc)
+                    (sleep-for 0.1))))
+            (delete-process proc))))))
   (files-tests--with-temp-non-special-and-file-name-handler
       (tmpdir nospecial-dir t)
     (with-temp-buffer
@@ -1201,30 +1225,30 @@ unquoted file names."
     (let ((process-environment (cons "FOO=foo" process-environment))
           (nospecial-foo (files-tests--new-name nospecial "$FOO")))
       ;; The "/:" prevents substitution.
-      (equal (substitute-in-file-name nospecial-foo) nospecial-foo)))
+      (should (equal (substitute-in-file-name nospecial-foo) nospecial-foo))))
   (files-tests--with-temp-non-special-and-file-name-handler (tmpfile nospecial)
     (let ((process-environment (cons "FOO=foo" process-environment))
           (nospecial-foo (files-tests--new-name nospecial "$FOO")))
       ;; The "/:" prevents substitution.
-      (equal (substitute-in-file-name nospecial-foo) nospecial-foo))))
+      (should (equal (substitute-in-file-name nospecial-foo) nospecial-foo)))))
 
 (ert-deftest files-tests-file-name-non-special-temporary-file-directory ()
   (files-tests--with-temp-non-special (tmpdir nospecial-dir t)
     (let ((default-directory nospecial-dir))
-      (equal (temporary-file-directory) temporary-file-directory)))
+      (should (equal (temporary-file-directory) temporary-file-directory))))
   (files-tests--with-temp-non-special-and-file-name-handler
       (tmpdir nospecial-dir t)
     (let ((default-directory nospecial-dir))
-      (equal (temporary-file-directory) temporary-file-directory))))
+      (should (equal (temporary-file-directory) temporary-file-directory)))))
 
 (ert-deftest files-tests-file-name-non-special-unhandled-file-name-directory ()
   (files-tests--with-temp-non-special (tmpdir nospecial-dir t)
-    (equal (unhandled-file-name-directory nospecial-dir)
-           (file-name-as-directory tmpdir)))
+    (should (equal (unhandled-file-name-directory nospecial-dir)
+                   (file-name-as-directory tmpdir))))
   (files-tests--with-temp-non-special-and-file-name-handler
       (tmpdir nospecial-dir t)
-    (equal (unhandled-file-name-directory nospecial-dir)
-           (file-name-as-directory tmpdir))))
+    (should-not (equal (unhandled-file-name-directory nospecial-dir)
+                       (file-name-as-directory tmpdir)))))
 
 (ert-deftest files-tests-file-name-non-special-vc-registered ()
   (files-tests--with-temp-non-special (tmpfile nospecial)
@@ -1635,6 +1659,48 @@ The door of all subtleties!
   (should (equal (file-name-base "foo") "foo"))
   (should (equal (file-name-base "foo/bar") "bar")))
 
+(defvar sh-shell)
+
+(defun files-tests--check-shebang (shebang expected-mode &optional expected-dialect)
+  "Assert that mode for SHEBANG derives from EXPECTED-MODE.
+
+If EXPECTED-MODE is sh-base-mode, DIALECT says what `sh-shell' should be
+set to."
+  (ert-with-temp-file script-file
+    :text shebang
+    (find-file script-file)
+    (let ((actual-mode (if (derived-mode-p expected-mode)
+                           expected-mode
+                         major-mode)))
+      ;; Tuck all the information we need in the `should' form: input
+      ;; shebang, expected mode vs actual.
+      (should
+       (equal (list shebang actual-mode)
+              (list shebang expected-mode)))
+      (when (eq expected-mode 'sh-base-mode)
+        (should (eq sh-shell expected-dialect))))))
+
+(ert-deftest files-tests-auto-mode-interpreter ()
+  "Test that `set-auto-mode' deduces correct modes from shebangs."
+  ;; Straightforward interpreter invocation.
+  (files-tests--check-shebang "#!/bin/bash" 'sh-base-mode 'bash)
+  (files-tests--check-shebang "#!/usr/bin/make -f" 'makefile-mode)
+  ;; Invocation through env.
+  (files-tests--check-shebang "#!/usr/bin/env bash" 'sh-base-mode 'bash)
+  (files-tests--check-shebang "#!/usr/bin/env python" 'python-base-mode)
+  (files-tests--check-shebang "#!/usr/bin/env python3" 'python-base-mode)
+  ;; Invocation through env, with supplementary arguments.
+  (files-tests--check-shebang "#!/usr/bin/env --split-string=bash -eux" 'sh-base-mode 'bash)
+  (files-tests--check-shebang "#!/usr/bin/env --split-string=-iv --default-signal bash -eux" 'sh-base-mode 'bash)
+  (files-tests--check-shebang "#!/usr/bin/env -S awk -v FS=\"\\t\" -v OFS=\"\\t\" -f" 'awk-mode)
+  (files-tests--check-shebang "#!/usr/bin/env -S make -f" 'makefile-mode)
+  (files-tests--check-shebang "#!/usr/bin/env -S-vi bash -eux" 'sh-base-mode 'bash)
+  (files-tests--check-shebang "#!/usr/bin/env -ivS --default-signal=INT bash -eux" 'sh-base-mode 'bash)
+  (files-tests--check-shebang "#!/usr/bin/env -ivS --default-signal bash -eux" 'sh-base-mode 'bash)
+  (files-tests--check-shebang "#!/usr/bin/env -vS -uFOOBAR bash -eux" 'sh-base-mode 'bash)
+  ;; Invocation through env, with modified environment.
+  (files-tests--check-shebang "#!/usr/bin/env -S PYTHONPATH=/...:${PYTHONPATH} python" 'python-base-mode))
+
 (ert-deftest files-test-dir-locals-auto-mode-alist ()
   "Test an `auto-mode-alist' entry in `.dir-locals.el'"
   (find-file (ert-resource-file "whatever.quux"))
@@ -1695,6 +1761,157 @@ let-bound to PRED and passing nil as second arg of
           (with-current-buffer buf
             (set-buffer-modified-p nil)
             (kill-buffer buf)))))))
+
+(defmacro files-tests--with-yes-or-no-p (reply &rest body)
+  "Execute BODY, providing replies to `yes-or-no-p' queries.
+REPLY should be a cons (PROMPT . VALUE), and during execution of
+BODY this macro provides VALUE as return value to all
+`yes-or-no-p' calls prompting for PROMPT and nil to all other
+`yes-or-no-p' calls.  After execution of BODY, this macro ensures
+that exactly one `yes-or-no-p' call prompting for PROMPT has been
+executed during execution of BODY."
+  (declare (indent 1) (debug (sexp body)))
+  `(cl-letf*
+       ((reply ,reply)
+        (prompts nil)
+        ((symbol-function 'yes-or-no-p)
+         (lambda (prompt)
+           (let ((reply (cdr (assoc prompt (list reply)))))
+             (push (cons prompt reply) prompts)
+             reply))))
+     ,@body
+     (should (equal prompts (list reply)))))
+
+(ert-deftest files-tests-save-buffer-read-only-file ()
+  "Test writing to write-protected files with `save-buffer'.
+Ensure that the issues from bug#66546 are fixed."
+  (ert-with-temp-directory dir
+    (cl-flet (;; Define convenience functions.
+              (file-contents (file)
+                (if (file-exists-p file)
+                    (condition-case err
+                        (with-temp-buffer
+                          (insert-file-contents-literally file)
+                          (buffer-string))
+                      (error err))
+                  'missing))
+              (signal-write-failed (&rest _)
+                (signal 'file-error "Write failed")))
+
+      (let* (;; Sanitize environment.
+             ;; The tests below test text for equality, so we need to
+             ;; disable any code- and EOL-conversions to avoid false
+             ;; positives and false negatives.
+             (coding-system-for-read 'no-conversion)
+             (coding-system-for-write 'no-conversion)
+             (auto-save-default nil)
+             (backup-enable-predicate nil)
+             (before-save-hook nil)
+             (write-contents-functions nil)
+             (write-file-functions nil)
+             (after-save-hook nil)
+
+             ;; Set the name of the game.
+             (base "read-only-test")
+             (file (expand-file-name base dir))
+             (backup (make-backup-file-name file))
+
+             (override-read-only-prompt
+              (format "File %s is write-protected; try to save anyway? "
+                      base)))
+
+        ;; Ensure that set-file-modes renders our test file read-only,
+        ;; otherwise skip this test.  Use `file-writable-p' to test
+        ;; for read-only-ness, because that's what function
+        ;; `save-buffer' uses as well.
+        (with-temp-file file (insert "foo\n"))
+        (skip-unless (file-writable-p file))
+        (set-file-modes file (logand (file-modes file)
+                                     (lognot #o0222)))
+        (skip-unless (not (file-writable-p file)))
+
+        (with-current-buffer (find-file-noselect file)
+          ;; Prepare for tests backing up the file.
+          (setq buffer-read-only nil)
+          (goto-char (point-min))
+          (insert "bar\n")
+
+          ;; Save to read-only file with backup, declining prompt.
+          (files-tests--with-yes-or-no-p
+              (cons override-read-only-prompt nil)
+            (should-error
+             (save-buffer)
+             ;; "Attempt to save to a file that you aren't allowed to write"
+             :type 'error))
+          (should-not buffer-backed-up)
+          (should     (buffer-modified-p))
+          (should-not (file-writable-p file))
+          (should     (equal (file-contents file) "foo\n"))
+          (should     (equal (file-contents backup) 'missing))
+
+          ;; Save to read-only file with backup, accepting prompt,
+          ;; experiencing a write error.
+          (files-tests--with-yes-or-no-p
+              (cons override-read-only-prompt t)
+            (should-error
+             (cl-letf (((symbol-function 'write-region)
+                        #'signal-write-failed))
+               (save-buffer))
+             ;; "Write failed"
+             :type 'file-error))
+          (should-not buffer-backed-up)
+          (should     (buffer-modified-p))
+          (should-not (file-writable-p file))
+          (should     (equal (file-contents file) "foo\n"))
+          (should     (equal (file-contents backup) 'missing))
+
+          ;; Save to read-only file with backup, accepting prompt.
+          (files-tests--with-yes-or-no-p
+              (cons override-read-only-prompt t)
+            (save-buffer))
+          (should     buffer-backed-up)
+          (should-not (buffer-modified-p))
+          (should-not (file-writable-p file))
+          (should-not (file-writable-p backup))
+          (should     (equal (file-contents file) "bar\nfoo\n"))
+          (should     (equal (file-contents backup) "foo\n"))
+
+          ;; Prepare for tests not backing up the file.
+          (setq buffer-backed-up nil)
+          (delete-file backup)
+          (goto-char (point-min))
+          (insert "baz\n")
+
+          ;; Save to read-only file without backup, accepting prompt,
+          ;; experiencing a write error.  This tests that issue B of
+          ;; bug#66546 is fixed.  The results of the "with backup" and
+          ;; "without backup" subtests are identical when a write
+          ;; error occurs, but the code paths to reach these results
+          ;; are not.  In other words, this subtest is not redundant.
+          (files-tests--with-yes-or-no-p
+              (cons override-read-only-prompt t)
+            (should-error
+             (cl-letf (((symbol-function 'write-region)
+                        #'signal-write-failed))
+               (save-buffer 0))
+             ;; "Write failed"
+             :type 'file-error))
+          (should-not buffer-backed-up)
+          (should     (buffer-modified-p))
+          (should-not (file-writable-p file))
+          (should     (equal (file-contents file) "bar\nfoo\n"))
+          (should     (equal (file-contents backup) 'missing))
+
+          ;; Save to read-only file without backup, accepting prompt.
+          ;; This tests that issue A of bug#66546 is fixed.
+          (files-tests--with-yes-or-no-p
+              (cons override-read-only-prompt t)
+            (save-buffer 0))
+          (should-not buffer-backed-up)
+          (should-not (buffer-modified-p))
+          (should-not (file-writable-p file))
+          (should     (equal (file-contents file) "baz\nbar\nfoo\n"))
+          (should     (equal (file-contents backup) 'missing)))))))
 
 (ert-deftest files-tests-save-some-buffers ()
   "Test `save-some-buffers'.
@@ -1903,6 +2120,10 @@ Prompt users for any modified buffer with `buffer-offer-save' non-nil."
       (should (documentation 'foo))
       (should (documentation 'bar))
       (should (documentation 'zot)))))
+
+(ert-deftest files-tests--expand-wildcards ()
+  (should (file-expand-wildcards
+           (concat (directory-file-name default-directory) "*/"))))
 
 (provide 'files-tests)
 ;;; files-tests.el ends here

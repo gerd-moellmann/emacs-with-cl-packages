@@ -1,6 +1,6 @@
 ;;; cl-lib-tests.el --- tests for emacs-lisp/cl-lib.el  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2013-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -404,7 +404,7 @@
 (ert-deftest cl-lib-nth-value-test-multiple-values ()
   "While CL multiple values are an alias to list, these won't work."
   :expected-result :failed
-  (should (eq (cl-nth-value 0 '(2 3)) '(2 3)))
+  (should (equal (cl-nth-value 0 '(2 3)) '(2 3)))
   (should (= (cl-nth-value 0 1) 1))
   (should (null (cl-nth-value 1 1)))
   (should-error (cl-nth-value -1 (cl-values 2 3)) :type 'args-out-of-range)
@@ -431,7 +431,8 @@
     (should (eq nums (cdr (cl-adjoin 3 nums))))
     ;; add only when not already there
     (should (eq nums (cl-adjoin 2 nums)))
-    (should (equal '(2 1 (2)) (cl-adjoin 2 '(1 (2)))))
+    (with-suppressed-warnings ((suspicious memql))
+      (should (equal '(2 1 (2)) (cl-adjoin 2 '(1 (2))))))
     ;; default test function is eql
     (should (equal '(1.0 1 2) (cl-adjoin 1.0 nums)))
     ;; own :test function - returns true if match
@@ -529,27 +530,29 @@
 
 (ert-deftest old-struct ()
   (cl-defstruct foo x)
-  (let ((x [cl-struct-foo])
-        (saved cl-old-struct-compat-mode))
-    (cl-old-struct-compat-mode -1)
-    (should (eq (type-of x) 'vector))
+  (with-suppressed-warnings ((obsolete cl-old-struct-compat-mode))
+    (let ((x (vector 'cl-struct-foo))
+          (saved cl-old-struct-compat-mode))
+      (cl-old-struct-compat-mode -1)
+      (should (eq (type-of x) 'vector))
 
-    (cl-old-struct-compat-mode 1)
-    (defvar cl-struct-foo)
-    (let ((cl-struct-foo (cl--struct-get-class 'foo)))
-      (setf (symbol-function 'cl-struct-foo) :quick-object-witness-check)
-      (should (eq (type-of x) 'foo))
-      (should (eq (type-of [foo]) 'vector)))
+      (cl-old-struct-compat-mode 1)
+      (defvar cl-struct-foo)
+      (let ((cl-struct-foo (cl--struct-get-class 'foo)))
+        (setf (symbol-function 'cl-struct-foo) :quick-object-witness-check)
+        (should (eq (type-of x) 'foo))
+        (should (eq (type-of (vector 'foo)) 'vector)))
 
-    (cl-old-struct-compat-mode (if saved 1 -1))))
+      (cl-old-struct-compat-mode (if saved 1 -1)))))
 
 (ert-deftest cl-lib-old-struct ()
-  (let ((saved cl-old-struct-compat-mode))
-    (cl-old-struct-compat-mode -1)
-    (cl-struct-define 'foo "" 'cl-structure-object nil nil nil
-                      'cl-struct-foo-tags 'cl-struct-foo t)
-    (should cl-old-struct-compat-mode)
-    (cl-old-struct-compat-mode (if saved 1 -1))))
+  (with-suppressed-warnings ((obsolete cl-old-struct-compat-mode))
+    (let ((saved cl-old-struct-compat-mode))
+      (cl-old-struct-compat-mode -1)
+      (cl-struct-define 'foo "" 'cl-structure-object nil nil nil
+                        'cl-struct-foo-tags 'cl-struct-foo t)
+      (should cl-old-struct-compat-mode)
+      (cl-old-struct-compat-mode (if saved 1 -1)))))
 
 (ert-deftest cl-constantly ()
   (should (equal (mapcar (cl-constantly 3) '(a b c d))

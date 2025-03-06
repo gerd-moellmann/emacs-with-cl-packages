@@ -1,6 +1,6 @@
 ;;; gamegrid.el --- library for implementing grid-based games on Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1997-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2025 Free Software Foundation, Inc.
 
 ;; Author: Glynn Clements <glynn@sensei.co.uk>
 ;; Old-Version: 1.02
@@ -411,7 +411,9 @@ convert to an Emacs image-spec instead")
 		pixel-size (floor (* resy (/ point-size 72.27)))
 		point-size (* (/ pixel-size resy) 72.27))
 	  (face-spec-set gamegrid-face
-			 `((t :height ,(floor (* point-size 10))))))))))
+                         ;; With some very high resolution displays,
+                         ;; point-size floored can be zero.
+			 `((t :height ,(max 8 (floor (* point-size 10)))))))))))
 
 (defun gamegrid-initialize-display ()
   (setq gamegrid-display-mode (gamegrid-display-type))

@@ -1,6 +1,6 @@
 ;;; nadvice-tests.el --- Test suite for the new advice thingy.  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2012-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -29,6 +29,7 @@
   (advice-add 'sm-test1 :around (lambda (f y) (* (funcall f y) 2)))
   (advice-remove 'sm-test1 (lambda (f y) (* (funcall f y) 5)))
   (defun sm-test1 (x) (+ x 4))
+  (declare-function sm-test1 nil)
   (should (equal (sm-test1 6) 20))
   (advice-remove 'sm-test1 (lambda (f y) (* (funcall f y) 2)))
   (should (equal (sm-test1 6) 10))
@@ -62,9 +63,11 @@
 (ert-deftest advice-tests-advice ()
   "Test advice code."
   (defun sm-test2 (x) (+ x 4))
+  (declare-function sm-test2 nil)
   (should (equal (sm-test2 6) 10))
-  (defadvice sm-test2 (around sm-test activate)
-    ad-do-it (setq ad-return-value (* ad-return-value 5)))
+  (with-suppressed-warnings ((obsolete defadvice))
+    (defadvice sm-test2 (around sm-test activate)
+      ad-do-it (setq ad-return-value (* ad-return-value 5))))
   (should (equal (sm-test2 6) 50))
   (ad-deactivate 'sm-test2)
   (should (equal (sm-test2 6) 10))
@@ -79,8 +82,9 @@
   (should (equal (sm-test2 6) 20))
   (should (equal (null (get 'sm-test2 'defalias-fset-function)) t))
 
-  (defadvice sm-test4 (around wrap-with-toto activate)
-    ad-do-it (setq ad-return-value `(toto ,ad-return-value)))
+  (with-suppressed-warnings ((obsolete defadvice))
+    (defadvice sm-test4 (around wrap-with-toto activate)
+      ad-do-it (setq ad-return-value `(toto ,ad-return-value))))
   (defmacro sm-test4 (x) `(call-test4 ,x))
   (should (equal (macroexpand '(sm-test4 56)) '(toto (call-test4 56))))
   (defmacro sm-test4 (x) `(call-testq ,x))
@@ -88,17 +92,20 @@
 
   ;; This used to signal an error (bug#12858).
   (autoload 'sm-test6 "foo")
-  (defadvice sm-test6 (around test activate)
-    ad-do-it))
+  (with-suppressed-warnings ((obsolete defadvice))
+    (defadvice sm-test6 (around test activate)
+      ad-do-it)))
 
 (ert-deftest advice-tests-combination ()
   "Combining old style and new style advices."
   (defun sm-test5 (x) (+ x 4))
+  (declare-function sm-test5 nil)
   (should (equal (sm-test5 6) 10))
   (advice-add 'sm-test5 :around (lambda (f y) (* (funcall f y) 5)))
   (should (equal (sm-test5 6) 50))
-  (defadvice sm-test5 (around test activate)
-    ad-do-it (setq ad-return-value (+ ad-return-value 0.1)))
+  (with-suppressed-warnings ((obsolete defadvice))
+    (defadvice sm-test5 (around test activate)
+      ad-do-it (setq ad-return-value (+ ad-return-value 0.1))))
   (should (equal (sm-test5 5) 45.1))
   (ad-deactivate 'sm-test5)
   (should (equal (sm-test5 6) 50))
@@ -112,22 +119,23 @@
 (ert-deftest advice-test-called-interactively-p ()
   "Check interaction between advice and called-interactively-p."
   (defun sm-test7 (&optional x) (interactive) (+ (or x 7) 4))
+  (declare-function sm-test7 nil)
   (advice-add 'sm-test7 :around
               (lambda (f &rest args)
-                (list (cons 1 (called-interactively-p)) (apply f args))))
+                (list (cons 1 (called-interactively-p 'any)) (apply f args))))
   (should (equal (sm-test7) '((1 . nil) 11)))
   (should (equal (call-interactively 'sm-test7) '((1 . t) 11)))
   (let ((smi 7))
     (advice-add 'sm-test7 :before
-                (lambda (&rest args)
-                  (setq smi (called-interactively-p))))
+                (lambda (&rest _args)
+                  (setq smi (called-interactively-p 'any))))
     (should (equal (list (sm-test7) smi)
                    '(((1 . nil) 11) nil)))
     (should (equal (list (call-interactively 'sm-test7) smi)
                    '(((1 . t) 11) t))))
   (advice-add 'sm-test7 :around
               (lambda (f &rest args)
-                (cons (cons 2 (called-interactively-p)) (apply f args))))
+                (cons (cons 2 (called-interactively-p 'any)) (apply f args))))
   (should (equal (call-interactively 'sm-test7) '((2 . t) (1 . t) 11))))
 
 (ert-deftest advice-test-called-interactively-p-around ()
@@ -136,24 +144,28 @@
 This tests the currently broken case of the innermost advice to a
 function being an around advice."
   :expected-result :failed
-  (defun sm-test7.2 () (interactive) (cons 1 (called-interactively-p)))
+  (defun sm-test7.2 () (interactive) (cons 1 (called-interactively-p 'any)))
+  (declare-function sm-test7.2 nil)
   (advice-add 'sm-test7.2 :around
               (lambda (f &rest args)
-                (list (cons 1 (called-interactively-p)) (apply f args))))
+                (list (cons 1 (called-interactively-p 'any)) (apply f args))))
   (should (equal (sm-test7.2) '((1 . nil) (1 . nil))))
   (should (equal (call-interactively 'sm-test7.2) '((1 . t) (1 . t)))))
 
 (ert-deftest advice-test-called-interactively-p-filter-args ()
   "Check interaction between filter-args advice and called-interactively-p."
   :expected-result :failed
-  (defun sm-test7.3 () (interactive) (cons 1 (called-interactively-p)))
+  (defun sm-test7.3 () (interactive) (cons 1 (called-interactively-p 'any)))
+  (declare-function sm-test7.3 nil)
   (advice-add 'sm-test7.3 :filter-args #'list)
   (should (equal (sm-test7.3) '(1 . nil)))
   (should (equal (call-interactively 'sm-test7.3) '(1 . t))))
 
 (ert-deftest advice-test-call-interactively ()
   "Check interaction between advice on call-interactively and called-interactively-p."
-  (let ((sm-test7.4 (lambda () (interactive) (cons 1 (called-interactively-p))))
+  (let ((sm-test7.4 (lambda ()
+                      (interactive)
+                      (cons 1 (called-interactively-p 'any))))
         (old (symbol-function 'call-interactively)))
     (unwind-protect
         (progn
@@ -166,18 +178,20 @@ function being an around advice."
 (ert-deftest advice-test-interactive ()
   "Check handling of interactive spec."
   (defun sm-test8 (a) (interactive "p") a)
-  (defadvice sm-test8 (before adv1 activate) nil)
-  (defadvice sm-test8 (before adv2 activate) (interactive "P") nil)
+  (with-suppressed-warnings ((obsolete defadvice))
+    (defadvice sm-test8 (before adv1 activate) nil)
+    (defadvice sm-test8 (before adv2 activate) (interactive "P") nil))
   (should (equal (interactive-form 'sm-test8) '(interactive "P"))))
 
 (ert-deftest advice-test-preactivate ()
   (should (equal (null (get 'sm-test9 'defalias-fset-function)) t))
   (defun sm-test9 (a) (interactive "p") a)
   (should (equal (null (get 'sm-test9 'defalias-fset-function)) t))
-  (defadvice sm-test9 (before adv1 pre act protect compile) nil)
-  (should (equal (null (get 'sm-test9 'defalias-fset-function)) nil))
-  (defadvice sm-test9 (before adv2 pre act protect compile)
-    (interactive "P") nil)
+  (with-suppressed-warnings ((obsolete defadvice))
+    (defadvice sm-test9 (before adv1 pre act protect compile) nil)
+    (should (equal (null (get 'sm-test9 'defalias-fset-function)) nil))
+    (defadvice sm-test9 (before adv2 pre act protect compile)
+      (interactive "P") nil))
   (should (equal (interactive-form 'sm-test9) '(interactive "P"))))
 
 (ert-deftest advice-test-multiples ()
@@ -213,8 +227,16 @@ function being an around advice."
     (should (equal (cl-prin1-to-string (car x))
                    "#f(advice first :before #f(advice car :after cdr))"))))
 
-;; Local Variables:
-;; no-byte-compile: t
-;; End:
+(ert-deftest advice-test-bug61179 ()
+  (let* ((magic 42)
+         (ad (lambda (&rest _)
+               (interactive (lambda (is)
+                              (cons magic (advice-eval-interactive-spec is))))
+               nil))
+         (sym (make-symbol "adtest")))
+    (defalias sym (lambda (&rest args) (interactive (list 'main)) args))
+    (should (equal (call-interactively sym) '(main)))
+    (advice-add sym :before ad)
+    (should (equal (call-interactively sym) '(42 main)))))
 
 ;;; nadvice-tests.el ends here

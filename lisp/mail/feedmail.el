@@ -1318,7 +1318,7 @@ Then add the functions you want called to either
 `feedmail-mail-send-hook-queued' or `feedmail-mail-send-hook', as
 appropriate.  The distinction is that `feedmail-mail-send-hook'
 will be called when you send mail from a composition
-buffer (typically by typing C-c C-c), whether the message is sent
+buffer (typically by typing \\`C-c C-c'), whether the message is sent
 immediately or placed in the queue or drafts directory.
 `feedmail-mail-send-hook-queued' is called when messages are
 being sent from the queue directory, typically via a call to
@@ -1443,10 +1443,11 @@ Called for each message read back out of the queue directory with a
 single argument, the optional argument used in the call to
 `feedmail-run-the-queue' or `feedmail-run-the-queue-no-prompts'.
 Interactively, that argument will be the prefix argument.
-Most people want `mail-send' (bound to C-c C-s in mail-mode), but here's
+\\<mail-mode-map>
+Most people want `mail-send' (bound to \\[mail-send] in `mail-mode'), but here's
 your chance to have something different.  The default value is just a
 wrapper function which discards the optional argument and calls
-mail-send.  If you are a VM user, you might like vm-mail-send, though
+`mail-send'.  If you are a VM user, you might like vm-mail-send, though
 you really don't need that.  Called with funcall, not call-interactively."
   :version "24.1"			; changed default
   :group 'feedmail-queue
@@ -2511,22 +2512,20 @@ mapped to mostly alphanumerics for safety."
 				    feedmail-force-binary-write)
 			       'no-conversion
 			     coding-system-for-write)))
-                      (unwind-protect
-                          (progn
-                            (insert fcc)
-                            (unless feedmail-nuke-bcc-in-fcc
-                              (if bcc-holder (insert bcc-holder))
-                              (if resent-bcc-holder
-                                  (insert resent-bcc-holder)))
+                      (insert fcc)
+                      (unless feedmail-nuke-bcc-in-fcc
+                        (if bcc-holder (insert bcc-holder))
+                        (if resent-bcc-holder
+                            (insert resent-bcc-holder)))
 
-                            (run-hooks 'feedmail-before-fcc-hook)
+                      (run-hooks 'feedmail-before-fcc-hook)
 
-                            (when feedmail-nuke-body-in-fcc
-                              (goto-char eoh-marker)
-                              (if (natnump feedmail-nuke-body-in-fcc)
-                                  (forward-line feedmail-nuke-body-in-fcc))
-                              (delete-region (point) (point-max)))
-                            (mail-do-fcc eoh-marker))))))
+                      (when feedmail-nuke-body-in-fcc
+                        (goto-char eoh-marker)
+                        (if (natnump feedmail-nuke-body-in-fcc)
+                            (forward-line feedmail-nuke-body-in-fcc))
+                        (delete-region (point) (point-max)))
+                      (mail-do-fcc eoh-marker))))
 	      ;; User bailed out of one-last-look.
 	      (if feedmail-queue-runner-is-active
 		  (throw 'skip-me-q 'skip-me-q)
@@ -3046,30 +3045,30 @@ been weeded out."
 	(address-blob)
 	(this-line)
 	(this-line-end))
-    (unwind-protect
-	(with-current-buffer (get-buffer-create " *FQM scratch*")
-          (erase-buffer)
-	  (insert-buffer-substring message-buffer header-start header-end)
-	  (goto-char (point-min))
-	  (let ((case-fold-search t))
-	    (while (re-search-forward addr-regexp (point-max) t)
-	      (replace-match "")
-	      (setq this-line (match-beginning 0))
-	      (forward-line 1)
-	      ;; get any continuation lines
-	      (while (and (looking-at "^[ \t]+") (< (point) (point-max)))
-		(forward-line 1))
-	      (setq this-line-end (point-marker))
-	      ;; only keep if we don't have it already
-	      (setq address-blob
-		    (mail-strip-quoted-names (buffer-substring-no-properties this-line this-line-end)))
-	      (while (string-match "\\([, \t\n\r]*\\)\\([^, \t\n\r]+\\)" address-blob)
-		(setq simple-address (substring address-blob (match-beginning 2) (match-end 2)))
-		(setq address-blob (replace-match "" t t address-blob))
-		(if (not (member simple-address address-list))
-		    (push simple-address address-list)))
-	      ))
-	  (kill-buffer nil)))
+
+    (with-current-buffer (get-buffer-create " *FQM scratch*")
+      (erase-buffer)
+      (insert-buffer-substring message-buffer header-start header-end)
+      (goto-char (point-min))
+      (let ((case-fold-search t))
+	(while (re-search-forward addr-regexp (point-max) t)
+	  (replace-match "")
+	  (setq this-line (match-beginning 0))
+	  (forward-line 1)
+	  ;; get any continuation lines
+	  (while (and (looking-at "^[ \t]+") (< (point) (point-max)))
+	    (forward-line 1))
+	  (setq this-line-end (point-marker))
+	  ;; only keep if we don't have it already
+	  (setq address-blob
+		(mail-strip-quoted-names (buffer-substring-no-properties this-line this-line-end)))
+	  (while (string-match "\\([, \t\n\r]*\\)\\([^, \t\n\r]+\\)" address-blob)
+	    (setq simple-address (substring address-blob (match-beginning 2) (match-end 2)))
+	    (setq address-blob (replace-match "" t t address-blob))
+	    (if (not (member simple-address address-list))
+		(push simple-address address-list)))
+	  ))
+      (kill-buffer nil))
     (identity address-list)))
 
 

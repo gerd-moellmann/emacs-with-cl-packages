@@ -1,6 +1,6 @@
 ;;; calculator-tests.el --- Test suite for calculator. -*- lexical-binding: t -*-
 
-;; Copyright (C) 2021-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -46,6 +46,12 @@
       (`(,str ,expected)
        (let ((calculator-input-radix nil))
          (should (equal (calculator-string-to-number str) expected)))))))
+
+(ert-deftest calculator-expt ()
+  (should (= (calculator-expt 2 -1) 0.5))
+  (should (= (calculator-expt -2 2) 4))
+  (should (= (calculator-expt -2 3) -8))
+  (should (= (calculator-expt 2 64) 18446744073709551616)))
 
 (provide 'calculator-tests)
 ;;; calculator-tests.el ends here

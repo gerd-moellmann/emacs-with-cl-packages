@@ -1,6 +1,6 @@
 ;;; ucs-normalize-tests.el --- tests for international/ucs-normalize.el -*- lexical-binding: t -*-
 
-;; Copyright (C) 2002-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -219,8 +219,8 @@ Must be called with `ucs-normalize-tests--norm-buf' as current buffer."
 
 (ert-deftest ucs-normalize-part1 ()
   :tags '(:expensive-test)
-  (skip-unless (not (or (getenv "EMACS_HYDRA_CI")
-                        (getenv "EMACS_EMBA_CI")))) ; SLOW ~ 1800s
+  (skip-when (or (getenv "EMACS_HYDRA_CI")
+                 (getenv "EMACS_EMBA_CI"))) ; SLOW ~ 1800s
   ;; This takes a long time, so make sure we're compiled.
   (dolist (fun '(ucs-normalize-tests--part1-rule2
                  ucs-normalize-tests--rule1-failing-for-partX

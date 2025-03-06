@@ -1,6 +1,6 @@
 /* Fully extensible Emacs, running on Unix, intended for GNU.
 
-Copyright (C) 1985-1987, 1993-1995, 1997-1999, 2001-2024 Free Software
+Copyright (C) 1985-1987, 1993-1995, 1997-1999, 2001-2025 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -32,6 +32,14 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #define MAIN_PROGRAM
 #include "lisp.h"
 #include "sysstdio.h"
+
+#ifdef HAVE_ANDROID
+#include "androidterm.h"
+#endif
+
+#if defined HAVE_ANDROID && !defined ANDROID_STUBIFY
+#include "sfntfont.h"
+#endif
 
 #ifdef WINDOWSNT
 #include <fcntl.h>
@@ -137,6 +145,10 @@ extern char etext;
 #include <sys/resource.h>
 #endif
 
+#if defined HAVE_ANDROID && !defined ANDROID_STUBIFY
+#include "android.h"
+#endif
+
 /* We don't guard this with HAVE_TREE_SITTER because treesit.o is
    always compiled (to provide treesit-available-p).  */
 #include "treesit.h"
@@ -154,6 +166,7 @@ static const char emacs_copyright[] = COPYRIGHT;
 static const char emacs_bugreport[] = PACKAGE_BUGREPORT;
 
 /* Put version info into the executable in the form that 'ident' uses.  */
+extern char const RCS_Id[];
 char const EXTERNALLY_VISIBLE RCS_Id[]
   = "$Id" ": GNU Emacs " PACKAGE_VERSION
     " (" EMACS_CONFIGURATION " " EMACS_CONFIG_FEATURES ") $";
@@ -181,7 +194,7 @@ bool inhibit_window_system;
    data on the first attempt to change it inside asynchronous code.  */
 bool running_asynch_code;
 
-#if defined (HAVE_X_WINDOWS) || defined (HAVE_NS)
+#if defined (HAVE_X_WINDOWS) || defined (HAVE_PGTK) || defined (HAVE_NS)
 /* If true, -d was specified, meaning we're using some window system.  */
 bool display_arg;
 #endif
@@ -389,11 +402,6 @@ section of the Emacs manual or the file BUGS.\n"
 /* True if handling a fatal error already.  */
 bool fatal_error_in_progress;
 
-#ifdef HAVE_NS
-/* NS autorelease pool, for memory management.  */
-static void *ns_pool;
-#endif
-
 #if !HAVE_SETLOCALE
 static char *
 setlocale (int cat, char const *locale)
@@ -411,7 +419,15 @@ using_utf8 (void)
      the result is known in advance anyway...  */
 #if defined HAVE_WCHAR_H && !defined WINDOWSNT
   wchar_t wc;
+#ifndef HAVE_ANDROID
   mbstate_t mbs = { 0 };
+#else
+  mbstate_t mbs;
+
+  /* Not sure how mbstate works on Android, but this seems to be
+     required.  */
+  memset (&mbs, 0, sizeof mbs);
+#endif
   return mbrtowc (&wc, "\xc4\x80", 2, &mbs) == 2 && wc == 0x100;
 #else
   return false;
@@ -511,7 +527,8 @@ init_cmdargs (int argc, char **argv, int skip_args, char const *original_pwd)
     {
       Lisp_Object found;
       int yes = openp (Vexec_path, Vinvocation_name, Vexec_suffixes,
-		       &found, make_fixnum (X_OK), false, false);
+		       &found, make_fixnum (X_OK), false, false,
+		       NULL);
       if (yes == 1)
 	{
 	  /* Add /: to the front of the name
@@ -549,9 +566,8 @@ init_cmdargs (int argc, char **argv, int skip_args, char const *original_pwd)
 	{
 	  if (NILP (Vpurify_flag))
 	    {
-	      Lisp_Object file_truename = intern ("file-truename");
-	      if (!NILP (Ffboundp (file_truename)))
-		dir = call1 (file_truename, dir);
+	      if (!NILP (Ffboundp (Qfile_truename)))
+		dir = call1 (Qfile_truename, dir);
 	    }
 	  dir = Fexpand_file_name (build_string ("../.."), dir);
 	}
@@ -740,6 +756,8 @@ argmatch (char **argv, int argc, const char *sstr, const char *lstr,
     }
 }
 
+#if !defined HAVE_ANDROID || defined ANDROID_STUBIFY
+
 /* Find a name (absolute or relative) of the Emacs executable whose
    name (as passed into this program) is ARGV0.  Called early in
    initialization by portable dumper loading code, so avoid Lisp and
@@ -839,6 +857,8 @@ find_emacs_executable (char const *argv0, ptrdiff_t *candidate_size)
 #endif	/* !WINDOWSNT */
 }
 
+#endif
+
 #ifdef HAVE_PDUMPER
 
 static const char *
@@ -867,10 +887,38 @@ dump_error_to_string (int result)
     }
 }
 
-/* This function returns the Emacs executable.  */
+/* This function returns the Emacs executable.  DUMP_FILE is ignored
+   outside of Android.  Otherwise, it is the name of the dump file to
+   use, or NULL if Emacs should look for a ``--dump-file'' argument
+   instead.  */
+
 static char *
-load_pdump (int argc, char **argv)
+load_pdump (int argc, char **argv, char *dump_file)
 {
+#if defined HAVE_ANDROID && !defined ANDROID_STUBIFY
+  int skip_args = 0, result;
+
+  while (skip_args < argc - 1)
+    {
+      if (argmatch (argv, argc, "-dump-file", "--dump-file",
+		    6, &dump_file, &skip_args)
+	  || argmatch (argv, argc, "--", NULL, 2, NULL,
+		       &skip_args))
+	break;
+      skip_args++;
+    }
+
+  if (!dump_file)
+    return argv[0];
+
+  result = pdumper_load (dump_file, argv[0]);
+
+  if (result != PDUMPER_LOAD_SUCCESS)
+    fatal ("could not load dump file \"%s\": %s",
+	   dump_file, dump_error_to_string (result));
+  return argv[0];
+#else
+
   const char *const suffix = ".pdmp";
   int result;
   char *emacs_executable = argv[0];
@@ -901,7 +949,7 @@ load_pdump (int argc, char **argv)
 
   /* Look for an explicitly-specified dump file.  */
   const char *path_exec = PATH_EXEC;
-  char *dump_file = NULL;
+  dump_file = NULL;
   int skip_args = 0;
   while (skip_args < argc - 1)
     {
@@ -1065,6 +1113,7 @@ load_pdump (int argc, char **argv)
   xfree (dump_file);
 
   return emacs_executable;
+#endif
 }
 #endif /* HAVE_PDUMPER */
 
@@ -1141,7 +1190,7 @@ load_seccomp (const char *file)
       goto out;
     }
   struct stat stat;
-  if (fstat (fd, &stat) != 0)
+  if (sys_fstat (fd, &stat) != 0)
     {
       emacs_perror ("fstat");
       goto out;
@@ -1243,6 +1292,10 @@ maybe_load_seccomp (int argc, char **argv)
 
 #endif  /* SECCOMP_USABLE */
 
+#if defined HAVE_ANDROID && !defined ANDROID_STUBIFY
+int
+android_emacs_init (int argc, char **argv, char *dump_file)
+#else
 int
 #ifndef HAVE_MACGUI
 main (int argc, char **argv)
@@ -1253,6 +1306,13 @@ emacs_main (int argc, char **argv)
   /* Variable near the bottom of the stack, and aligned appropriately
      for pointers.  */
   void *stack_bottom_variable;
+  int old_argc;
+#if defined HAVE_PDUMPER && !(defined HAVE_ANDROID && !defined ANDROID_STUBIFY)
+  char *dump_file;
+
+  /* This is just a dummy argument used to avoid extra defines.  */
+  dump_file = NULL;
+#endif
 
   /* First, check whether we should apply a seccomp filter.  This
      should come at the very beginning to allow the filter to protect
@@ -1367,6 +1427,10 @@ emacs_main (int argc, char **argv)
      the additional call here is harmless.) */
   cache_system_info ();
 #ifdef WINDOWSNT
+  /* This must be called to initialize w32_unicode_filenames and
+     is_windows_9x prior to w32_init_current_directory.  */
+  globals_of_w32 ();
+
   /* On Windows 9X, we have to load UNICOWS.DLL as early as possible,
      to have non-stub implementations of APIs we need to convert file
      names between UTF-8 and the system's ANSI codepage.  */
@@ -1380,9 +1444,25 @@ emacs_main (int argc, char **argv)
   w32_init_main_thread ();
 #endif
 
+#ifdef HAVE_NS
+  /* Initialize the Obj C autorelease pool.  */
+  ns_init_pool ();
+#endif
+
 #ifdef HAVE_PDUMPER
   if (attempt_load_pdump)
-    initial_emacs_executable = load_pdump (argc, argv);
+    {
+      initial_emacs_executable = load_pdump (argc, argv, dump_file);
+#ifdef WINDOWSNT
+  /* Reinitialize the codepage for file names, needed to decode
+     non-ASCII file names during startup.  This is needed because
+     loading the pdumper file above assigns to those variables values
+     from the dump stage, which might be incorrect, if dumping was done
+     on a different system.  */
+      if (dumped_with_pdumper_p ())
+	w32_init_file_name_codepage ();
+#endif
+    }
 #else
   ptrdiff_t bufsize;
   initial_emacs_executable = find_emacs_executable (argv[0], &bufsize);
@@ -1447,8 +1527,9 @@ emacs_main (int argc, char **argv)
 
   bool only_version = false;
   sort_args (argc, argv);
-  argc = 0;
-  while (argv[argc]) argc++;
+  old_argc = argc, argc = 0;
+  /* Don't allow going past argv.  */
+  while (argc < old_argc && argv[argc]) argc++;
 
   skip_args = 0;
   if (argmatch (argv, argc, "-version", "--version", 3, NULL, &skip_args))
@@ -1472,11 +1553,10 @@ emacs_main (int argc, char **argv)
         }
     }
 #endif
-
   emacs_wd = emacs_get_current_dir_name ();
 #ifdef WINDOWSNT
   initial_wd = emacs_wd;
-#endif
+#endif /* WINDOWSNT */
 #ifdef HAVE_PDUMPER
   if (dumped_with_pdumper_p ())
     pdumper_record_wd (emacs_wd);
@@ -1598,7 +1678,6 @@ emacs_main (int argc, char **argv)
   if (! (lc_all && strcmp (lc_all, "C") == 0))
     {
       #ifdef HAVE_NS
-        ns_pool = ns_alloc_autorelease_pool ();
         ns_init_locale ();
       #endif
       setlocale (LC_ALL, "");
@@ -1609,6 +1688,7 @@ emacs_main (int argc, char **argv)
   inhibit_window_system = 0;
 
   /* Handle the -t switch, which specifies filename to use as terminal.  */
+  dev_tty = xstrdup (DEV_TTY);	/* the default terminal */
   while (!only_version)
     {
       char *term;
@@ -1631,6 +1711,8 @@ emacs_main (int argc, char **argv)
 	      exit (EXIT_FAILURE);
 	    }
 	  fprintf (stderr, "Using %s\n", term);
+	  xfree (dev_tty);
+	  dev_tty = xstrdup (term);
 #ifdef HAVE_WINDOW_SYSTEM
 	  inhibit_window_system = true; /* -t => -nw */
 #endif
@@ -1956,6 +2038,9 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
 #ifdef HAVE_WINDOW_SYSTEM
       init_fringe_once ();	/* Swap bitmaps if necessary.  */
 #endif /* HAVE_WINDOW_SYSTEM */
+#ifdef HAVE_TEXT_CONVERSION
+      syms_of_textconv ();
+#endif
     }
 
   init_alloc ();
@@ -1965,10 +2050,6 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
   running_asynch_code = 0;
   init_random ();
   init_xfaces ();
-
-#if defined HAVE_JSON && !defined WINDOWSNT
-  init_json ();
-#endif
 
   if (!initialized)
     syms_of_comp ();
@@ -2050,7 +2131,7 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
   {
     int count_before = skip_args;
 
-#ifdef HAVE_X_WINDOWS
+#if defined (HAVE_X_WINDOWS) || defined (HAVE_PGTK)
     char *displayname = 0;
 
     /* Skip any number of -d options, but only use the last one.  */
@@ -2149,7 +2230,10 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
   init_atimer ();
 
 #ifdef WINDOWSNT
-  globals_of_w32 ();
+  /* We need to forget about libraries that were loaded during the
+     dumping process (e.g. libgccjit).  This must be done _after_
+     load_pdump.  */
+  Vlibrary_cache = Qnil;
 #ifdef HAVE_W32NOTIFY
   globals_of_w32notify ();
 #endif
@@ -2331,6 +2415,11 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
 #ifdef HAVE_WINDOW_SYSTEM
       syms_of_fringe ();
       syms_of_image ();
+#ifdef HAVE_NTGUI
+# if HAVE_NATIVE_IMAGE_API
+      syms_of_w32image ();
+# endif
+#endif	/* HAVE_NTGUI */
 #endif /* HAVE_WINDOW_SYSTEM */
 #ifdef HAVE_X_WINDOWS
       syms_of_xterm ();
@@ -2417,6 +2506,19 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
 #endif
       syms_of_fontset ();
 #endif /* HAVE_HAIKU */
+#ifdef HAVE_ANDROID
+      syms_of_androidterm ();
+      syms_of_androidfns ();
+      syms_of_androidmenu ();
+      syms_of_fontset ();
+#if !defined ANDROID_STUBIFY
+      syms_of_androidfont ();
+      syms_of_androidselect ();
+      syms_of_androidvfs ();
+      syms_of_sfntfont ();
+      syms_of_sfntfont_android ();
+#endif /* !ANDROID_STUBIFY */
+#endif /* HAVE_ANDROID */
 
       syms_of_gnutls ();
 
@@ -2447,10 +2549,7 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
       syms_of_threads ();
       syms_of_profiler ();
       syms_of_pdumper ();
-
-#ifdef HAVE_JSON
       syms_of_json ();
-#endif
 
       keys_of_keyboard ();
 
@@ -2467,6 +2566,9 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
       globals_of_w32font ();
       globals_of_w32fns ();
       globals_of_w32menu ();
+# if HAVE_NATIVE_IMAGE_API
+      globals_of_w32image ();
+# endif
 #endif  /* HAVE_NTGUI */
 
 #if defined WINDOWSNT || defined HAVE_NTGUI
@@ -2489,7 +2591,8 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
 #ifdef HAVE_DBUS
   init_dbusbind ();
 #endif
-#if defined(USE_GTK) && !defined(HAVE_PGTK)
+
+#ifdef HAVE_X_WINDOWS
   init_xterm ();
 #endif
 
@@ -2511,6 +2614,17 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
   init_macros ();
   init_window ();
   init_font ();
+
+#ifdef HAVE_ANDROID
+  init_androidmenu ();
+#endif
+
+#if defined HAVE_ANDROID && !defined ANDROID_STUBIFY
+  init_androidfont ();
+  init_androidselect ();
+  init_sfntfont ();
+  init_sfntfont_android ();
+#endif
 
   if (!initialized)
     {
@@ -2564,6 +2678,16 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
 #ifdef HAVE_PDUMPER
   /* Allow code to be run (mostly useful after redumping). */
   safe_run_hooks (Qafter_pdump_load_hook);
+#endif
+
+#if defined HAVE_ANDROID && !defined ANDROID_STUBIFY && 0
+  /* This comes very late in the startup process because it requires
+     most of lisp/international to be loaded.  This approach doesn't
+     work because normal-top-level runs and creates the initial frame
+     before fonts are initialized.  So this is done in
+     normal-top-level instead.  */
+  Vtop_level = list3 (Qprogn, Vtop_level,
+		      list1 (Qandroid_enumerate_fonts));
 #endif
 
   /* Enter editor command loop.  This never returns.  */
@@ -2847,7 +2971,7 @@ sort_args (int argc, char **argv)
 	    new[to++] = argv[best + i + 1];
 	}
 
-      incoming_used += 1 + (options[best] > 0 ? options[best] : 0);
+      incoming_used += 1 + max (options[best], 0);
 
       /* Clear out this option in ARGV.  */
       argv[best] = 0;
@@ -2878,7 +3002,8 @@ Emacs process, using the same command line arguments as the currently
 running Emacs process.
 
 This function is called upon receipt of the signals SIGTERM
-or SIGHUP, and upon SIGINT in batch mode.
+or SIGHUP, and upon SIGINT in batch mode.  (Other fatal signals
+shut down Emacs without calling this function.)
 
 The value of `kill-emacs-hook', if not void, is a list of functions
 (of no args), all of which are called before Emacs is actually
@@ -2891,7 +3016,14 @@ killed.  */
 #ifndef WINDOWSNT
   /* Do some checking before shutting down Emacs, because errors
      can't be meaningfully reported afterwards.  */
-  if (!NILP (restart))
+  if (!NILP (restart)
+      /* Don't perform the following checks when Emacs is running as
+	 an Android GUI application, because there the system is
+	 relied on to restart Emacs.  */
+#if defined HAVE_ANDROID && !defined ANDROID_STUBIFY
+      && !android_init_gui
+#endif
+      )
     {
       /* This is very unlikely, but it's possible to execute a binary
 	 (on some systems) with no argv.  */
@@ -2932,10 +3064,6 @@ killed.  */
 
   shut_down_emacs (0, (STRINGP (arg) && !feof (stdin)) ? arg : Qnil);
 
-#ifdef HAVE_NS
-  ns_release_autorelease_pool (ns_pool);
-#endif
-
   /* If we have an auto-save list file,
      kill it because we are exiting Emacs deliberately (not crashing).
      Do it after shut_down_emacs, which does an auto-save.  */
@@ -2943,16 +3071,42 @@ killed.  */
     {
       Lisp_Object listfile;
       listfile = Fexpand_file_name (Vauto_save_list_file_name, Qnil);
-      unlink (SSDATA (listfile));
+      emacs_unlink (SSDATA (listfile));
     }
 
 #ifdef HAVE_NATIVE_COMP
   eln_load_path_final_clean_up ();
 #endif
+#if defined HAVE_ANDROID && !defined ANDROID_STUBIFY
+  if (android_init_gui)
+    {
+      struct sigaction sa;
+
+      /* Calls to exit may be followed by invalid accesses from
+	 toolkit-managed threads as the thread group is destroyed, which
+	 are inconsequential when the process is being terminated, but
+	 which must be suppressed to inhibit reporting of superfluous
+	 crashes by the system.
+
+         Execution won't return to Emacs whatever the value of RESTART,
+         as `android_restart_emacs' will only ever abort or succeed.  */
+      sigemptyset (&sa.sa_mask);
+      sa.sa_handler = _exit;
+      sigaction (SIGSEGV, &sa, NULL);
+      sigaction (SIGBUS, &sa, NULL);
+    }
+#endif /* HAVE_ANDROID && !ANDROID_STUBIFY */
 
   if (!NILP (restart))
     {
       turn_on_atimers (false);
+#if defined HAVE_ANDROID && !defined ANDROID_STUBIFY
+      /* Re-executing the Emacs process created by the system doesn't
+	 work.  Instead, schedule a restart for a few hundered
+	 milliseconds and exit Emacs.  */
+      if (android_init_gui)
+	android_restart_emacs ();
+#endif
 #ifdef WINDOWSNT
       if (w32_reexec_emacs (initial_cmdline, initial_wd) < 0)
 #else
@@ -2993,31 +3147,38 @@ shut_down_emacs (int sig, Lisp_Object stuff)
   Vinhibit_redisplay = Qt;
 
   /* If we are controlling the terminal, reset terminal modes.  */
-#ifndef DOS_NT
+#if !defined DOS_NT && !(defined HAVE_ANDROID && !defined ANDROID_STUBIFY)
   pid_t tpgrp = tcgetpgrp (STDIN_FILENO);
   if (tpgrp != -1 && tpgrp == getpgrp ())
     {
       reset_all_sys_modes ();
       if (sig && sig != SIGTERM)
 	{
-	  static char const fmt[] = "Fatal error %d: %n%s\n";
 #ifdef HAVE_HAIKU
 	  if (haiku_debug_on_fatal_error)
 	    debugger ("Fatal error in Emacs");
 #endif
-	  char buf[max ((sizeof fmt - sizeof "%d%n%s\n"
+	  /* Output a "Fatal error NUM: DESC\n" diagnostic with a single write,
+	     but use multiple writes if the diagnosic is absurdly long
+	     and likely couldn't be written atomically anyway.  */
+	  static char const fmt[] = "Fatal error %d: ";
+	  char buf[max ((sizeof fmt - sizeof "%d"
 			 + INT_STRLEN_BOUND (int) + 1),
 			min (PIPE_BUF, MAX_ALLOCA))];
 	  char const *sig_desc = safe_strsignal (sig);
-	  int nlen;
-	  int buflen = snprintf (buf, sizeof buf, fmt, sig, &nlen, sig_desc);
-	  if (0 <= buflen && buflen < sizeof buf)
-	    emacs_write (STDERR_FILENO, buf, buflen);
+	  size_t sig_desclen = strlen (sig_desc);
+	  int nlen = sprintf (buf, fmt, sig);
+	  if (nlen + sig_desclen < sizeof buf - 1)
+	    {
+	      char *p = mempcpy (buf + nlen, sig_desc, sig_desclen);
+	      *p++ = '\n';
+	      emacs_write (STDERR_FILENO, buf, p - buf);
+	    }
 	  else
 	    {
 	      emacs_write (STDERR_FILENO, buf, nlen);
-	      emacs_write (STDERR_FILENO, sig_desc, strlen (sig_desc));
-	      emacs_write (STDERR_FILENO, fmt + sizeof fmt - 2, 1);
+	      emacs_write (STDERR_FILENO, sig_desc, sig_desclen);
+	      emacs_write (STDERR_FILENO, "\n", 1);
 	    }
 	}
     }
@@ -3045,10 +3206,6 @@ shut_down_emacs (int sig, Lisp_Object stuff)
       check_glyph_memory ();
       check_message_stack ();
     }
-
-#ifdef HAVE_NATIVE_COMP
-  eln_load_path_final_clean_up ();
-#endif
 
 #ifdef MSDOS
   dos_cleanup ();
@@ -3116,7 +3273,7 @@ You must run Emacs in batch mode in order to dump it.  */)
   /* Bind `command-line-processed' to nil before dumping,
      so that the dumped Emacs will process its command line
      and set up to work with X windows if appropriate.  */
-  symbol = intern ("command-line-processed");
+  symbol = Qcommand_line_processed;
   specbind (symbol, Qnil);
 
   CHECK_STRING (filename);
@@ -3256,9 +3413,6 @@ decode_env_path (const char *evarname, const char *defalt, bool empty)
 {
   const char *path, *p;
   Lisp_Object lpath, element, tem;
-#ifdef NS_SELF_CONTAINED
-  void *autorelease = NULL;
-#endif
   /* Default is to use "." for empty path elements.
      But if argument EMPTY is true, use nil instead.  */
   Lisp_Object empty_element = empty ? Qnil : build_string (".");
@@ -3285,11 +3439,10 @@ decode_env_path (const char *evarname, const char *defalt, bool empty)
     path = 0;
   if (!path)
     {
+
 #ifdef MAC_SELF_CONTAINED
       path = mac_relocate (defalt);
 #elif NS_SELF_CONTAINED
-      /* ns_relocate needs a valid autorelease pool around it.  */
-      autorelease = ns_alloc_autorelease_pool ();
       path = ns_relocate (defalt);
 #else
       path = defalt;
@@ -3374,7 +3527,7 @@ decode_env_path (const char *evarname, const char *defalt, bool empty)
           if (SYMBOLP (tem))
             {
               Lisp_Object prop;
-              prop = Fget (tem, intern ("safe-magic"));
+              prop = Fget (tem, Qsafe_magic);
               if (! NILP (prop))
                 tem = Qnil;
             }
@@ -3393,10 +3546,6 @@ decode_env_path (const char *evarname, const char *defalt, bool empty)
 	break;
     }
 
-#ifdef NS_SELF_CONTAINED
-  if (autorelease)
-    ns_release_autorelease_pool (autorelease);
-#endif
   return Fnreverse (lpath);
 }
 
@@ -3487,6 +3636,9 @@ syms_of_emacs (void)
   DEFSYM (Qkill_emacs_hook, "kill-emacs-hook");
   DEFSYM (Qrun_hook_query_error_with_timeout,
 	  "run-hook-query-error-with-timeout");
+  DEFSYM (Qfile_truename, "file-truename");
+  DEFSYM (Qcommand_line_processed, "command-line-processed");
+  DEFSYM (Qsafe_magic, "safe-magic");
 
 #ifdef HAVE_UNEXEC
   defsubr (&Sdump_emacs);
@@ -3514,6 +3666,7 @@ Special values:
   `windows-nt'   compiled as a native W32 application.
   `cygwin'       compiled using the Cygwin library.
   `haiku'        compiled for a Haiku system.
+  `android'      compiled for Android.
 Anything else (in Emacs 26, the possibilities are: aix, berkeley-unix,
 hpux, usg-unix-v) indicates some sort of Unix system.  */);
   Vsystem_type = intern_c_string (SYSTEM_TYPE);

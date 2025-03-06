@@ -1,7 +1,7 @@
 ;;; xref.el --- Cross-referencing commands              -*-lexical-binding:t-*-
 
-;; Copyright (C) 2014-2024 Free Software Foundation, Inc.
-;; Version: 1.6.3
+;; Copyright (C) 2014-2025 Free Software Foundation, Inc.
+;; Version: 1.7.0
 ;; Package-Requires: ((emacs "26.1"))
 
 ;; This is a GNU ELPA :core package.  Avoid functionality that is not
@@ -281,9 +281,10 @@ current project's main and external roots."
          (xref-references-in-directory identifier dir)
        (message "Searching %s... done" dir)))
    (let ((pr (project-current t)))
-     (cons
-      (xref--project-root pr)
-      (project-external-roots pr)))))
+     (project-combine-directories
+      (cons
+       (xref--project-root pr)
+       (project-external-roots pr))))))
 
 (cl-defgeneric xref-backend-apropos (backend pattern)
   "Find all symbols that match PATTERN string.
@@ -486,7 +487,7 @@ Override existing value with NEW-VALUE if NEW-VALUE is set."
           (set-window-parameter w 'xref--history (xref--make-xref-history))))))
 
 (defun xref--get-history ()
-  "Return xref history using xref-history-storage."
+  "Return xref history using `xref-history-storage'."
   (funcall xref-history-storage))
 
 (defun xref--push-backward (m)
@@ -637,6 +638,18 @@ If SELECT is non-nil, select the target window."
 (defface xref-match '((t :inherit match))
   "Face used to highlight matches in the xref buffer."
   :version "28.1")
+
+(defvar-local xref-num-matches-found 0)
+
+(defvar xref-num-matches-face 'compilation-info
+  "Face name to show the number of matches on the mode line.")
+
+(defconst xref-mode-line-matches
+  `(" [" (:propertize (:eval (int-to-string xref-num-matches-found))
+                      face ,xref-num-matches-face
+                      help-echo "Number of matches so far")
+    "]"))
+(put 'xref-mode-line-matches 'risky-local-variable t)
 
 (defmacro xref--with-dedicated-window (&rest body)
   `(let* ((xref-w (get-buffer-window xref-buffer-name))
@@ -980,7 +993,6 @@ point."
     ;; suggested by Johan Claesson "to further reduce finger movement":
     (define-key map (kbd ".") #'xref-next-line)
     (define-key map (kbd ",") #'xref-prev-line)
-    (define-key map (kbd "g") #'xref-revert-buffer)
     (define-key map (kbd "M-,") #'xref-quit-and-pop-marker-stack)
     map))
 
@@ -998,13 +1010,16 @@ point."
         #'xref--imenu-extract-index-name)
   (setq-local add-log-current-defun-function
               #'xref--add-log-current-defun)
+  (setq-local revert-buffer-function #'xref--revert-buffer)
   (setq-local outline-minor-mode-cycle t)
   (setq-local outline-minor-mode-use-buttons 'insert)
   (setq-local outline-search-function
               (lambda (&optional bound move backward looking-at)
                 (outline-search-text-property
                  'xref-group nil bound move backward looking-at)))
-  (setq-local outline-level (lambda () 1)))
+  (setq-local outline-level (lambda () 1))
+  (add-hook 'revert-buffer-restore-functions
+            #'xref-revert-buffer-restore-point nil t))
 
 (defvar xref--transient-buffer-mode-map
   (let ((map (make-sparse-keymap)))
@@ -1125,6 +1140,7 @@ XREF-ALIST is of the form ((GROUP . (XREF ...)) ...), where
 GROUP is a string for decoration purposes and XREF is an
 `xref-item' object."
   (require 'compile) ; For the compilation faces.
+  (setq xref-num-matches-found 0)
   (cl-loop for (group . xrefs) in xref-alist
            for max-line = (cl-loop for xref in xrefs
                                    maximize (xref-location-line
@@ -1144,6 +1160,7 @@ GROUP is a string for decoration purposes and XREF is an
            (xref--insert-propertized '(face xref-file-header xref-group t)
                                      group "\n")
            (dolist (xref xrefs)
+             (cl-incf xref-num-matches-found)
              (pcase-let (((cl-struct xref-item summary location) xref))
                (let* ((line (xref-location-line location))
                       (prefix
@@ -1186,11 +1203,9 @@ to that style.  Otherwise it is returned unchanged."
   ;; values themselves (e.g. by piping through some public function),
   ;; or adding a new accessor to locations, like GROUP-TYPE.
   (cl-ecase xref-file-name-display
-    (abs group)
+    (abs (if (file-name-absolute-p group) group (expand-file-name group)))
     (nondirectory
-     (if (file-name-absolute-p group)
-         (file-name-nondirectory group)
-       group))
+     (file-name-nondirectory group))
     (project-relative
      (if (and project-root
               (string-prefix-p project-root group))
@@ -1235,6 +1250,7 @@ Return an alist of the form ((GROUP . (XREF ...)) ...)."
       (xref--ensure-default-directory dd (current-buffer))
       (xref--xref-buffer-mode)
       (xref--show-common-initialize xref-alist fetcher alist)
+      (setq mode-line-process (list xref-mode-line-matches))
       (pop-to-buffer (current-buffer))
       (setq buf (current-buffer)))
     (xref--auto-jump-first buf (assoc-default 'auto-jump alist))
@@ -1254,21 +1270,20 @@ Return an alist of the form ((GROUP . (XREF ...)) ...)."
     (erase-buffer)
     (setq overlay-arrow-position nil)
     (xref--insert-xrefs xref-alist)
-    (add-hook 'post-command-hook 'xref--apply-truncation nil t)
+    (add-hook 'post-command-hook #'xref--apply-truncation nil t)
     (goto-char (point-min))
     (setq xref--original-window (assoc-default 'window alist)
           xref--original-window-intent (assoc-default 'display-action alist))
     (setq xref--fetcher fetcher)))
 
-(defun xref-revert-buffer ()
+(defun xref--revert-buffer (&rest _)    ; Ignore `revert-buffer' args.
   "Refresh the search results in the current buffer."
-  (interactive)
   (let ((inhibit-read-only t)
-        (buffer-undo-list t)
-        (inhibit-modification-hooks t))
+        (buffer-undo-list t))
     (save-excursion
       (condition-case err
-          (let ((alist (xref--analyze (funcall xref--fetcher))))
+          (let ((alist (xref--analyze (funcall xref--fetcher)))
+                (inhibit-modification-hooks t))
             (erase-buffer)
             (xref--insert-xrefs alist))
         (user-error
@@ -1277,6 +1292,28 @@ Return an alist of the form ((GROUP . (XREF ...)) ...)."
           (propertize
            (error-message-string err)
            'face 'error)))))))
+
+;;; FIXME: Make this alias obsolete in future release.
+(defalias 'xref-revert-buffer #'revert-buffer)
+
+(defun xref-revert-buffer-restore-point ()
+  "Restore point on a previous item or group after reverting."
+  (let* ((item
+          (when (xref--item-at-point)
+            (buffer-substring-no-properties (pos-bol) (pos-eol))))
+         (group
+          (save-excursion
+            (when (or (get-text-property (point) 'xref-group)
+                      (and item (xref--search-property 'xref-group t)
+                           (get-text-property (point) 'xref-group)))
+              (buffer-substring-no-properties (pos-bol) (pos-eol))))))
+    (when (or item group)
+      (lambda ()
+        (goto-char (point-min))
+        (when (and group (search-forward (concat "\n" group "\n") nil t))
+          (goto-char (pos-bol 0)))
+        (when (and item (search-forward (concat "\n" item "\n") nil t))
+          (goto-char (pos-bol 0)))))))
 
 (defun xref--auto-jump-first (buf value)
   (when value
@@ -1468,7 +1505,6 @@ The meanings of both arguments are the same as documented in
   (xref--show-xrefs fetcher display-action))
 
 (defun xref--show-xrefs (fetcher display-action &optional _always-show-list)
-  (xref--push-markers)
   (unless (functionp fetcher)
     ;; Old convention.
     (let ((xrefs fetcher))
@@ -1479,21 +1515,32 @@ The meanings of both arguments are the same as documented in
                 (prog1
                     xrefs
                   (setq xrefs 'called-already)))))))
-  (funcall xref-show-xrefs-function fetcher
-           `((window . ,(selected-window))
-             (display-action . ,display-action)
-             (auto-jump . ,xref-auto-jump-to-first-xref))))
+  (let ((cb (current-buffer))
+        (pt (point)))
+    (prog1
+        (funcall xref-show-xrefs-function fetcher
+                 `((window . ,(selected-window))
+                   (display-action . ,display-action)
+                   (auto-jump . ,xref-auto-jump-to-first-xref)))
+      (xref--push-markers cb pt))))
 
 (defun xref--show-defs (xrefs display-action)
-  (xref--push-markers)
-  (funcall xref-show-definitions-function xrefs
-           `((window . ,(selected-window))
-             (display-action . ,display-action)
-             (auto-jump . ,xref-auto-jump-to-first-definition))))
+  (let ((cb (current-buffer))
+        (pt (point)))
+    (prog1
+        (funcall xref-show-definitions-function xrefs
+                 `((window . ,(selected-window))
+                   (display-action . ,display-action)
+                   (auto-jump . ,xref-auto-jump-to-first-definition)))
+      (xref--push-markers cb pt))))
 
-(defun xref--push-markers ()
-  (unless (region-active-p) (push-mark nil t))
-  (xref-push-marker-stack))
+(defun xref--push-markers (buf pt)
+  (when (buffer-live-p buf)
+    (save-excursion
+      (with-no-warnings (set-buffer buf))
+      (goto-char pt)
+      (unless (region-active-p) (push-mark nil t))
+      (xref-push-marker-stack))))
 
 (defun xref--prompt-p (command)
   (or (eq xref-prompt-for-identifier t)
@@ -1525,7 +1572,7 @@ The meanings of both arguments are the same as documented in
                        prompt))
                    (xref-backend-identifier-completion-table backend)
                    nil nil nil
-                   'xref--read-identifier-history def)))
+                   'xref--read-identifier-history def t)))
              (if (equal id "")
                  (or def (user-error "There is no default identifier"))
                id)))
@@ -1613,7 +1660,8 @@ is nil, prompt only if there's no usable symbol at point."
 (defun xref-find-references-and-replace (from to)
   "Replace all references to identifier FROM with TO."
   (interactive
-   (let* ((query-replace-read-from-default 'find-tag-default)
+   (let* ((query-replace-read-from-default
+           (lambda () (xref-backend-identifier-at-point (xref-find-backend))))
           (common
            (query-replace-read-args "Query replace identifier" nil)))
      (list (nth 0 common) (nth 1 common))))
@@ -1637,7 +1685,9 @@ This command is intended to be bound to a mouse event."
            (mouse-set-point event)
            (xref-backend-identifier-at-point (xref-find-backend)))))
     (if identifier
-        (xref-find-definitions identifier)
+        (progn
+          (mouse-set-point event)
+          (xref-find-definitions identifier))
       (user-error "No identifier here"))))
 
 ;;;###autoload
@@ -1651,6 +1701,7 @@ This command is intended to be bound to a mouse event."
            (xref-backend-identifier-at-point (xref-find-backend)))))
     (if identifier
         (let ((xref-prompt-for-identifier nil))
+          (mouse-set-point event)
           (xref-find-references identifier))
       (user-error "No identifier here"))))
 
@@ -1893,7 +1944,9 @@ to control which program to use when looking for matches."
        (hits nil)
        ;; Support for remote files.  The assumption is that, if the
        ;; first file is remote, they all are, and on the same host.
-       (dir (file-name-directory (car files)))
+       (dir (if (file-name-absolute-p (car files))
+                (file-name-directory (car files))
+              default-directory))
        (remote-id (file-remote-p dir))
        ;; The 'auto' default would be fine too, but ripgrep can't handle
        ;; the options we pass in that case.
@@ -2053,12 +2106,17 @@ Such as the current syntax table and the applied syntax properties."
 (defvar xref--last-file-buffer nil)
 (defvar xref--temp-buffer-file-name nil)
 (defvar xref--hits-remote-id nil)
+(defvar xref--hits-file-prefix nil)
 
 (defun xref--convert-hits (hits regexp)
-  (let (xref--last-file-buffer
-        (tmp-buffer (generate-new-buffer " *xref-temp*"))
-        (xref--hits-remote-id (file-remote-p default-directory))
-        (syntax-needed (xref--regexp-syntax-dependent-p regexp)))
+  (let* (xref--last-file-buffer
+         (tmp-buffer (generate-new-buffer " *xref-temp*"))
+         (xref--hits-remote-id (file-remote-p default-directory))
+         (xref--hits-file-prefix (if (and hits (file-name-absolute-p (cadar hits)))
+                                     ;; TODO: Add some test for this.
+                                     xref--hits-remote-id
+                                   (expand-file-name default-directory)))
+         (syntax-needed (xref--regexp-syntax-dependent-p regexp)))
     (unwind-protect
         (mapcan (lambda (hit)
                   (xref--collect-matches hit regexp tmp-buffer syntax-needed))
@@ -2067,9 +2125,8 @@ Such as the current syntax table and the applied syntax properties."
 
 (defun xref--collect-matches (hit regexp tmp-buffer syntax-needed)
   (pcase-let* ((`(,line ,file ,text) hit)
-               (file (and file (concat xref--hits-remote-id file)))
-               (buf (xref--find-file-buffer file))
-               (inhibit-modification-hooks t))
+               (file (and file (concat xref--hits-file-prefix file)))
+               (buf (xref--find-file-buffer file)))
     (if buf
         (with-current-buffer buf
           (save-excursion
@@ -2084,6 +2141,9 @@ Such as the current syntax table and the applied syntax properties."
       ;; Using the temporary buffer is both a performance and a buffer
       ;; management optimization.
       (with-current-buffer tmp-buffer
+        ;; This let is fairly dangerous, but improves performance
+        ;; for large lists, see https://debbugs.gnu.org/53749#227
+        (let ((inhibit-modification-hooks t))
         (erase-buffer)
         (when (and syntax-needed
                    (not (equal file xref--temp-buffer-file-name)))
@@ -2098,8 +2158,10 @@ Such as the current syntax table and the applied syntax properties."
           (setq-local xref--temp-buffer-file-name file)
           (setq-local inhibit-read-only t)
           (erase-buffer))
-        (insert text)
+        (insert text))
         (goto-char (point-min))
+        (when syntax-needed
+          (syntax-ppss-flush-cache (point)))
         (xref--collect-matches-1 regexp file line
                                  (point)
                                  (point-max)
@@ -2147,7 +2209,7 @@ Such as the current syntax table and the applied syntax properties."
                  (or
                   (buffer-modified-p buf)
                   (unless xref--hits-remote-id
-                    (not (verify-visited-file-modtime (current-buffer))))))
+                    (not (verify-visited-file-modtime buf)))))
         ;; We can't use buffers whose contents diverge from disk (bug#54025).
         (setq buf nil))
       (setq xref--last-file-buffer (cons file buf))))

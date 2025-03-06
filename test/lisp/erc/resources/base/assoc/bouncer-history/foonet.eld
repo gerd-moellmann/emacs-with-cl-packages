@@ -17,7 +17,7 @@
  (0 ":irc.foonet.org 266 tester 3 3 :Current global users 3, max 3")
  (0 ":irc.foonet.org 422 tester :MOTD File is missing"))
 
-((mode-user 3.2 "MODE tester +i")
+((mode-user 10 "MODE tester +i")
  ;; No mode answer ^
  (0 ":irc.znc.in 306 tester :You have been marked as being away")
  (0 ":tester!~u@nvfhxvqm92rm6.irc JOIN #chan")
@@ -27,6 +27,7 @@
  (0 ":bob!~u@svpn88yjcdj42.irc PRIVMSG #chan :[07:04:02] alice: Here come the lovers, full of joy and mirth.")
  (0 ":alice!~u@svpn88yjcdj42.irc PRIVMSG #chan :[07:04:07] bob: According to the fool's bolt, sir, and such dulcet diseases.")
  (0 ":bob!~u@svpn88yjcdj42.irc PRIVMSG #chan :[07:04:10] alice: And hang himself. I pray you, do my greeting.")
+ (0 ":someone!~u@abcdefg.irc PRIVMSG #chan :[07:04:10] hi everyone.")
  (0 ":alice!~u@svpn88yjcdj42.irc PRIVMSG #chan :[07:04:18] bob: And you sat smiling at his cruel prey.")
  (0 ":bob!~u@svpn88yjcdj42.irc PRIVMSG #chan :[07:04:21] alice: Or never after look me in the face.")
  (0 ":alice!~u@svpn88yjcdj42.irc PRIVMSG #chan :[07:04:25] bob: If that may be, than all is well. Come, sit down, every mother's son, and rehearse your parts. Pyramus, you begin: when you have spoken your speech, enter into that brake; and so every one according to his cue.")
@@ -38,7 +39,7 @@
  (0 ":irc.foonet.org NOTICE tester :[07:00:32] This server is in debug mode and is logging all user I/O. If you do not wish for everything you send to be readable by the server owner(s), please disconnect.")
  (0 ":irc.foonet.org 305 tester :You are no longer marked as being away"))
 
-((mode 6 "MODE #chan")
+((mode 10 "MODE #chan")
  (0 ":irc.foonet.org 324 tester #chan +nt")
  (0 ":irc.foonet.org 329 tester #chan 1619593200")
  (0.9 ":alice!~u@svpn88yjcdj42.irc PRIVMSG #chan :bob: Grows, lives, and dies, in single blessedness.")

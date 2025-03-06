@@ -1,6 +1,6 @@
 ;;; isearch.el --- incremental search minor mode -*- lexical-binding: t -*-
 
-;; Copyright (C) 1992-1997, 1999-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1992-1997, 1999-2025 Free Software Foundation, Inc.
 
 ;; Author: Daniel LaLiberte <liberte@cs.uiuc.edu>
 ;; Maintainer: emacs-devel@gnu.org
@@ -244,6 +244,10 @@ If you use `add-function' to modify this variable, you can use the
 `isearch-message-prefix' advice property to specify the prefix string
 displayed in the search message.")
 
+(defvar isearch-text-conversion-style nil
+  "Value of `text-conversion-style' before Isearch mode
+was enabled in this buffer.")
+
 ;; Search ring.
 
 (defvar search-ring nil
@@ -278,13 +282,13 @@ Value is nil, t, or a function.
 
 If nil, default to literal searches (note that `case-fold-search'
 and `isearch-lax-whitespace' may still be applied).\\<isearch-mode-map>
-If t, default to regexp searches (as if typing `\\[isearch-toggle-regexp]' during
+If t, default to regexp searches (as if typing \\[isearch-toggle-regexp] during
 isearch).
 
 If a function, use that function as an `isearch-regexp-function'.
 Example functions (and the keys to toggle them during isearch)
-are `word-search-regexp' \(`\\[isearch-toggle-word]'), `isearch-symbol-regexp'
-\(`\\[isearch-toggle-symbol]'), and `char-fold-to-regexp' \(`\\[isearch-toggle-char-fold]')."
+are `word-search-regexp' \(\\[isearch-toggle-word]), `isearch-symbol-regexp'
+\(\\[isearch-toggle-symbol]), and `char-fold-to-regexp' \(\\[isearch-toggle-char-fold])."
   ;; :type is set below by `isearch-define-mode-toggle'.
   :type '(choice (const :tag "Literal search" nil)
                  (const :tag "Regexp search" t)
@@ -999,8 +1003,7 @@ Each element is an `isearch--state' struct where the slots are
 ;; Entry points to isearch-mode.
 
 (defun isearch-forward (&optional regexp-p no-recursive-edit)
-  "\
-Do incremental search forward.
+  "Do incremental search forward.
 With a prefix argument, do an incremental regular expression search instead.
 \\<isearch-mode-map>
 As you type characters, they add to the search string and are found.
@@ -1008,7 +1011,7 @@ The following non-printing keys are bound in `isearch-mode-map'.
 
 Type \\[isearch-delete-char] to cancel last input item from end of search string.
 Type \\[isearch-exit] to exit, leaving point at location found.
-Type LFD (C-j) to match end of line.
+Type LFD (\\`C-j') to match end of line.
 Type \\[isearch-repeat-forward] to search again forward,\
  \\[isearch-repeat-backward] to search again backward.
 Type \\[isearch-beginning-of-buffer] to go to the first match,\
@@ -1106,7 +1109,7 @@ as a regexp.  See the command `isearch-forward' for more information.
 
 In incremental searches, a space or spaces normally matches any
 whitespace defined by the variable `search-whitespace-regexp'.
-To search for a literal space and nothing else, enter C-q SPC.
+To search for a literal space and nothing else, enter \\`C-q SPC'.
 To toggle whitespace matching, use `isearch-toggle-lax-whitespace',
 usually bound to \\`M-s SPC' during isearch.
 This command does not support character folding."
@@ -1221,6 +1224,8 @@ active region is added to the search string."
 ;;			     isearch-forward-regexp isearch-backward-regexp)
 ;;  "List of commands for which isearch-mode does not recursive-edit.")
 
+(declare-function set-text-conversion-style "textconv.c")
+
 (defun isearch-mode (forward &optional regexp op-fun recursive-edit regexp-function)
   "Start Isearch minor mode.
 It is called by the function `isearch-forward' and other related functions.
@@ -1236,6 +1241,8 @@ When the arg RECURSIVE-EDIT is non-nil, this function behaves modally and
 does not return to the calling function until the search is completed.
 To behave this way it enters a recursive edit and exits it when done
 isearching.
+
+Also display the on-screen keyboard if necessary.
 
 The arg REGEXP-FUNCTION, if non-nil, should be a function.  It is
 used to set the value of `isearch-regexp-function'."
@@ -1331,6 +1338,25 @@ used to set the value of `isearch-regexp-function'."
   (add-hook 'post-command-hook 'isearch-post-command-hook)
   (add-hook 'mouse-leave-buffer-hook 'isearch-mouse-leave-buffer)
   (add-hook 'kbd-macro-termination-hook 'isearch-done)
+
+  ;; If the keyboard is not up and the last event did not come from
+  ;; a keyboard, bring it up so that the user can type.
+  ;;
+  ;; last-event-frame may be `macro', since people apparently make use
+  ;; of I-search in keyboard macros.  (bug#65175)
+  (when (and (not (eq last-event-frame 'macro))
+             (or (not last-event-frame)
+                 (not (eq (device-class last-event-frame
+                                        last-event-device)
+                          'keyboard))))
+    (frame-toggle-on-screen-keyboard (selected-frame) nil))
+
+  ;; Disable text conversion so that isearch can behave correctly.
+
+  (when (fboundp 'set-text-conversion-style)
+    (setq isearch-text-conversion-style
+          text-conversion-style)
+    (set-text-conversion-style nil))
 
   ;; isearch-mode can be made modal (in the sense of not returning to
   ;; the calling function until searching is completed) by entering
@@ -1464,6 +1490,10 @@ NOPUSH is t and EDIT is t."
         (setq-local tool-bar-map isearch-tool-bar-old-map)
         (setq isearch-tool-bar-old-map nil))
     (kill-local-variable 'tool-bar-map))
+
+  ;; Restore the previous text conversion style.
+  (when (fboundp 'set-text-conversion-style)
+    (set-text-conversion-style isearch-text-conversion-style))
 
   (force-mode-line-update)
 
@@ -2769,8 +2799,8 @@ With argument, add COUNT copies of the character."
        (let ((string (if (and (integerp count) (> count 1))
 			 (make-string count char)
 		       (char-to-string char))))
-	 (setq isearch-new-string (concat isearch-string string)
-	       isearch-new-message (concat isearch-message
+	 (setq isearch-new-string (concat isearch-new-string string)
+	       isearch-new-message (concat isearch-new-message
 					   (mapconcat 'isearch-text-char-description
 						      string ""))))))))
 
@@ -2791,8 +2821,8 @@ The command accepts Unicode names like \"smiling face\" or
      (when (and (integerp count) (> count 1))
        (setq emoji (apply 'concat (make-list count emoji))))
      (when emoji
-       (setq isearch-new-string (concat isearch-string emoji)
-             isearch-new-message (concat isearch-message
+       (setq isearch-new-string (concat isearch-new-string emoji)
+             isearch-new-message (concat isearch-new-message
 					   (mapconcat 'isearch-text-char-description
 						      emoji "")))))))
 
@@ -3526,7 +3556,8 @@ the word mode."
 (defun isearch-lazy-count-format (&optional suffix-p)
   "Format the current match number and the total number of matches.
 When SUFFIX-P is non-nil, the returned string is intended for
-isearch-message-suffix prompt.  Otherwise, for isearch-message-prefix."
+`isearch-message-suffix' prompt.  Otherwise, for
+`isearch-message-prefix'."
   (let ((format-string (if suffix-p
                            lazy-count-suffix-format
                          lazy-count-prefix-format)))
@@ -4024,6 +4055,7 @@ since they have special meaning in a regexp."
 (defvar isearch-lazy-highlight-point-max nil)
 (defvar isearch-lazy-highlight-buffer nil)
 (defvar isearch-lazy-highlight-case-fold-search nil)
+(defvar isearch-lazy-highlight-invisible nil)
 (defvar isearch-lazy-highlight-regexp nil)
 (defvar isearch-lazy-highlight-lax-whitespace nil)
 (defvar isearch-lazy-highlight-regexp-lax-whitespace nil)
@@ -4069,6 +4101,8 @@ by other Emacs features."
                             isearch-lazy-highlight-window-group))
 		 (not (eq isearch-lazy-highlight-case-fold-search
 			  isearch-case-fold-search))
+		 (not (eq isearch-lazy-highlight-invisible
+		          isearch-invisible))
 		 (not (eq isearch-lazy-highlight-regexp
 			  isearch-regexp))
 		 (not (eq isearch-lazy-highlight-regexp-function
@@ -4147,6 +4181,7 @@ by other Emacs features."
 	  isearch-lazy-highlight-wrapped      nil
 	  isearch-lazy-highlight-last-string  isearch-string
 	  isearch-lazy-highlight-case-fold-search isearch-case-fold-search
+	  isearch-lazy-highlight-invisible isearch-invisible
 	  isearch-lazy-highlight-regexp       isearch-regexp
 	  isearch-lazy-highlight-lax-whitespace   isearch-lax-whitespace
 	  isearch-lazy-highlight-regexp-lax-whitespace isearch-regexp-lax-whitespace
@@ -4196,8 +4231,10 @@ Attempt to do the search exactly the way the pending Isearch would."
 	    (isearch-forward isearch-lazy-highlight-forward)
 	    ;; Count all invisible matches, but highlight only
 	    ;; matches that can be opened by visiting them later
-	    (search-invisible (or (not (null isearch-lazy-count))
-				  'can-be-opened))
+	    (search-invisible
+             (or (not (null isearch-lazy-count))
+		 (and (eq isearch-lazy-highlight-invisible 'open)
+                      'can-be-opened)))
 	    (retry t)
 	    (success nil))
 	;; Use a loop like in `isearch-search'.
@@ -4217,7 +4254,9 @@ Attempt to do the search exactly the way the pending Isearch would."
   (when (or (not isearch-lazy-count)
             ;; Recheck the match that possibly was intended
             ;; for counting only, but not for highlighting
-            (let ((search-invisible 'can-be-opened))
+            (let ((search-invisible
+                   (and (eq isearch-lazy-highlight-invisible 'open)
+                        'can-be-opened)))
               (funcall isearch-filter-predicate mb me)))
     (let ((ov (make-overlay mb me)))
       (push ov isearch-lazy-highlight-overlays)
@@ -4366,9 +4405,9 @@ Attempt to do the search exactly the way the pending Isearch would."
 			  ;; value `open' since then lazy-highlight
 			  ;; will open all overlays with matches.
 			  (if (not (let ((search-invisible
-					  (if (eq search-invisible 'open)
+					  (if (eq isearch-lazy-highlight-invisible 'open)
 					      'can-be-opened
-					    search-invisible)))
+					    isearch-lazy-highlight-invisible)))
 				     (funcall isearch-filter-predicate mb me)))
 			      (setq isearch-lazy-count-invisible
 				    (1+ (or isearch-lazy-count-invisible 0)))
@@ -4641,6 +4680,7 @@ CASE-FOLD non-nil means the search was case-insensitive."
 	isearch-message message
 	isearch-case-fold-search case-fold)
   (isearch-search)
+  (isearch-push-state)
   (isearch-update))
 
 

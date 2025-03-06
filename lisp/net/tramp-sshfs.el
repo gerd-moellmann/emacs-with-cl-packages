@@ -1,6 +1,6 @@
 ;;; tramp-sshfs.el --- Tramp access functions via sshfs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2021-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2025 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -67,9 +67,6 @@
                 (tramp-remote-shell-login   ("-l"))
                 (tramp-remote-shell-args    ("-c"))))
 
- (add-to-list 'tramp-connection-properties
-	      `(,(format "/%s:" tramp-sshfs-method) "direct-async-process" t))
-
  (tramp-set-completion-function
   tramp-sshfs-method tramp-completion-function-alist-ssh))
 
@@ -101,6 +98,7 @@
     (file-equal-p . tramp-handle-file-equal-p)
     (file-executable-p . tramp-fuse-handle-file-executable-p)
     (file-exists-p . tramp-fuse-handle-file-exists-p)
+    (file-group-gid . tramp-handle-file-group-gid)
     (file-in-directory-p . tramp-handle-file-in-directory-p)
     (file-local-copy . tramp-handle-file-local-copy)
     (file-locked-p . tramp-handle-file-locked-p)
@@ -124,6 +122,7 @@
     (file-symlink-p . tramp-handle-file-symlink-p)
     (file-system-info . tramp-sshfs-handle-file-system-info)
     (file-truename . tramp-handle-file-truename)
+    (file-user-uid . tramp-handle-file-user-uid)
     (file-writable-p . tramp-sshfs-handle-file-writable-p)
     (find-backup-file-name . tramp-handle-find-backup-file-name)
     ;; `get-file-buffer' performed by default handler.
@@ -179,8 +178,10 @@ Operations not mentioned here will be handled by the default Emacs primitives.")
 First arg specifies the OPERATION, second arg is a list of
 arguments to pass to the OPERATION."
   (if-let ((fn (assoc operation tramp-sshfs-file-name-handler-alist)))
-      (save-match-data (apply (cdr fn) args))
-    (tramp-run-real-handler operation args)))
+      (prog1 (save-match-data (apply (cdr fn) args))
+	(setq tramp-debug-message-fnh-function (cdr fn)))
+    (prog1 (tramp-run-real-handler operation args)
+      (setq tramp-debug-message-fnh-function operation))))
 
 ;;;###tramp-autoload
 (tramp--with-startup
@@ -228,8 +229,7 @@ arguments to pass to the OPERATION."
 
 (defun tramp-sshfs-handle-file-system-info (filename)
   "Like `file-system-info' for Tramp files."
-  ;;`file-system-info' exists since Emacs 27.1.
-  (tramp-compat-funcall 'file-system-info (tramp-fuse-local-file-name filename)))
+  (file-system-info (tramp-fuse-local-file-name filename)))
 
 (defun tramp-sshfs-handle-file-writable-p (filename)
   "Like `file-writable-p' for Tramp files."
@@ -250,96 +250,34 @@ arguments to pass to the OPERATION."
 (defun tramp-sshfs-handle-process-file
   (program &optional infile destination display &rest args)
   "Like `process-file' for Tramp files."
-  ;; The implementation is not complete yet.
-  (when (and (numberp destination) (zerop destination))
-    (error "Implementation does not handle immediate return"))
+  (tramp-skeleton-process-file program infile destination display args
+    (let ((coding-system-for-read 'utf-8-dos)) ; Is this correct?
 
-  (with-parsed-tramp-file-name (expand-file-name default-directory) nil
-    (let ((coding-system-for-read 'utf-8-dos) ; Is this correct?
-	  (command
+      (setq command
 	   (format
 	    "cd %s && exec %s"
 	    (tramp-unquote-shell-quote-argument localname)
 	    (mapconcat #'tramp-shell-quote-argument (cons program args) " ")))
-	  input tmpinput stderr tmpstderr outbuf)
-
-      ;; Determine input.
-      (if (null infile)
-	  (setq input (tramp-get-remote-null-device v))
-	(setq infile (tramp-compat-file-name-unquote (expand-file-name infile)))
-	(if (tramp-equal-remote default-directory infile)
-	    ;; INFILE is on the same remote host.
-	    (setq input (tramp-unquote-file-local-name infile))
-	  ;; INFILE must be copied to remote host.
-	  (setq input (tramp-make-tramp-temp-file v)
-		tmpinput (tramp-make-tramp-file-name v input))
-	  (copy-file infile tmpinput t)))
       (when input (setq command (format "%s <%s" command input)))
-
-      ;; Determine output.
-      (cond
-       ;; Just a buffer.
-       ((bufferp destination)
-	(setq outbuf destination))
-       ;; A buffer name.
-       ((stringp destination)
-	(setq outbuf (get-buffer-create destination)))
-       ;; (REAL-DESTINATION ERROR-DESTINATION)
-       ((consp destination)
-	;; output.
-	(cond
-	 ((bufferp (car destination))
-	  (setq outbuf (car destination)))
-	 ((stringp (car destination))
-	  (setq outbuf (get-buffer-create (car destination))))
-	 ((car destination)
-	  (setq outbuf (current-buffer))))
-	;; stderr.
-	(cond
-	 ((stringp (cadr destination))
-	  (setcar (cdr destination) (expand-file-name (cadr destination)))
-	  (if (tramp-equal-remote default-directory (cadr destination))
-	      ;; stderr is on the same remote host.
-	      (setq stderr (tramp-unquote-file-local-name (cadr destination)))
-	    ;; stderr must be copied to remote host.  The temporary
-	    ;; file must be deleted after execution.
-	    (setq stderr (tramp-make-tramp-temp-file v)
-		  tmpstderr (tramp-make-tramp-file-name v stderr))))
-	 ;; stderr to be discarded.
-	 ((null (cadr destination))
-	  (setq stderr (tramp-get-remote-null-device v)))))
-       ;; 't
-       (destination
-	(setq outbuf (current-buffer))))
       (when stderr (setq command (format "%s 2>%s" command stderr)))
 
       (unwind-protect
-	  (apply
-	   #'tramp-call-process
-	   v (tramp-get-method-parameter v 'tramp-login-program)
-	   nil outbuf display
-	   (tramp-expand-args
-	    v 'tramp-login-args
-	    ?h (or (tramp-file-name-host v) "")
-	    ?u (or (tramp-file-name-user v) "")
-	    ?p (or (tramp-file-name-port v) "")
-            ?a "-t" ?l command))
+	  (setq ret
+		(apply
+		 #'tramp-call-process
+		 v (tramp-get-method-parameter v 'tramp-login-program)
+		 nil outbuf display
+		 (tramp-expand-args
+		  v 'tramp-login-args nil
+		  ?h (or (tramp-file-name-host v) "")
+		  ?u (or (tramp-file-name-user v) "")
+		  ?p (or (tramp-file-name-port v) "")
+		  ?a "-t" ?l command)))
 
 	;; Synchronize stderr.
 	(when tmpstderr
 	  (tramp-cleanup-connection v 'keep-debug 'keep-password)
-	  (tramp-fuse-unmount v))
-
-	;; Provide error file.
-	(when tmpstderr
-	  (rename-file tmpstderr (cadr destination) t))
-
-	;; Cleanup.  We remove all file cache values for the
-	;; connection, because the remote process could have changed
-	;; them.
-	(when tmpinput (delete-file tmpinput))
-	(when process-file-side-effects
-          (tramp-flush-directory-properties v "/"))))))
+	  (tramp-fuse-unmount v))))))
 
 (defun tramp-sshfs-handle-rename-file
     (filename newname &optional ok-if-already-exists)
@@ -394,53 +332,63 @@ connection if a previous connection has died for some reason."
   (unless (tramp-connectable-p vec)
     (throw 'non-essential 'non-essential))
 
-  ;; We need a process bound to the connection buffer.  Therefore, we
-  ;; create a dummy process.  Maybe there is a better solution?
-  (unless (get-buffer-process (tramp-get-connection-buffer vec))
-    (let ((p (make-network-process
-	      :name (tramp-get-connection-name vec)
-	      :buffer (tramp-get-connection-buffer vec)
-	      :server t :host 'local :service t :noquery t)))
-      (process-put p 'tramp-vector vec)
-      (set-process-query-on-exit-flag p nil)
+  (with-tramp-debug-message vec "Opening connection"
+    ;; We need a process bound to the connection buffer.  Therefore,
+    ;; we create a dummy process.  Maybe there is a better solution?
+    (unless (get-buffer-process (tramp-get-connection-buffer vec))
+      (let ((p (make-network-process
+		:name (tramp-get-connection-name vec)
+		:buffer (tramp-get-connection-buffer vec)
+		:server t :host 'local :service t :noquery t)))
+	(tramp-post-process-creation p vec)
 
-      ;; Set connection-local variables.
-      (tramp-set-connection-local-variables vec)))
+	;; Set connection-local variables.
+	(tramp-set-connection-local-variables vec)))
 
-  ;; Create directory.
-  (unless (file-directory-p (tramp-fuse-mount-point vec))
-    (make-directory (tramp-fuse-mount-point vec) 'parents))
+    ;; Create directory.
+    (unless (file-directory-p (tramp-fuse-mount-point vec))
+      (make-directory (tramp-fuse-mount-point vec) 'parents))
 
-  (unless
-      (or (tramp-fuse-mounted-p vec)
-	  (with-temp-buffer
-	    (zerop
-	     (apply
-	      #'tramp-call-process
-	      vec tramp-sshfs-program nil t nil
-	      (tramp-fuse-mount-spec vec)
-	      (tramp-fuse-mount-point vec)
-	      (tramp-expand-args
-	       vec 'tramp-mount-args
-	       ?p (or (tramp-file-name-port vec) ""))))))
-    (tramp-error
-     vec 'file-error "Error mounting %s" (tramp-fuse-mount-spec vec)))
+    (unless
+	(or (tramp-fuse-mounted-p vec)
+	    (with-temp-buffer
+	      (zerop
+	       (apply
+		#'tramp-call-process
+		vec tramp-sshfs-program nil t nil
+		(tramp-fuse-mount-spec vec)
+		(tramp-fuse-mount-point vec)
+		(tramp-expand-args
+		 vec 'tramp-mount-args nil
+		 ?p (or (tramp-file-name-port vec) ""))))))
+      (tramp-error
+       vec 'file-error "Error mounting %s" (tramp-fuse-mount-spec vec)))
 
-  ;; Mark it as connected.
-  (add-to-list 'tramp-fuse-mount-points (tramp-file-name-unify vec))
-  (tramp-set-connection-property
-   (tramp-get-connection-process vec) "connected" t)
+    ;; Mark it as connected.
+    (add-to-list 'tramp-fuse-mount-points (tramp-file-name-unify vec))
+    (tramp-set-connection-property
+     (tramp-get-connection-process vec) "connected" t)
 
-  ;; In `tramp-check-cached-permissions', the connection properties
-  ;; "{uid,gid}-{integer,string}" are used.  We set them to proper values.
-  (with-tramp-connection-property
-      vec "uid-integer" (tramp-get-local-uid 'integer))
-  (with-tramp-connection-property
-      vec "gid-integer" (tramp-get-local-gid 'integer))
-  (with-tramp-connection-property
-      vec "uid-string" (tramp-get-local-uid 'string))
-  (with-tramp-connection-property
-      vec "gid-string" (tramp-get-local-gid 'string)))
+    ;; In `tramp-check-cached-permissions', the connection properties
+    ;; "{uid,gid}-{integer,string}" are used.  We set them to proper values.
+    (with-tramp-connection-property
+	vec "uid-integer" (tramp-get-local-uid 'integer))
+    (with-tramp-connection-property
+	vec "gid-integer" (tramp-get-local-gid 'integer))
+    (with-tramp-connection-property
+	vec "uid-string" (tramp-get-local-uid 'string))
+    (with-tramp-connection-property
+	vec "gid-string" (tramp-get-local-gid 'string))))
+
+;; Default connection-local variables for Tramp.
+
+(connection-local-set-profile-variables
+ 'tramp-sshfs-connection-local-default-profile
+ '((tramp-direct-async-process t)))
+
+(connection-local-set-profiles
+ `(:application tramp :protocol ,tramp-sshfs-method)
+ 'tramp-sshfs-connection-local-default-profile)
 
 ;; `shell-mode' tries to open remote files like "/sshfs:user@host:~/.history".
 ;; This fails, because the tilde cannot be expanded.  Tell

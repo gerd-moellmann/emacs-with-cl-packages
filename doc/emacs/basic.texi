@@ -1,6 +1,6 @@
 @c -*- coding: utf-8 -*-
 @c This is part of the Emacs manual.
-@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2024 Free Software
+@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2025 Free Software
 @c Foundation, Inc.
 @c See file emacs.texi for copying conditions.
 @node Basic
@@ -636,6 +636,18 @@ can be difficult to read.  The usual solution is to break your lines
 before they get too long, by inserting newlines.  If you prefer, you
 can make Emacs insert a newline automatically when a line gets too
 long, by using Auto Fill mode.  @xref{Filling}.
+
+@cindex continuation lines, visual wrap prefix
+@findex visual-wrap-prefix-mode
+@findex global-visual-wrap-prefix-mode
+  Normally, the first character of each continuation line is
+positioned at the beginning of the screen line where it is displayed.
+The minor mode @code{visual-wrap-prefix-mode} and its global
+counterpart (@pxref{Minor Modes}) @code{global-visual-wrap-prefix-mode}
+arranges for continuation lines to be indented on display using a fill
+prefix (@pxref{Fill Prefix}) automatically computed from each line's
+surrounding context.  These prefixes are display-only feature, and do
+not change the buffer text in any way.
 
   Sometimes, you may need to edit files containing many long logical
 lines, and it may not be practical to break them all up by adding

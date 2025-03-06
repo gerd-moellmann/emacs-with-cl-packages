@@ -1,6 +1,6 @@
 ;;; holidays.el --- holiday functions for the calendar package  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1989-1990, 1992-1994, 1997, 2001-2024 Free Software
+;; Copyright (C) 1989-1990, 1992-1994, 1997, 2001-2025 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Edward M. Reingold <reingold@cs.uiuc.edu>
@@ -359,7 +359,7 @@ use instead of point."
   (interactive (list last-nonmenu-event))
   ;; If called from a menu, with the calendar window not selected.
   (with-current-buffer
-      (if event (window-buffer (posn-window (event-start event)))
+      (if event (calendar-event-buffer event)
         (current-buffer))
     (message "Looking up holidays...")
     (let ((holiday-list (calendar-holiday-list))
@@ -590,7 +590,7 @@ use instead of point."
   (interactive (list last-nonmenu-event))
   ;; If called from a menu, with the calendar window not selected.
   (with-current-buffer
-      (if event (window-buffer (posn-window (event-start event)))
+      (if event (calendar-event-buffer event)
         (current-buffer))
     (setq calendar-mark-holidays-flag t)
     (message "Marking holidays...")

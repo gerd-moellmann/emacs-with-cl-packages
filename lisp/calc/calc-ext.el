@@ -1,6 +1,6 @@
 ;;; calc-ext.el --- various extension functions for Calc  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1990-1993, 2001-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1990-1993, 2001-2025 Free Software Foundation, Inc.
 
 ;; Author: David Gillespie <daveg@synaptics.com>
 
@@ -1297,12 +1297,13 @@ calc-kill calc-kill-region calc-yank))))
 		  0))
 	  (let ((msg (nth calc-prefix-help-phase msgs)))
 	    (message "%s" (if msg
-			      (concat group ": " msg ":"
+			      (concat group ": " (substitute-command-keys msg) ":"
 				      (make-string
 				       (- (apply #'max (mapcar #'length msgs))
 					  (length msg))
                                        ?\s)
-				      "  [MORE]"
+				      (substitute-command-keys
+                                       "  [\\`?'=MORE]")
 				      (if key
 					  (concat "  " (char-to-string key)
 						  "-")
@@ -2068,7 +2069,7 @@ calc-kill calc-kill-region calc-yank))))
 
 (defconst math-approx-sqrt-e
   (math-read-number-simple "1.648721270700128146849")
-  "An approximation for sqrt(3).")
+  "An approximation for sqrt(e).")
 
 (math-defcache math-sqrt-e math-approx-sqrt-e
   (math-add-float '(float 1 0) (math-exp-minus-1-raw '(float 5 -1))))

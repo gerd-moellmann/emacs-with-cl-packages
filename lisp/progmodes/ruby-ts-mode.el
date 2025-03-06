@@ -1,6 +1,6 @@
 ;;; ruby-ts-mode.el --- Major mode for editing Ruby files using tree-sitter -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2025 Free Software Foundation, Inc.
 
 ;; Author: Perry Smith <pedz@easesoftware.com>
 ;; Created: December 2022
@@ -25,7 +25,7 @@
 ;;; Commentary:
 
 ;; This file defines ruby-ts-mode which is a major mode for editing
-;; Ruby files that uses Tree Sitter to parse the language. More
+;; Ruby files that uses Tree Sitter to parse the language.  More
 ;; information about Tree Sitter can be found in the ELisp Info pages
 ;; as well as this website: https://tree-sitter.github.io/tree-sitter/
 
@@ -34,9 +34,38 @@
 ;; put somewhere Emacs can find it.  See the docstring of
 ;; `treesit-extra-load-path'.
 
-;; This mode doesn't associate itself with .rb files automatically.
-;; You can do that either by prepending to the value of
-;; `auto-mode-alist', or using `major-mode-remap-alist'.
+;; This mode doesn't associate itself with .rb files automatically.  To
+;; use this mode by default, assuming you have the tree-sitter grammar
+;; available, do one of the following:
+;;
+;; - Add the following to your init file:
+;;
+;;    (add-to-list 'major-mode-remap-alist '(ruby-mode . ruby-ts-mode))
+;;
+;; - Customize 'auto-mode-alist' to turn ruby-ts-mode automatically.
+;;   For example:
+;;
+;;    (add-to-list 'auto-mode-alist
+;;                 (cons (concat "\\(?:\\.\\(?:"
+;;                               "rbw?\\|ru\\|rake\\|thor\\|axlsx"
+;;                               "\\|jbuilder\\|rabl\\|gemspec\\|podspec"
+;;                               "\\)"
+;;                               "\\|/"
+;;                               "\\(?:Gem\\|Rake\\|Cap\\|Thor"
+;;                               "\\|Puppet\\|Berks\\|Brew\\|Fast"
+;;                               "\\|Vagrant\\|Guard\\|Pod\\)file"
+;;                               "\\)\\'")
+;;                       'ruby-ts-mode))
+;;
+;;   will turn on the ruby-ts-mode for Ruby source files.
+;;
+;; - If you have the Ruby grammar installed, add
+;;
+;;     (load "ruby-ts-mode")
+;;
+;;   to your init file.
+;;
+;; You can also turn on this mode manually in a buffer.
 
 ;; Tree Sitter brings a lot of power and versitility which can be
 ;; broken into these features.
@@ -842,6 +871,16 @@ a statement container is a node that matches
      ;; No paren/curly/brace found on the same line.
      ((< (treesit-node-start found) parent-bol)
       parent-bol)
+     ;; Nesting of brackets args.
+     ((and
+       (not (eq ruby-bracketed-args-indent t))
+       (string-match-p "\\`array\\|hash\\'" (treesit-node-type parent))
+       (equal (treesit-node-parent parent) found)
+       ;; Grandparent is not a parenless call.
+       (or (not (equal (treesit-node-type found) "argument_list"))
+           (equal (treesit-node-type (treesit-node-child found 0))
+                  "(")))
+      parent-bol)
      ;; Hash or array opener on the same line.
      ((string-match-p "\\`array\\|hash\\'" (treesit-node-type found))
       (save-excursion
@@ -1088,6 +1127,15 @@ leading double colon is not added."
            (put-text-property pos (1+ pos) 'syntax-table
                               (string-to-syntax "!"))))))))
 
+(defun ruby-ts--sexp-p (node)
+  ;; Skip parenless calls (implicit parens are both non-obvious to the
+  ;; user, and might take over when we want to just over some physical
+  ;; parens/braces).
+  (or (not (equal (treesit-node-type node)
+                  "argument_list"))
+      (equal (treesit-node-type (treesit-node-child node 0))
+             "(")))
+
 (defvar-keymap ruby-ts-mode-map
   :doc "Keymap used in Ruby mode"
   :parent prog-mode-map
@@ -1115,11 +1163,85 @@ leading double colon is not added."
   ;; Navigation.
   (setq-local treesit-defun-type-regexp ruby-ts--method-regex)
 
-  ;; AFAIK, Ruby can not nest methods
-  (setq-local treesit-defun-prefer-top-level nil)
+  (setq-local treesit-thing-settings
+              `((ruby
+                 (sexp ,(cons (rx
+                               bol
+                               (or
+                                "class"
+                                "singleton_class"
+                                "module"
+                                "method"
+                                "singleton_method"
+                                "array"
+                                "hash"
+                                "parenthesized_statements"
+                                "method_parameters"
+                                "array_pattern"
+                                "hash_pattern"
+                                "if"
+                                "else"
+                                "then"
+                                "unless"
+                                "case"
+                                "case_match"
+                                "when"
+                                "while"
+                                "until"
+                                "for"
+                                "block"
+                                "do_block"
+                                "begin"
+                                "integer"
+                                "identifier"
+                                "self"
+                                "super"
+                                "constant"
+                                "simple_symbol"
+                                "hash_key_symbol"
+                                "symbol_array"
+                                "string"
+                                "string_array"
+                                "heredoc_body"
+                                "regex"
+                                "argument_list"
+                                "interpolation"
+                                "instance_variable"
+                                "global_variable"
+                                )
+                               eol)
+                              #'ruby-ts--sexp-p))
+                 (text ,(lambda (node)
+                          (or (member (treesit-node-type node)
+                                      '("comment" "string_content" "heredoc_content"))
+                              ;; for C-M-f in hash[:key] and hash['key']
+                              (and (member (treesit-node-text node)
+                                           '("[" "]"))
+                                   (equal (treesit-node-type
+                                           (treesit-node-parent node))
+                                          "element_reference"))
+                              ;; for C-M-f in "abc #{ghi} def"
+                              (and (member (treesit-node-text node)
+                                           '("#{" "}"))
+                                   (equal (treesit-node-type
+                                           (treesit-node-parent node))
+                                          "interpolation"))))))))
 
   ;; Imenu.
   (setq-local imenu-create-index-function #'ruby-ts--imenu)
+
+  ;; Outline minor mode.
+  (setq-local treesit-outline-predicate
+              (rx bos (or "singleton_method"
+                          "method"
+                          "alias"
+                          "class"
+                          "module")
+                  eos))
+  ;; Restore default values of outline variables
+  ;; to use `treesit-outline-predicate'.
+  (kill-local-variable 'outline-regexp)
+  (kill-local-variable 'outline-level)
 
   (setq-local treesit-simple-indent-rules (ruby-ts--indent-rules))
 
@@ -1139,19 +1261,13 @@ leading double colon is not added."
 
   (setq-local syntax-propertize-function #'ruby-ts--syntax-propertize))
 
-(if (treesit-ready-p 'ruby)
-    ;; Copied from ruby-mode.el.
-    (add-to-list 'auto-mode-alist
-                 (cons (concat "\\(?:\\.\\(?:"
-                               "rbw?\\|ru\\|rake\\|thor"
-                               "\\|jbuilder\\|rabl\\|gemspec\\|podspec"
-                               "\\)"
-                               "\\|/"
-                               "\\(?:Gem\\|Rake\\|Cap\\|Thor"
-                               "\\|Puppet\\|Berks\\|Brew"
-                               "\\|Vagrant\\|Guard\\|Pod\\)file"
-                               "\\)\\'")
-                       'ruby-ts-mode)))
+(derived-mode-add-parents 'ruby-ts-mode '(ruby-mode))
+
+(when (treesit-ready-p 'ruby)
+  (setq major-mode-remap-defaults
+        (assq-delete-all 'ruby-mode major-mode-remap-defaults))
+  (add-to-list 'major-mode-remap-defaults
+                 '(ruby-mode . ruby-ts-mode)))
 
 (provide 'ruby-ts-mode)
 

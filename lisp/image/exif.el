@@ -1,6 +1,6 @@
 ;;; exif.el --- parsing Exif data in JPEG images -*- lexical-binding: t -*-
 
-;; Copyright (C) 2019-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2025 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: images
@@ -151,7 +151,7 @@ If the orientation isn't present in the data, return nil."
 
 (defun exif--parse-jpeg ()
   (unless (= (exif--read-number-be 2) #xffd8) ; SOI (start of image)
-    (signal 'exif-error "Not a valid JPEG file"))
+    (signal 'exif-error '("Not a valid JPEG file")))
   (cl-loop for segment = (exif--read-number-be 2)
            for size = (exif--read-number-be 2)
            ;; Stop parsing when we get to SOS (start of stream);
@@ -168,7 +168,7 @@ If the orientation isn't present in the data, return nil."
     ;; The Exif data is in the APP1 JPEG chunk and starts with
     ;; "Exif\0\0".
     (unless (equal (exif--read-chunk 6) (string ?E ?x ?i ?f ?\0 ?\0))
-      (signal 'exif-error "Not a valid Exif chunk"))
+      (signal 'exif-error '("Not a valid Exif chunk")))
     (delete-region (point-min) (point))
     (let* ((endian-marker (exif--read-chunk 2))
            (le (cond
@@ -180,14 +180,15 @@ If the orientation isn't present in the data, return nil."
                  t)
                 (t
                  (signal 'exif-error
-                         (format "Invalid endian-ness %s" endian-marker))))))
+                         (list (format "Invalid endian-ness %s"
+                                       endian-marker)))))))
       ;; Another magical number.
       (unless (= (exif--read-number 2 le) #x002a)
-        (signal 'exif-error "Invalid TIFF header length"))
+        (signal 'exif-error '("Invalid TIFF header length")))
       (let ((offset (exif--read-number 4 le)))
         ;; Jump to where the IFD (directory) starts and parse it.
         (when (> (1+ offset) (point-max))
-          (signal 'exif-error "Invalid IFD (directory) offset"))
+          (signal 'exif-error '("Invalid IFD (directory) offset")))
         (goto-char (1+ offset))
         (exif--parse-directory le)))))
 
@@ -230,7 +231,7 @@ If the orientation isn't present in the data, return nil."
                                          (when (> (+ (1+ value) length)
                                                   (point-max))
                                            (signal 'exif-error
-                                                   "Premature end of file"))
+                                                   '("Premature end of file")))
                                          (buffer-substring
                                           (1+ value)
                                           (+ (1+ value) length)))
@@ -248,7 +249,7 @@ If the orientation isn't present in the data, return nil."
           ;; keep parsing.
           (progn
             (when (> (1+ next) (point-max))
-              (signal 'exif-error "Invalid IFD (directory) next-offset"))
+              (signal 'exif-error '("Invalid IFD (directory) next-offset")))
             (goto-char (1+ next))
             (nconc dir (exif--parse-directory le)))
         ;; We've reached the end of the directories.
@@ -287,7 +288,7 @@ VALUE is little-endian, otherwise it is big-endian."
   "Return BYTES octets from the current buffer and advance point that much.
 This function assumes that the current buffer is unibyte."
   (when (> (+ (point) bytes) (point-max))
-    (signal 'exif-error "Premature end of file"))
+    (signal 'exif-error '("Premature end of file")))
   (prog1
       (buffer-substring (point) (+ (point) bytes))
     (forward-char bytes)))
@@ -297,7 +298,7 @@ This function assumes that the current buffer is unibyte."
 Advance point to after the read bytes.
 This function assumes that the current buffer is unibyte."
   (when (> (+ (point) bytes) (point-max))
-    (signal 'exif-error "Premature end of file"))
+    (signal 'exif-error '("Premature end of file")))
   (let ((sum 0))
     (dotimes (_ bytes)
       (setq sum (+ (* sum 256) (following-char)))
@@ -309,7 +310,7 @@ This function assumes that the current buffer is unibyte."
 Advance point to after the read bytes.
 This function assumes that the current buffer is unibyte."
   (when (> (+ (point) bytes) (point-max))
-    (signal 'exif-error "Premature end of file"))
+    (signal 'exif-error '("Premature end of file")))
   (let ((sum 0))
     (dotimes (i bytes)
       (setq sum (+ (* (following-char) (expt 256 i)) sum))

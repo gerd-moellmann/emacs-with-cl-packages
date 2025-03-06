@@ -1,6 +1,6 @@
 /* Generic frame functions.
 
-Copyright (C) 1993-1995, 1997, 1999-2024 Free Software Foundation, Inc.
+Copyright (C) 1993-1995, 1997, 1999-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -229,6 +229,7 @@ Value is:
  `pc' for a direct-write MS-DOS frame,
  `pgtk' for an Emacs frame running on pure GTK.
  `haiku' for an Emacs frame running in Haiku.
+ `android' for an Emacs frame running in Android.
 See also `frame-live-p'.  */)
   (Lisp_Object object)
 {
@@ -253,6 +254,8 @@ See also `frame-live-p'.  */)
       return Qpgtk;
     case output_haiku:
       return Qhaiku;
+    case output_android:
+      return Qandroid;
     default:
       emacs_abort ();
     }
@@ -283,6 +286,7 @@ The value is a symbol:
  `pc' for a direct-write MS-DOS frame.
  `pgtk' for an Emacs frame using pure GTK facilities.
  `haiku' for an Emacs frame running in Haiku.
+ `android' for an Emacs frame running in Android.
 
 FRAME defaults to the currently selected frame.
 
@@ -714,10 +718,10 @@ adjust_frame_size (struct frame *f, int new_text_width, int new_text_height,
 		       ? old_native_height
 		       : max (FRAME_TEXT_TO_PIXEL_HEIGHT (f, new_text_height),
 			      min_inner_height
-			      + FRAME_TOP_MARGIN_HEIGHT (f)
+			      + FRAME_MARGIN_HEIGHT (f)
 			      + 2 * FRAME_INTERNAL_BORDER_WIDTH (f)));
   new_inner_height = (new_native_height
-		      - FRAME_TOP_MARGIN_HEIGHT (f)
+		      - FRAME_MARGIN_HEIGHT (f)
 		      - 2 * FRAME_INTERNAL_BORDER_WIDTH (f));
   new_text_height = FRAME_PIXEL_TO_TEXT_HEIGHT (f, new_native_height);
   new_text_lines = new_text_height / unit_height;
@@ -944,11 +948,9 @@ make_frame (bool mini_p)
   f = allocate_frame ();
   XSETFRAME (frame, f);
 
-#ifdef USE_GTK
   /* Initialize Lisp data.  Note that allocate_frame initializes all
      Lisp data to nil, so do it only for slots which should not be nil.  */
   fset_tool_bar_position (f, Qtop);
-#endif
 
   /* Initialize non-Lisp data.  Note that allocate_frame zeroes out all
      non-Lisp data, so do it only for slots which should not be zero.
@@ -985,9 +987,12 @@ make_frame (bool mini_p)
   f->tooltip = false;
   f->was_invisible = false;
   f->child_frame_border_width = -1;
+  f->face_cache = NULL;
+  f->image_cache = NULL;
   f->last_tab_bar_item = -1;
 #ifdef HAVE_INT_TOOL_BAR
   f->last_tool_bar_item = -1;
+  f->tool_bar_wraps_p = false;
 #endif
 #ifdef NS_IMPL_COCOA
   f->ns_appearance = ns_appearance_system_default;
@@ -997,6 +1002,17 @@ make_frame (bool mini_p)
   f->select_mini_window_flag = false;
   /* This one should never be zero.  */
   f->change_stamp = 1;
+
+#ifdef HAVE_TEXT_CONVERSION
+  f->conversion.compose_region_start = Qnil;
+  f->conversion.compose_region_end = Qnil;
+  f->conversion.compose_region_overlay = Qnil;
+  f->conversion.field = Qnil;
+  f->conversion.batch_edit_count = 0;
+  f->conversion.batch_edit_flags = 0;
+  f->conversion.actions = NULL;
+#endif
+
   root_window = make_window ();
   rw = XWINDOW (root_window);
   if (mini_p)
@@ -1031,8 +1047,7 @@ make_frame (bool mini_p)
   rw->pixel_height = rw->total_lines * FRAME_LINE_HEIGHT (f);
 
   fset_face_hash_table
-    (f, make_hash_table (hashtest_eq, DEFAULT_HASH_SIZE, DEFAULT_REHASH_SIZE,
-                         DEFAULT_REHASH_THRESHOLD, Qnil, false));
+    (f, make_hash_table (&hashtest_eq, DEFAULT_HASH_SIZE, Weak_None, false));
 
   if (mini_p)
     {
@@ -1105,12 +1120,12 @@ make_frame_without_minibuffer (Lisp_Object mini_window, KBOARD *kb,
       if (!FRAMEP (KVAR (kb, Vdefault_minibuffer_frame))
 	  || ! FRAME_LIVE_P (XFRAME (KVAR (kb, Vdefault_minibuffer_frame))))
 	{
-          Lisp_Object frame_dummy;
+	  Lisp_Object initial_frame;
 
-          XSETFRAME (frame_dummy, f);
 	  /* If there's no minibuffer frame to use, create one.  */
-	  kset_default_minibuffer_frame
-	    (kb, call1 (intern ("make-initial-minibuffer-frame"), display));
+	  initial_frame = call1 (Qmake_initial_minibuffer_frame,
+				 display);
+	  kset_default_minibuffer_frame (kb, initial_frame);
 	}
 
       mini_window
@@ -1232,6 +1247,7 @@ make_initial_frame (void)
   return f;
 }
 
+#ifndef HAVE_ANDROID
 
 static struct frame *
 make_terminal_frame (struct terminal *terminal)
@@ -1321,6 +1337,8 @@ get_future_frame_param (Lisp_Object parameter,
   return result;
 }
 
+#endif
+
 DEFUN ("make-terminal-frame", Fmake_terminal_frame, Smake_terminal_frame,
        1, 1, 0,
        doc: /* Create an additional terminal frame, possibly on another terminal.
@@ -1340,6 +1358,10 @@ Note that changing the size of one terminal frame automatically
 affects all frames on the same terminal device.  */)
   (Lisp_Object parms)
 {
+#ifdef HAVE_ANDROID
+  error ("Text terminals are not supported on this platform");
+  return Qnil;
+#else
   struct frame *f;
   struct terminal *t = NULL;
   Lisp_Object frame;
@@ -1444,6 +1466,7 @@ affects all frames on the same terminal device.  */)
   f->after_make_frame = true;
 
   return frame;
+#endif
 }
 
 
@@ -1576,7 +1599,7 @@ do_switch_frame (Lisp_Object frame, int track, int for_deletion, Lisp_Object nor
 
   if (f->select_mini_window_flag
       && !NILP (Fminibufferp (XWINDOW (f->minibuffer_window)->contents, Qt)))
-    f->selected_window = f->minibuffer_window;
+    fset_selected_window (f, f->minibuffer_window);
   f->select_mini_window_flag = false;
 
   if (! FRAME_MINIBUF_ONLY_P (XFRAME (selected_frame)))
@@ -1942,12 +1965,61 @@ other_frames (struct frame *f, bool invisible, bool force)
 
       if (f != f1)
 	{
+	  /* The following code is defined out because it is
+	     responsible for a performance drop under X connections
+	     over a network, and its purpose is unclear.  XSync does
+	     not handle events (or call any callbacks defined by
+	     Emacs), and as such it should not note any "recent change
+	     in visibility".
+
+	     When writing new code, please try as hard as possible to
+	     avoid calls that require a roundtrip to the X server.
+	     When such calls are inevitable, use the XCB library to
+	     handle multiple consecutive requests with a data reply in
+	     a more asynchronous fashion.  The following code
+	     demonstrates why:
+
+	       rc = XGetWindowProperty (dpyinfo->display, window, ...
+	       status = XGrabKeyboard (dpyinfo->display, ...
+
+	     here, `XGetWindowProperty' will wait for a reply from the
+	     X server before returning, and thus allowing Emacs to
+	     make the XGrabKeyboard request, which in itself also
+	     requires waiting a reply.  When XCB is available, this
+	     code could be written:
+
+#ifdef HAVE_XCB
+	       xcb_get_property_cookie_t cookie1;
+	       xcb_get_property_reply_t *reply1;
+	       xcb_grab_keyboard_cookie_t cookie2;
+	       xcb_grab_keyboard_reply_t *reply2;
+
+	       cookie1 = xcb_get_property (dpyinfo->xcb_connection, window, ...
+	       cookie2 = xcb_grab_keyboard (dpyinfo->xcb_connection, ...
+	       reply1 = xcb_get_property_reply (dpyinfo->xcb_connection,
+						cookie1);
+	       reply2 = xcb_grab_keyboard_reply (dpyinfo->xcb_connection,
+						cookie2);
+#endif
+
+	     In this code, the GetProperty and GrabKeyboard requests
+	     are made simultaneously, and replies are then obtained
+	     from the server at once, avoiding the extraneous
+	     roundtrip to the X server after the call to
+	     `XGetWindowProperty'.
+
+	     However, please keep an alternative implementation
+	     available for use when Emacs is built without XCB.  */
+
+#if 0
 	  /* Verify that we can still talk to the frame's X window, and
 	     note any recent change in visibility.  */
 #ifdef HAVE_X_WINDOWS
 	  if (FRAME_WINDOW_P (f1))
 	    x_sync (f1);
 #endif
+#endif
+
 	  if (!FRAME_TOOLTIP_P (f1)
 	      /* Tooltips and child frames count neither for
 		 invisibility nor for deletions.  */
@@ -2087,7 +2159,7 @@ delete_frame (Lisp_Object frame, Lisp_Object force)
       x_clipboard_manager_save_frame (frame);
 #endif
 
-      safe_call2 (Qrun_hook_with_args, Qdelete_frame_functions, frame);
+      safe_calln (Qrun_hook_with_args, Qdelete_frame_functions, frame);
     }
 
   /* delete_frame_functions may have deleted any frame, including this
@@ -2150,12 +2222,15 @@ delete_frame (Lisp_Object frame, Lisp_Object force)
 	}
 #ifdef NS_IMPL_COCOA
       else
-	/* Under NS, there is no system mechanism for choosing a new
-	   window to get focus -- it is left to application code.
-	   So the portion of THIS application interfacing with NS
-	   needs to know about it.  We call Fraise_frame, but the
-	   purpose is really to transfer focus.  */
-	Fraise_frame (frame1);
+	{
+	  /* Under NS, there is no system mechanism for choosing a new
+	     window to get focus -- it is left to application code.
+	     So the portion of THIS application interfacing with NS
+	     needs to make the frame we switch to the key window.  */
+	  struct frame *f1 = XFRAME (frame1);
+	  if (FRAME_NS_P (f1))
+	    ns_make_frame_key_window (f1);
+	}
 #endif
 
       do_switch_frame (frame1, 0, 1, Qnil);
@@ -2256,6 +2331,13 @@ delete_frame (Lisp_Object frame, Lisp_Object force)
     terminal = FRAME_TERMINAL (f);
     f->terminal = 0;             /* Now the frame is dead.  */
     unblock_input ();
+
+  /* Clear markers and overlays set by F on behalf of an input
+     method.  */
+#ifdef HAVE_TEXT_CONVERSION
+  if (FRAME_WINDOW_P (f))
+    reset_frame_state (f);
+#endif
 
     /* If needed, delete the terminal that this frame was on.
        (This must be done after the frame is killed.)  */
@@ -2393,7 +2475,7 @@ delete_frame (Lisp_Object frame, Lisp_Object force)
       = Fcons (list3 (Qrun_hook_with_args, Qafter_delete_frame_functions, frame),
 	       pending_funcalls);
   else
-    safe_call2 (Qrun_hook_with_args, Qafter_delete_frame_functions, frame);
+    safe_calln (Qrun_hook_with_args, Qafter_delete_frame_functions, frame);
 
   if (!NILP (minibuffer_child_frame))
     /* If minibuffer_child_frame is non-nil, it was FRAME's minibuffer
@@ -3734,7 +3816,7 @@ check_frame_pixels (Lisp_Object size, Lisp_Object pixelwise, int item_size)
     item_size = 1;
 
   if (!integer_to_intmax (size, &sz)
-      || INT_MULTIPLY_WRAPV (sz, item_size, &pixel_size))
+      || ckd_mul (&pixel_size, sz, item_size))
     args_out_of_range_3 (size, make_int (INT_MIN / item_size),
 			 make_int (INT_MAX / item_size));
 
@@ -4670,7 +4752,7 @@ void
 gui_set_font (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 {
   Lisp_Object font_object;
-  int fontset = -1;
+  int fontset = -1, iwidth;
 
   /* Set the frame parameter back to the old value because we may
      fail to use ARG as the new parameter value.  */
@@ -4748,6 +4830,35 @@ gui_set_font (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
   f->n_tab_bar_rows = 0;
   /* Recalculate toolbar height.  */
   f->n_tool_bar_rows = 0;
+
+  /* Re-initialize F's image cache.  Since `set_new_font_hook' might
+     have changed the frame's column width, by which images are scaled,
+     it might likewise need to be assigned a different image cache, or
+     have its existing cache adjusted, if by coincidence it is its sole
+     user.  */
+
+  iwidth = max (10, FRAME_COLUMN_WIDTH (f));
+  if (FRAME_IMAGE_CACHE (f)
+      && (iwidth != FRAME_IMAGE_CACHE (f)->scaling_col_width))
+    {
+      eassert (FRAME_IMAGE_CACHE (f)->refcount >= 1);
+      if (FRAME_IMAGE_CACHE (f)->refcount == 1)
+	{
+	  /* This frame is the only user of this image cache.  */
+	  FRAME_IMAGE_CACHE (f)->scaling_col_width = iwidth;
+	  /* Clean F's image cache of images whose values are derived
+	     from the font width.  */
+	  clear_image_cache (f, Qauto);
+	}
+      else
+	{
+	  /* Release the current image cache, and reuse or allocate a
+	     new image cache with IWIDTH.  */
+	  FRAME_IMAGE_CACHE (f)->refcount--;
+	  FRAME_IMAGE_CACHE (f) = share_image_cache (f);
+	  FRAME_IMAGE_CACHE (f)->refcount++;
+	}
+    }
 
   /* Ensure we redraw it.  */
   clear_current_matrices (f);
@@ -5009,15 +5120,19 @@ gui_set_scroll_bar_width (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 {
   int unit = FRAME_COLUMN_WIDTH (f);
 
-  if (RANGED_FIXNUMP (1, arg, INT_MAX)
-      && XFIXNAT (arg) != FRAME_CONFIG_SCROLL_BAR_WIDTH (f))
+  if (RANGED_FIXNUMP (1, arg, INT_MAX))
     {
-      FRAME_CONFIG_SCROLL_BAR_WIDTH (f) = XFIXNAT (arg);
-      FRAME_CONFIG_SCROLL_BAR_COLS (f) = (XFIXNAT (arg) + unit - 1) / unit;
-      if (FRAME_NATIVE_WINDOW (f))
-	adjust_frame_size (f, -1, -1, 3, 0, Qscroll_bar_width);
+      if (XFIXNAT (arg) == FRAME_CONFIG_SCROLL_BAR_WIDTH (f))
+	return;
+      else
+	{
+	  FRAME_CONFIG_SCROLL_BAR_WIDTH (f) = XFIXNAT (arg);
+	  FRAME_CONFIG_SCROLL_BAR_COLS (f) = (XFIXNAT (arg) + unit - 1) / unit;
+	  if (FRAME_NATIVE_WINDOW (f))
+	    adjust_frame_size (f, -1, -1, 3, 0, Qscroll_bar_width);
 
-      SET_FRAME_GARBAGED (f);
+	  SET_FRAME_GARBAGED (f);
+	}
     }
   else
     {
@@ -5040,15 +5155,19 @@ gui_set_scroll_bar_height (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 #if USE_HORIZONTAL_SCROLL_BARS
   int unit = FRAME_LINE_HEIGHT (f);
 
-  if (RANGED_FIXNUMP (1, arg, INT_MAX)
-      && XFIXNAT (arg) != FRAME_CONFIG_SCROLL_BAR_HEIGHT (f))
+  if (RANGED_FIXNUMP (1, arg, INT_MAX))
     {
-      FRAME_CONFIG_SCROLL_BAR_HEIGHT (f) = XFIXNAT (arg);
-      FRAME_CONFIG_SCROLL_BAR_LINES (f) = (XFIXNAT (arg) + unit - 1) / unit;
-      if (FRAME_NATIVE_WINDOW (f))
-	adjust_frame_size (f, -1, -1, 3, 0, Qscroll_bar_height);
+      if (XFIXNAT (arg) == FRAME_CONFIG_SCROLL_BAR_HEIGHT (f))
+	return;
+      else
+	{
+	  FRAME_CONFIG_SCROLL_BAR_HEIGHT (f) = XFIXNAT (arg);
+	  FRAME_CONFIG_SCROLL_BAR_LINES (f) = (XFIXNAT (arg) + unit - 1) / unit;
+	  if (FRAME_NATIVE_WINDOW (f))
+	    adjust_frame_size (f, -1, -1, 3, 0, Qscroll_bar_height);
 
-      SET_FRAME_GARBAGED (f);
+	  SET_FRAME_GARBAGED (f);
+	}
     }
   else
     {
@@ -5317,16 +5436,23 @@ gui_display_get_resource (Display_Info *dpyinfo, Lisp_Object attribute,
   *nz++ = '.';
   lispstpcpy (nz, attribute);
 
-  const char *value =
-    dpyinfo->terminal->get_string_resource_hook (&dpyinfo->rdb,
-                                                 name_key,
-                                                 class_key);
-  SAFE_FREE();
+#ifndef HAVE_ANDROID
+  const char *value
+    = dpyinfo->terminal->get_string_resource_hook (&dpyinfo->rdb,
+						   name_key,
+						   class_key);
+
+  SAFE_FREE ();
 
   if (value && *value)
     return build_string (value);
   else
     return Qnil;
+#else
+
+  SAFE_FREE ();
+  return Qnil;
+#endif
 }
 
 
@@ -5660,6 +5786,8 @@ On Nextstep, this just calls `ns-parse-geometry'.  */)
      a non-zero value.  */
   int x UNINIT, y UNINIT;
   unsigned int width, height;
+
+  width = height = 0;
 
   CHECK_STRING (string);
 
@@ -6133,8 +6261,11 @@ make_monitor_attribute_list (struct MonitorInfo *monitors,
 			 mi->work.width, mi->work.height);
       geometry = list4i (mi->geom.x, mi->geom.y,
 			 mi->geom.width, mi->geom.height);
-      attributes = Fcons (Fcons (Qsource, build_string (source)),
-                          attributes);
+
+      if (source)
+	attributes = Fcons (Fcons (Qsource, build_string (source)),
+			    attributes);
+
       attributes = Fcons (Fcons (Qframes, AREF (monitor_frames, i)),
 			  attributes);
 #ifdef HAVE_PGTK
@@ -6197,6 +6328,7 @@ syms_of_frame (void)
   DEFSYM (Qframe_windows_min_size, "frame-windows-min-size");
   DEFSYM (Qframe_monitor_attributes, "frame-monitor-attributes");
   DEFSYM (Qwindow__pixel_to_total, "window--pixel-to-total");
+  DEFSYM (Qmake_initial_minibuffer_frame, "make-initial-minibuffer-frame");
   DEFSYM (Qexplicit_name, "explicit-name");
   DEFSYM (Qheight, "height");
   DEFSYM (Qicon, "icon");
@@ -6232,6 +6364,7 @@ syms_of_frame (void)
   DEFSYM (Qns, "ns");
   DEFSYM (Qpgtk, "pgtk");
   DEFSYM (Qhaiku, "haiku");
+  DEFSYM (Qandroid, "android");
   DEFSYM (Qvisible, "visible");
   DEFSYM (Qbuffer_predicate, "buffer-predicate");
   DEFSYM (Qbuffer_list, "buffer-list");
@@ -6312,6 +6445,7 @@ syms_of_frame (void)
   DEFSYM (Qchild_frame_border_width, "child-frame-border-width");
   DEFSYM (Qinternal_border_width, "internal-border-width");
   DEFSYM (Qleft_fringe, "left-fringe");
+  DEFSYM (Qleft_fringe_help, "left-fringe-help");
   DEFSYM (Qline_spacing, "line-spacing");
   DEFSYM (Qmenu_bar_lines, "menu-bar-lines");
   DEFSYM (Qtab_bar_lines, "tab-bar-lines");
@@ -6319,6 +6453,7 @@ syms_of_frame (void)
   DEFSYM (Qname, "name");
   DEFSYM (Qright_divider_width, "right-divider-width");
   DEFSYM (Qright_fringe, "right-fringe");
+  DEFSYM (Qright_fringe_help, "right-fringe-help");
   DEFSYM (Qscreen_gamma, "screen-gamma");
   DEFSYM (Qscroll_bar_background, "scroll-bar-background");
   DEFSYM (Qscroll_bar_foreground, "scroll-bar-foreground");
@@ -6420,17 +6555,17 @@ Setting this variable does not affect existing frames, only new ones.  */);
 
   DEFVAR_LISP ("default-frame-scroll-bars", Vdefault_frame_scroll_bars,
 	       doc: /* Default position of vertical scroll bars on this window-system.  */);
-#ifdef HAVE_WINDOW_SYSTEM
-#if defined HAVE_NTGUI || defined HAVE_MACGUI || defined NS_IMPL_COCOA || (defined USE_GTK && defined USE_TOOLKIT_SCROLL_BARS)
+#if defined HAVE_WINDOW_SYSTEM && !defined HAVE_ANDROID
+#if defined (HAVE_NTGUI) || defined (HAVE_MACGUI) || defined (NS_IMPL_COCOA) || (defined (USE_GTK) && defined (USE_TOOLKIT_SCROLL_BARS))
   /* MS-Windows, macOS, and GTK have scroll bars on the right by
      default.  */
   Vdefault_frame_scroll_bars = Qright;
 #else
   Vdefault_frame_scroll_bars = Qleft;
 #endif
-#else
+#else /* !HAVE_WINDOW_SYSTEM || HAVE_ANDROID */
   Vdefault_frame_scroll_bars = Qnil;
-#endif
+#endif /* HAVE_WINDOW_SYSTEM && !HAVE_ANDROID */
 
   DEFVAR_BOOL ("scroll-bar-adjust-thumb-portion",
                scroll_bar_adjust_thumb_portion_p,
@@ -6638,8 +6773,8 @@ implicitly when there's no window system support.
 Note that when a frame is not large enough to accommodate a change of
 any of the parameters listed above, Emacs may try to enlarge the frame
 even if this option is non-nil.  */);
-#if defined (HAVE_WINDOW_SYSTEM)
-#if defined USE_GTK || defined HAVE_MACGUI || defined HAVE_NS
+#if defined (HAVE_WINDOW_SYSTEM) && !defined (HAVE_ANDROID)
+#if defined (USE_GTK) || defined HAVE_MACGUI || defined (HAVE_NS)
   frame_inhibit_implied_resize = list1 (Qtab_bar_lines);
 #else
   frame_inhibit_implied_resize = list2 (Qtab_bar_lines, Qtool_bar_lines);
@@ -6681,11 +6816,11 @@ Gtk+ tooltips are not used) and on Windows.  */);
   tooltip_reuse_hidden_frame = false;
 
   DEFVAR_BOOL ("use-system-tooltips", use_system_tooltips,
-	       doc: /* Use the toolkit to display tooltips.
-This option is only meaningful when Emacs is built with GTK+ or Haiku
-windowing support, and results in tooltips that look like those
-displayed by other GTK+ or Haiku programs, but will not be able to
-display text properties inside tooltip text.  */);
+	       doc: /* Whether to use the toolkit to display tooltips.
+This option is only meaningful when Emacs is built with GTK+, NS or Haiku
+windowing support, and, if it's non-nil (the default), it results in
+tooltips that look like those displayed by other GTK+/NS/Haiku programs,
+but will not be able to display text properties inside tooltip text.  */);
   use_system_tooltips = true;
 
   DEFVAR_LISP ("iconify-child-frame", iconify_child_frame,
@@ -6783,4 +6918,17 @@ iconify the top level frame instead.  */);
   defsubr (&Sx_parse_geometry);
   defsubr (&Sreconsider_frame_fonts);
 #endif
+
+#ifdef HAVE_WINDOW_SYSTEM
+  DEFSYM (Qmove_toolbar, "move-toolbar");
+
+  /* The `tool-bar-position' frame parameter is supported on GTK and
+     builds using the internal tool bar.  Providing this feature
+     causes menu-bar.el to provide `tool-bar-position' as a user
+     option.  */
+
+#if !defined HAVE_EXT_TOOL_BAR || defined USE_GTK
+  Fprovide (Qmove_toolbar, Qnil);
+#endif /* !HAVE_EXT_TOOL_BAR || USE_GTK */
+#endif /* HAVE_WINDOW_SYSTEM */
 }

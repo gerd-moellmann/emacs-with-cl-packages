@@ -1,6 +1,6 @@
 ;;; calc-graph.el --- graph output functions for Calc  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1990-1993, 2001-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1990-1993, 2001-2025 Free Software Foundation, Inc.
 
 ;; Author: David Gillespie <daveg@synaptics.com>
 
@@ -598,9 +598,10 @@
 					(math-build-var-name (car math-arglist))
 					'(var DUMMY var-DUMMY)))))
     (setq calc-graph-ycache (assoc calc-graph-yvalue calc-graph-data-cache))
-    (delq calc-graph-ycache calc-graph-data-cache)
-    (nconc calc-graph-data-cache
-	   (list (or calc-graph-ycache (setq calc-graph-ycache (list calc-graph-yvalue)))))
+    (setq calc-graph-data-cache
+          (nconc (delq calc-graph-ycache calc-graph-data-cache)
+                 (list (or calc-graph-ycache
+                           (setq calc-graph-ycache (list calc-graph-yvalue))))))
     (if (and (not (setq calc-graph-xvec (eq (car-safe calc-graph-xvalue) 'vec)))
 	     calc-graph-refine (cdr (cdr calc-graph-ycache)))
 	(calc-graph-refine-2d)
@@ -1416,7 +1417,9 @@ This \"dumb\" driver will be present in Gnuplot 3.0."
   "Send ARGS to Gnuplot.
 Returns nil if Gnuplot signaled an error."
   (calc-graph-init)
-  (let ((cmd (concat (mapconcat 'identity args " ") "\n")))
+  ;; We prepend the newline to work around a bug in Gnuplot, whereby it
+  ;; sometimes does not display the plot, see bug#72778.
+  (let ((cmd (concat "\n" (mapconcat 'identity args " ") "\n")))
     (or (calc-graph-w32-p)
 	(accept-process-output))
     (with-current-buffer calc-gnuplot-buffer

@@ -1,6 +1,6 @@
 ;;; rst.el --- Mode for viewing and editing reStructuredText-documents  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2003-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2025 Free Software Foundation, Inc.
 
 ;; Maintainer: Stefan Merten <stefan at merten-home dot de>
 ;; Author: Stefan Merten <stefan at merten-home dot de>,
@@ -56,7 +56,7 @@
 ;; There are a number of convenient key bindings provided by rst-mode.  For the
 ;; bindings, try C-c C-h when in rst-mode.  There are also many variables that
 ;; can be customized, look for defcustom in this file or look for the "rst"
-;; customization group contained in the "wp" group.
+;; customization group contained in the "text" group.
 ;;
 ;; If you use the table-of-contents feature, you may want to add a hook to
 ;; update the TOC automatically every time you adjust a section title::
@@ -170,8 +170,7 @@ When FUN is called match data is just set by `looking-at' and
 point is at the beginning of the line.  Return nil if moving
 forward failed or otherwise the return value of FUN.  Preserve
 global match data, point, mark and current buffer."
-  (unless (listp rst-re-args)
-    (setq rst-re-args (list rst-re-args)))
+  (setq rst-re-args (ensure-list rst-re-args))
   (unless fun
     (setq fun #'identity))
   (save-match-data
@@ -1148,14 +1147,14 @@ as well but give an additional message."
       (unless (fboundp forwarder-function)
         (defalias forwarder-function
           (lambda ()
+            (:documentation
+             (format "Deprecated binding for %s, use \\[%s] instead."
+                     def def))
             (interactive)
             (call-interactively def)
             (message "[Deprecated use of key %s; use key %s instead]"
                      (key-description (this-command-keys))
-                     (key-description key)))
-          ;; FIXME: In Emacs-25 we could use (:documentation ...) instead.
-          (format "Deprecated binding for %s, use \\[%s] instead."
-                  def def)))
+                     (key-description key)))))
       (dolist (dep-key deprecated)
         (define-key keymap dep-key forwarder-function)))))
 
@@ -1473,7 +1472,7 @@ for modes derived from Text mode, like Mail mode."
   :version "21.1")
 
 ;; FIXME: Default must match suggestion in
-;;        http://sphinx-doc.org/rest.html#sections for Python documentation.
+;;        https://sphinx-doc.org/rest.html#sections for Python documentation.
 (defcustom rst-preferred-adornments '((?= over-and-under 1)
 				      (?= simple 0)
 				      (?- simple 0)
@@ -4439,7 +4438,7 @@ column is used (fill-column vs. end of previous/next line)."
 
 
 
-;; LocalWords:  docutils http sourceforge rst html wp svn svnroot txt reST regex
+;; LocalWords:  docutils http sourceforge rst html svn svnroot txt reST regex
 ;; LocalWords:  regexes alist seq alt grp keymap abbrev overline overlines toc
 ;; LocalWords:  XML PNT propertized init referenceable
 

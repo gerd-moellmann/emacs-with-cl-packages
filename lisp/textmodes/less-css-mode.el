@@ -1,6 +1,6 @@
 ;;; less-css-mode.el --- Major mode for editing Less CSS files  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2011-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2025 Free Software Foundation, Inc.
 
 ;; Author: Steve Purcell <steve@sanityinc.com>
 ;; Maintainer: Simen Heggestøyl <simenheg@gmail.com>
@@ -32,7 +32,7 @@
 ;; `less-css-compile-at-save' to t.  To install "lessc" using the
 ;; Node.js package manager, run "npm install less".
 ;;
-;; Also make sure the "lessc" executable is in Emacs' PATH, example:
+;; Also make sure the "lessc" executable is in Emacs's PATH, example:
 ;; (push (expand-file-name "~/.gem/ruby/1.8/bin") exec-path)
 ;; or customize `less-css-lessc-command' to point to your "lessc"
 ;; executable.
@@ -215,7 +215,7 @@ directory by default."
 ;;;###autoload (add-to-list 'auto-mode-alist '("\\.less\\'" . less-css-mode))
 ;;;###autoload
 (define-derived-mode less-css-mode css-mode "Less"
-  "Major mode for editing Less files (http://lesscss.org/).
+  "Major mode for editing Less files (https://lesscss.org/).
 Special commands:
 \\{less-css-mode-map}"
   (font-lock-add-keywords nil less-css-font-lock-keywords)

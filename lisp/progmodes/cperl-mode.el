@@ -1,6 +1,6 @@
 ;;; cperl-mode.el --- Perl code editing commands for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1985-2025 Free Software Foundation, Inc.
 
 ;; Author: Ilya Zakharevich <ilyaz@cpan.org>
 ;;	Bob Olson
@@ -79,6 +79,9 @@
 (eval-when-compile (require 'cl-lib))
 (require 'facemenu)
 
+(defvar Man-switches)
+(defvar manual-program)
+(defvar imenu-max-items)
 (defvar msb-menu-cond)
 (defvar gud-perldb-history)
 (defvar vc-rcs-header)
@@ -101,7 +104,10 @@
   :version "20.3")
 
 (defgroup cperl-indentation-details nil
-  "Indentation."
+  "Indentation.
+The option `cperl-file-style' (which see) can be used to set
+several indentation options in one go, following popular
+indentation styles."
   :prefix "cperl-"
   :group 'cperl)
 
@@ -154,6 +160,29 @@ for constructs with multiline if/unless/while/until/for/foreach condition."
   :type 'boolean
   :group 'cperl-autoinsert-details)
 
+(defcustom cperl-file-style nil
+  "Indentation style to use in `cperl-mode'.
+Setting this option will override options as given in
+`cperl-style-alist' for the keyword provided here.  If nil, then
+the individual options as customized are used.
+\"PBP\" is the style recommended in the Book \"Perl Best
+Practices\" by Damian Conway.  \"CPerl\" is the traditional style
+of `cperl-mode', and \"PerlStyle\" follows the Perl documentation
+in perlstyle.  The other styles have been developed for other
+programming languages, mostly C."
+  :type '(choice (const "PBP")
+                 (const "CPerl")
+                 (const "PerlStyle")
+                 (const "GNU")
+                 (const "C++")
+                 (const "K&R")
+                 (const "BSD")
+                 (const "Whitesmith")
+                 (const :tag "Default" nil))
+  :group 'cperl-indentation-details
+  :version "29.1")
+;;;###autoload(put 'cperl-file-style 'safe-local-variable 'stringp)
+
 (defcustom cperl-indent-level 2
   "Indentation of CPerl statements with respect to containing block."
   :type 'integer
@@ -203,7 +232,7 @@ to the right of the start of its line."
   :group 'cperl-indentation-details)
 (defcustom cperl-continued-brace-offset 0
   "Extra indent for substatements that start with open-braces.
-This is in addition to cperl-continued-statement-offset."
+This is in addition to `cperl-continued-statement-offset'."
   :type 'integer
   :group 'cperl-indentation-details)
 (defcustom cperl-close-paren-offset -1
@@ -275,7 +304,7 @@ Can be overwritten by `cperl-hairy' if nil."
   :type '(choice (const null) boolean)
   :group 'cperl-affected-by-hairy)
 
-(defcustom cperl-electric-parens-mark window-system
+(defcustom cperl-electric-parens-mark (not (not window-system))
   "Not-nil means that electric parens look for active mark.
 Default is yes if there is visual feedback on mark."
   :type 'boolean
@@ -333,17 +362,7 @@ Affects: `cperl-font-lock', `cperl-electric-lbrace-space',
 (defcustom cperl-vc-rcs-header '("($rcs) = (' $Id\ $ ' =~ /(\\d+(\\.\\d+)+)/);")
   "Special version of `vc-rcs-header' that is used in CPerl mode buffers."
   :type '(repeat string)
-     :group 'cperl)
-
-;; (defcustom cperl-clobber-mode-lists
-;;   (not
-;;    (and
-;;     (boundp 'interpreter-mode-alist)
-;;     (assoc "miniperl" interpreter-mode-alist)
-;;     (assoc "\\.\\([pP][Llm]\\|al\\)$" auto-mode-alist)))
-;;   "Whether to install us into `interpreter-' and `extension' mode lists."
-;;   :type 'boolean
-;;   :group 'cperl)
+  :group 'cperl)
 
 (defcustom cperl-info-on-command-no-prompt nil
   "Not-nil (and non-null) means not to prompt on \\[cperl-info-on-command].
@@ -386,6 +405,8 @@ Font for POD headers."
   :type 'face
   :version "21.1"
   :group 'cperl-faces)
+(make-obsolete-variable 'cperl-invalid-face
+                        'show-trailing-whitespace "30.1")
 
 (defcustom cperl-pod-here-fontify t
   "Not-nil after evaluation means to highlight POD and here-docs sections."
@@ -440,6 +461,11 @@ after reload."
 Older version of this page was called `perl5', newer `perl'."
   :type 'string
   :group 'cperl-help-system)
+(make-obsolete-variable 'cperl-info-page
+                        (concat "The Perl info page is no longer maintained. "
+                                "Consider installing the perl-doc package from "
+                                "GNU ELPA to access Perl documentation.")
+                        "30.1")
 
 (defcustom cperl-use-syntax-table-text-property t
   "Non-nil means CPerl sets up and uses `syntax-table' text property."
@@ -479,12 +505,6 @@ If nil, the value of `cperl-indent-level' will be used."
   :type 'boolean
   :group 'cperl)
 (make-obsolete-variable 'cperl-under-as-char 'superword-mode "24.4")
-
-(defcustom cperl-extra-perl-args ""
-  "Extra arguments to use when starting Perl.
-Currently used with `cperl-check-syntax' only."
-  :type 'string
-  :group 'cperl)
 
 (defcustom cperl-message-electric-keyword t
   "Non-nil means that the `cperl-electric-keyword' prints a help message."
@@ -543,19 +563,18 @@ This way enabling/disabling of menu items is more correct."
   :type 'boolean
   :group 'cperl-speed)
 
-(defcustom cperl-file-style nil
-  "Indentation style to use in cperl-mode."
-  :type '(choice (const "CPerl")
-                 (const "PBP")
-                 (const "PerlStyle")
-                 (const "GNU")
-                 (const "C++")
-                 (const "K&R")
-                 (const "BSD")
-                 (const "Whitesmith")
-                 (const :tag "Default" nil))
-  :version "29.1")
-;;;###autoload(put 'cperl-file-style 'safe-local-variable 'stringp)
+(defcustom cperl-fontify-trailer
+  'perl-code
+  "How to fontify text after an \"__END__\" or \"__DATA__\" token.
+If \"perl-code\", treat as Perl code for fontification, and
+examine for imenu entries.  Use this setting if you have trailing
+POD documentation, or for modules which use AutoLoad or
+AutoSplit.  If \"comment\", treat as comment, and do not look for
+imenu entries."
+  :type '(choice (const perl-code)
+		 (const comment))
+  :version "30.1"
+  :group 'cperl-faces)
 
 (defcustom cperl-ps-print-face-properties
   '((font-lock-keyword-face		nil nil		bold shadow)
@@ -626,22 +645,14 @@ This way enabling/disabling of menu items is more correct."
 ;;; Short extra-docs.
 
 (defvar cperl-tips 'please-ignore-this-line
-  "Note that to enable Compile choices in the menu you need to install
-mode-compile.el.
-
-If your Emacs does not default to `cperl-mode' on Perl files, and you
+  "If your Emacs does not default to `cperl-mode' on Perl files, and you
 want it to: put the following into your .emacs file:
 
   (add-to-list \\='major-mode-remap-alist \\='(perl-mode . cperl-mode))
 
-Get perl5-info from
-  $CPAN/doc/manual/info/perl5-old/perl5-info.tar.gz
-Also, one can generate a newer documentation running `pod2texi' converter
-  $CPAN/doc/manual/info/perl5/pod2texi-0.1.tar.gz
-
-If you use imenu-go, run imenu on perl5-info buffer (you can do it
-from Perl menu).  If many files are related, generate TAGS files from
-Tools/Tags submenu in Perl menu.
+To read Perl documentation in info format you can convert POD to
+texinfo with the converter `pod2texi' from the texinfo project:
+  https://www.gnu.org/software/texinfo/manual/pod2texi.html
 
 If some class structure is too complicated, use Tools/Hierarchy-view
 from Perl menu, or hierarchic view of imenu.  The second one uses the
@@ -705,48 +716,45 @@ voice);
         d) Has support for imenu, including:
                 1) Separate unordered list of \"interesting places\";
                 2) Separate TOC of POD sections;
-                3) Separate list of packages;
+                3) Separate list of packages/classes;
                 4) Hierarchical view of methods in (sub)packages;
                 5) and functions (by the full name - with package);
-        e) Has an interface to INFO docs for Perl; The interface is
-                very flexible, including shrink-wrapping of
-                documentation buffer/frame;
-        f) Has a builtin list of one-line explanations for perl constructs.
-        g) Can show these explanations if you stay long enough at the
+        e) Has a builtin list of one-line explanations for perl constructs.
+        f) Can show these explanations if you stay long enough at the
                 corresponding place (or on demand);
-        h) Has an enhanced fontification (using 3 or 4 additional faces
+        g) Has an enhanced fontification (using 3 or 4 additional faces
                 comparing to font-lock - basically, different
                 namespaces in Perl have different colors);
-        i) Can construct TAGS basing on its knowledge of Perl syntax,
+        h) Can construct TAGS basing on its knowledge of Perl syntax,
                 the standard menu has 6 different way to generate
                 TAGS (if \"by directory\", .xs files - with C-language
                 bindings - are included in the scan);
-        j) Can build a hierarchical view of classes (via imenu) basing
+        i) Can build a hierarchical view of classes (via imenu) basing
                 on generated TAGS file;
-        k) Has electric parentheses, electric newlines, uses Abbrev
+        j) Has electric parentheses, electric newlines, uses Abbrev
                 for electric logical constructs
                         while () {}
                 with different styles of expansion (context sensitive
                 to be not so bothering).  Electric parentheses behave
                 \"as they should\" in a presence of a visible region.
-        l) Changes msb.el \"on the fly\" to insert a group \"Perl files\";
-        m) Can convert from
+        k) Changes msb.el \"on the fly\" to insert a group \"Perl files\";
+        l) Can convert from
 		if (A) { B }
 	   to
 		B if A;
 
-        n) Highlights (by user-choice) either 3-delimiters constructs
+        m) Highlights (by user-choice) either 3-delimiters constructs
 	   (such as tr/a/b/), or regular expressions and `y/tr';
-	o) Highlights trailing whitespace;
-	p) Is able to manipulate Perl Regular Expressions to ease
+        o) Is able to manipulate Perl Regular Expressions to ease
 	   conversion to a more readable form.
-        q) Can ispell POD sections and HERE-DOCs.
-	r) Understands comments and character classes inside regular
+        p) Can ispell POD sections and HERE-DOCs.
+        q) Understands comments and character classes inside regular
 	   expressions; can find matching () and [] in a regular expression.
-	s) Allows indentation of //x-style regular expressions;
-	t) Highlights different symbols in regular expressions according
+        r) Allows indentation of //x-style regular expressions;
+        s) Highlights different symbols in regular expressions according
 	   to their function; much less problems with backslashitis;
-	u) Allows to find regular expressions which contain interpolated parts.
+        t) Allows you to locate regular expressions which contain
+	   interpolated parts.
 
 5) The indentation engine was very smart, but most of tricks may be
 not needed anymore with the support for `syntax-table' property.  Has
@@ -812,7 +820,7 @@ B) Speed of editing operations.
     of, say, long POD sections.")
 
 (defvar cperl-tips-faces 'please-ignore-this-line
-  "CPerl mode uses following faces for highlighting:
+  "CPerl mode uses the following faces for highlighting:
 
   `cperl-array-face'			Array names
   `cperl-hash-face'			Hash names
@@ -834,7 +842,6 @@ B) Speed of editing operations.
   `font-lock-type-face'		Overridable keywords
   `font-lock-variable-name-face' Variable declarations, indirect array and
 				hash names, POD headers/item names
-  `cperl-invalid-face'		Trailing whitespace
 
 Note that in several situations the highlighting tries to inform about
 possible confusion, such as different colors for function names in
@@ -911,17 +918,6 @@ Unless KEEP, removes the old indentation."
       (delete-horizontal-space))
   (indent-to column minimum))
 
-;; Probably it is too late to set these guys already, but it can help later:
-
-;;(and cperl-clobber-mode-lists
-;;(setq auto-mode-alist
-;;      (append '(("\\.\\([pP][Llm]\\|al\\)$" . perl-mode))  auto-mode-alist ))
-;;(and (boundp 'interpreter-mode-alist)
-;;     (setq interpreter-mode-alist (append interpreter-mode-alist
-;;					  '(("miniperl" . perl-mode))))))
-(eval-when-compile
-  (mapc #'require '(imenu easymenu etags timer man info)))
-
 (define-abbrev-table 'cperl-mode-electric-keywords-abbrev-table
   (mapcar (lambda (x)
             (let ((name (car x))
@@ -992,12 +988,12 @@ Unless KEEP, removes the old indentation."
     (define-key map "\177" 'cperl-electric-backspace)
     (define-key map "\t" 'cperl-indent-command)
     ;; don't clobber the backspace binding:
-    (define-key map [(control ?c) (control ?h) ?F] 'cperl-info-on-command)
+    (define-key map [(control ?c) (control ?h) ?F] 'cperl-perldoc)
     (if (cperl-val 'cperl-clobber-lisp-bindings)
         (progn
 	  (define-key map [(control ?h) ?f]
 	    ;;(concat (char-to-string help-char) "f") ; does not work
-	    'cperl-info-on-command)
+	    'cperl-perldoc)
 	  (define-key map [(control ?h) ?v]
 	    ;;(concat (char-to-string help-char) "v") ; does not work
 	    'cperl-get-help)
@@ -1008,7 +1004,7 @@ Unless KEEP, removes the old indentation."
 	    ;;(concat (char-to-string help-char) "v") ; does not work
 	    (key-binding "\C-hv")))
       (define-key map [(control ?c) (control ?h) ?f]
-        'cperl-info-on-current-command)
+        'cperl-perldoc)
       (define-key map [(control ?c) (control ?h) ?v]
 	;;(concat (char-to-string help-char) "v") ; does not work
 	'cperl-get-help))
@@ -1061,17 +1057,10 @@ Unless KEEP, removes the old indentation."
     ["Comment region" cperl-comment-region (use-region-p)]
     ["Uncomment region" cperl-uncomment-region (use-region-p)]
     "----"
-    ["Run" mode-compile (fboundp 'mode-compile)]
-    ["Kill" mode-compile-kill (and (fboundp 'mode-compile-kill)
-                                   (get-buffer "*compilation*"))]
-    ["Next error" next-error (get-buffer "*compilation*")]
-    ["Check syntax" cperl-check-syntax (fboundp 'mode-compile)]
-    "----"
     ["Debugger" cperl-db t]
     "----"
     ("Tools"
      ["Imenu" imenu]
-     ["Imenu on Perl Info" cperl-imenu-on-info (featurep 'imenu)]
      "----"
      ["Ispell PODs" cperl-pod-spell
       ;; Better not to update syntaxification here:
@@ -1130,8 +1119,6 @@ Unless KEEP, removes the old indentation."
       ;; This is from imenu-go.el.  I can't find it on any ELPA
       ;; archive, so I'm not sure if it's still in use or not.
       (fboundp 'imenu-go-find-at-position)]
-     ["Help on function" cperl-info-on-command t]
-     ["Help on function at point" cperl-info-on-current-command t]
      ["Help on symbol at point" cperl-get-help t]
      ["Perldoc" cperl-perldoc t]
      ["Perldoc on word at point" cperl-perldoc-at-point t]
@@ -1144,10 +1131,11 @@ Unless KEEP, removes the old indentation."
      ["Auto newline" cperl-toggle-auto-newline t]
      ["Electric parens" cperl-toggle-electric t]
      ["Electric keywords" cperl-toggle-abbrev t]
+     ["Extra paired delimiters" cperl-extra-paired-delimiters-mode t]
      ["Fix whitespace on indent" cperl-toggle-construct-fix t]
      ["Auto-help on Perl constructs" cperl-toggle-autohelp t]
      ["Auto fill" auto-fill-mode t])
-    ("Indent styles..."
+    ("Default indent styles..."
      ["CPerl" (cperl-set-style "CPerl") t]
      ["PBP" (cperl-set-style  "PBP") t]
      ["PerlStyle" (cperl-set-style "PerlStyle") t]
@@ -1158,6 +1146,15 @@ Unless KEEP, removes the old indentation."
      ["Whitesmith" (cperl-set-style "Whitesmith") t]
      ["Memorize Current" (cperl-set-style "Current") t]
      ["Memorized" (cperl-set-style-back) cperl-old-style])
+    ("Indent styles for current buffer..."
+     ["CPerl" (cperl-set-style "CPerl") t]
+     ["PBP" (cperl-file-style  "PBP") t]
+     ["PerlStyle" (cperl-file-style "PerlStyle") t]
+     ["GNU" (cperl-file-style "GNU") t]
+     ["C++" (cperl-file-style "C++") t]
+     ["K&R" (cperl-file-style "K&R") t]
+     ["BSD" (cperl-file-style "BSD") t]
+     ["Whitesmith" (cperl-file-style "Whitesmith") t])
     ("Micro-docs"
      ["Tips" (describe-variable 'cperl-tips) t]
      ["Problems" (describe-variable 'cperl-problems) t]
@@ -1183,12 +1180,16 @@ The expansion is entirely correct because it uses the C preprocessor."
 (eval-and-compile
 
   (defconst cperl--basic-identifier-rx
-    '(sequence (or alpha "_") (* (or word "_")))
+    ;; The rx expression in the following line is a workaround for
+    ;; bug#70948 under Emacs 29
+    '(regex "[_[:alpha:]][_[:word:]]*")
+    ;; The rx expression in the following line is equivalent but
+    ;; inefficient under Emacs 29.3
+    ;; '(sequence (or alpha "_") (* (or word "_")))
     "A regular expression for the name of a \"basic\" Perl variable.
 Neither namespace separators nor sigils are included.  As is,
 this regular expression applies to labels,subroutine calls where
-the ampersand sigil is not required, and names of subroutine
-attributes.")
+the ampersand sigil is not required, and names of attributes.")
 
   (defconst cperl--label-rx
     `(sequence symbol-start
@@ -1225,6 +1226,30 @@ is a legal variable name).")
       (in "!\"$%&'()+,-./:;<=>?@\\]^_`|~"))   ; $., $|, $", ... but not $^ or ${
     "The list of Perl \"punctuation\" variables, as listed in perlvar.")
 
+  (defconst cperl--basic-scalar-rx
+    `(sequence "$" ,cperl--basic-identifier-rx)
+    "Regular expression for a scalar (without package).
+This regexp intentionally does not support spaces (nor newlines
+and comments) between the sigil and the identifier, for
+educational reasons.  So \"$foo\" will be matched, but \"$ foo\"
+or \"${ foo }\" will not.")
+
+  (defconst cperl--basic-array-rx
+    `(sequence "@" ,cperl--basic-identifier-rx)
+    "Regular expression for an array variable (without package).
+This regexp intentionally does not support spaces (nor newlines
+and comments) between the sigil and the identifier, for
+educational reasons.  So \"@foo\" will be matched, but \"@ foo\"
+or \"@{ foo }\" will not.")
+
+  (defconst cperl--basic-hash-rx
+    `(sequence "%" ,cperl--basic-identifier-rx)
+    "Regular expression for a hash variable (without package).
+This regexp intentionally does not support spaces (nor newlines
+and comments) between the sigil and the identifier, for
+educational reasons.  So \"%foo\" will be matched, but \"% foo\"
+or \"%{ foo }\" will not.")
+
   (defconst cperl--ws-rx
     '(sequence (or space "\n"))
     "Regular expression for a single whitespace in Perl.")
@@ -1246,6 +1271,27 @@ is a legal variable name).")
     `(1+ ,cperl--ws-or-comment-rx)
     "Regular expression for a sequence of whitespace and comments in Perl.")
 
+  (defconst cperl--basic-variable-rx
+    `(sequence (in "$@%") ,cperl--basic-identifier-rx)
+    "Regular expression for a Perl variable (scalar, array or hash).
+This regexp intentionally does not support spaces (nor newlines
+and comments) between the sigil and the identifier, for
+educational reasons.  So \"$foo\" will be matched, but \"$ foo\"
+or \"${ foo }\" will not.")
+
+  (defconst cperl--variable-list-rx
+    `(sequence "("
+	       (optional (sequence
+                          ,cperl--ws*-rx
+                          ,cperl--basic-variable-rx
+			  (0+ (sequence
+			       ,cperl--ws*-rx
+			       ","
+			       ,cperl--ws*-rx
+			       ,cperl--basic-variable-rx))
+                          ,cperl--ws*-rx)))
+    "Regular expression for a list of Perl variables for declarations.")
+
   ;; This is left as a string regexp.  There are many version schemes in
   ;; the wild, so people might want to fiddle with this variable.
   (defconst cperl--version-regexp
@@ -1260,20 +1306,95 @@ is a legal variable name).")
 	         (optional (sequence "_" (1+ word))))))
     "A sequence for recommended version number schemes in Perl.")
 
+  (defconst cperl--single-attribute-rx
+    `(sequence ,cperl--basic-identifier-rx
+               (optional (sequence "("
+                                   (0+ (or (sequence "\\" not-newline)
+                                           (not (any "()\\"))
+                                           (sequence "("
+		                                     (zero-or-more
+		                                      (not
+		                                       (any "()\\")))
+		                                     ")")))
+                                   ")")))
+    "A regular expression for a single attribute, without leading colon.
+It may have parameters in parens, one level of parens within the
+parameter's value is supported.  This regexp does not have
+capture groups.")
+
+  (defconst cperl--attribute-list-rx
+    `(sequence ":"
+               (optional
+                ,cperl--ws*-rx
+                ,cperl--single-attribute-rx
+                (0+ (sequence
+                     (or (sequence ,cperl--ws*-rx
+                                   ":"
+                                   ,cperl--ws*-rx)
+                         ,cperl--ws+-rx)
+                     ,cperl--single-attribute-rx))
+                (optional ":")))
+    "A regular expression for an attribute list.
+Attribute lists may only occur in certain declarations.  A colon
+is required before the first attribute but optional between
+subsequent attributes.  This regexp does not have capture groups.")
+
+  (defconst cperl--prototype-rx
+    `(sequence "("
+               (0+ (any "$@%&*;\\[]"))
+               ")")
+    "A regular expression for a subroutine prototype.  Not as strict
+as the actual prototype syntax, but good enough to distinguish
+prototypes from signatures.")
+
+  (defconst cperl--signature-rx
+    `(sequence "("
+               (optional
+                (sequence
+                 (0+ (sequence ,cperl--ws*-rx
+                               (or ,cperl--basic-scalar-rx "$")
+                               ,cperl--ws*-rx
+                               ","))
+                 ,cperl--ws*-rx
+                 (or ,cperl--basic-scalar-rx
+                     ,cperl--basic-array-rx
+                     ,cperl--basic-hash-rx
+                     "$" "%" "@")))
+               (optional (sequence ,cperl--ws*-rx) "," )
+               ,cperl--ws*-rx
+               ")")
+    "A rx sequence subroutine signature without initializers.
+These are a bit more restricted than \"my\" declaration lists
+because they allow only one slurpy variable, and only in the last
+place.")
+
+  (defconst cperl--sloppy-signature-rx
+    `(sequence "("
+               ,cperl--ws*-rx
+               (or ,cperl--basic-scalar-rx
+                   ,cperl--basic-array-rx
+                   ,cperl--basic-hash-rx)
+               ,cperl--ws*-rx
+               (or "," "=" "||=" "//=" ")"))
+    "A rx sequence for the begin of a signature with initializers.
+Initializers can contain almost all Perl constructs and thus can
+not be covered by regular expressions.  This sequence captures
+enough to distinguish a signature from a prototype.")
+
   (defconst cperl--package-rx
-    `(sequence (group "package")
+    `(sequence (group (or "package" "class"))
                ,cperl--ws+-rx
                (group ,cperl--normal-identifier-rx)
                (optional (sequence ,cperl--ws+-rx
                                    (group (regexp ,cperl--version-regexp)))))
-    "A regular expression for package NAME VERSION in Perl.
-Contains three groups for the keyword \"package\", for the
-package name and for the version.")
+    "A regular expression for package|class NAME VERSION in Perl.
+Contains three groups for the initial keyword \"package\" or
+\"class\", for the package name and for the version.")
 
   (defconst cperl--package-for-imenu-rx
     `(sequence symbol-start
                (group-n 1 "package")
-               ,cperl--ws*-rx
+               ,cperl--ws+-rx
                (group-n 2 ,cperl--normal-identifier-rx)
                (optional (sequence ,cperl--ws+-rx
                                    (regexp ,cperl--version-regexp)))
@@ -1285,26 +1406,85 @@ NAME BLOCK\" and \"package NAME VERSION BLOCK.\" Contains three
 groups: One for the keyword \"package\", one for the package
 name, and one for the discovery of a following BLOCK.")
 
+  ;; This gets a regexp of its own because classes allow attributes
+  ;; (e.g. ":isa(Parent)") while packages don't.  We skip over it, but
+  ;; like for "package" we capture the following ";" or "{".
+  (defconst cperl--class-for-imenu-rx
+    `(sequence (or space line-start)
+               (group-n 1 "class")
+               ,cperl--ws+-rx
+               (group-n 2 ,cperl--normal-identifier-rx)
+               (optional (sequence ,cperl--ws+-rx
+                                   (regexp ,cperl--version-regexp)))
+               (optional (sequence ,cperl--ws*-rx
+                                   ,cperl--attribute-list-rx))
+               ,cperl--ws*-rx
+               (group-n 3 (or ";" "{")))
+    "A regular expression to collect package names for `imenu'.
+Catches \"class NAME;\", \"class NAME VERSION;\", \"class NAME
+BLOCK\" and \"class NAME VERSION BLOCK\" and allows for
+attributes like \":isa(Parent)\".  Contains three groups: One for
+the keyword \"package\", one for the package name, and one for
+the discovery of a following BLOCK.")
+
   (defconst cperl--sub-name-for-imenu-rx
     `(sequence symbol-start
                (optional (sequence (group-n 3 (or "my" "state" "our"))
 	                           ,cperl--ws+-rx))
-               (group-n 1 "sub")
+               (group-n 1 (or "method" "sub"))
                ,cperl--ws+-rx
                (group-n 2 ,cperl--normal-identifier-rx))
-    "A regular expression to detect a subroutine start.
-Contains three groups: One to distinguish lexical from
-\"normal\" subroutines, for the keyword \"sub\", and one for the
-subroutine name.")
+    "A regular expression to detect a subroutine or method start.
+Contains three groups: One to distinguish lexical from \"normal\"
+subroutines, for the keyword \"sub\" or \"method\", and one for
+the subroutine name.")
+
+  (defconst cperl--sub-name-generated-rx
+    `(sequence symbol-start
+               (optional (group-n 3 unmatchable))
+               ;; autogenerated methods are not lexicals, so enforce the
+               ;; first capture group to be nil
+               "field"
+               ,cperl--ws+-rx
+               (or
+                (sequence (in "$%@")
+                          (group-n 2 ,cperl--basic-identifier-rx)
+                          (1+ (not (in ";={")))
+                          ":"
+                          (group-n 1 "reader")
+                          (not "("))
+                (sequence ,cperl--basic-variable-rx
+                          (1+ (not (in ";={")))
+                          ":"
+                          (group-n 1 "reader")
+                          "("
+                          (group-n 2 ,cperl--basic-identifier-rx)
+                          ")")))
+    "A regular expression to capture autogenerated reader methods.
+The name of the method is either the field name without its sigil, or
+given in parentheses after the \":reader\" keyword.")
+  ;; I don't dare to think about :writer where the generated name does
+  ;; not even occur in the text.
 
 (defconst cperl--block-declaration-rx
   `(sequence
-    (or "package" "sub")  ; "class" and "method" coming soon
+    (or "class" "method" "package" "sub")
     (1+ ,cperl--ws-or-comment-rx)
     ,cperl--normal-identifier-rx)
   "A regular expression to find a declaration for a named block.
 Used for indentation.  These declarations introduce a block which
 does not need a semicolon to terminate the statement.")
+
+(defconst cperl--field-declaration-rx
+  `(sequence
+    "field"
+    (1+ ,cperl--ws-or-comment-rx)
+    ,cperl--basic-variable-rx
+    (optional (sequence ,cperl--ws+-rx ,cperl--attribute-list-rx))
+    )
+  "A regular expression to find a declaration for a field.
+Fields can have attributes for fontification, and even for imenu because
+for example \":reader\" implicitly declares a method.")
 
 (defconst cperl--pod-heading-rx
   `(sequence line-start
@@ -1318,15 +1498,26 @@ heading text.")
 
 (defconst cperl--imenu-entries-rx
   `(or ,cperl--package-for-imenu-rx
+       ,cperl--class-for-imenu-rx
        ,cperl--sub-name-for-imenu-rx
+       ,cperl--sub-name-generated-rx
        ,cperl--pod-heading-rx)
   "A regular expression to collect stuff that goes into the `imenu' index.
-Covers packages, subroutines, and POD headings.")
+Covers packages and classes, subroutines and methods, and POD headings.")
 
 ;; end of eval-and-compiled stuff
 )
 
 
+(defun cperl-declaration-header-p (pos)
+  "Return t if POS is in the header of a declaration.
+Perl syntax can have various constructs between a
+keyword (e.g. \"sub\") and its associated block of code, and
+these can span several lines.  These blocks are identified and
+marked with a text-property in `cperl-find-pods-heres'.  This
+function tests that property."
+  (equal (get-text-property pos 'syntax-type) 'sub-decl))
+
 (defun cperl-block-declaration-p ()
   "Test whether the following ?\\{ opens a declaration block.
 Returns the column where the declaring keyword is found, or nil
@@ -1343,6 +1534,9 @@ statement, so there's no semicolon."
           (forward-sexp -1)
           (cond
            ((looking-at (rx (eval cperl--block-declaration-rx)))
+            (setq is-block-declaration (current-column)
+                  continue-searching nil))
+           ((cperl-declaration-header-p (point))
             (setq is-block-declaration (current-column)
                   continue-searching nil))
            ;; Another brace means this is no block declaration
@@ -1400,7 +1594,7 @@ the last)."
 	(if attr (concat
 		  "\\("
 		     cperl-maybe-white-and-comment-rex ; whitespace-comments
-		     "\\(\\sw\\|_\\)+"	; attr-name
+		     "\\(\\<\\sw\\|_\\)+"	; attr-name
 		     ;; attr-arg (1 level of internal parens allowed!)
 		     "\\((\\(\\\\.\\|[^\\()]\\|([^\\()]*)\\)*)\\)?"
 		     "\\("		; optional : (XXX allows trailing???)
@@ -1415,7 +1609,7 @@ the last)."
 ;; Tired of editing this in 8 places every time I remember that there
 ;; is another method-defining keyword
 (defvar cperl-sub-keywords
-  '("sub"))
+  '("sub" "method"))
 
 (defvar cperl-sub-regexp (regexp-opt cperl-sub-keywords))
 
@@ -1476,8 +1670,6 @@ the last)."
 ;; Fix for msb.el
 (defvar cperl-msb-fixed nil)
 (defvar cperl-use-major-mode 'cperl-mode)
-(defvar cperl-font-lock-multiline-start nil)
-(defvar cperl-font-lock-multiline nil)
 (defvar cperl-font-locking nil)
 
 (defvar cperl-compilation-error-regexp-list
@@ -1561,30 +1753,21 @@ into
 
 \\{cperl-mode-map}
 
-Setting the variable `cperl-font-lock' to t switches on `font-lock-mode'
-\(even with older Emacsen), `cperl-electric-lbrace-space' to t switches
-on electric space between $ and {, `cperl-electric-parens-string' is
-the string that contains parentheses that should be electric in CPerl
-\(see also `cperl-electric-parens-mark' and `cperl-electric-parens'),
-setting `cperl-electric-keywords' enables electric expansion of
-control structures in CPerl.  `cperl-electric-linefeed' governs which
-one of two linefeed behavior is preferable.  You can enable all these
-options simultaneously (recommended mode of use) by setting
-`cperl-hairy' to t.  In this case you can switch separate options off
-by setting them to `null'.  Note that one may undo the extra
-whitespace inserted by semis and braces in `auto-newline'-mode by
-consequent \\[cperl-electric-backspace].
+Setting the variable `cperl-font-lock' to t switches on `font-lock-mode',
+`cperl-electric-lbrace-space' to t switches on electric space between $
+and {, `cperl-electric-parens-string' is the string that contains
+parentheses that should be electric in CPerl (see also
+`cperl-electric-parens-mark' and `cperl-electric-parens'), setting
+`cperl-electric-keywords' enables electric expansion of control
+structures in CPerl.  `cperl-electric-linefeed' governs which one of two
+linefeed behavior is preferable.  You can enable all these options
+simultaneously by setting `cperl-hairy' to t.  In this case you can
+switch separate options off by setting them to `null'.  Note that one may
+undo the extra whitespace inserted by semis and braces in
+`auto-newline'-mode by consequent \\[cperl-electric-backspace].
 
-If your site has perl5 documentation in info format, you can use commands
-\\[cperl-info-on-current-command] and \\[cperl-info-on-command] to access it.
-These keys run commands `cperl-info-on-current-command' and
-`cperl-info-on-command', which one is which is controlled by variable
-`cperl-info-on-command-no-prompt' and `cperl-clobber-lisp-bindings'
-\(in turn affected by `cperl-hairy').
-
-Even if you have no info-format documentation, short one-liner-style
-help is available on \\[cperl-get-help], and one can run perldoc or
-man via menu.
+Short one-liner-style help is available on \\[cperl-get-help],
+and one can run perldoc or man via menu.
 
 It is possible to show this help automatically after some idle time.
 This is regulated by variable `cperl-lazy-help-time'.  Default with
@@ -1676,8 +1859,8 @@ or as help on variables `cperl-tips', `cperl-problems',
        (cperl-val 'cperl-info-on-command-no-prompt))
       (progn
 	;; don't clobber the backspace binding:
-	(define-key cperl-mode-map "\C-hf" 'cperl-info-on-current-command)
-	(define-key cperl-mode-map "\C-c\C-hf" 'cperl-info-on-command)))
+	(define-key cperl-mode-map "\C-hf" 'cperl-perldoc)
+	(define-key cperl-mode-map "\C-c\C-hf" 'cperl-perldoc)))
   (setq local-abbrev-table cperl-mode-abbrev-table)
   (if (cperl-val 'cperl-electric-keywords)
       (abbrev-mode 1))
@@ -1686,7 +1869,6 @@ or as help on variables `cperl-tips', `cperl-problems',
   (when (< emacs-major-version 27)
     (setq-local open-paren-in-column-0-is-defun-start nil))
   ;; Until Emacs is multi-threaded, we do not actually need it local:
-  (make-local-variable 'cperl-font-lock-multiline-start)
   (make-local-variable 'cperl-font-locking)
   (setq-local outline-regexp cperl-outline-regexp)
   (setq-local outline-level 'cperl-outline-level)
@@ -1713,8 +1895,11 @@ or as help on variables `cperl-tips', `cperl-problems',
               (concat "^[ \t]*\\("
                       cperl-sub-regexp
                       (cperl-after-sub-regexp 'named 'attr-groups)
+                      (rx (eval cperl--ws*-rx))
+                      (rx (optional (eval cperl--signature-rx)))
                       "\\|"			; per toke.c
-                      "\\(BEGIN\\|UNITCHECK\\|CHECK\\|INIT\\|END\\|AUTOLOAD\\|DESTROY\\)"
+                      (rx (or "ADJUST" "AUTOLOAD" "BEGIN" "CHECK" "DESTROY"
+                              "END" "INIT" "UNITCHECK"))
                       "\\)"
                       cperl-maybe-white-and-comment-rex))
   (setq-local comment-indent-function #'cperl-comment-indent)
@@ -1759,7 +1944,6 @@ or as help on variables `cperl-tips', `cperl-problems',
                   ;; to re-apply them.
                   (setq cperl-syntax-done-to start)
                   (cperl-fontify-syntactically end))))
-  (setq cperl-font-lock-multiline t) ; Not localized...
   (setq-local font-lock-multiline t)
   (setq-local font-lock-fontify-region-function
               #'cperl-font-lock-fontify-region-function)
@@ -1786,9 +1970,13 @@ or as help on variables `cperl-tips', `cperl-problems',
   ;; Setup Flymake
   (add-hook 'flymake-diagnostic-functions #'perl-flymake nil t))
 
+(when (fboundp 'derived-mode-add-parents) ; to run under Emacs <30
+  (derived-mode-add-parents 'cperl-mode '(perl-mode)))
+
 (defun cperl--set-file-style ()
   (when cperl-file-style
-    (cperl-set-style cperl-file-style)))
+    (cperl-file-style cperl-file-style)))
+
 
 ;; Fix for perldb - make default reasonable
 (defun cperl-db ()
@@ -2557,6 +2745,9 @@ PRESTART is the position basing on which START was found."
 	       (<= parse-start start-point))
 	  (goto-char parse-start)
 	(beginning-of-defun)
+        (when (cperl-declaration-header-p (point))
+          (goto-char (cperl-beginning-of-property (point) 'syntax-type))
+          (beginning-of-line))
 	(setq start-state nil))
       (setq prestart (point))
       (if start-state nil
@@ -2579,7 +2770,7 @@ PRESTART is the position basing on which START was found."
 (defun cperl-beginning-of-property (p prop &optional lim)
   "Given that P has a property PROP, find where the property starts.
 Will not look before LIM."
-;;; XXXX What to do at point-max???
+;; XXXX What to do at point-max???
   (or (previous-single-property-change (cperl-1+ p) prop lim)
       (point-min))
   ;; (cond ((eq p (point-min))
@@ -2693,6 +2884,7 @@ Will not look before LIM."
 		   ;; in which case this line is the first argument decl.
 		   (skip-chars-forward " \t")
 		   (cperl-backward-to-noncomment (or old-indent (point-min)))
+                   ;; Determine whether point is between statements
 		   (setq state
 			 (or (bobp)
 			     (eq (point) old-indent) ; old-indent was at comment
@@ -2711,7 +2903,8 @@ Will not look before LIM."
 				    (looking-at
                                      (rx (sequence (0+ blank)
                                                    (eval cperl--label-rx))))))
-			     (get-text-property (point) 'first-format-line)))
+			     (get-text-property (1- (point)) 'first-format-line)
+                             (equal (get-text-property (point) 'syntax-type) 'format)))
 
 		   ;; Look at previous line that's at column 0
 		   ;; to determine whether we are in top-level decls
@@ -2748,10 +2941,13 @@ Will not look before LIM."
 		   ;; Back up over label lines, since they don't
 		   ;; affect whether our line is a continuation.
 		   ;; (Had \, too)
-                   (while (and (eq (preceding-char) ?:)
+                   (while (save-excursion
+                            (and (eq (preceding-char) ?:)
                                  (re-search-backward
                                   (rx (sequence (eval cperl--label-rx) point))
-                                  nil t))
+                                  nil t)
+                                 ;; Ignore if in comment or RE
+                                 (not (nth 3 (syntax-ppss)))))
 		     ;; This is always FALSE?
 		     (if (eq (preceding-char) ?\,)
 			 ;; Will go to beginning of line, essentially.
@@ -2763,12 +2959,15 @@ Will not look before LIM."
 		   (if (not (or (eq (1- (point)) containing-sexp)
                                 (and cperl-indent-parens-as-block
                                      (not is-block))
-                                (save-excursion (cperl-block-declaration-p))
+                                (and (looking-at "{")
+                                     (save-excursion (cperl-block-declaration-p)))
 				(memq (preceding-char)
 				      (append (if is-block " ;{" " ,;{") '(nil)))
 				(and (eq (preceding-char) ?\})
 				     (cperl-after-block-and-statement-beg
 				      containing-sexp))
+                                (and (cperl-declaration-header-p indent-point)
+                                     (not (cperl-declaration-header-p char-after-pos)))
 				(get-text-property (point) 'first-format-line)))
 		       ;; This line is continuation of preceding line's statement;
 		       ;; indent  `cperl-continued-statement-offset'  more than the
@@ -2847,12 +3046,11 @@ Will not look before LIM."
 			;; anonymous sub in a hash.
 			(if (and;; Is it a sub in group starting on this line?
                              cperl-indent-subs-specially
-			     (cond ((get-text-property (point) 'attrib-group)
-				    (goto-char (cperl-beginning-of-property
-						(point) 'attrib-group)))
-				   ((eq (preceding-char) ?b)
-				    (forward-sexp -1)
-				    (looking-at (concat cperl-sub-regexp "\\>"))))
+			     (cond
+                              ((cperl-declaration-header-p (point))
+                               (goto-char
+                                (cperl-beginning-of-property (point)
+                                                             'syntax-type))))
 			     (setq p (nth 1 ; start of innermost containing list
 					  (parse-partial-sexp
                                            (line-beginning-position)
@@ -2918,11 +3116,12 @@ and closing parentheses and brackets."
 	 ;;
 	 ((eq 'REx-part2 (elt i 0)) ;; [self start] start of /REP in s//REP/x
 	  (goto-char (elt i 1))
-	  (condition-case nil	; Use indentation of the 1st part
-	      (forward-sexp -1))
+          (condition-case nil
+	      (forward-sexp -1) 	; Use indentation of the 1st part
+            (error nil))
 	  (current-column))
 	 ((eq 'indentable (elt i 0))	; Indenter for REGEXP qw() etc
-	  (cond		       ;;; [indentable terminator start-pos is-block]
+	  (cond		       ; [indentable terminator start-pos is-block]
 	   ((eq 'terminator (elt i 1)) ; Lone terminator of "indentable string"
 	    (goto-char (elt i 2))	; After opening parens
 	    (1- (current-column)))
@@ -2995,6 +3194,9 @@ and closing parentheses and brackets."
 	  (goto-char (elt i 1))		; statement-start
 	  (+ (if (or (memq (elt i 2) (append "}])" nil)) ; char-after
                      (eq 'continuation ; do not stagger continuations
+                         ;; FIXME: This clobbers the syntax state in parse-data
+                         ;; for the *following* lines and makes the state
+                         ;; useless for indent-region -- haj 2023-06-30
                          (elt (cperl-sniff-for-indent parse-data) 0)))
 		 0 ; Closing parenthesis or continuation of a continuation
 	       cperl-continued-statement-offset)
@@ -3005,7 +3207,8 @@ and closing parentheses and brackets."
 	       ;; Now it is a hash reference
 	       (+ cperl-indent-level cperl-close-paren-offset))
 	     ;; Labels do not take :: ...
-	     (if (looking-at "\\(\\w\\|_\\)+[ \t]*:[^:]")
+	     (if (and (looking-at "\\(\\w\\|_\\)+[ \t]*:[^:]")
+                      (not (looking-at (rx (eval cperl--false-label-rx)))))
 		 (if (> (current-indentation) cperl-min-label-indent)
 		     (- (current-indentation) cperl-label-offset)
 		   ;; Do not move `parse-data', this should
@@ -3179,10 +3382,333 @@ fontified.  Do nothing if BEGIN and END are equal.  If
       (put-text-property begin end 'face (if string 'font-lock-string-face
 				           'font-lock-comment-face)))))
 
-(defvar cperl-starters '(( ?\( . ?\) )
-			 ( ?\[ . ?\] )
-			 ( ?\{ . ?\} )
-			 ( ?\< . ?\> )))
+(defvar cperl--basic-paired-delimiters '(( ?\( . ?\) )
+			                 ( ?\[ . ?\] )
+			                 ( ?\{ . ?\} )
+			                 ( ?\< . ?\> )))
+;; -------- The following definition is generated code from  "perlop"
+;; https://metacpan.org/release/HAARG/perl-5.40.0/view/pod/perlop.pod
+(defvar cperl--extra-paired-delimiters '(( ?\N{U+0028} . ?\N{U+0029} )
+                                         ( ?\N{U+003C} . ?\N{U+003E} )
+                                         ( ?\N{U+005B} . ?\N{U+005D} )
+                                         ( ?\N{U+007B} . ?\N{U+007D} )
+                                         ( ?\N{U+00AB} . ?\N{U+00BB} )
+                                         ( ?\N{U+00BB} . ?\N{U+00AB} )
+                                         ( ?\N{U+0F3A} . ?\N{U+0F3B} )
+                                         ( ?\N{U+0F3C} . ?\N{U+0F3D} )
+                                         ( ?\N{U+169B} . ?\N{U+169C} )
+                                         ( ?\N{U+2018} . ?\N{U+2019} )
+                                         ( ?\N{U+2019} . ?\N{U+2018} )
+                                         ( ?\N{U+201C} . ?\N{U+201D} )
+                                         ( ?\N{U+201D} . ?\N{U+201C} )
+                                         ( ?\N{U+2035} . ?\N{U+2032} )
+                                         ( ?\N{U+2036} . ?\N{U+2033} )
+                                         ( ?\N{U+2037} . ?\N{U+2034} )
+                                         ( ?\N{U+2039} . ?\N{U+203A} )
+                                         ( ?\N{U+203A} . ?\N{U+2039} )
+                                         ( ?\N{U+2045} . ?\N{U+2046} )
+                                         ( ?\N{U+204D} . ?\N{U+204C} )
+                                         ( ?\N{U+207D} . ?\N{U+207E} )
+                                         ( ?\N{U+208D} . ?\N{U+208E} )
+                                         ( ?\N{U+2192} . ?\N{U+2190} )
+                                         ( ?\N{U+219B} . ?\N{U+219A} )
+                                         ( ?\N{U+219D} . ?\N{U+219C} )
+                                         ( ?\N{U+21A0} . ?\N{U+219E} )
+                                         ( ?\N{U+21A3} . ?\N{U+21A2} )
+                                         ( ?\N{U+21A6} . ?\N{U+21A4} )
+                                         ( ?\N{U+21AA} . ?\N{U+21A9} )
+                                         ( ?\N{U+21AC} . ?\N{U+21AB} )
+                                         ( ?\N{U+21B1} . ?\N{U+21B0} )
+                                         ( ?\N{U+21B3} . ?\N{U+21B2} )
+                                         ( ?\N{U+21C0} . ?\N{U+21BC} )
+                                         ( ?\N{U+21C1} . ?\N{U+21BD} )
+                                         ( ?\N{U+21C9} . ?\N{U+21C7} )
+                                         ( ?\N{U+21CF} . ?\N{U+21CD} )
+                                         ( ?\N{U+21D2} . ?\N{U+21D0} )
+                                         ( ?\N{U+21DB} . ?\N{U+21DA} )
+                                         ( ?\N{U+21DD} . ?\N{U+21DC} )
+                                         ( ?\N{U+21E2} . ?\N{U+21E0} )
+                                         ( ?\N{U+21E5} . ?\N{U+21E4} )
+                                         ( ?\N{U+21E8} . ?\N{U+21E6} )
+                                         ( ?\N{U+21F4} . ?\N{U+2B30} )
+                                         ( ?\N{U+21F6} . ?\N{U+2B31} )
+                                         ( ?\N{U+21F8} . ?\N{U+21F7} )
+                                         ( ?\N{U+21FB} . ?\N{U+21FA} )
+                                         ( ?\N{U+21FE} . ?\N{U+21FD} )
+                                         ( ?\N{U+2208} . ?\N{U+220B} )
+                                         ( ?\N{U+2209} . ?\N{U+220C} )
+                                         ( ?\N{U+220A} . ?\N{U+220D} )
+                                         ( ?\N{U+2264} . ?\N{U+2265} )
+                                         ( ?\N{U+2266} . ?\N{U+2267} )
+                                         ( ?\N{U+2268} . ?\N{U+2269} )
+                                         ( ?\N{U+226A} . ?\N{U+226B} )
+                                         ( ?\N{U+226E} . ?\N{U+226F} )
+                                         ( ?\N{U+2270} . ?\N{U+2271} )
+                                         ( ?\N{U+2272} . ?\N{U+2273} )
+                                         ( ?\N{U+2274} . ?\N{U+2275} )
+                                         ( ?\N{U+227A} . ?\N{U+227B} )
+                                         ( ?\N{U+227C} . ?\N{U+227D} )
+                                         ( ?\N{U+227E} . ?\N{U+227F} )
+                                         ( ?\N{U+2280} . ?\N{U+2281} )
+                                         ( ?\N{U+2282} . ?\N{U+2283} )
+                                         ( ?\N{U+2284} . ?\N{U+2285} )
+                                         ( ?\N{U+2286} . ?\N{U+2287} )
+                                         ( ?\N{U+2288} . ?\N{U+2289} )
+                                         ( ?\N{U+228A} . ?\N{U+228B} )
+                                         ( ?\N{U+22A3} . ?\N{U+22A2} )
+                                         ( ?\N{U+22A6} . ?\N{U+2ADE} )
+                                         ( ?\N{U+22A8} . ?\N{U+2AE4} )
+                                         ( ?\N{U+22A9} . ?\N{U+2AE3} )
+                                         ( ?\N{U+22B0} . ?\N{U+22B1} )
+                                         ( ?\N{U+22D0} . ?\N{U+22D1} )
+                                         ( ?\N{U+22D6} . ?\N{U+22D7} )
+                                         ( ?\N{U+22D8} . ?\N{U+22D9} )
+                                         ( ?\N{U+22DC} . ?\N{U+22DD} )
+                                         ( ?\N{U+22DE} . ?\N{U+22DF} )
+                                         ( ?\N{U+22E0} . ?\N{U+22E1} )
+                                         ( ?\N{U+22E6} . ?\N{U+22E7} )
+                                         ( ?\N{U+22E8} . ?\N{U+22E9} )
+                                         ( ?\N{U+22F2} . ?\N{U+22FA} )
+                                         ( ?\N{U+22F3} . ?\N{U+22FB} )
+                                         ( ?\N{U+22F4} . ?\N{U+22FC} )
+                                         ( ?\N{U+22F6} . ?\N{U+22FD} )
+                                         ( ?\N{U+22F7} . ?\N{U+22FE} )
+                                         ( ?\N{U+2308} . ?\N{U+2309} )
+                                         ( ?\N{U+230A} . ?\N{U+230B} )
+                                         ( ?\N{U+2326} . ?\N{U+232B} )
+                                         ( ?\N{U+2348} . ?\N{U+2347} )
+                                         ( ?\N{U+23ED} . ?\N{U+23EE} )
+                                         ( ?\N{U+261B} . ?\N{U+261A} )
+                                         ( ?\N{U+261E} . ?\N{U+261C} )
+                                         ( ?\N{U+269E} . ?\N{U+269F} )
+                                         ( ?\N{U+2768} . ?\N{U+2769} )
+                                         ( ?\N{U+276A} . ?\N{U+276B} )
+                                         ( ?\N{U+276C} . ?\N{U+276D} )
+                                         ( ?\N{U+276E} . ?\N{U+276F} )
+                                         ( ?\N{U+2770} . ?\N{U+2771} )
+                                         ( ?\N{U+2772} . ?\N{U+2773} )
+                                         ( ?\N{U+2774} . ?\N{U+2775} )
+                                         ( ?\N{U+27C3} . ?\N{U+27C4} )
+                                         ( ?\N{U+27C5} . ?\N{U+27C6} )
+                                         ( ?\N{U+27C8} . ?\N{U+27C9} )
+                                         ( ?\N{U+27DE} . ?\N{U+27DD} )
+                                         ( ?\N{U+27E6} . ?\N{U+27E7} )
+                                         ( ?\N{U+27E8} . ?\N{U+27E9} )
+                                         ( ?\N{U+27EA} . ?\N{U+27EB} )
+                                         ( ?\N{U+27EC} . ?\N{U+27ED} )
+                                         ( ?\N{U+27EE} . ?\N{U+27EF} )
+                                         ( ?\N{U+27F4} . ?\N{U+2B32} )
+                                         ( ?\N{U+27F6} . ?\N{U+27F5} )
+                                         ( ?\N{U+27F9} . ?\N{U+27F8} )
+                                         ( ?\N{U+27FC} . ?\N{U+27FB} )
+                                         ( ?\N{U+27FE} . ?\N{U+27FD} )
+                                         ( ?\N{U+27FF} . ?\N{U+2B33} )
+                                         ( ?\N{U+2900} . ?\N{U+2B34} )
+                                         ( ?\N{U+2901} . ?\N{U+2B35} )
+                                         ( ?\N{U+2903} . ?\N{U+2902} )
+                                         ( ?\N{U+2905} . ?\N{U+2B36} )
+                                         ( ?\N{U+2907} . ?\N{U+2906} )
+                                         ( ?\N{U+290D} . ?\N{U+290C} )
+                                         ( ?\N{U+290F} . ?\N{U+290E} )
+                                         ( ?\N{U+2910} . ?\N{U+2B37} )
+                                         ( ?\N{U+2911} . ?\N{U+2B38} )
+                                         ( ?\N{U+2914} . ?\N{U+2B39} )
+                                         ( ?\N{U+2915} . ?\N{U+2B3A} )
+                                         ( ?\N{U+2916} . ?\N{U+2B3B} )
+                                         ( ?\N{U+2917} . ?\N{U+2B3C} )
+                                         ( ?\N{U+2918} . ?\N{U+2B3D} )
+                                         ( ?\N{U+291A} . ?\N{U+2919} )
+                                         ( ?\N{U+291C} . ?\N{U+291B} )
+                                         ( ?\N{U+291E} . ?\N{U+291D} )
+                                         ( ?\N{U+2920} . ?\N{U+291F} )
+                                         ( ?\N{U+2933} . ?\N{U+2B3F} )
+                                         ( ?\N{U+2937} . ?\N{U+2936} )
+                                         ( ?\N{U+2945} . ?\N{U+2946} )
+                                         ( ?\N{U+2947} . ?\N{U+2B3E} )
+                                         ( ?\N{U+2953} . ?\N{U+2952} )
+                                         ( ?\N{U+2957} . ?\N{U+2956} )
+                                         ( ?\N{U+295B} . ?\N{U+295A} )
+                                         ( ?\N{U+295F} . ?\N{U+295E} )
+                                         ( ?\N{U+2964} . ?\N{U+2962} )
+                                         ( ?\N{U+296C} . ?\N{U+296A} )
+                                         ( ?\N{U+296D} . ?\N{U+296B} )
+                                         ( ?\N{U+2971} . ?\N{U+2B40} )
+                                         ( ?\N{U+2972} . ?\N{U+2B41} )
+                                         ( ?\N{U+2974} . ?\N{U+2B4B} )
+                                         ( ?\N{U+2975} . ?\N{U+2B42} )
+                                         ( ?\N{U+2979} . ?\N{U+297B} )
+                                         ( ?\N{U+2983} . ?\N{U+2984} )
+                                         ( ?\N{U+2985} . ?\N{U+2986} )
+                                         ( ?\N{U+2987} . ?\N{U+2988} )
+                                         ( ?\N{U+2989} . ?\N{U+298A} )
+                                         ( ?\N{U+298B} . ?\N{U+298C} )
+                                         ( ?\N{U+298D} . ?\N{U+2990} )
+                                         ( ?\N{U+298F} . ?\N{U+298E} )
+                                         ( ?\N{U+2991} . ?\N{U+2992} )
+                                         ( ?\N{U+2993} . ?\N{U+2994} )
+                                         ( ?\N{U+2995} . ?\N{U+2996} )
+                                         ( ?\N{U+2997} . ?\N{U+2998} )
+                                         ( ?\N{U+29A8} . ?\N{U+29A9} )
+                                         ( ?\N{U+29AA} . ?\N{U+29AB} )
+                                         ( ?\N{U+29B3} . ?\N{U+29B4} )
+                                         ( ?\N{U+29C0} . ?\N{U+29C1} )
+                                         ( ?\N{U+29D8} . ?\N{U+29D9} )
+                                         ( ?\N{U+29DA} . ?\N{U+29DB} )
+                                         ( ?\N{U+29FC} . ?\N{U+29FD} )
+                                         ( ?\N{U+2A79} . ?\N{U+2A7A} )
+                                         ( ?\N{U+2A7B} . ?\N{U+2A7C} )
+                                         ( ?\N{U+2A7D} . ?\N{U+2A7E} )
+                                         ( ?\N{U+2A7F} . ?\N{U+2A80} )
+                                         ( ?\N{U+2A81} . ?\N{U+2A82} )
+                                         ( ?\N{U+2A83} . ?\N{U+2A84} )
+                                         ( ?\N{U+2A85} . ?\N{U+2A86} )
+                                         ( ?\N{U+2A87} . ?\N{U+2A88} )
+                                         ( ?\N{U+2A89} . ?\N{U+2A8A} )
+                                         ( ?\N{U+2A8D} . ?\N{U+2A8E} )
+                                         ( ?\N{U+2A95} . ?\N{U+2A96} )
+                                         ( ?\N{U+2A97} . ?\N{U+2A98} )
+                                         ( ?\N{U+2A99} . ?\N{U+2A9A} )
+                                         ( ?\N{U+2A9B} . ?\N{U+2A9C} )
+                                         ( ?\N{U+2A9D} . ?\N{U+2A9E} )
+                                         ( ?\N{U+2A9F} . ?\N{U+2AA0} )
+                                         ( ?\N{U+2AA1} . ?\N{U+2AA2} )
+                                         ( ?\N{U+2AA6} . ?\N{U+2AA7} )
+                                         ( ?\N{U+2AA8} . ?\N{U+2AA9} )
+                                         ( ?\N{U+2AAA} . ?\N{U+2AAB} )
+                                         ( ?\N{U+2AAC} . ?\N{U+2AAD} )
+                                         ( ?\N{U+2AAF} . ?\N{U+2AB0} )
+                                         ( ?\N{U+2AB1} . ?\N{U+2AB2} )
+                                         ( ?\N{U+2AB3} . ?\N{U+2AB4} )
+                                         ( ?\N{U+2AB5} . ?\N{U+2AB6} )
+                                         ( ?\N{U+2AB7} . ?\N{U+2AB8} )
+                                         ( ?\N{U+2AB9} . ?\N{U+2ABA} )
+                                         ( ?\N{U+2ABB} . ?\N{U+2ABC} )
+                                         ( ?\N{U+2ABD} . ?\N{U+2ABE} )
+                                         ( ?\N{U+2ABF} . ?\N{U+2AC0} )
+                                         ( ?\N{U+2AC1} . ?\N{U+2AC2} )
+                                         ( ?\N{U+2AC3} . ?\N{U+2AC4} )
+                                         ( ?\N{U+2AC5} . ?\N{U+2AC6} )
+                                         ( ?\N{U+2AC7} . ?\N{U+2AC8} )
+                                         ( ?\N{U+2AC9} . ?\N{U+2ACA} )
+                                         ( ?\N{U+2ACB} . ?\N{U+2ACC} )
+                                         ( ?\N{U+2ACF} . ?\N{U+2AD0} )
+                                         ( ?\N{U+2AD1} . ?\N{U+2AD2} )
+                                         ( ?\N{U+2AD5} . ?\N{U+2AD6} )
+                                         ( ?\N{U+2AE5} . ?\N{U+22AB} )
+                                         ( ?\N{U+2AF7} . ?\N{U+2AF8} )
+                                         ( ?\N{U+2AF9} . ?\N{U+2AFA} )
+                                         ( ?\N{U+2B46} . ?\N{U+2B45} )
+                                         ( ?\N{U+2B47} . ?\N{U+2B49} )
+                                         ( ?\N{U+2B48} . ?\N{U+2B4A} )
+                                         ( ?\N{U+2B4C} . ?\N{U+2973} )
+                                         ( ?\N{U+2B62} . ?\N{U+2B60} )
+                                         ( ?\N{U+2B6C} . ?\N{U+2B6A} )
+                                         ( ?\N{U+2B72} . ?\N{U+2B70} )
+                                         ( ?\N{U+2B7C} . ?\N{U+2B7A} )
+                                         ( ?\N{U+2B86} . ?\N{U+2B84} )
+                                         ( ?\N{U+2B8A} . ?\N{U+2B88} )
+                                         ( ?\N{U+2B95} . ?\N{U+2B05} )
+                                         ( ?\N{U+2B9A} . ?\N{U+2B98} )
+                                         ( ?\N{U+2B9E} . ?\N{U+2B9C} )
+                                         ( ?\N{U+2BA1} . ?\N{U+2BA0} )
+                                         ( ?\N{U+2BA3} . ?\N{U+2BA2} )
+                                         ( ?\N{U+2BA9} . ?\N{U+2BA8} )
+                                         ( ?\N{U+2BAB} . ?\N{U+2BAA} )
+                                         ( ?\N{U+2BB1} . ?\N{U+2BB0} )
+                                         ( ?\N{U+2BB3} . ?\N{U+2BB2} )
+                                         ( ?\N{U+2BEE} . ?\N{U+2BEC} )
+                                         ( ?\N{U+2E02} . ?\N{U+2E03} )
+                                         ( ?\N{U+2E03} . ?\N{U+2E02} )
+                                         ( ?\N{U+2E04} . ?\N{U+2E05} )
+                                         ( ?\N{U+2E05} . ?\N{U+2E04} )
+                                         ( ?\N{U+2E09} . ?\N{U+2E0A} )
+                                         ( ?\N{U+2E0A} . ?\N{U+2E09} )
+                                         ( ?\N{U+2E0C} . ?\N{U+2E0D} )
+                                         ( ?\N{U+2E0D} . ?\N{U+2E0C} )
+                                         ( ?\N{U+2E11} . ?\N{U+2E10} )
+                                         ( ?\N{U+2E1C} . ?\N{U+2E1D} )
+                                         ( ?\N{U+2E1D} . ?\N{U+2E1C} )
+                                         ( ?\N{U+2E20} . ?\N{U+2E21} )
+                                         ( ?\N{U+2E21} . ?\N{U+2E20} )
+                                         ( ?\N{U+2E22} . ?\N{U+2E23} )
+                                         ( ?\N{U+2E24} . ?\N{U+2E25} )
+                                         ( ?\N{U+2E26} . ?\N{U+2E27} )
+                                         ( ?\N{U+2E28} . ?\N{U+2E29} )
+                                         ( ?\N{U+2E36} . ?\N{U+2E37} )
+                                         ( ?\N{U+2E42} . ?\N{U+201E} )
+                                         ( ?\N{U+2E55} . ?\N{U+2E56} )
+                                         ( ?\N{U+2E57} . ?\N{U+2E58} )
+                                         ( ?\N{U+2E59} . ?\N{U+2E5A} )
+                                         ( ?\N{U+2E5B} . ?\N{U+2E5C} )
+                                         ( ?\N{U+A9C1} . ?\N{U+A9C2} )
+                                         ( ?\N{U+FD3E} . ?\N{U+FD3F} )
+                                         ( ?\N{U+FF62} . ?\N{U+FF63} )
+                                         ( ?\N{U+FFEB} . ?\N{U+FFE9} )
+                                         ( ?\N{U+1D103} . ?\N{U+1D102} )
+                                         ( ?\N{U+1D106} . ?\N{U+1D107} )
+                                         ( ?\N{U+1F57B} . ?\N{U+1F57D} )
+                                         ( ?\N{U+1F599} . ?\N{U+1F598} )
+                                         ( ?\N{U+1F59B} . ?\N{U+1F59A} )
+                                         ( ?\N{U+1F59D} . ?\N{U+1F59C} )
+                                         ( ?\N{U+1F5E6} . ?\N{U+1F5E7} )
+                                         ( ?\N{U+1F802} . ?\N{U+1F800} )
+                                         ( ?\N{U+1F806} . ?\N{U+1F804} )
+                                         ( ?\N{U+1F80A} . ?\N{U+1F808} )
+                                         ( ?\N{U+1F812} . ?\N{U+1F810} )
+                                         ( ?\N{U+1F816} . ?\N{U+1F814} )
+                                         ( ?\N{U+1F81A} . ?\N{U+1F818} )
+                                         ( ?\N{U+1F81E} . ?\N{U+1F81C} )
+                                         ( ?\N{U+1F822} . ?\N{U+1F820} )
+                                         ( ?\N{U+1F826} . ?\N{U+1F824} )
+                                         ( ?\N{U+1F82A} . ?\N{U+1F828} )
+                                         ( ?\N{U+1F82E} . ?\N{U+1F82C} )
+                                         ( ?\N{U+1F832} . ?\N{U+1F830} )
+                                         ( ?\N{U+1F836} . ?\N{U+1F834} )
+                                         ( ?\N{U+1F83A} . ?\N{U+1F838} )
+                                         ( ?\N{U+1F83E} . ?\N{U+1F83C} )
+                                         ( ?\N{U+1F842} . ?\N{U+1F840} )
+                                         ( ?\N{U+1F846} . ?\N{U+1F844} )
+                                         ( ?\N{U+1F852} . ?\N{U+1F850} )
+                                         ( ?\N{U+1F862} . ?\N{U+1F860} )
+                                         ( ?\N{U+1F86A} . ?\N{U+1F868} )
+                                         ( ?\N{U+1F872} . ?\N{U+1F870} )
+                                         ( ?\N{U+1F87A} . ?\N{U+1F878} )
+                                         ( ?\N{U+1F882} . ?\N{U+1F880} )
+                                         ( ?\N{U+1F892} . ?\N{U+1F890} )
+                                         ( ?\N{U+1F896} . ?\N{U+1F894} )
+                                         ( ?\N{U+1F89A} . ?\N{U+1F898} )
+                                         ( ?\N{U+1F8A1} . ?\N{U+1F8A0} )
+                                         ( ?\N{U+1F8A3} . ?\N{U+1F8A2} )
+                                         ( ?\N{U+1F8A5} . ?\N{U+1F8A6} )
+                                         ( ?\N{U+1F8A7} . ?\N{U+1F8A4} )
+                                         ( ?\N{U+1F8A9} . ?\N{U+1F8A8} )
+                                         ( ?\N{U+1F8AB} . ?\N{U+1F8AA} ))
+  "Full list of paired delimiters for quote-like constructs.
+As an experimental feature, Perl uses these under \"feature
+\\='extra_paired_delimiters\\='\" or in feature bundles of Perl 5.40 or
+newer.  To activate the extra delimiters, switch on the minor mode
+`cperl-extra-paired-delimiters-mode'.  This is also available from the
+\"Perl\" menu in section \"Toggle...\".
+The character pairs available are:
+(), <>, [], {}, «», »«, ༺༻, ༼༽, ᚛᚜, \\=‘\\=’, \\=’\\=‘, \\=“\\=”, \\=”\\=“, \\=‵\\=′, \\=‶\\=″, \\=‷\\=‴, ‹›, ›‹, ⁅⁆,
+⁍⁌, ⁽⁾, ₍₎, →←, ↛↚, ↝↜, ↠↞, ↣↢, ↦↤, ↪↩, ↬↫, ↱↰, ↳↲, ⇀↼, ⇁↽, ⇉⇇, ⇏⇍, ⇒⇐, ⇛⇚,
+⇝⇜, ⇢⇠, ⇥⇤, ⇨⇦, ⇴⬰, ⇶⬱, ⇸⇷, ⇻⇺, ⇾⇽, ∈∋, ∉∌, ∊∍, ≤≥, ≦≧, ≨≩, ≪≫, ≮≯, ≰≱, ≲≳,
+≴≵, ≺≻, ≼≽, ≾≿, ⊀⊁, ⊂⊃, ⊄⊅, ⊆⊇, ⊈⊉, ⊊⊋, ⊣⊢, ⊦⫞, ⊨⫤, ⊩⫣, ⊰⊱, ⋐⋑, ⋖⋗, ⋘⋙, ⋜⋝,
+⋞⋟, ⋠⋡, ⋦⋧, ⋨⋩, ⋲⋺, ⋳⋻, ⋴⋼, ⋶⋽, ⋷⋾, ⌈⌉, ⌊⌋, ⌦⌫, ⍈⍇, ⏭⏮, ☛☚, ☞☜, ⚞⚟, ❨❩, ❪❫,
+❬❭, ❮❯, ❰❱, ❲❳, ❴❵, ⟃⟄, ⟅⟆, ⟈⟉, ⟞⟝, ⟦⟧, ⟨⟩, ⟪⟫, ⟬⟭, ⟮⟯, ⟴⬲, ⟶⟵, ⟹⟸, ⟼⟻, ⟾⟽,
+⟿⬳, ⤀⬴, ⤁⬵, ⤃⤂, ⤅⬶, ⤇⤆, ⤍⤌, ⤏⤎, ⤐⬷, ⤑⬸, ⤔⬹, ⤕⬺, ⤖⬻, ⤗⬼, ⤘⬽, ⤚⤙, ⤜⤛, ⤞⤝, ⤠⤟,
+⤳⬿, ⤷⤶, ⥅⥆, ⥇⬾, ⥓⥒, ⥗⥖, ⥛⥚, ⥟⥞, ⥤⥢, ⥬⥪, ⥭⥫, ⥱⭀, ⥲⭁, ⥴⭋, ⥵⭂, ⥹⥻, ⦃⦄, ⦅⦆, ⦇⦈,
+⦉⦊, ⦋⦌, ⦍⦐, ⦏⦎, ⦑⦒, ⦓⦔, ⦕⦖, ⦗⦘, ⦨⦩, ⦪⦫, ⦳⦴, ⧀⧁, ⧘⧙, ⧚⧛, ⧼⧽, ⩹⩺, ⩻⩼, ⩽⩾, ⩿⪀,
+⪁⪂, ⪃⪄, ⪅⪆, ⪇⪈, ⪉⪊, ⪍⪎, ⪕⪖, ⪗⪘, ⪙⪚, ⪛⪜, ⪝⪞, ⪟⪠, ⪡⪢, ⪦⪧, ⪨⪩, ⪪⪫, ⪬⪭, ⪯⪰, ⪱⪲,
+⪳⪴, ⪵⪶, ⪷⪸, ⪹⪺, ⪻⪼, ⪽⪾, ⪿⫀, ⫁⫂, ⫃⫄, ⫅⫆, ⫇⫈, ⫉⫊, ⫋⫌, ⫏⫐, ⫑⫒, ⫕⫖, ⫥⊫, ⫷⫸, ⫹⫺,
+⭆⭅, ⭇⭉, ⭈⭊, ⭌⥳, ⭢⭠, ⭬⭪, ⭲⭰, ⭼⭺, ⮆⮄, ⮊⮈, ⮕⬅, ⮚⮘, ⮞⮜, ⮡⮠, ⮣⮢, ⮩⮨, ⮫⮪, ⮱⮰, ⮳⮲,
+⯮⯬, ⸂⸃, ⸃⸂, ⸄⸅, ⸅⸄, ⸉⸊, ⸊⸉, ⸌⸍, ⸍⸌, ⸑⸐, ⸜⸝, ⸝⸜, ⸠⸡, ⸡⸠, ⸢⸣, ⸤⸥, ⸦⸧, ⸨⸩, ⸶⸷,
+⹂„, ⹕⹖, ⹗⹘, ⹙⹚, ⹛⹜, ꧁꧂, ﴾﴿, ｢｣, ￫￩, 𝄃𝄂, 𝄆𝄇, 🕻🕽, 🖙🖘, 🖛🖚, 🖝🖜, 🗦🗧, 🠂🠀, 🠆🠄, 🠊🠈,
+🠒🠐, 🠖🠔, 🠚🠘, 🠞🠜, 🠢🠠, 🠦🠤, 🠪🠨, 🠮🠬, 🠲🠰, 🠶🠴, 🠺🠸, 🠾🠼, 🡂🡀, 🡆🡄, 🡒🡐, 🡢🡠, 🡪🡨, 🡲🡰, 🡺🡸,
+🢂🢀, 🢒🢐, 🢖🢔, 🢚🢘, 🢡🢠, 🢣🢢, 🢥🢦, 🢧🢤, 🢩🢨, 🢫🢪")
+
+;; --------End of generated code
+(defvar cperl-starters cperl--basic-paired-delimiters)
 
 (defun cperl-cached-syntax-table (st)
   "Get a syntax table cached in ST, or create and cache into ST a syntax table.
@@ -3393,7 +3919,9 @@ position of the end of the unsafe construct."
         (goto-char (nth 8 state))      ; beginning of this here-doc
         (cperl-backward-to-noncomment  ; skip back over more
          (point-min))                  ;     here-documents (if any)
-        (beginning-of-line))))         ; skip back over here-doc starters
+        (beginning-of-line))           ; skip back over here-doc starters
+       ((nth 4 state)                  ; in a comment (or POD)
+        (goto-char (nth 8 state)))))   ; ...so go to its beginning
     (while (and pos (progn
 		      (beginning-of-line)
 		      (get-text-property (setq pos (point)) 'syntax-type)))
@@ -3426,7 +3954,7 @@ position of the end of the unsafe construct."
 			   (setq end (point)))))
 	  (or end pos)))))
 
-(defun cperl-find-sub-attrs (&optional st-l b-fname e-fname pos)
+(defun cperl-find-sub-attrs (&optional st-l _b-fname _e-fname pos)
   "Syntactically mark (and fontify) attributes of a subroutine.
 Should be called with the point before leading colon of an attribute."
   ;; Works *before* syntax recognition is done
@@ -3440,7 +3968,7 @@ Should be called with the point before leading colon of an attribute."
 		 "\\)"
 		 (if after-first "?" "")
 		 ;; No space between name and paren allowed...
-		 "\\(\\sw+\\)"		; 3=name
+		 (rx (group (eval cperl--basic-identifier-rx)))	; 3=name
 		 "\\((\\)?"))		; 4=optional paren
 	  (and (match-beginning 1)
 	       (cperl-postpone-fontification
@@ -3468,22 +3996,36 @@ Should be called with the point before leading colon of an attribute."
 	      "L%d: attribute `%s': %s"
 	      (count-lines (point-min) (point))
 	      (and start1 end1 (buffer-substring start1 end1)) b)
-	     (setq start nil)))
-    (and start
-	 (progn
-	   (put-text-property start (point)
-			      'attrib-group (if (looking-at "{") t 0))
-	   (and pos
-		(< 1 (count-lines (+ 3 pos) (point))) ; end of `sub'
-		;; Apparently, we do not need `multiline': faces added now
-		(put-text-property (+ 3 pos) (cperl-1+ (point))
-				   'syntax-type 'sub-decl))
-	   (and b-fname			; Fontify here: the following condition
-		(cperl-postpone-fontification ; is too hard to determine by
-		 b-fname e-fname 'face ; a REx, so do it here
-		(if (looking-at "{")
-		    font-lock-function-name-face
-		  font-lock-variable-name-face)))))
+	     ; (setq start nil) I'd like to keep trying -- haj 2023-06-26
+             ))
+    (cond
+     ;; Allow for a complete signature and trailing spaces here
+     ((search-forward-regexp (rx (sequence point
+                                           (eval cperl--ws*-rx)
+                                           (eval cperl--signature-rx)
+                                           (eval cperl--ws*-rx)))
+                             nil
+                             t)) ; NOERROR
+     ((looking-at (rx "("))
+      ;; We might be in the process of typing a prototype or
+      ;; signature.  These start with a left paren, so we want this to
+      ;; be included into the area marked as sub-decl.
+      nil)
+     ;; Else, we are in no mans land.  Just keep trying.
+     (t
+      ))
+    (when (looking-at (rx (in ";{")))
+      ;; A semicolon ends the declaration, an opening brace begins the
+      ;; BLOCK.  Neither is part of the declaration.
+      (backward-char))
+    (when start
+      (put-text-property start (point)
+                         'attrib-group (if (looking-at "{") t 0))
+        (and pos
+             (progn
+               ;; Apparently, we do not need `multiline': faces added now
+               (put-text-property (+ 3 pos) (cperl-1+ (point))
+		                  'syntax-type 'sub-decl))))
     ;; now restore the initial state
     (if st
 	(progn
@@ -3606,7 +4148,7 @@ move point but does change match data."
                                    delim-begin delim-end)
   "Process a here-document's delimiters and body.
 The parameters MIN, MAX, END, OVERSHOOT, STOP-POINT, ERR-L are
-used for recursive calls to `cperl-find-pods-here' to handle the
+used for recursive calls to `cperl-find-pods-heres' to handle the
 rest of the line which contains the delimiter.  MATCHED-POS and
 TODO-POS are initial values for this function's result.
 END-OF-HERE-DOC is the end of a previous here-doc in the same
@@ -3774,8 +4316,10 @@ recursive calls in starting lines of here-documents."
 		       max))
 	 (search
 	  (concat
-	   "\\(\\`\n?\\|^\n\\)="	; POD
+           ;; -------- POD using capture group 1
+	   "\\(\\`\n?\\|^\n\\)="
 	   "\\|"
+           ;; -------- HERE-document capture groups 2-7
 	   ;; One extra () before this:
 	   "<<\\(~?\\)"		 ; HERE-DOC, indented-p = capture 2
 	   "\\("			; 2 + 1
@@ -3785,45 +4329,57 @@ recursive calls in starting lines of here-documents."
 	   "\\([^\"'`\n]*\\)"		; 4 + 1
 	   "\\4"
 	   "\\|"
-	   ;; Second variant: Identifier or \ID (same as 'ID') or empty
-	   "\\\\?\\(\\([a-zA-Z_][a-zA-Z_0-9]*\\)?\\)" ; 5 + 1, 6 + 1
-	   ;; Do not have <<= or << 30 or <<30 or << $blah.
-	   ;; "\\([^= \t0-9$@%&]\\|[ \t]+[^ \t\n0-9$@%&]\\)" ; 6 + 1
+	   ;; Second variant: Identifier or \ID (same as 'ID')
+	   "\\\\?\\(\\([a-zA-Z_][a-zA-Z_0-9]*\\)\\)" ; 5 + 1, 6 + 1
 	   "\\)"
 	   "\\|"
+           ;; -------- format capture groups 8-9
 	   ;; 1+6 extra () before this:
-	   "^[ \t]*\\(format\\)[ \t]*\\([a-zA-Z0-9_]+\\)?[ \t]*=[ \t]*$" ;FRMAT
+	   "^[ \t]*\\(format\\)[ \t]*\\([a-zA-Z0-9_]+\\)?[ \t]*=[ \t]*$"
 	   (if cperl-use-syntax-table-text-property
 	       (concat
 		"\\|"
+                ;; -------- quoted constructs and regexps, group 10
 		;; 1+6+2=9 extra () before this:
-		"\\<\\(q[wxqr]?\\|[msy]\\|tr\\)\\>" ; QUOTED CONSTRUCT
+		"\\<\\(q[wxqr]?\\|[msy]\\|tr\\)\\>"
 		"\\|"
+                ;; -------- "bare" regex or glob, group 11
 		;; 1+6+2+1=10 extra () before this:
 		"\\([/<]\\)"	; /blah/ or <file*glob>
 		"\\|"
+                ;; -------- subroutine declarations, groups 12-17
 		;; 1+6+2+1+1=11 extra () before this
-		"\\<" cperl-sub-regexp "\\>" ;  sub with proto/attr
-		"\\("
-		   cperl-white-and-comment-rex
-                   (rx (opt (group (eval cperl--normal-identifier-rx))))
-                "\\)"
-		"\\("
-		   cperl-maybe-white-and-comment-rex
-		   "\\(([^()]*)\\|:[^:]\\)\\)" ; prototype or attribute start
+		(rx (sequence
+                     word-start
+                     (group (regexp cperl-sub-regexp))                ; #12
+                     (eval cperl--ws+-rx)
+                     (opt (group (eval cperl--normal-identifier-rx))) ; #13
+                     (eval cperl--ws*-rx)
+                     (group (or (group (eval cperl--prototype-rx))    ; #14,#15
+                                (group (eval cperl--signature-rx))    ; #16
+                                ;; (group unmatchable) ; #16
+                                (group (or anything buffer-end)))))) ; #17
 		"\\|"
-		;; 1+6+2+1+1+6=17 extra () before this:
+                ;; -------- weird variables, capture group 18
+                ;; FIXME: We don't need that group -- haj 2023-06-21
+                ;; 1+6+2+1+1+6=17 extra () before this
 		"\\$\\(['{]\\)"		; $' or ${foo}
 		"\\|"
+                ;; -------- old-style ' as package separator, group 19
 		;; 1+6+2+1+1+6+1=18 extra () before this (old pack'var syntax;
 		;; we do not support intervening comments...):
 		"\\(\\<" cperl-sub-regexp "[ \t\n\f]+\\|[&*$@%]\\)[a-zA-Z0-9_]*'"
-		;; 1+6+2+1+1+6+1+1=19 extra () before this:
 		"\\|"
+                ;; -------- __END__ and __DATA__ tokens, group 20
+		;; 1+6+2+1+1+6+1+1=19 extra () before this:
 		"__\\(END\\|DATA\\)__"	; __END__ or __DATA__
 		;; 1+6+2+1+1+6+1+1+1=20 extra () before this:
 		"\\|"
-		"\\\\\\(['`\"($]\\)")	; BACKWACKED something-hairy
+                ;; -------- backslash-escaped stuff, don't interpret it
+		"\\\\\\(['`\"($]\\)"	; BACKWACKED something-hairy
+                "\\|"
+                ;; -------- $\ is a variable in code, but not in a string
+                "\\(\\$\\\\\\)")
 	     "")))
          warning-message)
     (unwind-protect
@@ -3877,7 +4433,12 @@ recursive calls in starting lines of here-documents."
 		  (cperl-modify-syntax-type bb cperl-st-punct)))
 	       ;; No processing in strings/comments beyond this point:
 	       ((or (nth 3 state) (nth 4 state))
-		t)			; Do nothing in comment/string
+                ;; Edge case: In a double-quoted string, $\ is not the
+                ;; punctuation variable, $ must not quote \ here.  We
+                ;; generally make $ a punctuation character in strings
+                ;; and comments (Bug#69604).
+                (when (match-beginning 22)
+                  (cperl-modify-syntax-type (match-beginning 22) cperl-st-punct)))
 	       ((match-beginning 1)	; POD section
 		;;  "\\(\\`\n?\\|^\n\\)="
 		(setq b (match-beginning 0)
@@ -3965,20 +4526,10 @@ recursive calls in starting lines of here-documents."
 	       ;; Here document
 	       ;; We can do many here-per-line;
 	       ;; but multiline quote on the same line as <<HERE confuses us...
-               ;; ;; One extra () before this:
-	       ;;"<<"
+               ;; One extra () before this:
 	       ;;  "<<\\(~?\\)"		 ; HERE-DOC, indented-p = capture 2
-	       ;;  ;; First variant "BLAH" or just ``.
-	       ;;     "[ \t]*"			; Yes, whitespace is allowed!
-	       ;;     "\\([\"'`]\\)"	; 3 + 1
-	       ;;     "\\([^\"'`\n]*\\)"	; 4 + 1
-	       ;;     "\\4"
-	       ;;  "\\|"
-	       ;;  ;; Second variant: Identifier or \ID or empty
-	       ;;    "\\\\?\\(\\([a-zA-Z_][a-zA-Z_0-9]*\\)?\\)" ; 5 + 1, 6 + 1
-	       ;;    ;; Do not have <<= or << 30 or <<30 or << $blah.
-	       ;;    ;; "\\([^= \t0-9$@%&]\\|[ \t]+[^ \t\n0-9$@%&]\\)" ; 6 + 1
-	       ;;  "\\)"
+	       ;; First variant "BLAH" or just ``:  capture groups 4 and 5
+	       ;; Second variant: Identifier or \ID: capture group 6 and 7
                ((match-beginning 3)     ; 2 + 1: found "<<", detect its type
                 (let* ((matched-pos (match-beginning 0))
                        (quoted-delim-p (if (match-beginning 6) nil t))
@@ -3997,14 +4548,11 @@ recursive calls in starting lines of here-documents."
                             overshoot (nth 1 here-doc-results))
                       (and (nth 2 here-doc-results)
                            (setq warning-message (nth 2 here-doc-results)))))))
-	       ;; format
+	       ;; format capture groups 8-9
 	       ((match-beginning 8)
-		;; 1+6=7 extra () before this:
-		;;"^[ \t]*\\(format\\)[ \t]*\\([a-zA-Z0-9_]+\\)?[ \t]*=[ \t]*$"
 		(setq b (point)
-		      name (if (match-beginning 8) ; 7 + 1
-			       (buffer-substring (match-beginning 8) ; 7 + 1
-						 (match-end 8)) ; 7 + 1
+		      name (if (match-beginning 9) ; 7 + 2
+                               (match-string-no-properties 9)        ; 7 + 2
 			     "")
 		      tb (match-beginning 0))
 		(setq argument nil)
@@ -4037,10 +4585,10 @@ recursive calls in starting lines of here-documents."
 		(if (looking-at "^\\.$") ; ";" is not supported yet
 		    (progn
 		      ;; Highlight the ending delimiter
-		      (cperl-postpone-fontification (point) (+ (point) 2)
+		      (cperl-postpone-fontification (point) (+ (point) 1)
 						    'face font-lock-string-face)
-		      (cperl-commentify (point) (+ (point) 2) nil)
-		      (cperl-put-do-not-fontify (point) (+ (point) 2) t))
+		      (cperl-commentify (point) (+ (point) 1) nil)
+		      (cperl-put-do-not-fontify (point) (+ (point) 1) t))
 		  (setq warning-message
                         (format "End of format `%s' not found." name))
 		  (or (car err-l) (setcar err-l b)))
@@ -4048,12 +4596,9 @@ recursive calls in starting lines of here-documents."
 		(if (> (point) max)
 		    (setq tmpend tb))
 		(put-text-property b (point) 'syntax-type 'format))
-	       ;; qq-like String or Regexp:
+	       ;; quotelike operator or regexp: capture groups 10 or 11
+               ;; matches some false positives, to be eliminated here
 	       ((or (match-beginning 10) (match-beginning 11))
-		;; 1+6+2=9 extra () before this:
-		;; "\\<\\(q[wxqr]?\\|[msy]\\|tr\\)\\>"
-		;; "\\|"
-		;; "\\([/<]\\)"	; /blah/ or <file*glob>
 		(setq b1 (if (match-beginning 10) 10 11)
 		      argument (buffer-substring
 				(match-beginning b1) (match-end b1))
@@ -4108,15 +4653,25 @@ recursive calls in starting lines of here-documents."
 				    (and (eq (preceding-char) ?\})
 					 (cperl-after-block-p (point-min)))
 				    (and (eq (char-syntax (preceding-char)) ?w)
-					 (progn
+					 (save-excursion
 					   (forward-sexp -1)
-;; After these keywords `/' starts a RE.  One should add all the
-;; functions/builtins which expect an argument, but ...
+                                           ;; After these keywords `/'
+                                           ;; starts a RE.  One should
+                                           ;; add all the
+                                           ;; functions/builtins which
+                                           ;; expect an argument, but
+                                           ;; ...
 					     (and
 					      (not (memq (preceding-char)
 							 '(?$ ?@ ?& ?%)))
 					      (looking-at
-					       "\\(while\\|if\\|unless\\|until\\|for\\(each\\)?\\|and\\|or\\|not\\|xor\\|split\\|grep\\|map\\|print\\|say\\|return\\)\\>"))))
+                                               (regexp-opt
+                                                '("while" "if" "unless"
+                                                  "until" "for" "foreach"
+                                                  "and" "or" "not"
+					          "xor" "split" "grep" "map"
+                                                  "print" "say" "return")
+                                                'symbols)))))
 				    (and (eq (preceding-char) ?.)
 					 (eq (char-after (- (point) 2)) ?.))
 				    (bobp))
@@ -4316,12 +4871,13 @@ recursive calls in starting lines of here-documents."
 			   (1- e) e 'face my-cperl-delimiters-face)))
 		    (if (and is-REx cperl-regexp-scan)
 			;; Process RExen: embedded comments, charclasses and ]
-;;;/\3333\xFg\x{FFF}a\ppp\PPP\qqq\C\99f(?{  foo  })(??{  foo  })/;
-;;;/a\.b[^a[:ff:]b]x$ab->$[|$,$ab->[cd]->[ef]|$ab[xy].|^${a,b}{c,d}/;
-;;;/(?<=foo)(?<!bar)(x)(?:$ab|\$\/)$|\\\b\x888\776\[\:$/xxx;
-;;;m?(\?\?{b,a})? + m/(??{aa})(?(?=xx)aa|bb)(?#aac)/;
-;;;m$(^ab[c]\$)$ + m+(^ab[c]\$\+)+ + m](^ab[c\]$|.+)] + m)(^ab[c]$|.+\));
-;;;m^a[\^b]c^ + m.a[^b]\.c.;
+                        ;; Examples:
+                        ;;/\3333\xFg\x{FFF}a\ppp\PPP\qqq\C\99f(?{  foo  })(??{  foo  })/;
+                        ;;/a\.b[^a[:ff:]b]x$ab->$[|$,$ab->[cd]->[ef]|$ab[xy].|^${a,b}{c,d}/;
+                        ;;/(?<=foo)(?<!bar)(x)(?:$ab|\$\/)$|\\\b\x888\776\[\:$/xxx;
+                        ;;m?(\?\?{b,a})? + m/(??{aa})(?(?=xx)aa|bb)(?#aac)/;
+                        ;;m$(^ab[c]\$)$ + m+(^ab[c]\$\+)+ + m](^ab[c\]$|.+)] + m)(^ab[c]$|.+\));
+                        ;;m^a[\^b]c^ + m.a[^b]\.c.;
 			(save-excursion
 			  (goto-char (1+ b))
 			  ;; First
@@ -4385,8 +4941,6 @@ recursive calls in starting lines of here-documents."
 				          "\\?([0-9]+)"	; (?(1)foo|bar)
 				       "\\|"
 					  "\\?<[=!]"
-				       ;;;"\\|"
-				       ;;;   "\\?"
 				       "\\)?"
 				    "\\)"
 				 "\\|"
@@ -4531,8 +5085,8 @@ recursive calls in starting lines of here-documents."
 			      (setq REx-subgr-end qtag)	;End smart-highlighted
 			      ;; Apparently, I can't put \] into a charclass
 			      ;; in m]]: m][\\\]\]] produces [\\]]
-;;;   POSIX?  [:word:] [:^word:] only inside []
-;;;	       "\\=\\(\\\\.\\|[^][\\]\\|\\[:\\^?\sw+:]\\|\\[[^:]\\)*]")
+                              ;; POSIX?  [:word:] [:^word:] only inside []
+                              ;; "\\=\\(\\\\.\\|[^][\\]\\|\\[:\\^?\sw+:]\\|\\[[^:]\\)*]")
 			      (while	; look for unescaped ]
 				  (and argument
 				       (re-search-forward
@@ -4692,42 +5246,51 @@ recursive calls in starting lines of here-documents."
 					   'REx-part2 t)))))
 		  (if (> (point) max)
 		      (setq tmpend tb))))
-	       ((match-beginning 17)	; sub with prototype or attribute
+	       ((match-beginning 14)	; sub with prototype or attribute
 		;; 1+6+2+1+1=11 extra () before this (sub with proto/attr):
-		;;"\\<sub\\>\\("			;12
-		;;   cperl-white-and-comment-rex	;13
-		;;   "\\([a-zA-Z_:'0-9]+\\)\\)?" ; name	;14
-		;;"\\(" cperl-maybe-white-and-comment-rex	;15,16
-		;;   "\\(([^()]*)\\|:[^:]\\)\\)" ; 17:proto or attribute start
-		(setq b1 (match-beginning 14) e1 (match-end 14))
+		;; match-string 12: Keyword "sub" or "method"
+		;; match-string 13: Name of the subroutine (optional)
+                ;; match-string 14: Indicator for proto/attr/signature
+                ;; match-string 15: Prototype
+                ;; match-string 16: Subroutine signature
+                ;; match-string 17: Distinguish declaration/definition
+                (setq b1 (match-beginning 13) e1 (match-end 13))
 		(if (memq (char-after (1- b))
 			  '(?\$ ?\@ ?\% ?\& ?\*))
-		    nil
+		    nil ;; we found $sub or @method etc
 		  (goto-char b)
-		  (if (eq (char-after (match-beginning 17)) ?\( )
+		  (if (match-beginning 15) ; a complete prototype
 		      (progn
 			(cperl-commentify ; Prototypes; mark as string
-			 (match-beginning 17) (match-end 17) t)
+			 (match-beginning 15) (match-end 15) t)
 			(goto-char (match-end 0))
 			;; Now look for attributes after prototype:
 			(forward-comment (buffer-size))
-			(and (looking-at ":[^:]")
-			     (cperl-find-sub-attrs st-l b1 e1 b)))
-		    ;; treat attributes without prototype
-		    (goto-char (match-beginning 17))
-		    (cperl-find-sub-attrs st-l b1 e1 b))))
-	       ;; 1+6+2+1+1+6+1=18 extra () before this:
+			(cperl-find-sub-attrs st-l b1 e1 b))
+		    ;; treat attributes without prototype and incomplete stuff
+                    (if (match-beginning 16) ; a complete subroutine signature
+                        ;; A signature ending in "$)" must not be
+                        ;; mistaken as the punctuation variable $) which
+                        ;; messes up balance of parens (Bug#74245).
+                        (progn
+                          (when (= (char-after (- (match-end 16) 2)) ?$)
+                            (put-text-property (- (match-end 16) 2) (1- (match-end 16))
+                                               'syntax-table cperl-st-punct))
+                          (goto-char (match-end 16)))
+		      (goto-char (match-beginning 17))
+		      (cperl-find-sub-attrs st-l b1 e1 b)))))
+	        ;; 1+6+2+1+1+6+1=18 extra () before this:
 	       ;;    "\\(\\<sub[ \t\n\f]+\\|[&*$@%]\\)[a-zA-Z0-9_]*'")
 	       ((match-beginning 19)	; old $abc'efg syntax
 		(setq bb (match-end 0))
-		;;;(if (nth 3 state) nil	; in string
 		(put-text-property (1- bb) bb 'syntax-table cperl-st-word)
 		(goto-char bb))
 	       ;; 1+6+2+1+1+6+1+1=19 extra () before this:
 	       ;; "__\\(END\\|DATA\\)__"
 	       ((match-beginning 20)	; __END__, __DATA__
-		(setq bb (match-end 0))
-		;; (put-text-property b (1+ bb) 'syntax-type 'pod) ; Cheat
+                (if (eq cperl-fontify-trailer 'perl-code)
+		    (setq bb (match-end 0))
+                  (setq bb (point-max)))
 		(cperl-commentify b bb nil)
 		(setq end t))
 	       ;; "\\\\\\(['`\"($]\\)"
@@ -4736,7 +5299,7 @@ recursive calls in starting lines of here-documents."
 		(setq bb (match-end 0))
 		(goto-char b)
 		(skip-chars-backward "\\\\")
-		;;;(setq i2 (= (% (skip-chars-backward "\\\\") 2) -1))
+		;; (setq i2 (= (% (skip-chars-backward "\\\\") 2) -1))
 		(cperl-modify-syntax-type b cperl-st-punct)
 		(goto-char bb))
 	       (t (error "Error in regexp of the sniffer")))
@@ -4847,7 +5410,11 @@ statement would start; thus the block in ${func()} does not count."
 		  (save-excursion
 		    (forward-sexp -1)
 		    ;; else {}     but not    else::func {}
-		    (or (and (looking-at "\\(else\\|catch\\|try\\|continue\\|grep\\|map\\|BEGIN\\|END\\|UNITCHECK\\|CHECK\\|INIT\\)\\>")
+		    (or (and (looking-at (rx (or "else" "catch" "try"
+                                                 "finally" "defer"
+                                                 "continue" "grep" "map"
+                                                 "ADJUST" "BEGIN" "CHECK" "END"
+                                                 "INIT" "UNITCHECK")))
 			     (not (looking-at "\\(\\sw\\|_\\)+::")))
 			;; sub f {}
 			(progn
@@ -5009,18 +5576,16 @@ conditional/loop constructs."
 			(if (eq (following-char) ?$ ) ; for my $var (list)
 			    (progn
 			      (forward-sexp -1)
-			      (if (looking-at "\\(state\\|my\\|local\\|our\\)\\>")
+			      (if (looking-at "\\(state\\|my\\|local\\|our\\|field\\)\\>")
 				  (forward-sexp -1))))
 			(if (looking-at
 			     (concat "\\(elsif\\|if\\|unless\\|while\\|until"
+                                     "\\|try\\|catch\\|finally\\|defer"
 				     "\\|for\\(each\\)?\\>\\(\\("
 				     cperl-maybe-white-and-comment-rex
-				     "\\(state\\|my\\|local\\|our\\)\\)?"
+				     "\\(state\\|my\\|local\\|our\\|field\\)\\)?"
 				     cperl-maybe-white-and-comment-rex
-                                     (rx
-                                      (sequence
-                                       "$"
-                                       (eval cperl--basic-identifier-rx)))
+                                     (rx (eval cperl--basic-variable-rx))
 				     "\\)?\\)\\>"))
 			    (progn
 			      (goto-char top)
@@ -5137,6 +5702,7 @@ Returns some position at the last line."
                   (opt (sequence "}" (0+ blank) ))
                   symbol-start
                   (or "else" "elsif" "continue" "if" "unless" "while" "until"
+                      "try" "catch" "finally" "defer"
                       (sequence (or "for" "foreach")
                                 (opt
                                  (opt (sequence (1+ blank)
@@ -5314,6 +5880,10 @@ conditional/loop constructs."
 		  (let ((comment-column new-comm-indent))
 		    (indent-for-comment)))
 	    (progn
+              ;; FIXME: It would be nice to keep indent-info, but this
+              ;; doesn not work if the region contains continuation
+              ;; lines (see `cperl-calculate-indent') -- haj 2023-06-30
+              (setq indent-info (list nil nil nil))
 	      (setq i (cperl-indent-line indent-info))
 	      (or comm
 		  (not i)
@@ -5462,8 +6032,11 @@ indentation and initial hashes.  Behaves usually outside of comment."
 	  ;; Previous space could have gone:
 	  (or (memq (preceding-char) '(?\s ?\t)) (insert " "))))))
 
+;; The following lists are used for categorizing the entries found by
+;; `cperl-imenu--create-perl-index'.
 (defvar cperl-imenu-package-keywords '("package" "class" "role"))
-(defvar cperl-imenu-sub-keywords '("sub" "method" "function" "fun"))
+(defvar cperl-imenu-sub-keywords '("sub" "method" "function" "fun"
+                                   "reader")) ;; for autogenerated
 (defvar cperl-imenu-pod-keywords '("=head"))
 
 (defun cperl-imenu--create-perl-index ()
@@ -5480,16 +6053,16 @@ comment, or POD."
 	(index-pod-alist '())
 	(index-sub-alist '())
 	(index-unsorted-alist '())
-	(package-stack '())                 ; for package NAME BLOCK
-	(current-package "(main)")
-	(current-package-end (point-max)))   ; end of package scope
+	(namespace-stack '())           ; for package NAME BLOCK
+	(current-namespace "(main)")
+	(current-namespace-end (point-max))) ; end of package scope
     ;; collect index entries
     (while (re-search-forward (rx (eval cperl--imenu-entries-rx)) nil t)
       ;; First, check whether we have left the scope of previously
       ;; recorded packages, and if so, eliminate them from the stack.
-      (while (< current-package-end (point))
-	(setq current-package (pop package-stack))
-	(setq current-package-end (pop package-stack)))
+      (while (< current-namespace-end (point))
+	(setq current-namespace (pop namespace-stack))
+	(setq current-namespace-end (pop namespace-stack)))
       (let ((state (syntax-ppss))
             (entry-type (match-string 1))
 	    name marker) ; for the "current" entry
@@ -5500,15 +6073,15 @@ comment, or POD."
 	    (setq name (match-string-no-properties 2)
 		  marker (copy-marker (match-end 2)))
 	    (if  (string= (match-string 3) ";")
-		(setq current-package name)  ; package NAME;
+		(setq current-namespace name)  ; package NAME;
 	      ;; No semicolon, therefore we have: package NAME BLOCK.
 	      ;; Stash the current package, because we need to restore
 	      ;; it after the end of BLOCK.
-	      (push current-package-end package-stack)
-	      (push current-package package-stack)
+	      (push current-namespace-end namespace-stack)
+	      (push current-namespace namespace-stack)
 	      ;; record the current name and its scope
-	      (setq current-package name)
-	      (setq current-package-end (save-excursion
+	      (setq current-namespace name)
+	      (setq current-namespace-end (save-excursion
 					  (goto-char (match-beginning 3))
 					  (forward-sexp)
 					  (point))))
@@ -5519,14 +6092,14 @@ comment, or POD."
 	  (unless (nth 4 state)         ; skip if in a comment
 	    (setq name (match-string-no-properties 2)
 		  marker (copy-marker (match-end 2)))
-	    ;; Qualify the sub name with the package if it doesn't
+	    ;; Qualify the sub name with the namespace if it doesn't
 	    ;; already have one, and if it isn't lexically scoped.
 	    ;; "my" and "state" subs are lexically scoped, but "our"
 	    ;; are just lexical aliases to package subs.
 	    (if (and (null (string-match "::" name))
 		     (or (null (match-string 3))
 			 (string-equal (match-string 3) "our")))
-	      (setq name (concat current-package "::" name)))
+	      (setq name (concat current-namespace "::" name)))
 	    (let ((index (cons name marker)))
 	      (push index index-alist)
 	      (push index index-sub-alist)
@@ -5590,7 +6163,7 @@ comment, or POD."
 		       hier-list)
 		 index-alist)))
     (and index-package-alist
-	 (push (cons "+Packages+..."
+	 (push (cons "+Classes,Packages+..."
 		     (nreverse index-package-alist))
 	       index-alist))
     (and (or index-package-alist index-pod-alist
@@ -5620,7 +6193,6 @@ comment, or POD."
   (cond ((featurep 'ps-print)
 	 (or cperl-faces-init
 	     (progn
-	       (setq cperl-font-lock-multiline t)
 	       (cperl-init-faces))))
 	((not cperl-faces-init)
 	 (add-hook 'font-lock-mode-hook
@@ -5663,6 +6235,14 @@ default function."
     cperl-here-face)
    (t (funcall (default-value 'font-lock-syntactic-face-function) state))))
 
+(defface cperl-method-call
+  '((t (:inherit default )))
+  "Font Lock mode face for method calls.
+Usually, method calls are not fontified.
+We use this face to prevent calls to methods which look like
+builtin functions to be fontified like, well, builtin
+functions (which they are not).  Inherits from `default'.")
+
 (defun cperl-init-faces ()
   (condition-case errs
       (progn
@@ -5670,7 +6250,59 @@ default function."
 	  (setq
 	   t-font-lock-keywords
 	   (list
-	    `("[ \t]+$" 0 ',cperl-invalid-face t)
+            ;; -------- function definition _and_ declaration
+            ;; (matcher (subexp facespec))
+            ;; facespec is evaluated depending on whether the
+            ;; statement ends in a "{" (definition) or ";"
+            ;; (declaration without body)
+	    (list (concat "\\<" cperl-sub-regexp
+                          ;; group 1: optional subroutine name
+                          (rx
+                           (sequence (eval cperl--ws+-rx)
+                                     (group (optional
+                                             (eval cperl--normal-identifier-rx)))))
+                          ;; "fontified" elsewhere: Prototype
+                          (rx (optional
+                               (sequence (eval cperl--ws*-rx)
+                                         (eval cperl--prototype-rx))))
+                          ;; fontified elsewhere: Attributes
+                          (rx (optional (sequence (eval cperl--ws*-rx)
+                                                  (eval cperl--attribute-list-rx))))
+                          (rx (eval cperl--ws*-rx))
+                          ;; group 2: Identifies the start of the anchor
+                          (rx (group
+                               (or (group-n 3 ";") ; Either a declaration...
+                                   "{"             ; ... or a code block
+                                   ;; ... or a complete signature
+                                   (sequence (eval cperl--signature-rx)
+                                             (eval cperl--ws*-rx))
+                                   ;; ... or the start of a "sloppy" signature
+                                   (sequence (eval cperl--sloppy-signature-rx)
+                                             ;; arbitrarily continue "a few lines"
+                                             (repeat 0 200 (not (in "{"))))
+                                   ;; make sure we have a reasonably
+                                   ;; short match for an incomplete sub
+                                   (not (in ";{("))
+                                   buffer-end))))
+		  '(1 (if (match-beginning 3)
+			  'font-lock-variable-name-face
+		        'font-lock-function-name-face)
+                      nil ; override
+                      t)  ; laxmatch in case of anonymous subroutines
+                  ;; -------- anchored: Signature
+                  `(,(rx (sequence (in "(,")
+                                   (eval cperl--ws*-rx)
+                                   (group (eval cperl--basic-variable-rx))))
+                    (progn
+                      (goto-char (match-beginning 2)) ; pre-match: Back to sig
+                      (match-end 2))
+                    nil
+                    (1 font-lock-variable-name-face)))
+            ;; -------- flow control
+            ;; (matcher . subexp) font-lock-keyword-face by default
+	    ;; This highlights declarations and definitions differently.
+	    ;; We do not try to highlight in the case of attributes:
+	    ;; it is already done by `cperl-find-pods-heres'
 	    (cons
 	     (concat
 	      "\\(^\\|[^$@%&\\]\\)\\<\\("
@@ -5680,21 +6312,32 @@ default function."
                 '("if" "until" "while" "elsif" "else"
                   "given" "when" "default" "break"
                   "unless" "for"
-                  "try" "catch" "finally"
+                  "try" "catch" "defer" "finally"
                   "foreach" "continue" "exit" "die" "last" "goto" "next"
                   "redo" "return" "local" "exec"
                   "do" "dump"
                   "use" "our"
                   "require" "package" "eval" "evalbytes" "my" "state"
-                  "BEGIN" "END" "CHECK" "INIT" "UNITCHECK"))) ; Flow control
+                  "class" "field" "method"
+                  "ADJUST" "BEGIN" "CHECK"
+                  "END" "INIT" "UNITCHECK"
+                  ;; not in core, but per popular request
+                  "async" "await")))    ; Flow control
 	      "\\)\\>") 2)		; was "\\)[ \n\t;():,|&]"
 					; In what follows we use `type' style
 					; for overwritable builtins
+            ;; -------- avoid method calls being fontified as keywords
+            ;; (matcher (subexp facespec))
+            (list
+             (rx "->" (* space) (group-n 1(eval cperl--basic-identifier-rx)))
+             1 ''cperl-method-call)
+            ;; -------- builtin functions
+            ;; (matcher subexp facespec)
 	    (list
 	     (concat
 	      "\\(^\\|[^$@%&\\]\\)\\<\\("
               (regexp-opt
-               '("CORE" "__FILE__" "__LINE__" "__SUB__" "__PACKAGE__"
+               '("CORE" "__FILE__" "__LINE__" "__SUB__" "__PACKAGE__" "__CLASS__"
                  "abs" "accept" "alarm" "and" "atan2"
                  "bind" "binmode" "bless" "caller"
                  "chdir" "chmod" "chown" "chr" "chroot" "close"
@@ -5732,6 +6375,10 @@ default function."
              2 'font-lock-type-face)
 	    ;; In what follows we use `other' style
 	    ;; for nonoverwritable builtins
+            ;; This is a bit shaky because the status
+            ;; "nonoverwritable" can change between Perl versions.
+            ;; -------- "non overridable" functions
+            ;; (matcher subexp facespec)
 	    (list
 	     (concat
 	      "\\(^\\|[^$@%&\\]\\)\\<\\("
@@ -5752,69 +6399,32 @@ default function."
 	    ;;			   '("#endif" "#else" "#ifdef" "#ifndef" "#if"
 	    ;;			     "#include" "#define" "#undef")
 	    ;;			   "\\|")
+            ;; -------- -X file tests
+            ;; (matcher subexp facespec)
 	    '("-[rwxoRWXOezsfdlpSbctugkTBMAC]\\>\\([ \t]+_\\>\\)?" 0
 	      font-lock-function-name-face keep) ; Not very good, triggers at "[a-z]"
-	    ;; This highlights declarations and definitions differently.
-	    ;; We do not try to highlight in the case of attributes:
-	    ;; it is already done by `cperl-find-pods-heres'
-	    (list (concat "\\<" cperl-sub-regexp
-			  cperl-white-and-comment-rex ; whitespace/comments
-			  "\\([^ \n\t{;()]+\\)" ; 2=name (assume non-anonymous)
-			  "\\("
-			    cperl-maybe-white-and-comment-rex ;whitespace/comments?
-			    "([^()]*)\\)?" ; prototype
-			  cperl-maybe-white-and-comment-rex ; whitespace/comments?
-			  "[{;]")
-		  2 (if cperl-font-lock-multiline
-			'(if (eq (char-after (cperl-1- (match-end 0))) ?\{ )
-			     'font-lock-function-name-face
-			   'font-lock-variable-name-face)
-		      ;; need to manually set 'multiline' for older font-locks
-		      '(progn
-			 (if (< 1 (count-lines (match-beginning 0)
-					       (match-end 0)))
-			     (put-text-property
-			      (+ 3 (match-beginning 0)) (match-end 0)
-			      'syntax-type 'multiline))
-			 (if (eq (char-after (cperl-1- (match-end 0))) ?\{ )
-			     'font-lock-function-name-face
-			   'font-lock-variable-name-face))))
-            `(,(rx (sequence symbol-start
-                             (or "package" "require" "use" "import"
-                                 "no" "bootstrap")
-                             (eval cperl--ws+-rx)
-                             (group-n 1 (eval cperl--normal-identifier-rx))
-                             (any " \t;"))) ; require A if B;
-	      1 font-lock-function-name-face)
+            ;; -------- various stuff calling for a package name
+            ;; (matcher (subexp facespec) (subexp facespec))
+            `(,(rx (sequence
+                    (or (sequence (or line-start space "{" )
+                                  (or "package" "require" "use" "import"
+                                      "no" "bootstrap" "class")
+                                  (eval cperl--ws+-rx))
+                        (sequence (group-n 2 (sequence ":"
+                                                       (eval cperl--ws*-rx)
+                                                       "isa"))
+                                  "("
+                                  (eval cperl--ws*-rx)))
+                    (group-n 1 (eval cperl--normal-identifier-rx))
+                    (any " \t\n;)"))) ; require A if B;
+	      (1 font-lock-function-name-face)
+              (2 font-lock-constant-face t t))
+            ;; -------- formats
+            ;; (matcher subexp facespec)
 	    '("^[ \t]*format[ \t]+\\([a-zA-Z_][a-zA-Z_0-9:]*\\)[ \t]*=[ \t]*$"
 	      1 font-lock-function-name-face)
-            ;; bareword hash key: $foo{bar}
-            `(,(rx (or (in "]}\\%@>*&") ; What Perl is this?
-                       (sequence "$" (eval cperl--normal-identifier-rx)))
-                   (0+ blank) "{" (0+ blank)
-                   (group-n 1 (sequence (opt "-")
-                                        (eval cperl--basic-identifier-rx)))
-                   (0+ blank) "}")
-;;	    '("\\([]}\\%@>*&]\\|\\$[a-zA-Z0-9_:]*\\)[ \t]*{[ \t]*\\(-?[a-zA-Z0-9_:]+\\)[ \t]*}"
-	      (1 font-lock-string-face t)
-              ;; anchored bareword hash key: $foo{bar}{baz}
-              (,(rx point
-                   (0+ blank) "{" (0+ blank)
-                   (group-n 1 (sequence (opt "-")
-                                        (eval cperl--basic-identifier-rx)))
-                   (0+ blank) "}")
-	      ;; ("\\=[ \t]*{[ \t]*\\(-?[a-zA-Z0-9_:]+\\)[ \t]*}"
-	       nil nil
-	       (1 font-lock-string-face t)))
-              ;; hash element assignments with bareword key => value
-              `(,(rx (in "[ \t{,()")
-                     (group-n 1 (sequence (opt "-")
-                                          (eval cperl--basic-identifier-rx)))
-                     (0+ blank) "=>")
-                1 font-lock-string-face t)
-;;	    '("[[ \t{,(]\\(-?[a-zA-Z0-9_:]+\\)[ \t]*=>" 1
-;;	      font-lock-string-face t)
-            ;; labels
+            ;; -------- labels
+            ;; (matcher subexp facespec)
             `(,(rx
                 (sequence
                  (0+ space)
@@ -5825,7 +6435,8 @@ default function."
                                (or "until" "while" "for" "foreach" "do")
                                word-end))))
               1 font-lock-constant-face)
-            ;; labels as targets (no trailing colon!)
+            ;; -------- labels as targets (no trailing colon!)
+            ;; (matcher subexp facespec)
             `(,(rx
                 (sequence
                  symbol-start
@@ -5834,13 +6445,15 @@ default function."
                  (group (eval cperl--basic-identifier-rx))))
               1 font-lock-constant-face)
 	    ;; Uncomment to get perl-mode-like vars
-            ;;; '("[$*]{?\\(\\sw+\\)" 1 font-lock-variable-name-face)
-            ;;; '("\\([@%]\\|\\$#\\)\\(\\sw+\\)"
-            ;;;  (2 (cons font-lock-variable-name-face '(underline))))
-		   ;; 1=my_etc, 2=white? 3=(+white? 4=white? 5=var
+            ;; '("[$*]{?\\(\\sw+\\)" 1 font-lock-variable-name-face)
+            ;; '("\\([@%]\\|\\$#\\)\\(\\sw+\\)"
+            ;;  (2 (cons font-lock-variable-name-face '(underline))))
+	    ;; 1=my_etc, 2=white? 3=(+white? 4=white? 5=var
+            ;; -------- variable declarations
+            ;; (matcher (subexp facespec) ...
 	    `(,(rx (sequence (or "state" "my" "local" "our"))
                    (eval cperl--ws*-rx)
-                   (opt (sequence "(" (eval cperl--ws*-rx)))
+                   (opt (group (sequence "(" (eval cperl--ws*-rx))))
                    (group
                     (in "$@%*")
                     (or
@@ -5853,12 +6466,8 @@ default function."
 	      ;;          "\\(("
 	      ;;          cperl-maybe-white-and-comment-rex
 	      ;;          "\\)?\\([$@%*]\\([a-zA-Z0-9_:]+\\|[^a-zA-Z0-9_]\\)\\)")
-	      ;; (5 ,(if cperl-font-lock-multiline
-	      (1 ,(if cperl-font-lock-multiline
-		      'font-lock-variable-name-face
-		    '(progn  (setq cperl-font-lock-multiline-start
-				   (match-beginning 0))
-			     'font-lock-variable-name-face)))
+	      (2 font-lock-variable-name-face)
+              ;; ... (anchored-matcher pre-form post-form subex-highlighters)
 	      (,(rx (sequence point
                               (eval cperl--ws*-rx)
                               ","
@@ -5879,37 +6488,59 @@ default function."
 	       ;; Bug in font-lock: limit is used not only to limit
 	       ;; searches, but to set the "extend window for
 	       ;; facification" property.  Thus we need to minimize.
-	       ,(if cperl-font-lock-multiline
-		    '(if (match-beginning 1)
-			 (save-excursion
-			   (goto-char (match-beginning 1))
-			   (condition-case nil
-			       (forward-sexp 1)
-			     (error
-			      (condition-case nil
-				  (forward-char 200)
-				(error nil)))) ; typeahead
-			   (1- (point))) ; report limit
-		       (forward-char -2)) ; disable continued expr
-		  '(if (match-beginning 1)
-		       (point-max) ; No limit for continuation
-		     (forward-char -2))) ; disable continued expr
-	       ,(if cperl-font-lock-multiline
-		    nil
-		  '(progn	; Do at end
-		     ;; "my" may be already fontified (POD),
-		     ;; so cperl-font-lock-multiline-start is nil
-		     (if (or (not cperl-font-lock-multiline-start)
-			     (> 2 (count-lines
-				   cperl-font-lock-multiline-start
-				   (point))))
-			 nil
-		       (put-text-property
-			(1+ cperl-font-lock-multiline-start) (point)
-			'syntax-type 'multiline))
-		     (setq cperl-font-lock-multiline-start nil)))
+	       (if (match-beginning 1)  ; list declaration
+		    (save-excursion
+		      (goto-char (match-beginning 1))
+		      (condition-case nil
+			  (forward-sexp 1)
+			(error
+			 (condition-case nil
+			     (forward-char 200)
+			   (error nil)))) ; typeahead
+		      (1- (point))) ; report limit
+		  (forward-char -2)) ; disable continued expr
+	       nil
 	       (1 font-lock-variable-name-face)))
-            ;; foreach my $foo (
+            ;; -------- builtin constants with and without package prefix
+            ;; (matcher subexp facespec)
+            `(,(rx (or space (in "=<>-"))
+                   (group (optional "&")
+                          (optional "builtin::")
+                          (or "inf" "nan")
+                          symbol-end))
+              1 'font-lock-constant-face)
+            ;; -------- field declarations
+            `(,(rx "field"
+                   (eval cperl--ws+-rx)
+                   (group (eval cperl--basic-variable-rx))
+                   (optional (sequence
+                              (eval cperl--ws+-rx)
+                              (group (eval cperl--attribute-list-rx)))))
+              (1 font-lock-variable-name-face)
+              ;; -------- optional attributes
+              ;; (anchored-matcher pre-form post-form subex-highlighters)
+              (,(rx
+                 (group (optional ":" (eval cperl--ws*-rx))
+                        (eval cperl--basic-identifier-rx))
+                 (optional "("
+                           (group (eval cperl--basic-identifier-rx))
+                           ")"))
+               ;; pre-form: Define range for anchored matcher
+               (if (match-beginning 2)
+                   (progn
+                     (goto-char (match-beginning 2))
+                     (match-end 2))
+                 ;; If there's no attribute list in match 2, set a short
+                 ;; limit to the search for the anchored matcher,
+                 ;; otherwise it might interpret stuff from the
+                 ;; initializer expression as attribute.
+                 (1+ (point)))
+               nil
+               (1 font-lock-constant-face)
+               (2 font-lock-string-face nil t) ; lax match, value is optional
+              ))
+            ;; ----- foreach my $foo (
+            ;; (matcher subexp facespec)
             `(,(rx symbol-start "for" (opt "each")
                    (opt (sequence (1+ blank)
                                   (or "state" "my" "local" "our")))
@@ -5920,21 +6551,63 @@ default function."
 ;;	    '("\\<for\\(each\\)?\\([ \t]+\\(state\\|my\\|local\\|our\\)\\)?[ \t]*\\(\\$[a-zA-Z_][a-zA-Z_0-9]*\\)[ \t]*("
 	      1 font-lock-variable-name-face)
 	    ;; Avoid $!, and s!!, qq!! etc. when not fontifying syntactically
+            ;; -------- ! as a negation char like $false = !$true
+            ;; (matcher subexp facespec)
 	    '("\\(?:^\\|[^smywqrx$]\\)\\(!\\)" 1 font-lock-negation-char-face)
+            ;; -------- ^ as a negation char in character classes m/[^abc]/
+            ;; (matcher subexp facespec)
 	    '("\\[\\(\\^\\)" 1 font-lock-negation-char-face prepend)))
 	  (setq
 	   t-font-lock-keywords-1
 	   `(
-             ;; arrays and hashes.  Access to elements is fixed below
-             (,(rx (group-n 1 (group-n 2 (or (in "@%") "$#"))
-                            (eval cperl--normal-identifier-rx)))
-              1
-;;	     ("\\(\\([@%]\\|\\$#\\)[a-zA-Z_:][a-zA-Z0-9_:]*\\)" 1
-	      (if (eq (char-after (match-beginning 2)) ?%)
-		  'cperl-hash-face
-		'cperl-array-face)
-	      nil)			; arrays and hashes
-             ;; access to array/hash elements
+            ;; -------- bareword hash key: $foo{bar}, $foo[1]{bar}
+            ;; (matcher (subexp facespec) ...
+            (,(rx (or (in "]}\\%@>*&")
+                       (sequence "$" (eval cperl--normal-identifier-rx)))
+                   (0+ blank) "{" (0+ blank)
+                   (group-n 1 (sequence (opt "-")
+                                        (eval cperl--basic-identifier-rx)))
+                   (0+ blank) "}")
+;;	    '("\\([]}\\%@>*&]\\|\\$[a-zA-Z0-9_:]*\\)[ \t]*{[ \t]*\\(-?[a-zA-Z0-9_:]+\\)[ \t]*}"
+	      (1 font-lock-string-face)
+              ;; -------- anchored bareword hash key: $foo{bar}{baz}
+              ;; ... (anchored-matcher pre-form post-form subex-highlighters)
+              (,(rx point
+                    (0+ blank) "{" (0+ blank)
+                    (group-n 1 (sequence (opt "-")
+                                         (eval cperl--basic-identifier-rx)))
+                    (0+ blank) "}")
+	       ;; ("\\=[ \t]*{[ \t]*\\(-?[a-zA-Z0-9_:]+\\)[ \t]*}"
+	       nil nil
+	       (1 font-lock-string-face)))
+            ;; -------- hash element assignments with bareword key => value
+            ;; (matcher subexp facespec)
+            (,(rx (in "[ \t{,()")
+                   (group-n 1 (sequence (opt "-")
+                                        (eval cperl--basic-identifier-rx)))
+                   (0+ blank) "=>")
+              1 font-lock-string-face)
+             ;; -------- @$ array dereferences, $#$ last array index
+             ;; (matcher (subexp facespec) (subexp facespec))
+             (,(rx (group-n 1 (or "@" "$#"))
+                   (group-n 2 (sequence "$"
+                                        (or (eval cperl--normal-identifier-rx)
+                                            (not (in " \t\n"))))))
+	     ;; ("\\(@\\|\\$#\\)\\(\\$+\\([a-zA-Z_:][a-zA-Z0-9_:]*\\|[^ \t\n]\\)\\)"
+	      (1 'cperl-array-face)
+	      (2 font-lock-variable-name-face))
+             ;; -------- %$ hash dereferences
+             ;; (matcher (subexp facespec) (subexp facespec))
+             (,(rx (group-n 1 "%")
+                   (group-n 2 (sequence "$"
+                                        (or (eval cperl--normal-identifier-rx)
+                                            (not (in " \t\n"))))))
+	     ;; ("\\(%\\)\\(\\$+\\([a-zA-Z_:][a-zA-Z0-9_:]*\\|[^ \t\n]\\)\\)"
+	      (1 'cperl-hash-face)
+	      (2 font-lock-variable-name-face))
+             ;; -------- access to array/hash elements
+             ;; (matcher subexp facespec)
+             ;; facespec is an expression to distinguish between arrays and hashes
              (,(rx (group-n 1 (group-n 2 (in "$@%"))
                             (eval cperl--normal-identifier-rx))
                    (0+ blank)
@@ -5946,25 +6619,20 @@ default function."
 		      'cperl-hash-face
 		    'cperl-array-face)             ; arrays and hashes
 		font-lock-variable-name-face)      ; Just to put something
-	      t)                                   ; override previous
-             ;; @$ array dereferences, $#$ last array index
-             (,(rx (group-n 1 (or "@" "$#"))
-                   (group-n 2 (sequence "$"
-                                        (or (eval cperl--normal-identifier-rx)
-                                            (not (in " \t\n"))))))
-	     ;; ("\\(@\\|\\$#\\)\\(\\$+\\([a-zA-Z_:][a-zA-Z0-9_:]*\\|[^ \t\n]\\)\\)"
-	      (1 'cperl-array-face)
-	      (2 font-lock-variable-name-face))
-             ;; %$ hash dereferences
-             (,(rx (group-n 1 "%")
-                   (group-n 2 (sequence "$"
-                                        (or (eval cperl--normal-identifier-rx)
-                                            (not (in " \t\n"))))))
-	     ;; ("\\(%\\)\\(\\$+\\([a-zA-Z_:][a-zA-Z0-9_:]*\\|[^ \t\n]\\)\\)"
-	      (1 'cperl-hash-face)
-	      (2 font-lock-variable-name-face))
-;;("\\([smy]\\|tr\\)\\([^a-z_A-Z0-9]\\)\\(\\([^\n\\]*||\\)\\)\\2")
-;;; Too much noise from \s* @s[ and friends
+	      nil)                                 ; do not override previous
+             ;; -------- "Pure" arrays and hashes.
+             ;; (matcher subexp facespec)
+             ;; facespec is an expression to distinguish between arrays and hashes
+             (,(rx (group-n 1 (group-n 2 (or (in "@%") "$#"))
+                            (eval cperl--normal-identifier-rx)))
+              1
+              ;; ("\\(\\([@%]\\|\\$#\\)[a-zA-Z_:][a-zA-Z0-9_:]*\\)" 1
+	      (if (eq (char-after (match-beginning 2)) ?%)
+		  'cperl-hash-face
+		'cperl-array-face)
+	      nil)
+             ;;("\\([smy]\\|tr\\)\\([^a-z_A-Z0-9]\\)\\(\\([^\n\\]*||\\)\\)\\2")
+             ;; Too much noise from \s* @s[ and friends
 	     ;;("\\(\\<\\([msy]\\|tr\\)[ \t]*\\([^ \t\na-zA-Z0-9_]\\)\\|\\(/\\)\\)"
 	     ;;(3 font-lock-function-name-face t t)
 	     ;;(4
@@ -6259,6 +6927,10 @@ See examples in `cperl-style-examples'.")
 
 (defun cperl-set-style (style)
   "Set CPerl mode variables to use one of several different indentation styles.
+This command sets the default values for the variables.  It does
+not affect buffers visiting files where the style has been set as
+a file or directory variable.  To change the indentation style of
+a buffer, use the command `cperl-file-style' instead.
 The arguments are a string representing the desired style.
 The list of styles is in `cperl-style-alist', available styles
 are \"CPerl\", \"PBP\", \"PerlStyle\", \"GNU\", \"K&R\", \"BSD\", \"C++\"
@@ -6279,7 +6951,8 @@ side-effect of memorizing only.  Examples in `cperl-style-examples'."
   (let ((style (cdr (assoc style cperl-style-alist))) setting)
     (while style
       (setq setting (car style) style (cdr style))
-      (set (car setting) (cdr setting)))))
+      (set-default-toplevel-value (car setting) (cdr setting))))
+  (set-default-toplevel-value 'cperl-file-style style))
 
 (defun cperl-set-style-back ()
   "Restore a style memorized by `cperl-set-style'."
@@ -6289,14 +6962,20 @@ side-effect of memorizing only.  Examples in `cperl-style-examples'."
     (while cperl-old-style
       (setq setting (car cperl-old-style)
 	    cperl-old-style (cdr cperl-old-style))
-      (set (car setting) (cdr setting)))))
+      (set-default-toplevel-value (car setting) (cdr setting)))))
 
-(defvar perl-dbg-flags)
-(defun cperl-check-syntax ()
-  (interactive)
-  (require 'mode-compile)
-  (let ((perl-dbg-flags (concat cperl-extra-perl-args " -wc")))
-    (eval '(mode-compile))))		; Avoid a warning
+(defun cperl-file-style (style)
+  "Set the indentation style for the current buffer to STYLE.
+The list of styles is in `cperl-style-alist', available styles
+are \"CPerl\", \"PBP\", \"PerlStyle\", \"GNU\", \"K&R\", \"BSD\", \"C++\"
+and \"Whitesmith\"."
+  (interactive
+   (list (completing-read "Enter style: " cperl-style-alist nil 'insist)))
+  (dolist (setting (cdr (assoc style cperl-style-alist)) style)
+    (let ((option (car setting))
+          (value (cdr setting)))
+      (set (make-local-variable option) value)))
+  (setq-local cperl-file-style style))
 
 (declare-function Info-find-node "info"
 		  (filename nodename &optional no-going-back strict-case
@@ -6341,10 +7020,7 @@ side-effect of memorizing only.  Examples in `cperl-style-examples'."
 		       'find-tag-default))))))
 
 (defun cperl-info-on-command (command)
-  "Show documentation for Perl command COMMAND in other window.
-If perl-info buffer is shown in some frame, uses this frame.
-Customized by setting variables `cperl-shrink-wrap-info-frame',
-`cperl-max-help-size'."
+  (declare (obsolete cperl-perldoc "30.1"))
   (interactive
    (let* ((default (cperl-word-at-point))
 	  (read (read-string
@@ -6354,14 +7030,13 @@ Customized by setting variables `cperl-shrink-wrap-info-frame',
 	     read))))
 
   (let ((cmd-desc (concat "^" (regexp-quote command) "[^a-zA-Z_0-9]")) ; "tr///"
-	pos isvar height iniheight frheight buf win fr1 fr2 iniwin not-loner
+	pos isvar height iniheight frheight buf win iniwin not-loner
 	max-height char-height buf-list)
     (if (string-match "^-[a-zA-Z]$" command)
 	(setq cmd-desc "^-X[ \t\n]"))
     (setq isvar (string-match "^[$@%]" command)
 	  buf (cperl-info-buffer isvar)
-	  iniwin (selected-window)
-	  fr1 (window-frame iniwin))
+	  iniwin (selected-window))
     (set-buffer buf)
     (goto-char (point-min))
     (or isvar
@@ -6382,11 +7057,7 @@ Customized by setting variables `cperl-shrink-wrap-info-frame',
 	  (or (not win)
 	      (eq (window-buffer win) buf)
 	      (set-window-buffer win buf))
-	  (and win (setq fr2 (window-frame win)))
-	  (if (or (not fr2) (eq fr1 fr2))
-	      (pop-to-buffer buf)
-	    (special-display-popup-frame buf) ; Make it visible
-	    (select-window win))
+	  (pop-to-buffer buf)
 	  (goto-char pos)		; Needed (?!).
 	  ;; Resize
 	  (setq iniheight (window-height)
@@ -6420,52 +7091,30 @@ Customized by setting variables `cperl-shrink-wrap-info-frame',
     (select-window iniwin)))
 
 (defun cperl-info-on-current-command ()
-  "Show documentation for Perl command at point in other window."
+  (declare (obsolete cperl-perldoc "30.1"))
   (interactive)
-  (cperl-info-on-command (cperl-word-at-point)))
+  (cperl-perldoc (cperl-word-at-point)))
 
 (defun cperl-imenu-info-imenu-search ()
+  (declare (obsolete nil "30.1"))
   (if (looking-at "^-X[ \t\n]") nil
     (re-search-backward
      "^\n\\([-a-zA-Z_]+\\)[ \t\n]")
     (forward-line 1)))
 
 (defun cperl-imenu-info-imenu-name ()
+  (declare (obsolete nil "30.1"))
   (buffer-substring
    (match-beginning 1) (match-end 1)))
 
 (declare-function imenu-choose-buffer-index "imenu" (&optional prompt alist))
 
 (defun cperl-imenu-on-info ()
-  "Show imenu for Perl Info Buffer.
-Opens Perl Info buffer if needed."
+  (declare (obsolete nil "30.1"))
   (interactive)
-  (require 'imenu)
-  (let* ((buffer (current-buffer))
-	 imenu-create-index-function
-	 imenu-prev-index-position-function
-	 imenu-extract-index-name-function
-	 (index-item (save-restriction
-		       (save-window-excursion
-			 (set-buffer (cperl-info-buffer nil))
-			 (setq imenu-create-index-function
-			       'imenu-default-create-index-function
-			       imenu-prev-index-position-function
-			       #'cperl-imenu-info-imenu-search
-			       imenu-extract-index-name-function
-			       #'cperl-imenu-info-imenu-name)
-			 (imenu-choose-buffer-index)))))
-    (and index-item
-	 (progn
-	   (push-mark)
-	   (pop-to-buffer "*info-perl*")
-	   (cond
-	    ((markerp (cdr index-item))
-	     (goto-char (marker-position (cdr index-item))))
-	    (t
-	     (goto-char (cdr index-item))))
-	   (set-window-start (selected-window) (point))
-	   (pop-to-buffer buffer)))))
+  (message
+   (concat "The info file `perl' is no longer available.\n"
+           "Consider installing the perl-doc package from GNU ELPA.")))
 
 (defun cperl-lineup (beg end &optional step minshift)
   "Lineup construction in a region.
@@ -6533,7 +7182,7 @@ in subdirectories too."
   ;; of etags has been commented out in the menu since ... well,
   ;; forever.  So, let's just stick to ASCII here. -- haj, 2021-09-14
   (interactive)
-  (let ((cmd "etags")
+  (let ((cmd etags-program-name)
 	(args `("-l" "none" "-r"
 		;;                        1=fullname  2=package?             3=name                       4=proto?             5=attrs? (VERY APPROX!)
 		,(concat
@@ -6760,7 +7409,9 @@ Does not move point."
 			127
 			(if (string-match "^package " (car elt))
 			    (substring (car elt) 8)
-			  (car elt) )
+			  (if (string-match "^class " (car elt))
+			      (substring (car elt) 6)
+			    (car elt)))
 			1
 			(number-to-string (elt elt 2)) ; Line
 			","
@@ -7486,10 +8137,27 @@ $~	The name of the current report format.
 ... >> ...	Bitwise shift right.
 ... >>= ...	Bitwise shift right assignment.
 ... ? ... : ...	Condition=if-then-else operator.
+... | ...	Bitwise or.
+... || ...	Logical or.
+... // ...      Defined-or.
+~ ...		Unary bitwise complement.
+... and ...		Low-precedence synonym for &&.
+... cmp ...	String compare.
+... eq ...	String equality.
+... ge ...	String greater than or equal.
+... gt ...	String greater than.
+... le ...	String less than or equal.
+... lt ...	String less than.
+... ne ...	String inequality.
+not ...		Low-precedence synonym for ! - negation.
+... or ...		Low-precedence synonym for ||.
+... x ...	Repeat string or array.
+x= ...	Repetition assignment.
+... xor ...		Low-precedence synonym for exclusive or.
 @ARGV	Command line arguments (not including the command name - see $0).
 @INC	List of places to look for perl scripts during do/include/use.
 @_    Parameter array for subroutines; result of split() unless in list context.
-\\  Creates reference to what follows, like \\$var, or quotes non-\\w in strings.
+\\  Creates reference to what follows, like \\$var.  Quotes non-\\w in strings.
 \\0	Octal char, e.g. \\033.
 \\E	Case modification terminator.  See \\Q, \\L, and \\U.
 \\L	Lowercase until \\E .  See also \\l, lc.
@@ -7507,12 +8175,10 @@ $~	The name of the current report format.
 \\u	Upcase the next character.  See also \\U and \\l, ucfirst.
 \\x	Hex character, e.g. \\x1b.
 ... ^ ...	Bitwise exclusive or.
-__END__	Ends program source.
+__CLASS__	The class of an object in construction
 __DATA__	Ends program source.
-__FILE__	Current (source) filename.
-__LINE__	Current line in current source.
-__PACKAGE__	Current package.
-__SUB__	Current sub.
+__END__	Ends program source.
+ADJUST {...}	Callback for object creation
 ARGV	Default multi-file input filehandle.  <ARGV> is a synonym for <>.
 ARGVOUT	Output filehandle with -i flag.
 BEGIN { ... }	Immediately executed (during compilation) piece of code.
@@ -7521,261 +8187,252 @@ CHECK { ... }	Pseudo-subroutine executed after the script is compiled.
 UNITCHECK { ... }
 INIT { ... }	Pseudo-subroutine executed before the script starts running.
 DATA	Input filehandle for what follows after __END__	or __DATA__.
-accept(NEWSOCKET,GENERICSOCKET)
-alarm(SECONDS)
-atan2(X,Y)
-bind(SOCKET,NAME)
-binmode(FILEHANDLE)
+abs [ EXPR ]	absolute value function
+accept(NEWSOCKET,GENERICSOCKET)	accept an incoming socket connect
+alarm(SECONDS)	schedule a SIGALRM
+async(SUB NAME {}|SUB {})	Mark function as potentially asynchronous
+atan2(X,Y)	arctangent of Y/X in the range -PI to PI
+await(ASYNCEXPR)	Yield result of Future
+bind(SOCKET,NAME)	binds an address to a socket
+binmode(FILEHANDLE)	prepare binary files for I/O
+bless REFERENCE [, PACKAGE]	Makes reference into an object of a package.
 break	Break out of a given/when statement
-caller[(LEVEL)]
-chdir(EXPR)
-chmod(LIST)
-chop[(LIST|VAR)]
-chown(LIST)
-chroot(FILENAME)
-close(FILEHANDLE)
-closedir(DIRHANDLE)
-... cmp ...	String compare.
-connect(SOCKET,NAME)
+caller[(LEVEL)]	get context of the current subroutine call
+chdir(EXPR)	change your current working directory
+chmod(LIST)	changes the permissions on a list of files
+chomp [LIST]	Strips $/ off LIST/$_.  Returns count.
+chop[(LIST|VAR)]	remove the last character from a string
+chown(LIST)	change the ownership on a list of files
+chr [NUMBER]	Converts a number to char with the same ordinal.
+chroot(FILENAME)	make directory new root for path lookups
+class NAME	Introduce an object class.
+close(FILEHANDLE)	close file (or pipe or socket) handle
+closedir(DIRHANDLE)	close directory handle
+connect(SOCKET,NAME)	connect to a remote socket
 continue of { block } continue { block }.  Is executed after `next' or at end.
-cos(EXPR)
-crypt(PLAINTEXT,SALT)
-dbmclose(%HASH)
-dbmopen(%HASH,DBNAME,MODE)
-default { ... } default case for given/when block
-defined(EXPR)
-delete($HASH{KEY})
-die(LIST)
+cos(EXPR)	cosine function
+crypt(PLAINTEXT,SALT)	one-way passwd-style encryption
+dbmclose(%HASH)	breaks binding on a tied dbm file
+dbmopen(%HASH,DBNAME,MODE)	create binding on a tied dbm file
+defined(EXPR)	test whether a value, variable, or function is defined
+delete($HASH{KEY})	deletes a value from a hash
+die(LIST)	raise an exception or bail out
 do { ... }|SUBR while|until EXPR	executes at least once
 do(EXPR|SUBR([LIST]))	(with while|until executes at least once)
-dump LABEL
-each(%HASH)
-endgrent
-endhostent
-endnetent
-endprotoent
-endpwent
-endservent
-eof[([FILEHANDLE])]
-... eq ...	String equality.
-eval(EXPR) or eval { BLOCK }
+dump LABEL	create an immediate core dump
+each(%HASH)	retrieve the next key/value pair from a hash
+endgrent	be done using group file
+endhostent	be done using hosts file
+endnetent	be done using networks file
+endprotoent	be done using protocols file
+endpwent	be done using passwd file
+endservent	be done using services file
+eof[([FILEHANDLE])]	test a filehandle for its end
+eval(EXPR) or eval { BLOCK }	catch exceptions or compile and run code
 evalbytes   See eval.
 exec([TRUENAME] ARGV0, ARGVs)     or     exec(SHELL_COMMAND_LINE)
-exit(EXPR)
-exp(EXPR)
+exists $HASH{KEY}	True if the key exists.
+exit(EXPR)	terminate this program
+exp(EXPR)	raise e to a power
+fc EXPR    Returns the casefolded version of EXPR.
 fcntl(FILEHANDLE,FUNCTION,SCALAR)
-fileno(FILEHANDLE)
-flock(FILEHANDLE,OPERATION)
-for (EXPR;EXPR;EXPR) { ... }
-foreach [VAR] (@ARRAY) { ... }
-fork
-... ge ...	String greater than or equal.
-getc[(FILEHANDLE)]
-getgrent
-getgrgid(GID)
-getgrnam(NAME)
-gethostbyaddr(ADDR,ADDRTYPE)
-gethostbyname(NAME)
-gethostent
-getlogin
-getnetbyaddr(ADDR,ADDRTYPE)
-getnetbyname(NAME)
-getnetent
-getpeername(SOCKET)
-getpgrp(PID)
-getppid
-getpriority(WHICH,WHO)
-getprotobyname(NAME)
-getprotobynumber(NUMBER)
-getprotoent
-getpwent
-getpwnam(NAME)
-getpwuid(UID)
-getservbyname(NAME,PROTO)
-getservbyport(PORT,PROTO)
-getservent
-getsockname(SOCKET)
-getsockopt(SOCKET,LEVEL,OPTNAME)
-given (EXPR) { [ when (EXPR) { ... } ]+ [ default { ... } ]? }
-gmtime(EXPR)
-goto LABEL
-... gt ...	String greater than.
-hex(EXPR)
-if (EXPR) { ... } [ elsif (EXPR) { ... } ... ] [ else { ... } ] or EXPR if EXPR
-index(STR,SUBSTR[,OFFSET])
-int(EXPR)
-ioctl(FILEHANDLE,FUNCTION,SCALAR)
-join(EXPR,LIST)
-keys(%HASH)
-kill(LIST)
-last [LABEL]
-... le ...	String less than or equal.
-length(EXPR)
-link(OLDFILE,NEWFILE)
-listen(SOCKET,QUEUESIZE)
-local(LIST)
-localtime(EXPR)
-log(EXPR)
-lstat(EXPR|FILEHANDLE|VAR)
-... lt ...	String less than.
-m/PATTERN/iogsmx
-mkdir(FILENAME,MODE)
-msgctl(ID,CMD,ARG)
-msgget(KEY,FLAGS)
-msgrcv(ID,VAR,SIZE,TYPE.FLAGS)
-msgsnd(ID,MSG,FLAGS)
+field VAR  [:param[(NAME)]] [=EXPR]	declare an object attribute
+__FILE__	Current (source) filename.
+fileno(FILEHANDLE)	return file descriptor from filehandle
+flock(FILEHANDLE,OPERATION)	lock an entire file with an advisory lock
+fork	create a new process just like this one
+format [NAME] =	 Start of output format.  Ended by a single dot (.) on a line.
+formline PICTURE, LIST	Backdoor into \"format\" processing.
+getc[(FILEHANDLE)]	get the next character from the filehandle
+getgrent	get group record given group user ID
+getgrgid(GID)	get group record given group user ID
+getgrnam(NAME)	get group record given group name
+gethostbyaddr(ADDR,ADDRTYPE)	get host record given name
+gethostbyname(NAME)	get host record given name
+gethostent	get next hosts record
+getlogin	return who logged in at this tty
+getnetbyaddr(ADDR,ADDRTYPE)	get network record given its address
+getnetbyname(NAME)	get networks record given name
+getnetent	get next networks record
+getpeername(SOCKET)	find the other end of a socket connection
+getpgrp(PID)	get process group
+getppid	get parent process ID
+getpriority(WHICH,WHO)	get current nice value
+getprotobyname(NAME)	get protocol record given name
+getprotobynumber(NUMBER)	get protocol record numeric protocol
+getprotoent	get next protocols record
+getpwent	get next passwd record
+getpwnam(NAME)	get passwd record given user login name
+getpwuid(UID)	get passwd record given user ID
+getservbyname(NAME,PROTO)	get services record given its name
+getservbyport(PORT,PROTO)	get services record given numeric port
+getservent	get next services record
+getsockname(SOCKET)	retrieve the sockaddr for a given socket
+getsockopt(SOCKET,LEVEL,OPTNAME)	get socket options on a given socket
+glob EXPR	expand filenames using wildcards.  Synonym of <EXPR>.
+gmtime(EXPR)	convert UNIX time into record or string using Greenwich time
+goto LABEL	create spaghetti code
+grep EXPR,LIST  or grep {BLOCK} LIST	Filters LIST via EXPR/BLOCK.
+hex(EXPR)	convert a hexadecimal string to a number
+import	patch a module's namespace into your own
+index(STR,SUBSTR[,OFFSET])	find a substring within a string
+int(EXPR)	get the integer portion of a number
+ioctl(FILEHANDLE,FUNCTION,SCALAR)	device control system call
+join(EXPR,LIST)	join a list into a string using a separator
+keys(%HASH)	retrieve list of indices from a hash
+kill(LIST)	send a signal to a process or process group
+last [LABEL]	exit a block prematurely
+lc [ EXPR ]	Returns lowercased EXPR.
+lcfirst [ EXPR ]	Returns EXPR with lower-cased first letter.
+length(EXPR)	return the number of characters in a string
+__LINE__	Current line in current source.
+link(OLDFILE,NEWFILE)	create a hard link in the filesystem
+listen(SOCKET,QUEUESIZE)	register your socket as a server
+local(LIST)	create a temporary value for a global variable
+localtime(EXPR)	convert UNIX time into record or string using local time
+lock(THING)	get a thread lock on a variable, subroutine, or method
+log(EXPR)	retrieve the natural logarithm for a number
+lstat(EXPR|FILEHANDLE|VAR)	stat a symbolic link
+m/PATTERN/iogsmx	match a string with a regular expression pattern
+map EXPR, LIST	or map {BLOCK} LIST	Applies EXPR/BLOCK to elts of LIST.
+method  [NAME [(signature)]] { BODY }	method NAME;
+mkdir(FILENAME,MODE)	create a directory
+msgctl(ID,CMD,ARG)	SysV IPC message control operations
+msgget(KEY,FLAGS)	get SysV IPC message queue
+msgrcv(ID,VAR,SIZE,TYPE.FLAGS)	receive a SysV IPC message from a message queue
+msgsnd(ID,MSG,FLAGS)	send a SysV IPC message to a message queue
 my VAR or my (VAR1,...)	Introduces a lexical variable ($VAR, @ARR, or %HASH).
-our VAR or our (VAR1,...) Lexically enable a global variable ($V, @A, or %H).
-... ne ...	String inequality.
-next [LABEL]
-oct(EXPR)
-open(FILEHANDLE[,EXPR])
-opendir(DIRHANDLE,EXPR)
+next [LABEL]	iterate a block prematurely
+no MODULE [SYMBOL1, ...]  Partial reverse for `use'.  Runs `unimport' method.
+oct(EXPR)	convert a string to an octal number
+open(FILEHANDLE[,EXPR])	open a file, pipe, or descriptor
+opendir(DIRHANDLE,EXPR)	open a directory
 ord(EXPR)	ASCII value of the first char of the string.
-pack(TEMPLATE,LIST)
+our VAR or our (VAR1,...) Lexically enable a global variable ($V, @A, or %H).
+pack(TEMPLATE,LIST)	convert a list into a binary representation
 package NAME	Introduces package context.
+__PACKAGE__	Current package.
 pipe(READHANDLE,WRITEHANDLE)	Create a pair of filehandles on ends of a pipe.
-pop(ARRAY)
-print [FILEHANDLE] [(LIST)]
-printf [FILEHANDLE] (FORMAT,LIST)
-push(ARRAY,LIST)
+pop(ARRAY)	remove the last element from an array and return it
+pos STRING    Set/Get end-position of the last match over this string, see \\G.
+print [FILEHANDLE] [(LIST)]	output a list to a filehandle
+printf [FILEHANDLE] (FORMAT,LIST)	output a formatted list to a filehandle
+prototype \\&SUB	Returns prototype of the function given a reference.
+push(ARRAY,LIST)	append one or more elements to an array
 q/STRING/	Synonym for \\='STRING\\='
 qq/STRING/	Synonym for \"STRING\"
+qr/PATTERN/	compile pattern
+quotemeta	quote regular expression magic characters
+qw/STRING/	quote a list of words
 qx/STRING/	Synonym for \\=`STRING\\=`
-rand[(EXPR)]
-read(FILEHANDLE,SCALAR,LENGTH[,OFFSET])
-readdir(DIRHANDLE)
-readlink(EXPR)
-recv(SOCKET,SCALAR,LEN,FLAGS)
-redo [LABEL]
-rename(OLDNAME,NEWNAME)
-require [FILENAME | PERL_VERSION]
-reset[(EXPR)]
-return(LIST)
-reverse(LIST)
-rewinddir(DIRHANDLE)
-rindex(STR,SUBSTR[,OFFSET])
-rmdir(FILENAME)
-s/PATTERN/REPLACEMENT/gieoxsm
-say [FILEHANDLE] [(LIST)]
-scalar(EXPR)
-seek(FILEHANDLE,POSITION,WHENCE)
-seekdir(DIRHANDLE,POS)
-select(FILEHANDLE | RBITS,WBITS,EBITS,TIMEOUT)
-semctl(ID,SEMNUM,CMD,ARG)
-semget(KEY,NSEMS,SIZE,FLAGS)
-semop(KEY,...)
-send(SOCKET,MSG,FLAGS[,TO])
-setgrent
-sethostent(STAYOPEN)
-setnetent(STAYOPEN)
-setpgrp(PID,PGRP)
-setpriority(WHICH,WHO,PRIORITY)
-setprotoent(STAYOPEN)
-setpwent
-setservent(STAYOPEN)
-setsockopt(SOCKET,LEVEL,OPTNAME,OPTVAL)
-shift[(ARRAY)]
-shmctl(ID,CMD,ARG)
-shmget(KEY,SIZE,FLAGS)
-shmread(ID,VAR,POS,SIZE)
-shmwrite(ID,STRING,POS,SIZE)
-shutdown(SOCKET,HOW)
-sin(EXPR)
-sleep[(EXPR)]
-socket(SOCKET,DOMAIN,TYPE,PROTOCOL)
-socketpair(SOCKET1,SOCKET2,DOMAIN,TYPE,PROTOCOL)
-sort [SUBROUTINE] (LIST)
-splice(ARRAY,OFFSET[,LENGTH[,LIST]])
-split[(/PATTERN/[,EXPR[,LIMIT]])]
-sprintf(FORMAT,LIST)
-sqrt(EXPR)
-srand(EXPR)
-stat(EXPR|FILEHANDLE|VAR)
+rand[(EXPR)]	retrieve the next pseudorandom number
+read(FILEHANDLE,SCALAR,LENGTH[,OFFSET])	fixed-length buffered input
+readdir(DIRHANDLE)	get a directory from a directory handle
+readline FH	Synonym of <FH>.
+readlink(EXPR)	determine where a symbolic link is pointing
+readpipe CMD	Synonym of \\=`CMD\\=`.
+recv(SOCKET,SCALAR,LEN,FLAGS)	receive a message over a Socket
+redo [LABEL]	start this loop iteration over again
+ref [ EXPR ]	Type of EXPR when dereferenced.
+rename(OLDNAME,NEWNAME)	change a filename
+require [FILENAME | PERL_VERSION]	load from a library at runtime
+reset[(EXPR)]	clear all variables of a given name
+return(LIST)	get out of a function early
+reverse(LIST)	flip a string or a list
+rewinddir(DIRHANDLE)	reset directory handle
+rindex(STR,SUBSTR[,OFFSET])	right-to-left substring search
+rmdir(FILENAME)	remove a directory
+s/PATTERN/REPLACEMENT/gieoxsm	replace a pattern with a string
+say [FILEHANDLE] [(LIST)]	output a list, appending a newline
+scalar(EXPR)	force a scalar context
+seek(FILEHANDLE,POSITION,WHENCE)	reposition file pointer
+seekdir(DIRHANDLE,POS)	reposition directory pointer
+select(FILEHANDLE)	reset default output or do I/O multiplexing
+select(RBITS,WBITS,EBITS,TIMEOUT)	do I/O multiplexing
+semctl(ID,SEMNUM,CMD,ARG)	SysV semaphore control operations
+semget(KEY,NSEMS,SIZE,FLAGS)	get set of SysV semaphores
+semop(KEY,...)	SysV semaphore operations
+send(SOCKET,MSG,FLAGS[,TO])	send a message over a socket
+setgrent	prepare group file for use
+sethostent(STAYOPEN)	prepare hosts file for use
+setnetent(STAYOPEN)	prepare networks file for use
+setpgrp(PID,PGRP)	set the process group of a process
+setpriority(WHICH,WHO,PRIORITY)	Process	set a process\\='s nice value
+setprotoent(STAYOPEN)	etwork	prepare protocols file for use
+setpwent	prepare passwd file for use
+setservent(STAYOPEN)	prepare services file for use
+setsockopt(SOCKET,LEVEL,OPTNAME,OPTVAL)	set some socket options
+shift[(ARRAY)]	remove the first element of an array, and return it
+shmctl(ID,CMD,ARG)	SysV shared memory operations
+shmget(KEY,SIZE,FLAGS)	get SysV shared memory segment identifier
+shmread(ID,VAR,POS,SIZE)	read SysV shared memory
+shmwrite(ID,STRING,POS,SIZE)	write SysV shared memory
+shutdown(SOCKET,HOW)	close down just half of a socket connection
+sin(EXPR)	return the sine of a number
+sleep[(EXPR)]	block for some number of seconds
+socket(SOCKET,DOMAIN,TYPE,PROTOCOL)	create a socket
+socketpair(SOCKET1,SOCKET2,DOMAIN,TYPE,PROTOCOL)	create a pair of sockets
+sort [SUBROUTINE] (LIST)	sort a list of values
+splice(ARRAY,OFFSET[,LENGTH[,LIST]])	add or remove elements anywhere
+split[(/PATTERN/[,EXPR[,LIMIT]])]	split up a string using a regexp
+sprintf(FORMAT,LIST)	formatted print into a string
+sqrt(EXPR)	square root function
+srand(EXPR)	seed the random number generator
+stat(EXPR|FILEHANDLE|VAR)	get a file\\='s status information
 state VAR or state (VAR1,...)	Introduces a static lexical variable
-study[(SCALAR)]
+study[(SCALAR)]	no-op, formerly optimized input data for repeated searches
 sub [NAME [(format)]] { BODY }	sub NAME [(format)];	sub [(format)] {...}
-substr(EXPR,OFFSET[,LEN])
-symlink(OLDFILE,NEWFILE)
-syscall(LIST)
-sysread(FILEHANDLE,SCALAR,LENGTH[,OFFSET])
+__SUB__	the current subroutine, or C<undef> if not in a subroutine
+substr(EXPR,OFFSET[,LEN])	get or alter a portion of a string
+symlink(OLDFILE,NEWFILE)	create a symbolic link to a file
+syscall(LIST)	execute an arbitrary system call
+sysopen FH, FILENAME, MODE [, PERM]	(MODE is numeric, see Fcntl.)
+sysread(FILEHANDLE,SCALAR,LENGTH[,OFFSET])	fixed-length unbuffered input
+sysseek(FILEHANDLE,POSITION,WHENCE) position I/O pointer on handle
 system([TRUENAME] ARGV0 [,ARGV])     or     system(SHELL_COMMAND_LINE)
-syswrite(FILEHANDLE,SCALAR,LENGTH[,OFFSET])
-tell[(FILEHANDLE)]
-telldir(DIRHANDLE)
-time
-times
-tr/SEARCHLIST/REPLACEMENTLIST/cds
-truncate(FILE|EXPR,LENGTH)
-umask[(EXPR)]
-undef[(EXPR)]
-unless (EXPR) { ... } [ else { ... } ] or EXPR unless EXPR
-unlink(LIST)
-unpack(TEMPLATE,EXPR)
-unshift(ARRAY,LIST)
-until (EXPR) { ... }					EXPR until EXPR
-utime(LIST)
-values(%HASH)
-vec(EXPR,OFFSET,BITS)
-wait
-waitpid(PID,FLAGS)
+syswrite(FILEHANDLE,SCALAR,LENGTH[,OFFSET])	fixed-length unbuffered output
+tell[(FILEHANDLE)]	get current seekpointer on a filehandle
+telldir(DIRHANDLE)	get current seekpointer on a directory handle
+tie VAR, CLASS, LIST	Hide an object behind a simple Perl variable.
+tied		Returns internal object for a tied data.
+time	return number of seconds since 1970
+times	return elapsed time for self and child processes
+tr/SEARCHLIST/REPLACEMENTLIST/cds	transliterate a string
+truncate(FILE|EXPR,LENGTH)	shorten a file
+uc [ EXPR ]	Returns upcased EXPR.
+ucfirst [ EXPR ]	Returns EXPR with upcased first letter.
+umask[(EXPR)]	set file creation mode mask
+undef[(EXPR)]	remove a variable or function definition
+unlink(LIST)	remove one link to a file
+unpack(TEMPLATE,EXPR)	convert binary structure into normal perl variables
+unshift(ARRAY,LIST)	prepend more elements to the beginning of a list
+untie VAR	Unlink an object from a simple Perl variable.
+use MODULE [SYMBOL1, ...]  Compile-time `require' with consequent `import'.
+utime(LIST)	set a file\\='s last access and modify times
+values(%HASH)	return a list of the values in a hash
+vec(EXPR,OFFSET,BITS)	test or set particular bits in a string
+wait	wait for any child process to die
+waitpid(PID,FLAGS)	wait for a particular child process to die
 wantarray	Returns true if the sub/eval is called in list context.
-warn(LIST)
-while  (EXPR) { ... }					EXPR while EXPR
-write[(EXPR|FILEHANDLE)]
-... x ...	Repeat string or array.
-x= ...	Repetition assignment.
-y/SEARCHLIST/REPLACEMENTLIST/
-... | ...	Bitwise or.
-... || ...	Logical or.
-... // ...      Defined-or.
-~ ...		Unary bitwise complement.
+warn(LIST)	print debugging info
+write[(EXPR|FILEHANDLE)]	print a picture record
+y/SEARCHLIST/REPLACEMENTLIST/	transliterate a string
 #!	OS interpreter indicator.  If contains `perl', used for options, and -x.
 AUTOLOAD {...}	Shorthand for `sub AUTOLOAD {...}'.
 CORE::		Prefix to access builtin function if imported sub obscures it.
 SUPER::		Prefix to lookup for a method in @ISA classes.
 DESTROY		Shorthand for `sub DESTROY {...}'.
-... EQ ...	Obsolete synonym of `eq'.
-... GE ...	Obsolete synonym of `ge'.
-... GT ...	Obsolete synonym of `gt'.
-... LE ...	Obsolete synonym of `le'.
-... LT ...	Obsolete synonym of `lt'.
-... NE ...	Obsolete synonym of `ne'.
-abs [ EXPR ]	absolute value
-... and ...		Low-precedence synonym for &&.
-bless REFERENCE [, PACKAGE]	Makes reference into an object of a package.
-chomp [LIST]	Strips $/ off LIST/$_.  Returns count.  Special if $/ eq \\='\\='!
-chr		Converts a number to char with the same ordinal.
 else		Part of if/unless {BLOCK} elsif {BLOCK} else {BLOCK}.
 elsif		Part of if/unless {BLOCK} elsif {BLOCK} else {BLOCK}.
-exists $HASH{KEY}	True if the key exists.
-fc EXPR    Returns the casefolded version of EXPR.
-format [NAME] =	 Start of output format.  Ended by a single dot (.) on a line.
-formline PICTURE, LIST	Backdoor into \"format\" processing.
-glob EXPR	Synonym of <EXPR>.
-lc [ EXPR ]	Returns lowercased EXPR.
-lcfirst [ EXPR ]	Returns EXPR with lower-cased first letter.
-grep EXPR,LIST  or grep {BLOCK} LIST	Filters LIST via EXPR/BLOCK.
-map EXPR, LIST	or map {BLOCK} LIST	Applies EXPR/BLOCK to elts of LIST.
-no PACKAGE [SYMBOL1, ...]  Partial reverse for `use'.  Runs `unimport' method.
-not ...		Low-precedence synonym for ! - negation.
-... or ...		Low-precedence synonym for ||.
-pos STRING    Set/Get end-position of the last match over this string, see \\G.
-prototype FUNC   Returns the prototype of a function as a string, or undef.
-quotemeta [ EXPR ]	Quote regexp metacharacters.
-qw/WORD1 .../		Synonym of split(\\='\\=', \\='WORD1 ...\\=')
-readline FH	Synonym of <FH>.
-readpipe CMD	Synonym of \\=`CMD\\=`.
-ref [ EXPR ]	Type of EXPR when dereferenced.
-sysopen FH, FILENAME, MODE [, PERM]	(MODE is numeric, see Fcntl.)
-tie VAR, PACKAGE, LIST	Hide an object behind a simple Perl variable.
-tied		Returns internal object for a tied data.
-uc [ EXPR ]	Returns upcased EXPR.
-ucfirst [ EXPR ]	Returns EXPR with upcased first letter.
-untie VAR	Unlink an object from a simple Perl variable.
-use PACKAGE [SYMBOL1, ...]  Compile-time `require' with consequent `import'.
-... xor ...		Low-precedence synonym for exclusive or.
-prototype \\&SUB	Returns prototype of the function given a reference.
+default { ... } default case for given/when block
+defer { ... }	run this block after the containing block.
+for (EXPR;EXPR;EXPR) { ... }
+foreach [VAR] (@ARRAY) { ... }
+given (EXPR) { [ when (EXPR) { ... } ]+ [ default { ... } ]? }
+if (EXPR) { ... } [ elsif (EXPR) { ... } ... ] [ else { ... } ] or EXPR if EXPR
+unless (EXPR) { ... } [ else { ... } ] or EXPR unless EXPR
+until (EXPR) { ... }	EXPR until EXPR
+while  (EXPR) { ... }	EXPR while EXPR
 =head1		Top-level heading.
 =head2		Second-level heading.
 =head3		Third-level heading.
@@ -8549,8 +9206,6 @@ start with default arguments, then refine the slowdown regions."
       (message "to %s:%6s,%7s" l delta tot))
     tot))
 
-(defvar font-lock-cache-position)
-
 (defun cperl-emulate-lazy-lock (&optional window-size)
   "Emulate `lazy-lock' without `condition-case', so `debug-on-error' works.
 Start fontifying the buffer from the start (or end) using the given
@@ -8622,6 +9277,7 @@ Delay of auto-help controlled by `cperl-lazy-help-time'."
 ;;; Plug for wrong font-lock:
 
 (defun cperl-font-lock-unfontify-region-function (beg end)
+  (declare (obsolete nil "30.1"))
   (with-silent-modifications
     (remove-text-properties beg end '(face nil))))
 
@@ -8695,7 +9351,8 @@ do extra unwind via `cperl-unwind-to-safe'."
 
 (defun cperl-fontify-update-bad (end)
   ;; Since fontification happens with different region than syntaxification,
-  ;; do to the end of buffer, not to END;;; likewise, start earlier if needed
+  ;; do to the end of buffer, not to END
+  ;; likewise, start earlier if needed
   (let* ((pos (point)) (prop (get-text-property pos 'cperl-postpone)) posend)
     (if prop
 	(setq pos (or (cperl-beginning-of-property
@@ -8729,6 +9386,24 @@ do extra unwind via `cperl-unwind-to-safe'."
 (defvar cperl-do-not-fontify 'fontified
   "Text property which inhibits refontification.")
 (make-obsolete-variable 'cperl-do-not-fontify nil "28.1")
+
+;;; Minor mode for optional Perl features
+(define-minor-mode cperl-extra-paired-delimiters-mode
+  "Toggle treatment of extra paired delimiters in Perl.
+Many non-ASCII paired delimiters can be used for quote-like constructs
+by activating the feature \"extra_paired_delimiters\" either explicitly
+or as part of the Perl 5.40 feature bundle.  This command allows
+`cperl-mode' to recognize the same set of paired delimiters, see the
+variable `cperl--extra-paired-delimiters'."
+  :group 'cperl
+  :lighter "«»"
+  :interactive (cperl-mode)
+  (if cperl-extra-paired-delimiters-mode
+      (progn
+        (setq-local cperl-starters cperl--extra-paired-delimiters)
+        (cperl-find-pods-heres (point-min) (point-max)))
+    (setq-local cperl-starters cperl--basic-paired-delimiters)
+    (cperl-find-pods-heres (point-min) (point-max))))
 
 (provide 'cperl-mode)
 

@@ -1,6 +1,6 @@
 /* Interface definitions for display code.
 
-Copyright (C) 1985, 1993-1994, 1997-2024 Free Software Foundation, Inc.
+Copyright (C) 1985, 1993-1994, 1997-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -53,8 +53,14 @@ typedef struct
   unsigned short red, green, blue;
 } Emacs_Color;
 
+#ifndef HAVE_ANDROID
 /* Accommodate X's usage of None as a null resource ID.  */
 #define No_Cursor (NULL)
+#else
+#define No_Cursor 0
+#endif
+
+#ifndef HAVE_ANDROID
 
 #ifndef HAVE_MACGUI
 /* XRectangle-like struct used by non-X GUI code.  */
@@ -76,7 +82,21 @@ typedef struct
    need these.  */
 #define GCForeground 0x01
 #define GCBackground 0x02
+
 #endif /* !HAVE_MACGUI */
+#else
+
+typedef struct android_rectangle Emacs_Rectangle;
+typedef struct android_gc_values Emacs_GC;
+
+#define GCForeground		ANDROID_GC_FOREGROUND
+#define GCBackground		ANDROID_GC_BACKGROUND
+#define GCFillStyle		ANDROID_GC_FILL_STYLE
+#define GCStipple		ANDROID_GC_STIPPLE
+#define FillOpaqueStippled	ANDROID_FILL_OPAQUE_STIPPLED
+
+#endif
+
 #endif /* HAVE_X_WINDOWS */
 
 #ifdef MSDOS
@@ -152,6 +172,13 @@ typedef Emacs_Pixmap Emacs_Pix_Container;
 typedef Emacs_Pixmap Emacs_Pix_Context;
 #endif
 
+#ifdef HAVE_ANDROID
+#include "androidgui.h"
+typedef struct android_display_info Display_Info;
+typedef struct android_image *Emacs_Pix_Container;
+typedef struct android_image *Emacs_Pix_Context;
+#endif
+
 #ifdef HAVE_WINDOW_SYSTEM
 # include <time.h>
 # include "fontset.h"
@@ -163,6 +190,22 @@ typedef void *Emacs_Cursor;
 
 #ifndef NativeRectangle
 #define NativeRectangle int
+#endif
+
+#ifdef HAVE_WINDOW_SYSTEM
+
+/* ``box'' structure similar to that found in the X sample server,
+   meaning that X2 and Y2 are not actually the end of the box, but one
+   pixel past the end of the box, which makes checking for overlaps
+   less necessary.  This is convenient to use in every GUI port.  */
+
+struct gui_box
+{
+  /* Bounds of the box.  */
+  int x1, y1;
+  int x2, y2;
+};
+
 #endif
 
 /* Text cursor types.  */
@@ -288,7 +331,7 @@ struct text_pos
 /* Set marker MARKER from text position POS.  */
 
 #define SET_MARKER_FROM_TEXT_POS(MARKER, POS) \
-     set_marker_both ((MARKER), Qnil, CHARPOS ((POS)), BYTEPOS ((POS)))
+     set_marker_both (MARKER, Qnil, CHARPOS (POS), BYTEPOS (POS))
 
 /* Value is non-zero if character and byte positions of POS1 and POS2
    are equal.  */
@@ -372,7 +415,7 @@ GLYPH_CODE_FACE (Lisp_Object gc)
 	SET_GLYPH (glyph, XFIXNUM (XCAR (gc)), XFIXNUM (XCDR (gc)));		\
       else								\
 	SET_GLYPH (glyph, (XFIXNUM (gc) & ((1 << CHARACTERBITS)-1)),	\
-		   (XFIXNUM (gc) >> CHARACTERBITS));			\
+		   XFIXNUM (gc) >> CHARACTERBITS);			\
     }									\
   while (false)
 
@@ -649,9 +692,9 @@ struct glyph
    defined in lisp.h.  */
 
 #define SET_CHAR_GLYPH_FROM_GLYPH(GLYPH, FROM)			\
-     SET_CHAR_GLYPH ((GLYPH),					\
-	 	     GLYPH_CHAR ((FROM)),			\
-		     GLYPH_FACE ((FROM)),			\
+     SET_CHAR_GLYPH (GLYPH,					\
+		     GLYPH_CHAR (FROM),				\
+		     GLYPH_FACE (FROM),				\
 		     false)
 
 /* Construct a glyph code from a character glyph GLYPH.  If the
@@ -662,9 +705,9 @@ struct glyph
   do								\
     {								\
       if ((GLYPH).u.ch < 256)					\
-	SET_GLYPH ((G), (GLYPH).u.ch, ((GLYPH).face_id));	\
+	SET_GLYPH (G, (GLYPH).u.ch, (GLYPH).face_id);		\
       else							\
-	SET_GLYPH ((G), -1, 0);					\
+	SET_GLYPH (G, -1, 0);					\
     }								\
   while (false)
 
@@ -810,7 +853,7 @@ struct glyph_matrix
 
 #ifdef GLYPH_DEBUG
 void check_matrix_pointer_lossage (struct glyph_matrix *);
-#define CHECK_MATRIX(MATRIX) check_matrix_pointer_lossage ((MATRIX))
+#define CHECK_MATRIX(MATRIX) check_matrix_pointer_lossage (MATRIX)
 #else
 #define CHECK_MATRIX(MATRIX) ((void) 0)
 #endif
@@ -1103,7 +1146,7 @@ struct glyph_row
 
 #ifdef GLYPH_DEBUG
 struct glyph_row *matrix_row (struct glyph_matrix *, int);
-#define MATRIX_ROW(MATRIX, ROW)   matrix_row ((MATRIX), (ROW))
+#define MATRIX_ROW(MATRIX, ROW)   matrix_row (MATRIX, ROW)
 #else
 #define MATRIX_ROW(MATRIX, ROW)	  ((MATRIX)->rows + (ROW))
 #endif
@@ -1139,12 +1182,12 @@ struct glyph_row *matrix_row (struct glyph_matrix *, int);
    MATRIX.  */
 
 #define MATRIX_ROW_GLYPH_START(MATRIX, ROW) \
-     (MATRIX_ROW ((MATRIX), (ROW))->glyphs[TEXT_AREA])
+     (MATRIX_ROW (MATRIX, ROW)->glyphs[TEXT_AREA])
 
 /* Return the number of used glyphs in the text area of a row.  */
 
 #define MATRIX_ROW_USED(MATRIX, ROW) \
-     (MATRIX_ROW ((MATRIX), (ROW))->used[TEXT_AREA])
+     (MATRIX_ROW (MATRIX, ROW)->used[TEXT_AREA])
 
 /* Return the character/ byte position at which the display of ROW
    starts.  BIDI Note: this is the smallest character/byte position
@@ -1174,7 +1217,7 @@ struct glyph_row *matrix_row (struct glyph_matrix *, int);
 #define MATRIX_BOTTOM_TEXT_ROW(MATRIX, W)		\
      ((MATRIX)->rows					\
       + (MATRIX)->nrows					\
-      - (window_wants_mode_line ((W)) ? 1 : 0))
+      - (window_wants_mode_line (W) ? 1 : 0))
 
 /* Non-zero if the face of the last glyph in ROW's text area has
    to be drawn to the end of the text area.  */
@@ -1184,7 +1227,7 @@ struct glyph_row *matrix_row (struct glyph_matrix *, int);
 /* Set and query the enabled_p flag of glyph row ROW in MATRIX.  */
 
 #define SET_MATRIX_ROW_ENABLED_P(MATRIX, ROW, VALUE) \
-     (MATRIX_ROW (MATRIX, ROW)->enabled_p = (VALUE))
+     (MATRIX_ROW (MATRIX, ROW)->enabled_p = VALUE)
 
 #define MATRIX_ROW_ENABLED_P(MATRIX, ROW) \
      (MATRIX_ROW (MATRIX, ROW)->enabled_p)
@@ -1205,28 +1248,28 @@ struct glyph_row *matrix_row (struct glyph_matrix *, int);
 
 #define MR_PARTIALLY_VISIBLE_AT_BOTTOM(W, ROW)  \
   (((ROW)->y + (ROW)->height - (ROW)->extra_line_spacing) \
-   > WINDOW_BOX_HEIGHT_NO_MODE_LINE ((W)))
+   > WINDOW_BOX_HEIGHT_NO_MODE_LINE (W))
 
 /* Non-zero if ROW is not completely visible in window W.  */
 
 #define MATRIX_ROW_PARTIALLY_VISIBLE_P(W, ROW)		\
-  (MR_PARTIALLY_VISIBLE ((ROW))				\
-   && (MR_PARTIALLY_VISIBLE_AT_TOP ((W), (ROW))		\
-       || MR_PARTIALLY_VISIBLE_AT_BOTTOM ((W), (ROW))))
+  (MR_PARTIALLY_VISIBLE (ROW)				\
+   && (MR_PARTIALLY_VISIBLE_AT_TOP (W, ROW)		\
+       || MR_PARTIALLY_VISIBLE_AT_BOTTOM (W, ROW)))
 
 
 
 /* Non-zero if ROW is partially visible at the top of window W.  */
 
 #define MATRIX_ROW_PARTIALLY_VISIBLE_AT_TOP_P(W, ROW)		\
-  (MR_PARTIALLY_VISIBLE ((ROW))					\
-   && MR_PARTIALLY_VISIBLE_AT_TOP ((W), (ROW)))
+  (MR_PARTIALLY_VISIBLE (ROW)					\
+   && MR_PARTIALLY_VISIBLE_AT_TOP (W, ROW))
 
 /* Non-zero if ROW is partially visible at the bottom of window W.  */
 
 #define MATRIX_ROW_PARTIALLY_VISIBLE_AT_BOTTOM_P(W, ROW)	\
-  (MR_PARTIALLY_VISIBLE ((ROW))					\
-   && MR_PARTIALLY_VISIBLE_AT_BOTTOM ((W), (ROW)))
+  (MR_PARTIALLY_VISIBLE (ROW)					\
+   && MR_PARTIALLY_VISIBLE_AT_BOTTOM (W, ROW))
 
 /* Return the bottom Y + 1 of ROW.   */
 
@@ -1236,7 +1279,7 @@ struct glyph_row *matrix_row (struct glyph_matrix *, int);
    iterator structure pointed to by IT?.  */
 
 #define MATRIX_ROW_LAST_VISIBLE_P(ROW, IT) \
-     (MATRIX_ROW_BOTTOM_Y ((ROW)) >= (IT)->last_visible_y)
+     (MATRIX_ROW_BOTTOM_Y (ROW) >= (IT)->last_visible_y)
 
 /* Non-zero if ROW displays a continuation line.  */
 
@@ -1409,6 +1452,8 @@ struct glyph_string
   /* The GC to use for drawing this glyph string.  */
 #if defined HAVE_X_WINDOWS || defined HAVE_MACGUI
   GC gc;
+#elif defined HAVE_ANDROID
+  struct android_gc *gc;
 #endif
 #if defined (HAVE_NTGUI)
   Emacs_GC *gc;
@@ -1508,9 +1553,9 @@ struct glyph_string
 /* Return the desired face id for the mode line of window W.  */
 
 #define CURRENT_MODE_LINE_ACTIVE_FACE_ID(W)		\
-	(CURRENT_MODE_LINE_ACTIVE_FACE_ID_3((W),        \
+	 CURRENT_MODE_LINE_ACTIVE_FACE_ID_3(W, \
 					    XWINDOW (selected_window), \
-					    (W)))
+					    W)
 
 /* Return the current height of the mode line of window W.  If not known
    from W->mode_line_height, look at W's current glyph matrix, or return
@@ -1596,8 +1641,8 @@ struct glyph_string
 
 #define VCENTER_BASELINE_OFFSET(FONT, F)			\
   (FONT_DESCENT (FONT)						\
-   + (FRAME_LINE_HEIGHT ((F)) - FONT_HEIGHT ((FONT))		\
-      + (FRAME_LINE_HEIGHT ((F)) > FONT_HEIGHT ((FONT)))) / 2	\
+   + (FRAME_LINE_HEIGHT (F) - FONT_HEIGHT (FONT)		\
+      + (FRAME_LINE_HEIGHT (F) > FONT_HEIGHT (FONT))) / 2	\
    - (FONT_DESCENT (FRAME_FONT (F)) - FRAME_BASELINE_OFFSET (F)))
 
 /* A heuristic test for fonts that claim they need a preposterously
@@ -1661,9 +1706,15 @@ enum face_box_type
 
 enum face_underline_type
 {
+  /* Note: order matches the order of the Smulx terminfo extension, and
+     is also relied on to remain in its present order by
+     x_draw_glyph_string and company.  */
   FACE_NO_UNDERLINE = 0,
-  FACE_UNDER_LINE,
-  FACE_UNDER_WAVE
+  FACE_UNDERLINE_SINGLE,
+  FACE_UNDERLINE_DOUBLE_LINE,
+  FACE_UNDERLINE_WAVE,
+  FACE_UNDERLINE_DOTS,
+  FACE_UNDERLINE_DASHES,
 };
 
 /* Structure describing a realized face.
@@ -1689,6 +1740,8 @@ struct face
      drawing the characters in this face.  */
 # if defined HAVE_X_WINDOWS || defined HAVE_MACGUI
   GC gc;
+# elif defined HAVE_ANDROID
+  struct android_gc *gc;
 # else
   Emacs_GC *gc;
 # endif
@@ -1745,7 +1798,7 @@ struct face
   ENUM_BF (face_box_type) box : 2;
 
   /* Style of underlining. */
-  ENUM_BF (face_underline_type) underline : 2;
+  ENUM_BF (face_underline_type) underline : 3;
 
   /* If `box' above specifies a 3D type, true means use box_color for
      drawing shadows.  */
@@ -1777,7 +1830,6 @@ struct face
      string meaning the default color of the TTY.  */
   bool_bf tty_bold_p : 1;
   bool_bf tty_italic_p : 1;
-  bool_bf tty_underline_p : 1;
   bool_bf tty_reverse_p : 1;
   bool_bf tty_strike_through_p : 1;
 
@@ -2586,6 +2638,11 @@ struct it
      the current row.  */
   bool_bf line_number_produced_p : 1;
 
+  /* If true, the :align-to argument should be counted relative to the
+     beginning of the screen line, not the logical line.  Used by
+     'wrap-prefix'.  */
+  bool_bf align_visually_p : 1;
+
   enum line_wrap_method line_wrap;
 
   /* The ID of the default face to use.  One of DEFAULT_FACE_ID,
@@ -2723,6 +2780,16 @@ struct it
      pixel_width with each call to produce_glyphs.  */
   int current_x;
 
+  /* Pixel position within a display line with a wrap prefix.  Updated
+     to reflect current_x in produce_glyphs when producing glyphs from
+     a prefix string and continuation_lines_width > 0, which is to
+     say, from a wrap prefix.
+
+     Such updates are unnecessary where it is impossible for a wrap
+     prefix to be active, e.g. when continuation lines are being
+     produced.  */
+  int wrap_prefix_width;
+
   /* Accumulated width of continuation lines.  If > 0, this means we
      are currently in a continuation line.  This is initially zero and
      incremented/reset by display_line, move_it_to etc.  */
@@ -2829,12 +2896,12 @@ struct it
     if ((IT)->glyph_row != NULL && (IT)->bidi_p)	\
       (IT)->glyph_row->reversed_p = (IT)->bidi_it.paragraph_dir == R2L; \
     if (FRAME_RIF ((IT)->f) != NULL)                    \
-      FRAME_RIF ((IT)->f)->produce_glyphs ((IT));       \
+      FRAME_RIF ((IT)->f)->produce_glyphs (IT);		\
     else                                                \
-      produce_glyphs ((IT));                            \
+      produce_glyphs (IT);				\
     if ((IT)->glyph_row != NULL)                        \
       inhibit_free_realized_faces =true;		\
-    reset_box_start_end_flags ((IT));			\
+    reset_box_start_end_flags (IT);			\
   } while (false)
 
 /* Bit-flags indicating what operation move_it_to should perform.  */
@@ -3067,8 +3134,9 @@ struct redisplay_interface
 
 #ifdef HAVE_WINDOW_SYSTEM
 
-# if (defined USE_CAIRO || defined HAVE_XRENDER || defined HAVE_MACGUI \
-      || defined HAVE_NS || defined HAVE_NTGUI || defined HAVE_HAIKU)
+# if (defined USE_CAIRO || defined HAVE_XRENDER	|| defined HAVE_MACGUI \
+      || defined HAVE_NS || defined HAVE_NTGUI || defined HAVE_HAIKU	\
+      || defined HAVE_ANDROID)
 #  define HAVE_NATIVE_TRANSFORMS
 # endif
 
@@ -3104,6 +3172,13 @@ struct image
   int original_width, original_height;
 # endif
 #endif	/* HAVE_X_WINDOWS */
+#ifdef HAVE_ANDROID
+  /* Android images of the image, corresponding to the above Pixmaps.
+     Non-NULL means it and its Pixmap counterpart may be out of sync
+     and the latter is outdated.  NULL means the X image has been
+     synchronized to Pixmap.  */
+  struct android_image *ximg, *mask_img;
+#endif /* HAVE_ANDROID */
 #ifdef HAVE_NTGUI
   XFORM xform;
 #endif
@@ -3138,6 +3213,11 @@ struct image
      allow us to draw text. */
   int face_font_size;
   char *face_font_family;
+
+  /* Details of the font used to calculate image size relative to the
+     canonical character size, with `ch' and `cw' specifiers.  */
+  int face_font_height;
+  int face_font_width;
 
   /* True if this image has a `transparent' background -- that is, is
      uses an image mask.  The accessor macro for this is
@@ -3243,6 +3323,11 @@ struct image_cache
 
   /* Reference count (number of frames sharing this cache).  */
   ptrdiff_t refcount;
+
+  /* Column width by which images whose QCscale property is Qdefault
+     will be scaled, which is 10 or FRAME_COLUMN_WIDTH of each frame
+     assigned this image cache, whichever is greater.  */
+  int scaling_col_width;
 };
 
 /* Size of bucket vector of image caches.  Should be prime.  */
@@ -3343,9 +3428,13 @@ enum tool_bar_item_idx
   /* If we shall show the label only below the icon and not beside it.  */
   TOOL_BAR_ITEM_VERT_ONLY,
 
+  /* Whether or not this tool bar item is hidden and should cause
+     subsequent items to be displayed on a new line.  */
+  TOOL_BAR_ITEM_WRAP,
+
   /* Sentinel = number of slots in tool_bar_items occupied by one
      tool-bar item.  */
-  TOOL_BAR_ITEM_NSLOTS
+  TOOL_BAR_ITEM_NSLOTS,
 };
 
 
@@ -3387,6 +3476,7 @@ enum tool_bar_item_image
 #define TTY_CAP_DIM		0x08
 #define TTY_CAP_ITALIC  	0x10
 #define TTY_CAP_STRIKE_THROUGH	0x20
+#define TTY_CAP_UNDERLINE_STYLED	(0x32 & TTY_CAP_UNDERLINE)
 
 
 /***********************************************************************
@@ -3404,6 +3494,7 @@ extern void bidi_pop_it (struct bidi_it *);
 extern void *bidi_shelve_cache (void);
 extern void bidi_unshelve_cache (void *, bool);
 extern ptrdiff_t bidi_find_first_overridden (struct bidi_it *);
+extern ptrdiff_t bidi_level_start (int);
 
 /* Defined in xdisp.c */
 
@@ -3507,6 +3598,7 @@ extern void get_glyph_string_clip_rect (struct glyph_string *,
                                         NativeRectangle *nr);
 extern Lisp_Object find_hot_spot (Lisp_Object, int, int);
 
+extern int get_tab_bar_item_kbd (struct frame *, int, int, int *, bool *);
 extern Lisp_Object handle_tab_bar_click (struct frame *,
 					 int, int, bool, int);
 extern void handle_tool_bar_click (struct frame *,
@@ -3518,6 +3610,9 @@ extern void expose_frame (struct frame *, int, int, int, int);
 extern bool gui_intersect_rectangles (const Emacs_Rectangle *,
                                       const Emacs_Rectangle *,
                                       Emacs_Rectangle *);
+extern void gui_union_rectangles (const Emacs_Rectangle *,
+				  const Emacs_Rectangle *,
+				  Emacs_Rectangle *);
 extern void gui_consider_frame_title (Lisp_Object);
 #endif	/* HAVE_WINDOW_SYSTEM */
 
@@ -3526,9 +3621,11 @@ extern void gui_clear_window_mouse_face (struct window *);
 extern void cancel_mouse_face (struct frame *);
 extern bool clear_mouse_face (Mouse_HLInfo *);
 extern bool cursor_in_mouse_face_p (struct window *w);
+#ifndef HAVE_ANDROID
 extern void tty_draw_row_with_mouse_face (struct window *, struct glyph_row *,
 					  int, int, enum draw_glyphs_face);
 extern void display_tty_menu_item (const char *, int, int, int, int, bool);
+#endif
 extern struct glyph *x_y_to_hpos_vpos (struct window *, int, int, int *, int *,
 				       int *, int *, int *);
 /* Flags passed to try_window.  */
@@ -3560,6 +3657,7 @@ extern void update_redisplay_ticks (int, struct window *);
 
 #ifdef HAVE_WINDOW_SYSTEM
 
+extern void clear_image_cache (struct frame *, Lisp_Object);
 extern ptrdiff_t image_bitmap_pixmap (struct frame *, ptrdiff_t);
 extern void image_reference_bitmap (struct frame *, ptrdiff_t);
 extern ptrdiff_t image_create_bitmap_from_data (struct frame *, char *,
@@ -3590,16 +3688,17 @@ extern void x_kill_gs_process (Pixmap, struct frame *);
 extern Lisp_Object image_find_image_file (Lisp_Object);
 
 struct image_cache *make_image_cache (void);
-void free_image_cache (struct frame *);
+extern void free_image_cache (struct frame *);
 void clear_image_caches (Lisp_Object);
 void mark_image_cache (struct image_cache *);
 void image_prune_animation_caches (bool);
 bool valid_image_p (Lisp_Object);
 void prepare_image_for_display (struct frame *, struct image *);
 ptrdiff_t lookup_image (struct frame *, Lisp_Object, int);
+Lisp_Object image_spec_value (Lisp_Object, Lisp_Object, bool *);
 
 #if defined HAVE_X_WINDOWS || defined USE_CAIRO || defined HAVE_MACGUI || defined HAVE_NS \
-  || defined HAVE_HAIKU
+  || defined HAVE_HAIKU || defined HAVE_ANDROID
 #define RGB_PIXEL_COLOR unsigned long
 #endif
 
@@ -3654,6 +3753,9 @@ int smaller_face (struct frame *, int, int);
 int face_with_height (struct frame *, int, int);
 int lookup_derived_face (struct window *, struct frame *,
                          Lisp_Object, int, bool);
+#ifdef HAVE_WINDOW_SYSTEM
+extern struct image_cache *share_image_cache (struct frame *f);
+#endif /* HAVE_WINDOW_SYSTEM */
 void init_frame_faces (struct frame *);
 void free_frame_faces (struct frame *);
 void recompute_basic_faces (struct frame *);
@@ -3682,6 +3784,9 @@ void gamma_correct (struct frame *, unsigned long *);
 #endif
 #ifdef HAVE_HAIKU
 void gamma_correct (struct frame *, Emacs_Color *);
+#endif
+#ifdef HAVE_ANDROID
+extern void gamma_correct (struct frame *, Emacs_Color *);
 #endif
 
 #ifdef HAVE_WINDOW_SYSTEM
@@ -3758,6 +3863,7 @@ extern void gui_update_window_end (struct window *, bool, bool);
 #endif
 void do_pending_window_change (bool);
 void change_frame_size (struct frame *, int, int, bool, bool, bool);
+extern bool frame_size_change_delayed (struct frame *);
 void init_display (void);
 void syms_of_display (void);
 extern void spec_glyph_lookup_face (struct window *, GLYPH *);

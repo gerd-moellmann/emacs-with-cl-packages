@@ -1,6 +1,6 @@
 ;;; gnus-art.el --- article mode commands for Gnus  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1996-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2025 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news
@@ -330,8 +330,7 @@ to match a mail address in the From: header, BANNER is one of a symbol
 If ADDRESS matches author's mail address, it will remove things like
 advertisements.  For example:
 
-\((\"@yoo-hoo\\\\.co\\\\.jp\\\\\\='\" . \"\\n_+\\nDo You Yoo-hoo!\\\\?\\n.*\\n.*\\n\"))
-"
+\((\"@yoo-hoo\\\\.co\\\\.jp\\\\\\='\" . \"\\n_+\\nDo You Yoo-hoo!\\\\?\\n.*\\n.*\\n\"))"
   :type '(repeat
 	  (cons
 	   (regexp :tag "Address")
@@ -513,7 +512,7 @@ might have."
   :type 'boolean)
 
 (defcustom gnus-prompt-before-saving 'always
-  "This variable says how much prompting is to be done when saving articles.
+  "How much prompting to do when saving articles.
 If it is nil, no prompting will be done, and the articles will be
 saved to the default files.  If this variable is `always', each and
 every article that is saved will be preceded by a prompt, even when
@@ -557,15 +556,15 @@ command, and friends such as `gnus-summary-save-article-rmail'.
 
 Gnus provides the following functions:
 
-* gnus-summary-save-in-rmail (Rmail format)
-* gnus-summary-save-in-mail (Unix mail format)
-* gnus-summary-save-in-folder (MH folder)
-* gnus-summary-save-in-file (article format)
-* gnus-summary-save-body-in-file (article body)
-* gnus-summary-save-in-vm (use VM's folder format)
-* gnus-summary-write-to-file (article format -- overwrite)
-* gnus-summary-write-body-to-file (article body -- overwrite)
-* gnus-summary-save-in-pipe (article format)
+* `gnus-summary-save-in-rmail' (Rmail format)
+* `gnus-summary-save-in-mail' (Unix mail format)
+* `gnus-summary-save-in-folder' (MH folder)
+* `gnus-summary-save-in-file' (article format)
+* `gnus-summary-save-body-in-file' (article body)
+* `gnus-summary-save-in-vm' (use VM's folder format)
+* `gnus-summary-write-to-file' (article format -- overwrite)
+* `gnus-summary-write-body-to-file' (article body -- overwrite)
+* `gnus-summary-save-in-pipe' (article format)
 
 The symbol of each function may have the following properties:
 
@@ -694,7 +693,7 @@ used as possible file names."
 
 (defcustom gnus-page-delimiter "^\^L"
   "Regexp describing what to use as article page delimiters.
-The default value is \"^\^L\", which is a form linefeed at the
+The default value is \"^\\^L\", which is a form linefeed at the
 beginning of a line."
   :type 'regexp
   :group 'gnus-article-various)
@@ -982,11 +981,11 @@ be controlled by `gnus-treat-body-boundary'."
 				  "/usr/share/picons")
   "Defines the location of the faces database.
 For information on obtaining this database of pretty pictures, please
-see http://www.cs.indiana.edu/picons/ftp/index.html"
+see https://kinzler.com/ftp/faces/picons/"
   :version "22.1"
   :type '(repeat directory)
   :link '(url-link :tag "download"
-                   "http://www.cs.indiana.edu/picons/ftp/index.html")
+                   "https://kinzler.com/ftp/faces/picons/")
   :link '(custom-manual "(gnus)Picons")
   :group 'gnus-picon)
 
@@ -2871,12 +2870,15 @@ Return file name relative to the parent of DIRECTORY."
 			      cid handle directory))
 	      (throw 'found file)))
 	   ((equal (concat "<" cid ">") (mm-handle-id handle))
-	    (setq file (or (mm-handle-filename handle)
-			   (concat
-			    (make-temp-name "cid")
-			    (car (rassoc (car (mm-handle-type handle))
-					 mailcap-mime-extensions))))
-		  afile (expand-file-name file directory))
+            ;; Randomize filenames: declared filenames may not be unique.
+            (setq file (format "cid-%d-%s"
+			       (random 99)
+			       (or (mm-handle-filename handle)
+				   (concat
+				    (make-temp-name "cid")
+				    (car (rassoc (car (mm-handle-type handle))
+						 mailcap-mime-extensions)))))
+                  afile (expand-file-name file directory))
 	    (mm-save-part-to-file handle afile)
 	    (throw 'found (concat (file-name-nondirectory
 				   (directory-file-name directory))
@@ -5516,8 +5518,7 @@ CHARSET may either be a string or a symbol."
 	(setcdr type (cons (cons 'charset charset) (cdr type)))))))
 
 (defun gnus-mime-view-part-as-charset (&optional handle arg event)
-  "Insert the MIME part under point into the current buffer using the
-specified charset."
+  "Insert MIME part under point into current buffer using specified charset."
   (interactive (list nil current-prefix-arg last-nonmenu-event)
 	       gnus-article-mode)
   (save-excursion
@@ -7301,8 +7302,7 @@ If given a prefix, show the hidden text instead."
 			    (point)))))))
 
 (defun gnus-block-private-groups (group)
-  "Allows images in newsgroups to be shown, blocks images in all
-other groups."
+  "Allows images in newsgroups to be shown, blocks images in all other groups."
   (if (or (gnus-news-group-p group)
 	  (gnus-member-of-valid 'global group)
 	  (member group gnus-global-groups))
@@ -7386,11 +7386,12 @@ other groups."
 
 (define-derived-mode gnus-article-edit-mode message-mode "Article Edit"
   "Major mode for editing articles.
-This is an extended text-mode.
+This is an extended `text-mode'.
 
 \\{gnus-article-edit-mode-map}"
   (make-local-variable 'gnus-article-edit-done-function)
   (make-local-variable 'gnus-prev-winconf)
+  (make-local-variable 'gnus-prev-cwc)
   (setq-local font-lock-defaults '(message-font-lock-keywords t))
   (setq-local mail-header-separator "")
   (setq-local gnus-article-edit-mode t)
@@ -7421,7 +7422,8 @@ groups."
 
 (defun gnus-article-edit-article (start-func exit-func &optional quiet)
   "Start editing the contents of the current article buffer."
-  (let ((winconf (current-window-configuration)))
+  (let ((winconf (current-window-configuration))
+        (cwc gnus-current-window-configuration))
     (set-buffer gnus-article-buffer)
     (let ((message-auto-save-directory
 	   ;; Don't associate the article buffer with a draft file.
@@ -7432,6 +7434,7 @@ groups."
     (gnus-configure-windows 'edit-article)
     (setq gnus-article-edit-done-function exit-func)
     (setq gnus-prev-winconf winconf)
+    (setq gnus-prev-cwc cwc)
     (unless quiet
       (gnus-message 6 "C-c C-c to end edits"))))
 
@@ -7441,7 +7444,8 @@ groups."
   (let ((func gnus-article-edit-done-function)
 	(buf (current-buffer))
 	(start (window-start))
-	(winconf gnus-prev-winconf))
+	(winconf gnus-prev-winconf)
+        (cwc gnus-prev-cwc))
     (widen) ;; Widen it in case that users narrowed the buffer.
     (funcall func arg)
     (set-buffer buf)
@@ -7459,6 +7463,7 @@ groups."
     (set-text-properties (point-min) (point-max) nil)
     (gnus-article-mode)
     (set-window-configuration winconf)
+    (setq gnus-current-window-configuration cwc)
     (set-buffer buf)
     (set-window-start (get-buffer-window buf) start)
     (set-window-point (get-buffer-window buf) (point)))
@@ -7480,10 +7485,12 @@ groups."
       (erase-buffer)
       (if (gnus-buffer-live-p gnus-original-article-buffer)
 	  (insert-buffer-substring gnus-original-article-buffer))
-      (let ((winconf gnus-prev-winconf))
+      (let ((winconf gnus-prev-winconf)
+            (cwc gnus-prev-cwc))
 	(kill-all-local-variables)
 	(gnus-article-mode)
 	(set-window-configuration winconf)
+        (setq gnus-current-window-configuration cwc)
 	;; Tippy-toe some to make sure that point remains where it was.
 	(with-current-buffer curbuf
 	  (set-window-start (get-buffer-window (current-buffer)) window-start)
@@ -8326,11 +8333,10 @@ url is put as the `gnus-button-url' overlay property on the button."
       (when (looking-at "\\([A-Za-z]+\\):")
 	(setq scheme (match-string 1))
 	(goto-char (match-end 0)))
-      (when (looking-at "//\\([^:/]+\\)\\(:?\\)\\([0-9]+\\)?/")
+      (when (looking-at "//\\([^:/]+\\):?\\([0-9]+\\)?/")
 	(setq server (match-string 1))
-	(setq port (if (stringp (match-string 3))
-		       (string-to-number (match-string 3))
-		     (match-string 3)))
+        (setq port (and (match-beginning 2)
+                        (string-to-number (match-string 2))))
 	(goto-char (match-end 0)))
 
       (cond

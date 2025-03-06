@@ -1,10 +1,10 @@
 ;;; paragraphs.el --- paragraph and sentence parsing  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1987, 1991, 1994-1997, 1999-2024 Free Software
+;; Copyright (C) 1985-1987, 1991, 1994-1997, 1999-2025 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
-;; Keywords: wp
+;; Keywords: text
 ;; Package: emacs
 
 ;; This file is part of GNU Emacs.
@@ -118,8 +118,28 @@ text indented by a margin setting."
 
 (defcustom sentence-end-double-space t
   "Non-nil means a single space does not end a sentence.
-This is relevant for filling.  See also `sentence-end-without-period'
-and `colon-double-space'.
+This user option affects fill commands and sentence commands.
+
+If this variable is non-nil, Emacs considers a period followed by two
+spaces or by a newline as the end of a sentence.  This means that:
+
+    1. The fill commands will not break a line after a period followed
+       by just one space.
+
+    2. The sentence commands stop only for double spaces.
+
+If this variable is nil, Emacs considers a period followed by one space
+or by a newline as the end of a sentence.  This means that:
+
+    1. The fill commands will break a line after a period followed by
+       one space, and put just one space after each period.
+
+    2. The sentence commands stop for single spaces.
+
+For more details, see Info node `(emacs) Fill Commands' and Info
+node `(emacs) Sentences'.
+
+See also `sentence-end-without-period' and `colon-double-space'.
 
 This value is used by the function `sentence-end' to construct the
 regexp describing the end of a sentence, when the value of the variable
@@ -440,13 +460,12 @@ the current paragraph with the one containing the mark."
 	  (if (< (point) (point-max))
 	      (end-of-paragraph-text))))))
 
-(defun forward-sentence (&optional arg)
+(defun forward-sentence-default-function (&optional arg)
   "Move forward to next end of sentence.  With argument, repeat.
 When ARG is negative, move backward repeatedly to start of sentence.
 
 The variable `sentence-end' is a regular expression that matches ends of
 sentences.  Also, every paragraph boundary terminates sentences as well."
-  (interactive "^p")
   (or arg (setq arg 1))
   (let ((opoint (point))
         (sentence-end (sentence-end)))
@@ -477,6 +496,18 @@ sentences.  Also, every paragraph boundary terminates sentences as well."
 	  (goto-char par-end)))
       (setq arg (1- arg)))
     (constrain-to-field nil opoint t)))
+
+(defvar forward-sentence-function #'forward-sentence-default-function
+  "Function to be used to calculate sentence movements.
+See `forward-sentence' for a description of its behavior.")
+
+(defun forward-sentence (&optional arg)
+  "Move forward to next end of sentence.  With argument ARG, repeat.
+If ARG is negative, move backward repeatedly to start of
+sentence.  Delegates its work to `forward-sentence-function'."
+  (interactive "^p")
+  (or arg (setq arg 1))
+  (funcall forward-sentence-function arg))
 
 (defun count-sentences (start end)
   "Count sentences in current buffer from START to END."

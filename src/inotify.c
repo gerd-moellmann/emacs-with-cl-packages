@@ -1,6 +1,6 @@
 /* Inotify support for Emacs
 
-Copyright (C) 2012-2024 Free Software Foundation, Inc.
+Copyright (C) 2012-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -26,6 +26,8 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "termhooks.h"
 
 #include <errno.h>
+#include <fcntl.h>
+
 #include <sys/inotify.h>
 #include <sys/ioctl.h>
 
@@ -39,6 +41,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #ifndef IN_ONLYDIR
 # define IN_ONLYDIR 0
 #endif
+
+#ifdef HAVE_ANDROID
+#include "android.h" /* For `android_is_special_directory'.  */
+#endif /* HAVE_ANDROID */
 
 /* File handle for inotify.  */
 static int inotifyfd = -1;
@@ -143,6 +149,11 @@ symbol_to_inotifymask (Lisp_Object symb)
     return IN_DONT_FOLLOW;
   else if (EQ (symb, Qonlydir))
     return IN_ONLYDIR;
+
+  else if (EQ (symb, Qignored))
+    return IN_IGNORED;
+  else if (EQ (symb, Qunmount))
+    return IN_UNMOUNT;
 
   else if (EQ (symb, Qt) || EQ (symb, Qall_events))
     return IN_ALL_EVENTS;
@@ -419,12 +430,21 @@ IN_ONESHOT  */)
   int wd = -1;
   uint32_t imask = aspect_to_inotifymask (aspect);
   uint32_t mask = imask | IN_MASK_ADD | IN_EXCL_UNLINK;
+  char *name;
 
   CHECK_STRING (filename);
 
   if (inotifyfd < 0)
     {
+#ifdef HAVE_INOTIFY_INIT1
       inotifyfd = inotify_init1 (IN_NONBLOCK | IN_CLOEXEC);
+#else /* !HAVE_INOTIFY_INIT1 */
+      /* This is prey to race conditions with other threads calling
+	 exec.  */
+      inotifyfd = inotify_init ();
+      fcntl (inotifyfd, F_SETFL, O_NONBLOCK);
+      fcntl (inotifyfd, F_SETFD, O_CLOEXEC);
+#endif /* HAVE_INOTIFY_INIT1 */
       if (inotifyfd < 0)
 	report_file_notify_error ("File watching is not available", Qnil);
       watch_list = Qnil;
@@ -432,7 +452,19 @@ IN_ONESHOT  */)
     }
 
   encoded_file_name = ENCODE_FILE (filename);
-  wd = inotify_add_watch (inotifyfd, SSDATA (encoded_file_name), mask);
+  name = SSDATA (encoded_file_name);
+
+#if defined HAVE_ANDROID && !defined ANDROID_STUBIFY
+  /* If FILENAME actually lies in a special directory, return now
+     instead of letting inotify fail.  These directories cannot
+     receive file notifications as they are read only.  */
+
+  if (android_is_special_directory (name, "/assets")
+      || android_is_special_directory (name, "/content"))
+    return Qnil;
+#endif /* defined HAVE_ANDROID && !defined ANDROID_STUBIFY */
+
+  wd = inotify_add_watch (inotifyfd, name, mask);
   if (wd < 0)
     report_file_notify_error ("Could not add watch for file", filename);
 
@@ -495,12 +527,14 @@ it invalid.  */)
 #ifdef INOTIFY_DEBUG
 DEFUN ("inotify-watch-list", Finotify_watch_list, Sinotify_watch_list, 0, 0, 0,
        doc: /* Return a copy of the internal watch_list.  */)
+  (void)
 {
   return Fcopy_sequence (watch_list);
 }
 
 DEFUN ("inotify-allocated-p", Finotify_allocated_p, Sinotify_allocated_p, 0, 0, 0,
        doc: /* Return non-nil, if an inotify instance is allocated.  */)
+  (void)
 {
   return inotifyfd < 0 ? Qnil : Qt;
 }

@@ -1,6 +1,6 @@
 ;;; em-term.el --- running visual commands  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2025 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -34,10 +34,9 @@
 (require 'cl-lib)
 (require 'esh-util)
 (require 'esh-ext)
-(eval-when-compile (require 'eshell))
 (require 'term)
 
-;;;###autoload
+;;;###esh-module-autoload
 (progn
 (defgroup eshell-term nil
   "This module causes visual commands (e.g., `vi') to be executed by
@@ -56,10 +55,11 @@ which commands are considered visual in nature."
   :type 'hook)
 
 (defcustom eshell-visual-commands
-  '("vi" "vim"                          ; what is going on??
+  '("vi" "vim" "nvim"                   ; what is going on??
     "screen" "tmux" "top" "htop"        ; ok, a valid program...
     "less" "more"                       ; M-x view-file
     "lynx" "links" "ncftp"              ; eww, ange-ftp
+    "ncmpcpp"                           ; M-x mpc
     "mutt" "pine" "tin" "trn" "elm")    ; GNUS!!
   "A list of commands that present their output in a visual fashion.
 
@@ -67,7 +67,7 @@ Commands listed here are run in a term buffer.
 
 See also `eshell-visual-subcommands' and `eshell-visual-options'."
   :type '(repeat string)
-  :version "29.1")
+  :version "30.1")
 
 (defcustom eshell-visual-subcommands
   nil
@@ -330,9 +330,4 @@ the buffer."
 ;  (use-local-map term-old-mode-map))
 
 (provide 'em-term)
-
-;; Local Variables:
-;; generated-autoload-file: "esh-groups.el"
-;; End:
-
 ;;; em-term.el ends here

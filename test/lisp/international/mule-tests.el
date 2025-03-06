@@ -1,6 +1,6 @@
 ;;; mule-tests.el --- unit tests for mule.el         -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2017-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2017-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -24,6 +24,8 @@
 ;;; Code:
 
 (require 'ert-x)                        ;For `ert-simulate-keys'.
+
+(defconst mule-tests--dir (file-name-directory (macroexp-file-name)))
 
 (ert-deftest find-auto-coding--bug27391 ()
   "Check that Bug#27391 is fixed."
@@ -94,12 +96,29 @@
   ;; The chinese-hz encoding is not ASCII compatible.
   (should-not (coding-system-get 'chinese-hz :ascii-compatible-p)))
 
+(defun mule-tests--auto-coding (_size)
+  (when (and (stringp auto-coding-file-name)
+             (string-match-p "\\.utf-16le\\'" auto-coding-file-name))
+    'utf-16le-with-signature))
+
+(ert-deftest mule-tests--auto-coding-functions ()
+  (unwind-protect
+      (progn
+        (add-hook 'auto-coding-functions #'mule-tests--auto-coding)
+        (with-temp-buffer
+          (insert-file-contents
+           (expand-file-name "mule-util-resources/test.utf-16le"
+                             mule-tests--dir))
+          (goto-char (point-min))
+          (should (search-forward "été" nil t))))
+    (remove-hook 'auto-coding-functions #'mule-tests--auto-coding)))
+
 ;;; Testing `sgml-html-meta-auto-coding-function'.
 
-(defconst sgml-html-meta-pre "<!doctype html><html><head>"
+(defvar sgml-html-meta-pre "<!doctype html><html><head>"
   "The beginning of a minimal HTML document.")
 
-(defconst sgml-html-meta-post "</head></html>"
+(defvar sgml-html-meta-post "</head></html>"
   "The end of a minimal HTML document.")
 
 (defun sgml-html-meta-run (coding-system)

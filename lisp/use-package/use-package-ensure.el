@@ -1,10 +1,9 @@
 ;;; use-package-ensure.el --- Support for the :ensure and :pin keywords  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2012-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2025 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@newartisans.com>
 ;; Maintainer: John Wiegley <johnw@newartisans.com>
-;; Package: use-package
 
 ;; This file is part of GNU Emacs.
 
@@ -47,13 +46,15 @@
   "Treat every package as though it had specified using `:ensure SEXP'.
 See also `use-package-defaults', which uses this value."
   :type 'sexp
-  :group 'use-package-ensure)
+  :group 'use-package-ensure
+  :version "29.1")
 
 (defcustom use-package-always-pin nil
   "Treat every package as though it had specified using `:pin SYM'.
 See also `use-package-defaults', which uses this value."
   :type 'symbol
-  :group 'use-package-ensure)
+  :group 'use-package-ensure
+  :version "29.1")
 
 (defcustom use-package-ensure-function 'use-package-ensure-elpa
   "Function that ensures a package is installed.
@@ -71,7 +72,8 @@ This function should return non-nil if the package is installed.
 The default value uses package.el to install the package."
   :type '(choice (const :tag "package.el" use-package-ensure-elpa)
                  (function :tag "Custom"))
-  :group 'use-package-ensure)
+  :group 'use-package-ensure
+  :version "29.1")
 
 ;;;; :pin
 
@@ -183,7 +185,8 @@ manually updated package."
 
 ;;;###autoload
 (defun use-package-handler/:ensure (name _keyword ensure rest state)
-  (let* ((body (use-package-process-keywords name rest state)))
+  (let* ((body (use-package-process-keywords name rest state))
+         (ensure (and (not (plist-member rest :vc)) ensure)))
     ;; We want to avoid installing packages when the `use-package' macro is
     ;; being macro-expanded by elisp completion (see `lisp--local-variables'),
     ;; but still install packages when byte-compiling, to avoid requiring

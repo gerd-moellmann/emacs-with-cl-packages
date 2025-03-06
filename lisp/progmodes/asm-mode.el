@@ -1,8 +1,8 @@
 ;;; asm-mode.el --- mode for editing assembler code  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1991, 2001-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1991, 2001-2025 Free Software Foundation, Inc.
 
-;; Author: Eric S. Raymond <esr@snark.thyrsus.com>
+;; Author: Eric S. Raymond <esr@thyrsus.com>
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: languages
 
@@ -23,7 +23,7 @@
 
 ;;; Commentary:
 
-;; This mode was written by Eric S. Raymond <esr@snark.thyrsus.com>,
+;; This mode was written by Eric S. Raymond <esr@thyrsus.com>,
 ;; inspired by an earlier `asm-mode' by Martin Neitzel.
 
 ;; This major mode is based on `prog-mode'.  It defines a private
@@ -52,9 +52,13 @@
   :link '(custom-group-link :tag "Font Lock Faces group" font-lock-faces)
   :group 'languages)
 
+(defun asm--safe-comment-char-p (char)
+  (memq char '(?\; ?# ?@)))
+
 (defcustom asm-comment-char ?\;
   "The `comment-start' character assumed by Asm mode."
-  :type 'character)
+  :type 'character
+  :safe #'asm--safe-comment-char-p)
 
 (defvar asm-mode-syntax-table
   (let ((st (make-syntax-table)))

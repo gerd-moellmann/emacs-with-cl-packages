@@ -1,6 +1,6 @@
 @c -*- coding: utf-8 -*-
 @c This is part of the Emacs manual.
-@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2024 Free Software
+@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2025 Free Software
 @c Foundation, Inc.
 
 @c See file emacs.texi for copying conditions.
@@ -2198,7 +2198,7 @@ The line numbers are displayed in a special face @code{line-number}.
 The current line number is displayed in a different face,
 @code{line-number-current-line}, so you can make the current line's
 number have a distinct appearance, which will help locating the line
-showing point. Additional faces @code{line-number-major-tick} and
+showing point.  Additional faces @code{line-number-major-tick} and
 @code{line-number-minor-tick} can be used to highlight the line numbers
 of lines which are a multiple of certain numbers.  Customize
 @code{display-line-numbers-major-tick} and
@@ -2216,6 +2216,14 @@ to make the screen blink.
 keys; its value is the number of seconds of pause required to cause echoing
 to start, or zero, meaning don't echo at all.  The value takes effect when
 there is something to echo.  @xref{Echo Area}.
+
+@vindex echo-keystrokes-help
+  If the variable @code{echo-keystrokes-help} is non-@code{nil} (the
+default), the multi-character key sequence echo shown according to
+@code{echo-keystrokes} will include a short help text about keys which
+will invoke @code{describe-prefix-bindings} (@pxref{Misc Help}) to show
+the list of commands for the prefix you already typed.  For a related
+help facility, see @ref{which-key}.
 
 @cindex mouse pointer
 @cindex hourglass pointer display

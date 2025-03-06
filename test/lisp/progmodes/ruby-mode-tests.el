@@ -1,6 +1,6 @@
 ;;; ruby-mode-tests.el --- Test suite for ruby-mode  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2012-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -164,7 +164,7 @@ VALUES-PLIST is a list with alternating index and value elements."
   (ruby-assert-state "x = index/3" 3 nil))
 
 (ert-deftest ruby-regexp-not-division-when-only-space-before ()
-  (ruby-assert-state "x = index /3" 3 ?/))
+  (ruby-assert-state "x = foo_index /3" 3 ?/))
 
 (ert-deftest ruby-slash-not-regexp-when-only-space-after ()
   (ruby-assert-state "x = index/ 3" 3 nil))
@@ -992,6 +992,7 @@ VALUES-PLIST is a list with alternating index and value elements."
 (ruby-deftest-indent "ruby-method-call-indent.rb")
 (ruby-deftest-indent "ruby-method-params-indent.rb")
 (ruby-deftest-indent "ruby-parenless-call-arguments-indent.rb")
+(ruby-deftest-indent "ruby-bracketed-args-indent.rb")
 
 (ert-deftest ruby--test-chained-indentation ()
   (with-temp-buffer

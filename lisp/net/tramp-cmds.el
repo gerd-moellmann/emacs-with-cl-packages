@@ -1,6 +1,6 @@
 ;;; tramp-cmds.el --- Interactive commands for Tramp  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2007-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2025 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -31,6 +31,8 @@
 (require 'tramp)
 
 ;; Pacify byte-compiler.
+(declare-function dired-advertise "dired")
+(declare-function dired-unadvertise "dired")
 (declare-function mml-mode "mml")
 (declare-function mml-insert-empty-tag "mml")
 (declare-function reporter-dump-variable "reporter")
@@ -52,6 +54,7 @@ SYNTAX can be one of the symbols `default' (default),
   (when syntax
     (customize-set-variable 'tramp-syntax syntax)))
 
+;; Use `match-buffers' starting with Emacs 29.1.
 ;;;###tramp-autoload
 (defun tramp-list-tramp-buffers ()
   "Return a list of all Tramp connection buffers."
@@ -63,15 +66,16 @@ SYNTAX can be one of the symbols `default' (default),
    (all-completions
     "*trace tramp" (mapcar #'list (mapcar #'buffer-name (buffer-list))))))
 
+;; Use `match-buffers' starting with Emacs 29.1.
 ;;;###tramp-autoload
 (defun tramp-list-remote-buffers ()
   "Return a list of all buffers with remote `default-directory'."
-  (delq
-   nil
-   (mapcar
-    (lambda (x)
-      (when (tramp-tramp-file-p (tramp-get-default-directory x)) x))
-    (buffer-list))))
+  (tramp-compat-seq-keep
+   (lambda (x)
+     (when (tramp-tramp-file-p (tramp-get-default-directory x)) x))
+   (buffer-list)))
+
+;;; Cleanup
 
 ;;;###tramp-autoload
 (defvar tramp-cleanup-connection-hook nil
@@ -207,17 +211,86 @@ This includes password cache, file cache, connection cache, buffers."
   ;; The end.
   (run-hooks 'tramp-cleanup-all-connections-hook))
 
+(defcustom tramp-cleanup-some-buffers-hook nil
+  "Hook for `tramp-cleanup-some-buffers'.
+The functions determine which buffers shall be killed.  This
+happens when at least one of the functions returns non-nil.  The
+functions are called with `current-buffer' set."
+  :group 'tramp
+  :version "30.1"
+  :type 'hook)
+
+(add-hook 'tramp-cleanup-some-buffers-hook
+	  #'buffer-file-name)
+
+(defun tramp-dired-buffer-p ()
+  "Return t if current buffer runs `dired-mode'."
+  (declare (tramp-suppress-trace t))
+  (derived-mode-p 'dired-mode))
+
+(add-hook 'tramp-cleanup-some-buffers-hook
+	  #'tramp-dired-buffer-p)
+
+(defvar tramp-tainted-remote-process-buffers nil
+  "List of process buffers to be cleaned up.")
+
+(defun tramp-delete-tainted-remote-process-buffer-function ()
+  "Delete current buffer from `tramp-tainted-remote-process-buffers'."
+  (declare (tramp-suppress-trace t))
+  (setq tramp-tainted-remote-process-buffers
+	(delete (current-buffer) tramp-tainted-remote-process-buffers)))
+
 ;;;###tramp-autoload
-(defun tramp-cleanup-all-buffers ()
-  "Kill all remote buffers."
+(defun tramp-taint-remote-process-buffer (buffer)
+  "Mark buffer as related to remote processes."
+  ;; (declare (tramp-suppress-trace t))
+  (add-to-list 'tramp-tainted-remote-process-buffers buffer))
+
+;; We cannot use the `declare' form for `tramp-suppress-trace' in
+;; autoloaded functions, because the tramp-loaddefs.el generation
+;; would fail.
+(function-put #'tramp-taint-remote-process-buffer 'tramp-suppress-trace t)
+
+(add-hook 'kill-buffer-hook
+	  #'tramp-delete-tainted-remote-process-buffer-function)
+(add-hook 'tramp-unload-hook
+	  (lambda ()
+	    (remove-hook 'kill-buffer-hook
+			 #'tramp-delete-tainted-remote-process-buffer-function)))
+
+(defun tramp-remote-process-p ()
+  "Return t if current buffer belongs to a remote process."
+  (memq (current-buffer) tramp-tainted-remote-process-buffers))
+
+(add-hook 'tramp-cleanup-some-buffers-hook
+	  #'tramp-remote-process-p)
+
+;;;###tramp-autoload
+(defun tramp-cleanup-some-buffers ()
+  "Kill some remote buffers.
+A buffer is killed when it has a remote `default-directory', and
+one of the functions in `tramp-cleanup-some-buffers-hook' returns
+non-nil."
   (interactive)
 
   ;; Remove all Tramp related connections.
   (tramp-cleanup-all-connections)
 
-  ;; Remove all buffers with a remote default-directory.
+  ;; Remove all buffers with a remote default-directory which fit the hook.
   (dolist (name (tramp-list-remote-buffers))
-    (when (bufferp (get-buffer name)) (kill-buffer name))))
+    (and (buffer-live-p (get-buffer name))
+	 (with-current-buffer name
+	   (run-hook-with-args-until-success 'tramp-cleanup-some-buffers-hook))
+	 (kill-buffer name))))
+
+;;;###tramp-autoload
+(defun tramp-cleanup-all-buffers ()
+  "Kill all remote buffers."
+  (interactive)
+  (let ((tramp-cleanup-some-buffers-hook '(tramp-compat-always)))
+    (tramp-cleanup-some-buffers)))
+
+;;; Rename
 
 (defcustom tramp-default-rename-alist nil
   "Default target for renaming remote buffer file names.
@@ -359,7 +432,7 @@ The remote connection identified by SOURCE is flushed by
 		      (dir (tramp-rename-read-file-name-dir default))
 		      (init (tramp-rename-read-file-name-init default))
 		      (tramp-ignored-file-name-regexp
-		       (tramp-compat-rx (literal (file-remote-p source)))))
+		       (rx (literal (file-remote-p source)))))
 		 (read-file-name-default
 		  "Enter new Tramp connection: "
 		  dir default 'confirm init #'file-directory-p)))))
@@ -470,7 +543,7 @@ For details, see `tramp-rename-files'."
 		      (dir (tramp-rename-read-file-name-dir default))
 		      (init (tramp-rename-read-file-name-init default))
 		      (tramp-ignored-file-name-regexp
-		       (tramp-compat-rx (literal (file-remote-p source)))))
+		       (rx (literal (file-remote-p source)))))
 		 (read-file-name-default
 		  (format "Change Tramp connection `%s': " source)
 		  dir default 'confirm init #'file-directory-p)))))
@@ -483,13 +556,81 @@ For details, see `tramp-rename-files'."
 (function-put
  #'tramp-rename-these-files 'completion-predicate #'tramp-command-completion-p)
 
+;;; Run as sudo
+
+(defcustom tramp-file-name-with-method "sudo"
+  "Which method to be used in `tramp-file-name-with-sudo'."
+  :group 'tramp
+  :version "30.1"
+  :type '(choice (const "su")
+		 (const "sudo")
+		 (const "doas")
+		 (const "run0")
+		 (const "ksu")))
+
+(defun tramp-file-name-with-sudo (filename)
+  "Convert FILENAME into a multi-hop file name with \"sudo\".
+An alternative method could be chosen with `tramp-file-name-with-method'."
+  (setq filename (expand-file-name filename))
+  (if (tramp-tramp-file-p filename)
+      (with-parsed-tramp-file-name filename nil
+	(cond
+	 ;; Remote file with proper method.
+	 ((string-equal method tramp-file-name-with-method)
+	  filename)
+	 ;; Remote file on the local host.
+	 ((and
+	   (stringp tramp-local-host-regexp) (stringp host)
+	   (string-match-p tramp-local-host-regexp host))
+	  (tramp-make-tramp-file-name
+	   (make-tramp-file-name
+	    :method tramp-file-name-with-method :localname localname)))
+	 ;; Remote file with multi-hop capable method.
+	 ((tramp-multi-hop-p v)
+	  (tramp-make-tramp-file-name
+	   (make-tramp-file-name
+	    :method (tramp-find-method tramp-file-name-with-method nil host)
+	    :user (tramp-find-user tramp-file-name-with-method nil host)
+	    :host (tramp-find-host tramp-file-name-with-method nil host)
+	    :localname localname :hop (tramp-make-tramp-hop-name v))))
+	 ;; Other remote file.
+	 (t (tramp-user-error v "Multi-hop with `%s' not applicable" method))))
+    ;; Local file.
+    (tramp-make-tramp-file-name
+     (make-tramp-file-name
+      :method tramp-file-name-with-method :localname filename))))
+
+;;;###tramp-autoload
+(defun tramp-revert-buffer-with-sudo ()
+  "Revert current buffer to visit with \"sudo\" permissions.
+An alternative method could be chosen with `tramp-file-name-with-method'.
+If the buffer visits a file, the file is replaced.
+If the buffer runs `dired', the buffer is reverted."
+  (interactive)
+  (cond
+   ((buffer-file-name)
+    (find-alternate-file (tramp-file-name-with-sudo (buffer-file-name))))
+   ((tramp-dired-buffer-p)
+    (dired-unadvertise (expand-file-name default-directory))
+    (setq default-directory (tramp-file-name-with-sudo default-directory)
+	  list-buffers-directory
+	  (tramp-file-name-with-sudo list-buffers-directory))
+    (if (consp dired-directory)
+	(setcar
+	 dired-directory (tramp-file-name-with-sudo (car dired-directory)))
+      (setq dired-directory (tramp-file-name-with-sudo dired-directory)))
+    (dired-advertise)
+    (revert-buffer))))
+
+;;; Recompile on ELPA
+
 ;; This function takes action since Emacs 28.1, when
 ;; `read-extended-command-predicate' is set to
 ;; `command-completion-default-include-p'.
 ;;;###tramp-autoload
 (defun tramp-recompile-elpa-command-completion-p (_symbol _buffer)
   "A predicate for `tramp-recompile-elpa'.
-It is completed by \"M-x TAB\" only if package.el is loaded, and
+It is completed by `M-x TAB' only if package.el is loaded, and
 Tramp is an installed ELPA package."
   ;; We cannot apply `package-installed-p', this would also return the
   ;; builtin package.
@@ -549,25 +690,25 @@ This is needed if there are compatibility problems."
      (format "tramp (%s %s/%s)" ; package name and version
 	     tramp-version tramp-repository-branch tramp-repository-version)
      (sort
-      (delq nil (mapcar
-	(lambda (x)
-	  (and x (boundp x) (not (get x 'tramp-suppress-trace))
-	       (cons x 'tramp-reporter-dump-variable)))
-	(append
-	 (mapcar #'intern (all-completions "tramp-" obarray #'boundp))
-	 ;; Non-Tramp variables of interest.
-	 '(shell-prompt-pattern
-	   backup-by-copying
-	   backup-by-copying-when-linked
-	   backup-by-copying-when-mismatch
-	   backup-by-copying-when-privileged-mismatch
-	   backup-directory-alist
-	   password-cache
-	   password-cache-expiry
-	   remote-file-name-inhibit-cache
-	   connection-local-profile-alist
-	   connection-local-criteria-alist
-	   file-name-handler-alist))))
+      (tramp-compat-seq-keep
+       (lambda (x)
+	 (and x (boundp x) (not (get x 'tramp-suppress-trace))
+	      (cons x 'tramp-reporter-dump-variable)))
+       (append
+	(mapcar #'intern (all-completions "tramp-" obarray #'boundp))
+	;; Non-Tramp variables of interest.
+	'(shell-prompt-pattern
+	  backup-by-copying
+	  backup-by-copying-when-linked
+	  backup-by-copying-when-mismatch
+	  backup-by-copying-when-privileged-mismatch
+	  backup-directory-alist
+	  password-cache
+	  password-cache-expiry
+	  remote-file-name-inhibit-cache
+	  connection-local-profile-alist
+	  connection-local-criteria-alist
+	  file-name-handler-alist)))
       (lambda (x y) (string< (symbol-name (car x)) (symbol-name (car y)))))
 
      'tramp-load-report-modules	; pre-hook
@@ -625,7 +766,7 @@ buffer in your bug report.
     (unless (hash-table-p val)
       ;; Remove string quotation.
       (when (looking-at
-	     (tramp-compat-rx
+	     (rx
 	      bol (group (* anychar)) "\""          ;; \1 "
 	      (group "(base64-decode-string ") "\\" ;; \2 \
 	      (group "\"" (* anychar)) "\\"         ;; \3 \
@@ -650,12 +791,10 @@ buffer in your bug report.
 
   ;; Dump buffer local variables.
   (insert "\nlocal variables:\n================")
-  (dolist (buffer
-	   (delq nil
-		 (mapcar
-		  (lambda (b)
-                    (when (string-match-p "\\*tramp/" (buffer-name b)) b))
-		  (buffer-list))))
+  (dolist (buffer (tramp-compat-seq-keep
+		   (lambda (b)
+		     (when (string-match-p "\\*tramp/" (buffer-name b)) b))
+		   (buffer-list)))
     (let ((reporter-eval-buffer buffer)
 	  (elbuf (get-buffer-create " *tmp-reporter-buffer*")))
       (with-current-buffer elbuf
@@ -679,7 +818,7 @@ buffer in your bug report.
 
   ;; Beautify encoded values.
   (goto-char (point-min))
-  (while (re-search-forward
+  (while (search-forward-regexp
 	  (rx "'" (group "(decode-coding-string")) nil 'noerror)
     (replace-match "\\1"))
   (goto-char (point-max))
@@ -707,7 +846,7 @@ buffer in your bug report.
 	(setq buffer-read-only nil)
 	(goto-char (point-min))
 	(while (not (eobp))
-	  (if (re-search-forward tramp-buf-regexp (line-end-position) t)
+	  (if (search-forward-regexp tramp-buf-regexp (line-end-position) t)
 	      (forward-line 1)
 	    (forward-line 0)
 	    (let ((start (point)))

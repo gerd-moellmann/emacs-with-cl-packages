@@ -1,6 +1,6 @@
 ;;; vc-src.el --- support for SRC version-control  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1992-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1992-2025 Free Software Foundation, Inc.
 
 ;; Author: FSF (see vc.el for full credits)
 ;; Maintainer: emacs-devel@gnu.org
@@ -211,7 +211,7 @@ For a description of possible values, see `vc-check-master-templates'."
 
 (defun vc-src-command (buffer file-or-list &rest flags)
   "A wrapper around `vc-do-command' for use in vc-src.el.
-This function differs from vc-do-command in that it invokes `vc-src-program'."
+This function differs from `vc-do-command' in that it invokes `vc-src-program'."
   (let (file-list)
     (cond ((stringp file-or-list)
 	   (setq file-list (list "--" file-or-list)))

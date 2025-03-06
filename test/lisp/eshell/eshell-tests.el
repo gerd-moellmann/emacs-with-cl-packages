@@ -1,6 +1,6 @@
 ;;; eshell-tests.el --- Eshell test suite  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2025 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -34,76 +34,9 @@
                            (file-name-directory (or load-file-name
                                                     default-directory))))
 
+(defvar eshell-test-value nil)
+
 ;;; Tests:
-
-(ert-deftest eshell-test/pipe-headproc ()
-  "Check that piping a non-process to a process command waits for the process"
-  (skip-unless (executable-find "cat"))
-  (with-temp-eshell
-   (eshell-match-command-output "echo hi | *cat"
-                                "hi")))
-
-(ert-deftest eshell-test/pipe-tailproc ()
-  "Check that piping a process to a non-process command waits for the process"
-  (skip-unless (executable-find "echo"))
-  (with-temp-eshell
-   (eshell-match-command-output "*echo hi | echo bye"
-                                "bye\nhi\n")))
-
-(ert-deftest eshell-test/pipe-headproc-stdin ()
-  "Check that standard input is sent to the head process in a pipeline"
-  (skip-unless (and (executable-find "tr")
-                    (executable-find "rev")))
-  (with-temp-eshell
-   (eshell-insert-command "tr a-z A-Z | rev")
-   (eshell-insert-command "hello")
-   (eshell-send-eof-to-process)
-   (eshell-wait-for-subprocess)
-   (should (eshell-match-output "OLLEH\n"))))
-
-(ert-deftest eshell-test/pipe-subcommand ()
-  "Check that piping with an asynchronous subcommand works"
-  (skip-unless (and (executable-find "echo")
-                    (executable-find "cat")))
-  (with-temp-eshell
-   (eshell-match-command-output "echo ${*echo hi} | *cat"
-                                "hi")))
-
-(ert-deftest eshell-test/pipe-subcommand-with-pipe ()
-  "Check that piping with an asynchronous subcommand with its own pipe works"
-  (skip-unless (and (executable-find "echo")
-                    (executable-find "cat")))
-  (with-temp-eshell
-   (eshell-match-command-output "echo ${*echo hi | *cat} | *cat"
-                                "hi")))
-
-(ert-deftest eshell-test/subcommand-reset-in-pipeline ()
-  "Check that subcommands reset `eshell-in-pipeline-p'."
-  (skip-unless (executable-find "cat"))
-  (dolist (template '("echo {%s} | *cat"
-                      "echo ${%s} | *cat"
-                      "*cat $<%s> | *cat"))
-    (eshell-command-result-equal
-     (format template "echo $eshell-in-pipeline-p")
-     nil)
-    (eshell-command-result-equal
-     (format template "echo | echo $eshell-in-pipeline-p")
-     "last")
-    (eshell-command-result-equal
-     (format template "echo $eshell-in-pipeline-p | echo")
-     "first")
-    (eshell-command-result-equal
-     (format template "echo | echo $eshell-in-pipeline-p | echo")
-     "t")))
-
-(ert-deftest eshell-test/lisp-reset-in-pipeline ()
-  "Check that interpolated Lisp forms reset `eshell-in-pipeline-p'."
-  (skip-unless (executable-find "cat"))
-  (dolist (template '("echo (%s) | *cat"
-                      "echo $(%s) | *cat"))
-    (eshell-command-result-equal
-     (format template "format \"%s\" eshell-in-pipeline-p")
-     "nil")))
 
 (ert-deftest eshell-test/eshell-command/simple ()
   "Test that the `eshell-command' function writes to the current buffer."
@@ -125,21 +58,28 @@ This test uses a pipeline for the command."
         (eshell-command "*echo hi | *cat" t)
         (should (equal (buffer-string) "hi\n"))))))
 
+(ert-deftest eshell-test/eshell-command/pipeline-wait ()
+  "Check that `eshell-command' waits for all its processes before returning."
+  (skip-unless (and (executable-find "echo")
+                    (executable-find "sh")
+                    (executable-find "rev")))
+  (ert-with-temp-directory eshell-directory-name
+    (let ((eshell-history-file-name nil))
+      (with-temp-buffer
+        (eshell-command
+         "*echo hello | sh -c 'sleep 1; rev' 1>&2 | *echo goodbye" t)
+        (should (equal (buffer-string) "goodbye\nolleh\n"))))))
+
 (ert-deftest eshell-test/eshell-command/background ()
   "Test that `eshell-command' works for background commands."
   (skip-unless (executable-find "echo"))
   (ert-with-temp-directory eshell-directory-name
-    (let ((eshell-history-file-name nil))
-      ;; XXX: We can't write to the current buffer here, since
-      ;; `eshell-command' will produce an invalid command in that
-      ;; case.  Just make sure the command runs and produces an output
-      ;; buffer.
-      (eshell-command "*echo hi &")
-      (with-current-buffer "*Eshell Async Command Output*"
-        (while (get-buffer-process (current-buffer))
-          (accept-process-output))
-        (goto-char (point-min))
-        (should (looking-at "\\[echo\\(\\.exe\\)?\\(<[0-9]+>\\)?\\]"))))))
+    (let ((orig-processes (process-list))
+          (eshell-history-file-name nil))
+      (with-temp-buffer
+        (eshell-command "*echo hi &" t)
+        (eshell-wait-for (lambda () (equal (process-list) orig-processes)))
+        (should (equal (buffer-string) "hi\n"))))))
 
 (ert-deftest eshell-test/eshell-command/background-pipeline ()
   "Test that `eshell-command' works for background commands.
@@ -147,14 +87,35 @@ This test uses a pipeline for the command."
   (skip-unless (and (executable-find "echo")
                     (executable-find "cat")))
   (ert-with-temp-directory eshell-directory-name
+    (let ((orig-processes (process-list))
+          (eshell-history-file-name nil))
+      (with-temp-buffer
+        (eshell-command "*echo hi | *cat &" t)
+        (eshell-wait-for (lambda () (equal (process-list) orig-processes)))
+        (should (equal (buffer-string) "hi\n"))))))
+
+(ert-deftest eshell-test/eshell-command/output-buffer/sync ()
+  "Test that the `eshell-command' function writes to its output buffer."
+  (skip-unless (executable-find "echo"))
+  (ert-with-temp-directory eshell-directory-name
     (let ((eshell-history-file-name nil))
-      ;; XXX: As above, we can't write to the current buffer here.
-      (eshell-command "*echo hi | *cat &")
+      (eshell-command "*echo 'hi\nbye'")
+      (with-current-buffer "*Eshell Command Output*"
+        (should (equal (buffer-string) "hi\nbye")))
+      (kill-buffer "*Eshell Command Output*"))))
+
+(ert-deftest eshell-test/eshell-command/output-buffer/async ()
+  "Test that the `eshell-command' function writes to its async output buffer."
+  (skip-unless (executable-find "echo"))
+  (ert-with-temp-directory eshell-directory-name
+    (let ((orig-processes (process-list))
+          (eshell-history-file-name nil))
+      (eshell-command "*echo hi &")
+      (eshell-wait-for (lambda () (equal (process-list) orig-processes)))
       (with-current-buffer "*Eshell Async Command Output*"
-        (while (get-buffer-process (current-buffer))
-          (accept-process-output))
         (goto-char (point-min))
-        (should (looking-at "\\[cat\\(\\.exe\\)?\\(<[0-9]+>\\)?\\]"))))))
+        (forward-line)
+        (should (looking-at "hi\n"))))))
 
 (ert-deftest eshell-test/command-running-p ()
   "Modeline should show no command running"
@@ -167,43 +128,91 @@ This test uses a pipeline for the command."
   "Test moving across command arguments"
   (with-temp-eshell
    (eshell-insert-command "echo $(+ 1 (- 4 3)) \"alpha beta\" file" 'ignore)
-   (let ((here (point)) begin valid)
-     (eshell-bol)
+   (let ((end (point)) begin)
+     (beginning-of-line)
      (setq begin (point))
      (eshell-forward-argument 4)
-     (setq valid (= here (point)))
+     (should (= end (point)))
      (eshell-backward-argument 4)
-     (prog1
-         (and valid (= begin (point)))
-       (eshell-bol)
-       (delete-region (point) (point-max))))))
+     (should (= begin (point))))))
 
 (ert-deftest eshell-test/queue-input ()
-  "Test queuing command input"
+  "Test queuing command input.
+This should let the current command finish, then automatically
+insert the queued one at the next prompt, and finally run it."
   (with-temp-eshell
-   (eshell-insert-command "sleep 2")
-   (eshell-insert-command "echo alpha" 'eshell-queue-input)
-   (let ((count 10))
-     (while (and eshell-current-command
-                 (> count 0))
-       (sit-for 1)
-       (setq count (1- count))))
-   (should (eshell-match-output "alpha\n"))))
+   (eshell-insert-command "sleep 1; echo slept")
+   (eshell-insert-command "echo alpha" #'eshell-queue-input)
+   (let ((start (marker-position (eshell-beginning-of-output))))
+     (eshell-wait-for (lambda () (not eshell-foreground-command)))
+     (should (string-match "^slept\n.*echo alpha\nalpha\n$"
+                           (buffer-substring-no-properties
+                            start (eshell-end-of-output)))))))
 
 (ert-deftest eshell-test/flush-output ()
   "Test flushing of previous output"
   (with-temp-eshell
    (eshell-insert-command "echo alpha")
-   (eshell-kill-output)
+   (eshell-delete-output)
    (should (eshell-match-output
             (concat "^" (regexp-quote "*** output flushed ***\n") "$")))))
 
-(ert-deftest eshell-test/run-old-command ()
-  "Re-run an old command"
+(ert-deftest eshell-test/get-old-input ()
+  "Test that we can get the input of a previous command."
   (with-temp-eshell
    (eshell-insert-command "echo alpha")
    (goto-char eshell-last-input-start)
-   (string= (eshell-get-old-input) "echo alpha")))
+   (should (string= (eshell-get-old-input) "echo alpha"))
+   ;; Make sure that `eshell-get-old-input' works even if the point is
+   ;; inside the prompt.
+   (let ((inhibit-field-text-motion t))
+     (beginning-of-line))
+   (should (string= (eshell-get-old-input) "echo alpha"))))
+
+(ert-deftest eshell-test/get-old-input/rerun-command ()
+  "Test that we can rerun an old command when point is on it."
+  (with-temp-eshell
+   (let ((eshell-test-value "first"))
+     (eshell-match-command-output "echo $eshell-test-value" "first"))
+   ;; Go to the previous prompt.
+   (forward-line -2)
+   (let ((inhibit-field-text-motion t))
+     (end-of-line))
+   ;; Rerun the command, but with a different variable value.
+   (let ((eshell-test-value "second"))
+     (eshell-send-input))
+   (eshell-match-output "second")))
+
+(ert-deftest eshell-test/get-old-input/run-output ()
+  "Test that we can run a line of output as a command when point is on it."
+  (with-temp-eshell
+   (eshell-match-command-output "echo \"echo there\"" "echo there")
+   ;; Go to the output, and insert "hello" after "echo".
+   (forward-line -1)
+   (forward-word)
+   (insert " hello")
+   ;; Run the line as a command.
+   (eshell-send-input)
+   (eshell-match-output "(\"hello\" \"there\")")))
+
+(ert-deftest eshell-test/yank-output ()
+  "Test that yanking a line of output into the next prompt works (bug#66469)."
+  (with-temp-eshell
+   (eshell-insert-command "echo hello")
+   ;; Go to the output and kill the line of text.
+   (forward-line -1)
+   (kill-line)
+   ;; Go to the last prompt and yank the previous output.
+   (goto-char (point-max))
+   (yank)
+   ;; Go to the beginning of the prompt and add some text.
+   (move-beginning-of-line 1)
+   (insert-and-inherit "echo ")
+   ;; Make sure when we go to the beginning of the line, we go to the
+   ;; right spot (before the "echo").
+   (move-end-of-line 1)
+   (move-beginning-of-line 1)
+   (should (looking-at "echo hello"))))
 
 (provide 'eshell-tests)
 

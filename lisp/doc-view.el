@@ -1,6 +1,6 @@
 ;;; doc-view.el --- Document viewer for Emacs -*- lexical-binding: t -*-
 
-;; Copyright (C) 2007-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2025 Free Software Foundation, Inc.
 ;;
 ;; Author: Tassilo Horn <tsdh@gnu.org>
 ;; Keywords: files, pdf, ps, dvi, djvu, epub, cbz, fb2, xps, openxps
@@ -51,7 +51,7 @@
 ;; subdirectory of `doc-view-cache-directory' and reused when you want to view
 ;; that file again.  To reconvert a document hit `g' (`doc-view-reconvert-doc')
 ;; when displaying the document.  To delete all cached files use
-;; `doc-view-clear-cache'.  To open the cache with dired, so that you can tidy
+;; `doc-view-clear-cache'.  To open the cache with Dired, so that you can tidy
 ;; it out use `doc-view-dired-cache'.
 ;;
 ;; When conversion is underway the first page will be displayed as soon as it
@@ -147,6 +147,8 @@
 (require 'filenotify)
 (eval-when-compile (require 'subr-x))
 
+(autoload 'imenu-unavailable-error "imenu")
+
 ;;;; Customization Options
 
 (defgroup doc-view nil
@@ -174,7 +176,7 @@ are available (see Info node `(emacs)Document View')."
      ;; non-MikTeX apps.  Was available under:
      ;; http://blog.miktex.org/post/2005/04/07/Starting-mgsexe-at-the-DOS-Prompt.aspx
      ((and (executable-find "mgs")
-           (= 0 (shell-command "mgs -q -dNODISPLAY -c quit")))
+           (eql 0 (shell-command "mgs -q -dNODISPLAY -c quit")))
       "mgs")))
    (t "gs"))
   "Program to convert PS and PDF files to PNG."
@@ -202,17 +204,17 @@ are available (see Info node `(emacs)Document View')."
     #'doc-view-pdf->png-converter-ghostscript)
   "Function to call to convert a PDF file into a PNG file."
   :type '(radio
-          (function-item doc-view-pdf->png-converter-ghostscript
-                         :doc "Use ghostscript")
-          (function-item doc-view-pdf->png-converter-mupdf
-                         :doc "Use mupdf")
+          (function-item :doc "Use Ghostscript"
+                         doc-view-pdf->png-converter-ghostscript)
+          (function-item :doc "Use MuPDF"
+                         doc-view-pdf->png-converter-mupdf)
           function)
   :version "24.4")
 
-(defcustom doc-view-mupdf-use-svg nil
-  "Whether to use SVG images for PDF files."
+(defcustom doc-view-mupdf-use-svg (image-type-available-p 'svg)
+  "Whether to use svg images for PDF files."
   :type 'boolean
-  :version "29.1")
+  :version "30.1")
 
 (defcustom doc-view-imenu-enabled (and (executable-find "mutool") t)
   "Whether to generate an imenu outline when \"mutool\" is available."
@@ -236,17 +238,19 @@ showing only titles and no page number."
   :type 'boolean
   :version "29.1")
 
-(defcustom doc-view-svg-background "white"
-  "Background color for svg images.
-See `doc-view-mupdf-use-svg'."
-  :type 'color
-  :version "29.1")
+(defface doc-view-svg-face '((t :inherit default
+                                :background "white"
+                                :foreground "black"))
+  "Face used for SVG images.
+See `doc-view-mupdf-use-svg'.
 
-(defcustom doc-view-svg-foreground "black"
-  "Foreground color for svg images.
-See `doc-view-mupdf-use-svg'."
-  :type 'color
-  :version "29.1")
+Only background and foreground colors are used as the SVG image's
+descriptors; see (info \"(elisp) SVG Images\").  Custom values may
+cause low-contrast issues with certain documents."
+  :version "30.1")
+
+(make-obsolete 'doc-view-svg-background 'doc-view-svg-face "30.1")
+(make-obsolete 'doc-view-svg-foreground 'doc-view-svg-face "30.1")
 
 (defcustom doc-view-ghostscript-options
   '("-dSAFER" ;; Avoid security problems when rendering files from untrusted
@@ -376,17 +380,15 @@ Needed for viewing OpenOffice.org (and MS Office) files."
   :type 'file)
 
 (defcustom doc-view-odf->pdf-converter-function
-  (cond
-   ((string-match "unoconv\\'" doc-view-odf->pdf-converter-program)
-    #'doc-view-odf->pdf-converter-unoconv)
-   ((string-match "soffice\\'" doc-view-odf->pdf-converter-program)
-    #'doc-view-odf->pdf-converter-soffice))
-  "Function to call to convert a ODF file into a PDF file."
+  (if (string-suffix-p "unoconv" doc-view-odf->pdf-converter-program)
+      #'doc-view-odf->pdf-converter-unoconv
+    #'doc-view-odf->pdf-converter-soffice)
+  "Function to call to convert an ODF file into a PDF file."
   :type '(radio
-          (function-item doc-view-odf->pdf-converter-unoconv
-                         :doc "Use unoconv")
-          (function-item doc-view-odf->pdf-converter-soffice
-                         :doc "Use LibreOffice")
+          (function-item :doc "Use LibreOffice"
+                         doc-view-odf->pdf-converter-soffice)
+          (function-item :doc "Use unoconv"
+                         doc-view-odf->pdf-converter-unoconv)
           function)
   :version "24.4")
 
@@ -435,6 +437,15 @@ of the page moves to the previous page."
 
 (defun doc-view-new-window-function (winprops)
   ;; (message "New window %s for buf %s" (car winprops) (current-buffer))
+  ;;
+  ;; If the window configuration changed, `image-mode-reapply-winprops'
+  ;; will have erased any previous property list for this window, but
+  ;; without removing existing overlays for the same, so that they must
+  ;; be located and erased before a new overlay is created.
+  (dolist (tem (car (overlay-lists)))
+    (when (and (eq (overlay-get tem 'window) (car winprops))
+               (overlay-get tem 'doc-view))
+      (delete-overlay tem)))
   (cl-assert (or (eq t (car winprops))
                  (eq (window-buffer (car winprops)) (current-buffer))))
   (let ((ol (image-mode-window-get 'overlay winprops)))
@@ -578,8 +589,8 @@ Typically \"page-%s.png\".")
         ;; file.  (TODO: We'd like to have something like that also
         ;; for other types, at least PS, but I don't know a good way
         ;; to test if a PS file is complete.)
-        (if (= 0 (call-process "pdfinfo" nil nil nil
-                               doc-view--buffer-file-name))
+        (if (eql 0 (call-process "pdfinfo" nil nil nil
+                                 doc-view--buffer-file-name))
             (revert)
           (when (called-interactively-p 'interactive)
             (message "Can't revert right now because the file is corrupted.")))
@@ -646,7 +657,7 @@ Typically \"page-%s.png\".")
       :help                     "Reset the current slice"
       :enabled                  (image-mode-window-get 'slice)])
     "---"
-    ["New Search"               (doc-view-search t)
+    ["New Search"               doc-view-new-search
      :help                      "Initiate a new search"]
     ["Search Forward"           doc-view-search
      :help                      "Jump to the next match or initiate a new search"]
@@ -664,10 +675,51 @@ Typically \"page-%s.png\".")
   '("DocView (edit)"
     ("Toggle edit/display"
      ["Edit document"           (lambda ()) ; ignore but show no keybinding
-      :style radio :selected    (eq major-mode 'doc-view--text-view-mode)]
+      ;; This is always selected since its menu is singular to the
+      ;; display minor mode.
+      :style radio :selected    t]
      ["Display document"        doc-view-toggle-display
       :style radio :selected    (eq major-mode 'doc-view-mode)])
     ["Exit DocView Mode" doc-view-minor-mode]))
+
+(defvar doc-view-tool-bar-map
+  (let ((map (make-sparse-keymap)))
+    ;; Most of these items are the same as in the default tool bar
+    ;; map, but with extraneous items removed, and with extra search
+    ;; and navigation items.
+    (tool-bar-local-item-from-menu 'find-file "new" map
+                                   nil :label "New File"
+			           :vert-only t)
+    (tool-bar-local-item-from-menu 'menu-find-file-existing "open" map
+                                   nil :label "Open" :vert-only t)
+    (tool-bar-local-item-from-menu 'dired "diropen" map nil :vert-only t)
+    (tool-bar-local-item-from-menu 'kill-this-buffer "close" map nil
+                                   :vert-only t)
+    (define-key-after map [separator-1] menu-bar-separator)
+    (tool-bar-local-item-from-menu 'doc-view-new-search "search"
+			           map doc-view-mode-map :vert-only t
+                                   :help "Start a new search query.")
+    (tool-bar-local-item-from-menu 'doc-view-search-backward "left-arrow"
+			           map doc-view-mode-map
+                                   :vert-only t
+                                   :enable 'doc-view--current-search-matches
+                                   :help "Move to the last search result.")
+    (tool-bar-local-item-from-menu 'doc-view-search "right-arrow"
+			           map doc-view-mode-map :vert-only t
+                                   :enable 'doc-view--current-search-matches
+                                   :help "Move to the next search result.")
+    (define-key-after map [separator-2] menu-bar-separator)
+    (tool-bar-local-item-from-menu 'doc-view-previous-page "last-page"
+                                   map doc-view-mode-map :vert-only t
+                                   :enable '(> (doc-view-current-page) 1)
+                                   :help "Move to the previous page.")
+    (tool-bar-local-item-from-menu 'doc-view-next-page "next-page"
+                                   map doc-view-mode-map :vert-only t
+                                   :enable '(< (doc-view-current-page)
+                                               (doc-view-last-page-number))
+                                   :help "Move to the next page.")
+    map)
+  "Like the default `tool-bar-map', but with additions for DocView.")
 
 ;;;; Navigation Commands
 
@@ -902,8 +954,7 @@ Document types are symbols like `dvi', `ps', `pdf', `epub',
                (and doc-view-pdfdraw-program
                     (executable-find doc-view-pdfdraw-program)))))
 	((eq type 'odf)
-	 (and doc-view-odf->pdf-converter-program
-	      (executable-find doc-view-odf->pdf-converter-program)
+         (and (executable-find doc-view-odf->pdf-converter-program)
 	      (doc-view-mode-p 'pdf)))
 	((eq type 'djvu)
 	 (executable-find "ddjvu"))
@@ -1343,7 +1394,7 @@ is named like ODF with the extension turned to pdf."
   "Convert PDF-PS to PNG asynchronously."
   (funcall
    (pcase doc-view-doc-type
-     ((or 'pdf 'odf 'epub 'cbz 'fb2 'xps 'oxps)
+     ((or 'pdf 'odf 'epub 'cbz 'fb2 'xps 'oxps 'dvi)
       doc-view-pdf->png-converter-function)
      ('djvu #'doc-view-djvu->tiff-converter-ddjvu)
      (_ #'doc-view-ps->png-converter-ghostscript))
@@ -1655,8 +1706,8 @@ ARGS is a list of image descriptors."
                           (unless (member :transform-smoothing args)
                             (setq args `(,@args :transform-smoothing t)))
                           (when (eq doc-view--image-type 'svg)
-                            (setq args `(,@args :background ,doc-view-svg-background
-                                               :foreground ,doc-view-svg-foreground)))
+                            (setq args `(,@args :background ,(face-background 'doc-view-svg-face)
+                                                :foreground ,(face-foreground 'doc-view-svg-face))))
 			  (apply #'create-image file doc-view--image-type nil args))))
 	     (slice (doc-view-current-slice))
 	     (img-width (and image (car (image-size image))))
@@ -1919,7 +1970,16 @@ If BACKWARD is non-nil, jump to the previous match."
 	;; We must convert to TXT first!
 	(if doc-view--current-converter-processes
 	    (message "DocView: please wait till conversion finished.")
-	  (doc-view-doc->txt txt (lambda () (doc-view-search nil))))))))
+	  (doc-view-doc->txt txt (lambda () (doc-view-search nil))))))
+    ;; Update the tool bar items.
+    (force-mode-line-update)))
+
+(defun doc-view-new-search ()
+  "Initiate a new search query.
+Prompt for a string, then search for its appearances within
+the document text."
+  (interactive)
+  (doc-view-search t nil))
 
 (defun doc-view-search-next-match (arg)
   "Go to the ARGth next matching page."
@@ -1966,9 +2026,10 @@ structure is extracted by `doc-view--imenu-subtree'."
   (let ((fn (or file-name (buffer-file-name))))
     (when fn
       (let ((outline nil)
-            (fn (shell-quote-argument (expand-file-name fn))))
+            (fn (expand-file-name fn)))
         (with-temp-buffer
-          (insert (shell-command-to-string (format "mutool show %s outline" fn)))
+          (unless (eql 0 (call-process "mutool" nil (current-buffer) nil "show" fn "outline"))
+            (imenu-unavailable-error "Unable to create imenu index using `mutool'"))
           (goto-char (point-min))
           (while (re-search-forward doc-view--outline-rx nil t)
             (push `((level . ,(length (match-string 1)))
@@ -2017,7 +2078,7 @@ GOTO-PAGE-FN other than `doc-view-goto-page'."
 
 (defun doc-view-imenu-setup ()
   "Set up local state in the current buffer for imenu, if needed."
-  (when (and doc-view-imenu-enabled (executable-find "mutool"))
+  (when doc-view-imenu-enabled
     (setq-local imenu-create-index-function #'doc-view-imenu-index
                 imenu-submenus-on-top nil
                 imenu-sort-function nil
@@ -2097,35 +2158,35 @@ GOTO-PAGE-FN other than `doc-view-goto-page'."
 (defun doc-view-set-doc-type ()
   "Figure out the current document type (`doc-view-doc-type')."
   (let ((name-types
-	 (when buffer-file-name
-	   (cdr (assoc-string
-                 (file-name-extension buffer-file-name)
-                 '(
-                   ;; DVI
-                   ("dvi" dvi)
-                   ;; PDF
-                   ("pdf" pdf) ("epdf" pdf)
-                   ;; EPUB
-                   ("epub" epub)
-                   ;; PostScript
-                   ("ps" ps) ("eps" ps)
-                   ;; DjVu
-                   ("djvu" djvu)
-                   ;; OpenDocument formats.
-                   ("odt" odf) ("ods" odf) ("odp" odf) ("odg" odf)
-                   ("odc" odf) ("odi" odf) ("odm" odf) ("ott" odf)
-                   ("ots" odf) ("otp" odf) ("otg" odf)
-                   ;; Microsoft Office formats (also handled by the odf
-                   ;; conversion chain).
-                   ("doc" odf) ("docx" odf) ("xls" odf) ("xlsx" odf)
-                   ("ppt" odf) ("pps" odf) ("pptx" odf) ("rtf" odf)
-                   ;; CBZ
-                   ("cbz" cbz)
-                   ;; FB2
-                   ("fb2" fb2)
-                   ;; (Open)XPS
-                   ("xps" xps) ("oxps" oxps))
-		 t))))
+         (cdr (assoc-string
+               (file-name-extension
+                (or buffer-file-name (buffer-name (current-buffer))))
+               '(
+                 ;; DVI
+                 ("dvi" dvi)
+                 ;; PDF
+                 ("pdf" pdf) ("epdf" pdf)
+                 ;; EPUB
+                 ("epub" epub)
+                 ;; PostScript
+                 ("ps" ps) ("eps" ps)
+                 ;; DjVu
+                 ("djvu" djvu)
+                 ;; OpenDocument formats.
+                 ("odt" odf) ("ods" odf) ("odp" odf) ("odg" odf)
+                 ("odc" odf) ("odi" odf) ("odm" odf) ("ott" odf)
+                 ("ots" odf) ("otp" odf) ("otg" odf)
+                 ;; Microsoft Office formats (also handled by the odf
+                 ;; conversion chain).
+                 ("doc" odf) ("docx" odf) ("xls" odf) ("xlsx" odf)
+                 ("ppt" odf) ("pps" odf) ("pptx" odf) ("rtf" odf)
+                 ;; CBZ
+                 ("cbz" cbz)
+                 ;; FB2
+                 ("fb2" fb2)
+                 ;; (Open)XPS
+                 ("xps" xps) ("oxps" oxps))
+               t)))
 	(content-types
 	 (save-excursion
 	   (goto-char (point-min))
@@ -2153,6 +2214,8 @@ GOTO-PAGE-FN other than `doc-view-goto-page'."
   (pcase-let ((`(,conv-function ,type ,extension)
                (pcase doc-view-doc-type
                  ('djvu (list #'doc-view-djvu->tiff-converter-ddjvu 'tiff "tif"))
+                 ((or 'ps 'postscript 'eps)
+                  (list #'doc-view-ps->png-converter-ghostscript 'png "png"))
                  (_ (if (and (eq doc-view-pdf->png-converter-function
                                  #'doc-view-pdf->png-converter-mupdf)
                              doc-view-mupdf-use-svg)
@@ -2243,8 +2306,15 @@ toggle between displaying the document or editing it as text.
                   ;; supposed to return nil for things like local files accessed
                   ;; via `su' or via file://...
                   ((let ((file-name-handler-alist nil))
-                     (not (and buffer-file-name
-                               (file-readable-p buffer-file-name))))
+                     (or (not (and buffer-file-name
+                                   (file-readable-p buffer-file-name)))
+                         ;; If the system is Android and the file name
+                         ;; begins with /content or /assets, it's not
+                         ;; readable by local processes.
+                         (and (eq system-type 'android)
+                              (string-match-p "/\\(content\\|assets\\)[/$]"
+                                              (expand-file-name
+                                               buffer-file-name)))))
                    ;; FIXME: there's a risk of name conflicts here.
                    (expand-file-name
                     (if buffer-file-name
@@ -2292,8 +2362,13 @@ toggle between displaying the document or editing it as text.
     (setq mode-name "DocView"
 	  buffer-read-only t
 	  major-mode 'doc-view-mode)
-    (doc-view-imenu-setup)
+    (condition-case imenu-error
+        (doc-view-imenu-setup)
+      (imenu-unavailable (message "imenu support unavailable: %s"
+                                  (cadr imenu-error))))
     (doc-view-initiate-display)
+    ;; Replace the tool bar map with `doc-view-tool-bar-map'.
+    (setq-local tool-bar-map doc-view-tool-bar-map)
     ;; Switch off view-mode explicitly, because doc-view-mode is the
     ;; canonical view mode for PDF/PS/DVI files.  This could be
     ;; switched on automatically depending on the value of

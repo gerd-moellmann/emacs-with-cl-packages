@@ -1,16 +1,19 @@
 GNU Emacs Installation Guide
-Copyright (C) 1992, 1994, 1996-1997, 2000-2024 Free Software Foundation,
+Copyright (C) 1992, 1994, 1996-1997, 2000-2025 Free Software Foundation,
 Inc.
 See the end of the file for license conditions.
 
 
-This file contains general information on building GNU Emacs.  For
-more information specific to the MS-Windows, GNUstep/macOS, and MS-DOS
-ports, also read the files nt/INSTALL, nextstep/INSTALL, and
-msdos/INSTALL.
+This file contains general information on building GNU Emacs.  If you
+are building an Emacs release tarball on a Unix or a GNU system, the
+instructions in this file should be sufficient.  For other
+configurations, we have additional specialized files:
 
-For information about building from a Git checkout (rather than an
-Emacs release), read the INSTALL.REPO file first.
+  . INSTALL.REPO if you build from a Git checkout
+  . nt/INSTALL if you build for MS-Windows
+  . nextstep/INSTALL if you build for GNUstep/macOS
+  . java/INSTALL if you build for Android
+  . msdos/INSTALL if you build for MS-DOS
 
 
 BASIC INSTALLATION
@@ -55,6 +58,15 @@ sections if you need to.
 		 SOURCE-DIR/configure
 
       where SOURCE-DIR is the top-level Emacs source directory.
+
+  2c. If you don't have write access to the default directory where
+      Emacs and its data files will be installed, specify an alternative
+      installation directory:
+
+		 ./configure --prefix=/SOME/OTHER/DIRECTORY
+
+      where /SOME/OTHER/DIRECTORY is a directory writable by your user,
+      for example, a subdirectory of your home directory.
 
   3. When 'configure' finishes, it prints several lines of details
      about the system configuration.  Read those details carefully
@@ -261,6 +273,25 @@ to force GTK+ to run under Broadway, start Emacs like this:
 The GNUstep build also supports the Wayland window system.  If that is
 what you want, see nextstep/INSTALL.
 
+* Native compilation of Lisp files
+
+In addition to byte-compiling files of Lisp code, Emacs can also produce
+"native code", which usually runs several times faster than the
+corresponding byte-compiled code.  To build Emacs with this feature,
+your system must have not only GCC (the C compiler) and Binutils (the
+assembler and linker) but also the 'libgccjit' shared library, which is
+part of the GCC distribution.  If these components are available,
+building Emacs will automatically produce natively compiled Lisp code.
+
+By default, Emacs natively compiles only pre-loaded Lisp files during
+the build process; other Lisp files are natively compiled
+"just-in-time", i.e., the first time they are loaded into the running
+Emacs.  If you want Emacs to natively compile all Lisp files during the
+build ("ahead of time"), use the 'configure' option
+'--with-native-compilation=aot'.  If you do not want natively compiled
+Lisp code even if your system satisfies the build requirements, use the
+'configure' option '--with-native-compilation=no'.
+
 DETAILED BUILDING AND INSTALLATION:
 
 (This is for a Unix or Unix-like system.  For GNUstep and macOS,
@@ -437,6 +468,12 @@ should put emacs and its data files.  This defaults to '/usr/local'.
   (where CONFIGURATION is the configuration name, like
   i686-pc-linux-gnu), unless the '--exec-prefix' option says otherwise.
 
+If you don't have write access to the default '/usr/local' tree, and
+cannot have root access (without which "make install" will fail),
+specify '--prefix=PREFIXDIR' where PREFIXDIR is a directory writable
+by your user, for example your HOME directory or some subdirectory of
+it.
+
 The '--exec-prefix=EXECDIR' option allows you to specify a separate
 portion of the directory tree for installing architecture-specific
 files, like executables and utility programs.  If specified,
@@ -550,10 +587,18 @@ need to create them if you have nothing to put in them.
 wish to add to various termcap entries.  (This is unlikely to be necessary.)
 
 6) Run 'make' in the top directory of the Emacs distribution to finish
-building Emacs in the standard way.  The final executable file is
-named 'src/emacs'.  You can execute this file "in place" without
-copying it, if you wish; then it automatically uses the sibling
-directories ../lisp, ../lib-src, ../info.
+building Emacs in the standard way.  The final executable file is named
+'src/emacs'.  You can execute this file "in place" without copying it,
+if you wish; then it automatically uses the sibling directories ../lisp,
+../lib-src, ../info, ../native-lisp (if built with support for native
+compilation).
+
+If you build Emacs in a directory separate from the source directory
+("out-of-tree"), run 'make' in the build directory.  Then you can
+execute the 'src/emacs' file under that directory "in place".  However,
+in this case the Emacs executable, while still using the ../lisp and
+../info subdirectories of the source tree, will use the ../lib-src and
+../native-lisp subdirectories from the build tree.
 
 Or you can "install" the executable and the other files into their
 installed locations, with 'make install'.  By default, Emacs's files
@@ -570,6 +615,13 @@ are installed in the following directories:
 		allows you to have several versions of Emacs installed
 		at the same time; in particular, you don't have to
 		make Emacs unavailable while installing a new version.
+
+'/usr/local/lib/emacs/VERSION/native-lisp' holds the natively compiled
+		pre-loaded Emacs Lisp files.  If the build used the
+		'configure' option '--with-native-compilation=aot', then
+		this directory holds all natively compiled Lisp files.
+
+'~/.emacs.d/eln-cache/' holds the just-in-time natively compiled Lisp files.
 
 '/usr/local/share/emacs/VERSION/etc' holds the Emacs tutorial, the DOC
 		file, and other architecture-independent files Emacs
@@ -618,6 +670,12 @@ install Emacs's libraries and data files or where Emacs should search
 for its Lisp files by giving values for 'make' variables as part of
 the command.  See the section below called 'MAKE VARIABLES' for more
 information on this.
+
+If the directories where 'make install' installs files are not writable
+by your user, you might prefer invoking 'make && sudo make install'
+instead.  This first invokes 'make' to make sure all the required files
+are rebuilt with your user's permissions and ownership, and then
+installs them using the permissions of root.
 
 7) Check the file 'dir' in your site's info directory (usually
 /usr/local/share/info) to make sure that it has a menu entry for the

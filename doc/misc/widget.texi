@@ -9,7 +9,7 @@
 @c %**end of header
 
 @copying
-Copyright @copyright{} 2000--2024 Free Software Foundation, Inc.
+Copyright @copyright{} 2000--2025 Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -150,7 +150,7 @@ Widget library will also use the new graphic features automatically.
 A form consists of read only text for documentation and some fields,
 where each field contains two parts, a tag and a value.  The tags are
 used to identify the fields, so the documentation can refer to the
-@samp{foo field}, meaning the field tagged with @samp{Foo}. Here is an
+@samp{foo field}, meaning the field tagged with @samp{Foo}.  Here is an
 example form:
 
 @example
@@ -795,6 +795,11 @@ Move point @var{count} buttons or editing fields backward.
 @end deffn
 @end table
 
+@noindent
+By default, tabbing can put point on an inactive widget.  To skip over
+inactive widgets when tabbing, set the user option
+@code{widget-skip-inactive} to a non-@code{nil} value.
+@xref{Customization}.
 
 When editing an @code{editable-field} widget, the following commands
 are available:
@@ -860,7 +865,7 @@ the @code{:mouse-down-action} property.
 All widgets can be created from a type specification.  The general
 syntax of a type specification is:
 
-@c FIXME: Add BNF reference here? If yes, what reference?
+@c FIXME: Add BNF reference here?  If yes, what reference?
 @example
 @var{name} ::= (@var{name} [@var{keyword} @var{argument}]... @var{args})
      |   @var{name}
@@ -3282,6 +3287,16 @@ Face used for pressed buttons.
 Face used for inactive widgets.
 @end deffn
 
+@deffn Face widget-unselected
+Face used for unselected widgets.  This face is also used on the text
+labels of radio-button and checkbox widgets.
+
+The default value inherits from the @code{widget-inactive} face.  If you
+want to visually distinguish the labels of unselected active
+radio-button or checkbox widgets from the labels of unselected inactive
+widgets, customize this face to a non-default value.
+@end deffn
+
 @defopt widget-mouse-face
 Face used for highlighting a button when the mouse pointer moves
 across it.
@@ -3336,6 +3351,15 @@ String to suffix links.
 If non-@code{nil}, toggle when there are just two options.
 
 By default, its value is @code{nil}.
+@end defopt
+
+@defopt widget-skip-inactive
+If non-@code{nil}, skip over inactive widgets when using @kbd{@key{TAB}}
+(@code{widget-forward}) or @kbd{S-@key{TAB}} (@code{widget-backward},
+also bound to @kbd{M-@key{TAB}}) to navigate between widgets.
+
+By default, its value is @code{nil} and tabbing does not skip over
+inactive widgets.
 @end defopt
 
 @defopt widget-documentation-links

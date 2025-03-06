@@ -1,6 +1,6 @@
 ;;; fns-tests.el --- tests for src/fns.c  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2014-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2014-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -98,6 +98,26 @@
   (should-not (equal-including-properties #("a" 0 1 (k "v"))
                                           #("b" 0 1 (k "v")))))
 
+(ert-deftest fns-tests-equal-symbols-with-position ()
+  "Test `eq' and `equal' on symbols with position."
+  (let ((foo1 (position-symbol 'foo 42))
+        (foo2 (position-symbol 'foo 666))
+        (foo3 (position-symbol 'foo 42)))
+    (let (symbols-with-pos-enabled)
+      (should (eq foo1 foo1))
+      (should (equal foo1 foo1))
+      (should-not (eq foo1 foo2))
+      (should-not (equal foo1 foo2))
+      (should-not (eq foo1 foo3))
+      (should (equal foo1 foo3)))
+    (let ((symbols-with-pos-enabled t))
+      (should (eq foo1 foo1))
+      (should (equal foo1 foo1))
+      (should (eq foo1 foo2))
+      (should (equal foo1 foo2))
+      (should (eq foo1 foo3))
+      (should (equal foo1 foo3)))))
+
 (ert-deftest fns-tests-reverse ()
   (should-error (reverse))
   (should-error (reverse 1))
@@ -114,22 +134,24 @@
   (should-error (nreverse 1))
   (should-error (nreverse (make-char-table 'foo)))
   (should (equal (nreverse (copy-sequence "xyzzy")) "yzzyx"))
-  (let ((A (vector)))
-    (nreverse A)
-    (should (equal A [])))
-  (let ((A (vector 0)))
-    (nreverse A)
-    (should (equal A [0])))
-  (let ((A (vector 1 2 3 4)))
-    (nreverse A)
-    (should (equal A [4 3 2 1])))
-  (let ((A (vector 1 2 3 4)))
-    (nreverse A)
-    (nreverse A)
-    (should (equal A [1 2 3 4])))
+  (let* ((A (vector))
+         (B (nreverse A)))
+    (should (equal A []))
+    (should (eq B A)))
+  (let* ((A (vector 0))
+         (B (nreverse A)))
+    (should (equal A [0]))
+    (should (eq B A)))
   (let* ((A (vector 1 2 3 4))
-	 (B (nreverse (nreverse A))))
-    (should (equal A B))))
+         (B (nreverse A)))
+    (should (equal A [4 3 2 1]))
+    (should (eq B A)))
+  (let* ((A (vector 1 2 3 4))
+         (B (nreverse A))
+         (C (nreverse A)))
+    (should (equal A [1 2 3 4]))
+    (should (eq B A))
+    (should (eq C A))))
 
 (ert-deftest fns-tests-reverse-bool-vector ()
   (let ((A (make-bool-vector 10 nil)))
@@ -140,9 +162,10 @@
 (ert-deftest fns-tests-nreverse-bool-vector ()
   (let ((A (make-bool-vector 10 nil)))
     (dotimes (i 5) (aset A i t))
-    (nreverse A)
-    (should (equal [nil nil nil nil nil t t t t t] (vconcat A)))
-    (should (equal [t t t t t nil nil nil nil nil] (vconcat (nreverse A))))))
+    (let ((B (nreverse A)))
+      (should (eq B A))
+      (should (equal [nil nil nil nil nil t t t t t] (vconcat A)))
+      (should (equal [t t t t t nil nil nil nil nil] (vconcat (nreverse A)))))))
 
 (defconst fns-tests--string-lessp-cases
   `(("abc" < "abd")
@@ -254,7 +277,7 @@
   (should (string-collate-equalp "xyzzy" "XYZZY" nil t))
 
   ;; Locale must be valid.
-  (should-error (string-collate-equalp "xyzzy" "xyzzy" "en_XY.UTF-8")))
+  (should-error (string-collate-equalp "xyzzy" "xyzzy" 'not-a-locale)))
 
 ;; There must be a check for valid codepoints.  (Check not implemented yet)
 ;  (should-error
@@ -351,6 +374,70 @@
   ;; Bug#34104
   (should (equal (should-error (sort "cba" #'<) :type 'wrong-type-argument)
                  '(wrong-type-argument list-or-vector-p "cba"))))
+
+(defun fns-tests--shuffle-vector (vect)
+  "Shuffle VECT in place."
+  (let ((n (length vect)))
+    (dotimes (i (1- n))
+      (let* ((j (+ i (random (- n i))))
+             (vi (aref vect i)))
+        (aset vect i (aref vect j))
+        (aset vect j vi)))))
+
+(ert-deftest fns-tests-sort-kw ()
+  ;; Test the `sort' keyword calling convention by comparing with
+  ;; the results from using the old (positional) style tested above.
+  (random "my seed")
+  (dolist (size '(0 1 2 3 10 100 1000))
+    ;; Use a vector with both positive and negative numbers (asymmetric).
+    (let ((numbers (vconcat
+                    (number-sequence (- (/ size 3)) (- size 1 (/ size 3))))))
+      (fns-tests--shuffle-vector numbers)
+      ;; Test both list and vector input.
+      (dolist (input (list (append numbers nil) numbers))
+        (dolist (in-place '(nil t))
+          (dolist (reverse '(nil t))
+            (dolist (key '(nil abs))
+              (dolist (lessp '(nil >))
+                (let* ((seq (copy-sequence input))
+                       (res (sort seq :key key :lessp lessp
+                                  :in-place in-place :reverse reverse))
+                       (pred (or lessp #'value<))
+                       (exp-in (copy-sequence input))
+                       (exp-out
+                        (sort (if reverse (reverse exp-in) exp-in)
+                              (if key
+                                  (lambda (a b)
+                                    (funcall pred
+                                             (funcall key a) (funcall key b)))
+                                pred)))
+                       (expected (if reverse (reverse exp-out) exp-out)))
+                  (should (equal res expected))
+                  (if in-place
+                      (should (eq res seq))
+                    (should-not (and (> size 0) (eq res seq)))
+                    (should (equal seq input))))))))))))
+
+(ert-deftest fns-tests-sort-gc ()
+  ;; Make sure our temporary storage is traversed by the GC.
+  (let* ((n 1000)
+         (a (mapcar #'number-to-string (number-sequence 1 n)))
+         (i 0)
+         ;; Force frequent GCs in both the :key and :lessp functions.
+         (s (sort a
+                  :key (lambda (x)
+                         (setq i (1+ i))
+                         (when (> i 300)
+                           (garbage-collect)
+                           (setq i 0))
+                         (copy-sequence x))
+                  :lessp (lambda (a b)
+                           (setq i (1+ i))
+                           (when (> i 300)
+                             (garbage-collect)
+                             (setq i 0))
+                           (string< a b)))))
+    (should (equal (length s) (length a)))))
 
 (defvar w32-collate-ignore-punctuation)
 
@@ -622,7 +709,7 @@
                    (insert "foo")
                    (goto-char 2)
                    (insert " ")
-                   (backward-delete-char 1)
+                   (delete-char -1)
                    (buffer-hash))
                  (sha1 "foo"))))
 
@@ -1074,6 +1161,16 @@
   (should (= (sxhash-equal (record 'a (make-string 10 ?a)))
 	     (sxhash-equal (record 'a (make-string 10 ?a))))))
 
+(ert-deftest fns--define-hash-table-test ()
+  ;; Check that we can have two differently-named tests using the
+  ;; same functions (bug#68668).
+  (define-hash-table-test 'fns-tests--1 'my-cmp 'my-hash)
+  (define-hash-table-test 'fns-tests--2 'my-cmp 'my-hash)
+  (let ((h1 (make-hash-table :test 'fns-tests--1))
+        (h2 (make-hash-table :test 'fns-tests--2)))
+    (should (eq (hash-table-test h1) 'fns-tests--1))
+    (should (eq (hash-table-test h2) 'fns-tests--2))))
+
 (ert-deftest test-secure-hash ()
   (should (equal (secure-hash 'md5    "foobar")
                  "3858f62230ac3c915f300c664312c63f"))
@@ -1098,7 +1195,7 @@
 
 (ert-deftest test-vector-delete ()
   (let ((v1 (make-vector 1000 1)))
-    (should (equal (delete t [nil t]) [nil]))
+    (should (equal (delete t (vector nil t)) [nil]))
     (should (equal (delete 1 v1) (vector)))
     (should (equal (delete 2 v1) v1))))
 
@@ -1479,5 +1576,229 @@
                 :type 'wrong-type-argument)
   (should-error (copy-alist "abc")
                 :type 'wrong-type-argument))
+
+(ert-deftest fns-value<-ordered ()
+  ;; values (X . Y) where X<Y
+  (let* ((big (* 10 most-positive-fixnum))
+         (buf1 (get-buffer-create " *one*"))
+         (buf2 (get-buffer-create " *two*"))
+         (buf3 (get-buffer-create " *three*"))
+         (_ (progn (with-current-buffer buf1 (insert (make-string 20 ?a)))
+                   (with-current-buffer buf2 (insert (make-string 20 ?b)))))
+         (mark1 (set-marker (make-marker) 12 buf1))
+         (mark2 (set-marker (make-marker) 13 buf1))
+         (mark3 (set-marker (make-marker) 12 buf2))
+         (mark4 (set-marker (make-marker) 13 buf2))
+         (proc1 (make-pipe-process :name " *proc one*"))
+         (proc2 (make-pipe-process :name " *proc two*")))
+    (kill-buffer buf3)
+    (unwind-protect
+        (dolist (c
+                 `(
+                   ;; fixnums
+                   (1 . 2)  (-2 . -1) (-2 . 1) (-1 . 2)
+                   ;; bignums
+                   (,big . ,(1+ big)) (,(- big) . ,big)
+                   (,(- -1 big) . ,(- big))
+                   ;; fixnums/bignums
+                   (1 . ,big) (-1 . ,big) (,(- big) . -1) (,(- big) . 1)
+                   ;; floats
+                   (1.5 . 1.6) (-1.3 . -1.2) (-13.0 . 12.0)
+                   ;; floats/fixnums
+                   (1 . 1.1) (1.9 . 2) (-2.0 . 1) (-2 . 1.0)
+                   ;; floats/bignums
+                   (,big . ,(float (* 2 big))) (,(float big) . ,(* 2 big))
+                   ;; symbols
+                   (a . b) (nil . nix) (b . ba) (## . a) (A . a)
+                   (#:a . #:b) (a . #:b) (#:a . b)
+                   ;; strings
+                   ("" . "a") ("a" . "b") ("A" . "a") ("abc" . "abd")
+                   ("b" . "ba")
+                   ;; strings again, but in a context where 3-way comparison
+                   ;; matters
+                   (("" . 2) . ("a" . 1))
+                   (("å" . 2) . ("åü" . 1))
+                   (("a" . 2) . ("aå" . 1))
+                   (("\x80" . 2) . ("\x80å" . 1))
+
+                   ;; lists
+                   ((1 2 3) . (2 3 4)) ((2) . (2 1)) (() . (0))
+                   ((1 2 3) . (1 3)) ((1 2 3) . (1 3 2))
+                   (((b a) (c d) e) . ((b a) (c d) f))
+                   (((b a) (c D) e) . ((b a) (c d) e))
+                   (((b a) (c d () x) e) . ((b a) (c d (1) x) e))
+                   ((1 . 2) . (1 . 3)) ((1 2 . 3) . (1 2 . 4))
+
+                   ;; vectors
+                   ([1 2 3] . [2 3 4]) ([2] . [2 1]) ([] . [0])
+                   ([1 2 3] . [1 3]) ([1 2 3] . [1 3 2])
+                   ([[b a] [c d] e] . [[b a] [c d] f])
+                   ([[b a] [c D] e] . [[b a] [c d] e])
+                   ([[b a] [c d [] x] e] . [[b a] [c d [1] x] e])
+
+                   ;; bool-vectors
+                   (,(bool-vector) . ,(bool-vector nil))
+                   (,(bool-vector nil) . ,(bool-vector t))
+                   (,(bool-vector t nil t nil) . ,(bool-vector t nil t t))
+                   (,(bool-vector t nil t) . ,(bool-vector t nil t nil))
+
+                   ;; records
+                   (#s(a 2 3) . #s(b 3 4)) (#s(b) . #s(b a))
+                   (#s(a 2 3) . #s(a 3)) (#s(a 2 3) . #s(a 3 2))
+                   (#s(#s(b a) #s(c d) e) . #s(#s(b a) #s(c d) f))
+                   (#s(#s(b a) #s(c D) e) . #s(#s(b a) #s(c d) e))
+                   (#s(#s(b a) #s(c d #s(u) x) e)
+                    . #s(#s(b a) #s(c d #s(v) x) e))
+
+                   ;; markers
+                   (,mark1 . ,mark2) (,mark1 . ,mark3) (,mark1 . ,mark4)
+                   (,mark2 . ,mark3) (,mark2 . ,mark4) (,mark3 . ,mark4)
+
+                   ;; buffers
+                   (,buf1 . ,buf2) (,buf3 . ,buf1) (,buf3 . ,buf2)
+
+                   ;; processes
+                   (,proc1 . ,proc2)
+                   ))
+          (let ((x (car c))
+                (y (cdr c)))
+            (should (value< x y))
+            (should-not (value< y x))
+            (should-not (value< x x))
+            (should-not (value< y y))))
+
+      (delete-process proc2)
+      (delete-process proc1)
+      (kill-buffer buf2)
+      (kill-buffer buf1))))
+
+(ert-deftest fns-value<-unordered ()
+  ;; values (X . Y) where neither X<Y nor Y<X
+
+  (let ((buf1 (get-buffer-create " *one*"))
+        (buf2 (get-buffer-create " *two*")))
+    (kill-buffer buf2)
+    (kill-buffer buf1)
+    (dolist (c `(
+                 ;; numbers
+                 (0 . 0.0) (0 . -0.0) (0.0 . -0.0)
+
+                 ;; symbols
+                 (a . #:a)
+
+                 ;; (dead) buffers
+                 (,buf1 . ,buf2)
+
+                 ;; unordered types
+                 (,(make-hash-table) . ,(make-hash-table))
+                 (,(obarray-make) . ,(obarray-make))
+                 ;; FIXME: more?
+                 ))
+      (let ((x (car c))
+            (y (cdr c)))
+        (should-not (value< x y))
+        (should-not (value< y x))))))
+
+(ert-deftest fns-value<-type-mismatch ()
+  ;; values of disjoint (incomparable) types
+  (let ((incomparable
+         `( 1 a "a" (a b) [a b] ,(bool-vector nil t) #s(a b)
+            ,(make-char-table 'test)
+            ,(make-hash-table)
+            ,(obarray-make)
+            ;; FIXME: more?
+            )))
+    (let ((tail incomparable))
+      (while tail
+        (let ((x (car tail)))
+          (dolist (y (cdr tail))
+            (should-error (value< x y) :type 'type-mismatch)
+            (should-error (value< y x) :type 'type-mismatch)))
+        (setq tail (cdr tail))))))
+
+(ert-deftest fns-value<-symbol-with-pos ()
+  ;; values (X . Y) where X<Y
+  (let* ((a-sp-1 (position-symbol 'a 1))
+         (a-sp-2 (position-symbol 'a 2))
+         (b-sp-1 (position-symbol 'b 1))
+         (b-sp-2 (position-symbol 'b 2)))
+
+    (dolist (swp '(nil t))
+      (let ((symbols-with-pos-enabled swp))
+        ;; Enabled or not, they compare by name.
+        (dolist (c `((,a-sp-1 . ,b-sp-1) (,a-sp-1 . ,b-sp-2)
+                     (,a-sp-2 . ,b-sp-1) (,a-sp-2 . ,b-sp-2)))
+          (let ((x (car c))
+                (y (cdr c)))
+            (should (value< x y))
+            (should-not (value< y x))
+            (should-not (value< x x))
+            (should-not (value< y y))))
+        (should-not (value< a-sp-1 a-sp-2))
+        (should-not (value< a-sp-2 a-sp-1))))
+
+    ;; When disabled, symbol-with-pos and symbols do not compare.
+    (should-error (value< a-sp-1 'a) :type 'type-mismatch)
+    (should-error (value< 'a a-sp-1) :type 'type-mismatch)
+
+    (let ((symbols-with-pos-enabled t))
+      ;; When enabled, a symbol-with-pos compares as a plain symbol.
+      (dolist (c `((,a-sp-1 . b) (a . ,b-sp-1)))
+        (let ((x (car c))
+              (y (cdr c)))
+          (should (value< x y))
+          (should-not (value< y x))
+          (should-not (value< x x))
+          (should-not (value< y y))))
+      (should-not (value< a-sp-1 'a))
+      (should-not (value< 'a a-sp-1)))))
+
+(ert-deftest fns-value<-circle ()
+  ;; Check that we at least don't hang when comparing two circular lists.
+  (let ((a (number-sequence 1 5))
+        (b (number-sequence 1 5)))
+    (setcdr (last a) (nthcdr 2 a))
+    (setcdr (last b) (nthcdr 2 b))
+    (should-error (value< a b :type 'circular))
+    (should-error (value< b a :type 'circular))))
+
+(ert-deftest fns-value<-bool-vector ()
+  ;; More thorough test of `value<' for bool-vectors.
+  (random "my seed")
+  (dolist (na '(0 1 5 8 9 32 63 64 65 200 1001 1024))
+    (let ((a (make-bool-vector na nil)))
+      (dotimes (i na)
+        (aset a i (zerop (random 2))))
+      (dolist (nb '(0 1 5 8 9 32 63 64 65 200 1001 1024))
+        (when (<= nb na)
+          (let ((b (make-bool-vector nb nil)))
+            (dotimes (i nb)
+              (aset b i (aref a i)))
+            ;; `b' is now a prefix of `a'.
+            (should-not (value< a b))
+            (cond ((= nb na)
+                   (should (equal a b))
+                   (should-not (value< b a)))
+                  (t
+                   (should-not (equal a b))
+                   (should (value< b a))))
+            (unless (zerop nb)
+              ;; Flip random bits in `b' and check how it affects the order.
+              (dotimes (_ 3)
+                (let ((i (random nb)))
+                  (let ((val (aref b i)))
+                    (aset b i (not val))
+                    (should-not (equal a b))
+                    (cond
+                     (val
+                      ;; t -> nil: `b' is now always a proper prefix of `a'.
+                      (should-not (value< a b))
+                      (should (value< b a)))
+                     (t
+                      ;; nil -> t: `a' is now less than `b'.
+                      (should (value< a b))
+                      (should-not (value< b a))))
+                    ;; Undo the flip.
+                    (aset b i val)))))))))))
 
 ;;; fns-tests.el ends here

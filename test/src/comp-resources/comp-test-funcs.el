@@ -1,6 +1,6 @@
 ;;; comp-test-funcs.el --- compilation unit tested by comp-tests.el -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2019-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2025 Free Software Foundation, Inc.
 
 ;; Author: Andrea Corallo <acorallo@gnu.org>
 
@@ -22,6 +22,8 @@
 ;;; Commentary:
 
 ;;; Code:
+
+(require 'cl-lib)
 
 (defvar comp-tests-var1 3)
 
@@ -240,6 +242,10 @@
 (defun comp-tests-lambda-return-f ()
   (lambda (x) (1+ x)))
 
+(defun comp-tests-lambda-return-f2 ()
+  (lambda ()
+    (lambda (x) (1+ x))))
+
 (defun comp-tests-fib-f (n)
   (cond ((= n 0) 0)
 	((= n 1) 1)
@@ -355,17 +361,17 @@
        2))
 
 (defun comp-test-copy-insn-f (insn)
-  ;; From `comp-copy-insn'.
+  ;; From `comp--copy-insn'.
   (if (consp insn)
       (let (result)
 	(while (consp insn)
 	  (let ((newcar (car insn)))
 	    (if (or (consp (car insn)) (comp-mvar-p (car insn)))
-		(setf newcar (comp-copy-insn (car insn))))
+		(setf newcar (comp--copy-insn (car insn))))
 	    (push newcar result))
 	  (setf insn (cdr insn)))
 	(nconc (nreverse result)
-               (if (comp-mvar-p insn) (comp-copy-insn insn) insn)))
+               (if (comp-mvar-p insn) (comp--copy-insn insn) insn)))
     (if (comp-mvar-p insn)
         (copy-comp-mvar insn)
       insn)))
@@ -517,6 +523,44 @@
 
 (defun comp-test-48029-nonascii-žžž-f (arg)
   (when arg t))
+
+(defun comp-test-62537-1-f ())
+
+(defun comp-test-62537-2-f ()
+  (when (let ((val (comp-test-62537-1-f)))
+	  (cond
+	   ((eq val 'x)
+	    t)
+	   ((eq val 'y)
+	    'y)))
+    (comp-test-62537-1-f))
+  t)
+
+(cl-defstruct comp-test-struct)
+
+(defun comp-test-63674-1-f (x)
+  (or
+   (if (comp-test-struct-p pkg) x)
+   t))
+
+
+(cl-defstruct comp-test-time
+  unix)
+
+(defun comp-test-67239-00-f (a)
+  (cl-assert (stringp a)))
+
+(defsubst comp-test-67239-0-f (x _y)
+  (cl-etypecase x
+    (comp-test-time (error "foo"))
+    (string (comp-test-67239-00-f x))))
+
+(defun comp-test-67239-1-f ()
+  (let ((time (make-comp-test-time :unix (time-convert (current-time) 'integer))))
+    (comp-test-67239-0-f "%F" time)))
+
+(defun comp-test-67883-1-f ()
+  '#1=(1 . #1#))
 
 
 ;;;;;;;;;;;;;;;;;;;;

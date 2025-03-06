@@ -1,12 +1,15 @@
 ;;; map.el --- Map manipulation functions  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2015-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2025 Free Software Foundation, Inc.
 
 ;; Author: Nicolas Petton <nicolas@petton.fr>
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: extensions, lisp
 ;; Version: 3.3.1
 ;; Package-Requires: ((emacs "26"))
+
+;; This is a GNU ELPA :core package.  Avoid functionality that is not
+;; compatible with the version of Emacs recorded above.
 
 ;; This file is part of GNU Emacs.
 
@@ -50,33 +53,36 @@
 
 ARGS is a list of elements to be matched in the map.
 
-Each element of ARGS can be of the form (KEY PAT), in which case KEY is
-evaluated and searched for in the map.  The match fails if for any KEY
-found in the map, the corresponding PAT doesn't match the value
-associated with the KEY.
+Each element of ARGS can be of the form (KEY PAT [DEFAULT]),
+which looks up KEY in the map and matches the associated value
+against `pcase' pattern PAT.  DEFAULT specifies the fallback
+value to use when KEY is not present in the map.  If omitted, it
+defaults to nil.  Both KEY and DEFAULT are evaluated.
 
 Each element can also be a SYMBOL, which is an abbreviation of
 a (KEY PAT) tuple of the form (\\='SYMBOL SYMBOL).  When SYMBOL
 is a keyword, it is an abbreviation of the form (:SYMBOL SYMBOL),
 useful for binding plist values.
 
-Keys in ARGS not found in the map are ignored, and the match doesn't
-fail."
+An element of ARGS fails to match if PAT does not match the
+associated value or the default value.  The overall pattern fails
+to match if any element of ARGS fails to match."
   `(and (pred mapp)
         ,@(map--make-pcase-bindings args)))
 
 (defmacro map-let (keys map &rest body)
-  "Bind the variables in KEYS to the elements of MAP then evaluate BODY.
+  "Bind the variables in KEYS to the elements of MAP, then evaluate BODY.
 
 KEYS can be a list of symbols, in which case each element will be
 bound to the looked up value in MAP.
 
-KEYS can also be a list of (KEY VARNAME) pairs, in which case
-KEY is an unquoted form.
+KEYS can also be a list of (KEY VARNAME [DEFAULT]) sublists, in
+which case KEY and DEFAULT are unquoted forms.
 
 MAP can be an alist, plist, hash-table, or array."
   (declare (indent 2)
-           (debug ((&rest &or symbolp ([form symbolp])) form body)))
+           (debug ((&rest &or symbolp ([form symbolp &optional form]))
+                   form body)))
   `(pcase-let ((,(map--make-pcase-patterns keys) ,map))
      ,@body))
 
@@ -186,7 +192,7 @@ or array."
   "Associate KEY with VALUE in MAP and return VALUE.
 If KEY is already present in MAP, replace the associated value
 with VALUE.
-When MAP is an alist, test equality with TESTFN if non-nil,
+If MAP is an alist, test equality with TESTFN if non-nil,
 otherwise use `equal'.
 
 MAP can be an alist, plist, hash-table, or array."
@@ -312,7 +318,7 @@ The default implementation delegates to `map-do'."
 
 (cl-defgeneric map-apply (function map)
   "Apply FUNCTION to each element of MAP and return the result as a list.
-FUNCTION is called with two arguments, the key and the value.
+FUNCTION is called with two arguments, the key of an element and its value.
 The default implementation delegates to `map-do'."
   (let ((res '()))
     (map-do (lambda (k v) (push (funcall function k v) res)) map)
@@ -333,7 +339,7 @@ The default implementation delegates to `map-apply'."
              map))
 
 (cl-defgeneric map-values-apply (function map)
-  "Return the result of applying FUNCTION to each value in MAP.
+  "Return the result of applying FUNCTION to the value of each key in MAP.
 The default implementation delegates to `map-apply'."
   (map-apply (lambda (_ val)
                (funcall function val))
@@ -401,8 +407,9 @@ If MAP is a plist, TESTFN defaults to `eq'."
     (not (eq v (gethash key map v)))))
 
 (cl-defgeneric map-some (pred map)
-  "Return the first non-nil (PRED key val) in MAP.
+  "Return the first non-nil value from applying PRED to elements of MAP.
 Return nil if no such element is found.
+PRED is called with two arguments: the key of an element and its value.
 The default implementation delegates to `map-do'."
   ;; FIXME: Not sure if there's much benefit to defining it as defgeneric,
   ;; since as defined, I can't think of a map-type where we could provide an
@@ -416,7 +423,8 @@ The default implementation delegates to `map-do'."
     nil))
 
 (cl-defgeneric map-every-p (pred map)
-  "Return non-nil if (PRED key val) is non-nil for all elements of MAP.
+  "Return non-nil if calling PRED on all elements of MAP returns non-nil.
+PRED is called with two arguments: the key of an element and its value.
 The default implementation delegates to `map-do'."
   ;; FIXME: Not sure if there's much benefit to defining it as defgeneric,
   ;; since as defined, I can't think of a map-type where we could provide an
@@ -430,7 +438,7 @@ The default implementation delegates to `map-do'."
 
 (defun map--merge (merge type &rest maps)
   "Merge into a map of TYPE all the key/value pairs in MAPS.
-MERGE is a function that takes the target MAP, a KEY, and a
+MERGE is a function that takes the target MAP, a KEY and its
 VALUE, merges KEY and VALUE into MAP, and returns the result.
 MAP may be of a type other than TYPE."
   ;; Use a hash table internally if `type' is a list.  This avoids
@@ -460,7 +468,7 @@ See `map-into' for all supported values of TYPE."
 (defun map-merge-with (type function &rest maps)
   "Merge into a map of TYPE all the key/value pairs in MAPS.
 When two maps contain the same key, call FUNCTION on the two
-values and use the value returned by it.
+values and use the value FUNCTION returns.
 Each of MAPS can be an alist, plist, hash-table, or array.
 See `map-into' for all supported values of TYPE."
   (let ((not-found (list nil)))
@@ -496,8 +504,8 @@ See `map-into' for all supported values of TYPE."
   "Associate KEY with VALUE in MAP.
 If KEY is already present in MAP, replace the associated value
 with VALUE.
-This operates by modifying MAP in place.
-If it cannot do that, it signals a `map-not-inplace' error.
+This operates by modifying MAP in place.  If it cannot do that,
+it signals the `map-not-inplace' error.
 To insert an element without modifying MAP, use `map-insert'."
   ;; `testfn' only exists for backward compatibility with `map-put'!
   (declare (advertised-calling-convention (map key value) "27.1")))
@@ -595,15 +603,37 @@ Example:
     (map-into \\='((1 . 3)) \\='(hash-table :test eql))"
   (map--into-hash map (cdr type)))
 
+(defmacro map--pcase-map-elt (key default map)
+  "A macro to make MAP the last argument to `map-elt'.
+
+This allows using default values for `map-elt', which can't be
+done using `pcase--flip'.
+
+KEY is the key sought in the map.  DEFAULT is the default value."
+  ;; It's obsolete in Emacs>29, but `map.el' is distributed via GNU ELPA
+  ;; for earlier Emacsen.
+  (declare (obsolete _ "30.1"))
+  `(map-elt ,map ,key ,default))
+
 (defun map--make-pcase-bindings (args)
   "Return a list of pcase bindings from ARGS to the elements of a map."
-  (mapcar (lambda (elt)
-            (cond ((consp elt)
-                   `(app (pcase--flip map-elt ,(car elt)) ,(cadr elt)))
-                  ((keywordp elt)
-                   (let ((var (intern (substring (symbol-name elt) 1))))
-                     `(app (pcase--flip map-elt ,elt) ,var)))
-                  (t `(app (pcase--flip map-elt ',elt) ,elt))))
+  (mapcar (if (< emacs-major-version 30)
+              (lambda (elt)
+                (cond ((consp elt)
+                       `(app (map--pcase-map-elt ,(car elt) ,(caddr elt))
+                             ,(cadr elt)))
+                      ((keywordp elt)
+                       (let ((var (intern (substring (symbol-name elt) 1))))
+                         `(app (pcase--flip map-elt ,elt) ,var)))
+                      (t `(app (pcase--flip map-elt ',elt) ,elt))))
+            (lambda (elt)
+              (cond ((consp elt)
+                     `(app (map-elt _ ,(car elt) ,(caddr elt))
+                           ,(cadr elt)))
+                    ((keywordp elt)
+                     (let ((var (intern (substring (symbol-name elt) 1))))
+                       `(app (map-elt _ ,elt) ,var)))
+                    (t `(app (map-elt _ ',elt) ,elt)))))
           args))
 
 (defun map--make-pcase-patterns (args)

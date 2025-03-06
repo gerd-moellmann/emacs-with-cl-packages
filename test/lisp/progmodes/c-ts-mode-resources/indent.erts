@@ -84,7 +84,7 @@ int main()
 }
 =-=-=
 
-Name: Concecutive blocks (GNU Style) (bug#60873)
+Name: Consecutive blocks (GNU Style) (bug#60873)
 
 =-=
 int
@@ -206,6 +206,21 @@ int main()
       {":-(", "SLIGHTLY FROWNING FACE"},
     };
 }
+=-=-=
+
+Name: Return Compound Literal
+
+=-=
+struct pair { int fst, snd; };
+struct pair
+make_pair(int long_identifier_a[], int long_identifier_b[],
+          int offset_a, int offset_b)
+{
+  int base_offset = 10;
+  return (struct pair) { long_identifier_a[base_offset + offset_b],
+                         long_identifier_b[base_offset + offset_b] };
+}
+
 =-=-=
 
 Name: Switch-Case statement
@@ -455,6 +470,58 @@ Name: Declaration List (Namespace) (Bug#61635)
 namespace test {
   class Name {
   };
+}
+=-=-=
+
+Name: Namespace and template (bug#72263)
+
+=-=
+namespace A {
+
+T myfunction1(const char *fname)
+{
+}
+
+template <class T>
+T myfunction2(const char *fname)
+{
+}
+}
+=-=
+namespace A {
+
+  T myfunction1(const char *fname)
+  {
+  }
+
+  template <class T>
+  T myfunction2(const char *fname)
+  {
+  }
+}
+=-=-=
+
+Name: Return Aggregate Initialized Struct
+
+=-=
+struct pair { int x, y; }
+pair
+make_pair(int long_identifier_a[], int long_identifier_b[],
+          int offset_a, int offset_b)
+{
+  int base_offset = 10;
+  return { long_identifier_a[base_offset + offset_b],
+       long_identifier_b[base_offset + offset_b] };
+}
+=-=
+struct pair { int x, y; }
+pair
+make_pair(int long_identifier_a[], int long_identifier_b[],
+          int offset_a, int offset_b)
+{
+  int base_offset = 10;
+  return { long_identifier_a[base_offset + offset_b],
+           long_identifier_b[base_offset + offset_b] };
 }
 =-=-=
 

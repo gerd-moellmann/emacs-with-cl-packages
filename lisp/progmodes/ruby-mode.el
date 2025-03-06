@@ -1,6 +1,6 @@
 ;;; ruby-mode.el --- Major mode for editing Ruby files -*- lexical-binding: t -*-
 
-;; Copyright (C) 1994-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1994-2025 Free Software Foundation, Inc.
 
 ;; Authors: Yukihiro Matsumoto
 ;;	Nobuyoshi Nakada
@@ -336,7 +336,7 @@ Only has effect when `ruby-use-smie' is t."
   "If non-nil, align chained method calls.
 
 Each method call on a separate line will be aligned to the column
-of its parent. Example:
+of its parent.  Example:
 
   my_array.select { |str| str.size > 5 }
           .map    { |str| str.downcase }
@@ -386,7 +386,7 @@ Only has effect when `ruby-use-smie' is t."
   "Non-nil to align the body of a block to the statement's start.
 
 The body and the closer will be aligned to the column where the
-statement containing the block starts. Example:
+statement containing the block starts.  Example:
 
   foo.bar
     .each do
@@ -472,6 +472,26 @@ Only has effect when `ruby-use-smie' is t."
   :safe 'booleanp
   :version "29.1")
 
+(defcustom ruby-bracketed-args-indent t
+  "Non-nil to align the contents of bracketed arguments with the brackets.
+
+Example:
+
+  qux({
+        foo => bar
+      })
+
+Set it to nil to align to the beginning of the statement:
+
+  qux({
+    foo => bar
+  })
+
+Only has effect when `ruby-use-smie' is t."
+  :type 'boolean
+  :safe 'booleanp
+  :version "30.1")
+
 (defcustom ruby-deep-arglist t
   "Deep indent lists in parenthesis when non-nil.
 Also ignores spaces after parenthesis when `space'.
@@ -516,7 +536,9 @@ is customizable via `ruby-encoding-magic-comment-style'.
 
 When set to `always-utf8' an utf-8 comment will always be added,
 even if it's not required."
-  :type 'boolean :group 'ruby)
+  :type '(choice (const :tag "Don't insert" nil)
+                 (const :tag "Insert utf-8 comment always" always-utf8)
+                 (const :tag "Insert only when required" t)))
 
 (defcustom ruby-encoding-magic-comment-style 'ruby
   "The style of the magic encoding comment to use."
@@ -824,6 +846,9 @@ This only affects the output of the command `ruby-toggle-block'."
       ))
     (`(:before . ,(or "(" "[" "{"))
      (cond
+      ((and (not (eq ruby-bracketed-args-indent t))
+            (smie-rule-prev-p "," "(" "["))
+       (cons 'column (current-indentation)))
       ((and (equal token "{")
             (not (smie-rule-prev-p "(" "{" "[" "," "=>" "=" "return" ";" "do"))
             (save-excursion
@@ -1850,93 +1875,92 @@ For example:
   File.open
 
 See `add-log-current-defun-function'."
-  (condition-case nil
-      (save-excursion
-        (let* ((indent (ruby--add-log-current-indent))
-               mname mlist
-               (start (point))
-               (make-definition-re
-                (lambda (re &optional method-name?)
-                  (concat "^[ \t]*" re "[ \t]+"
-                          "\\("
-                          ;; \\. and :: for class methods
-                          "\\([A-Za-z_]" ruby-symbol-re "*[?!]?"
-                          "\\|"
-                          (if method-name? ruby-operator-re "\\.")
-                          "\\|::" "\\)"
-                          "+\\)")))
-               (definition-re (funcall make-definition-re ruby-defun-beg-re t))
-               (module-re (funcall make-definition-re "\\(class\\|module\\)")))
-          ;; Get the current method definition (or class/module).
-          (when (catch 'found
-                  (while (and (re-search-backward definition-re nil t)
-                              (if (if (string-equal "def" (match-string 1))
-                                      ;; We're inside a method.
-                                      (if (ruby-block-contains-point (1- start))
-                                          t
-                                        ;; Try to match a method only once.
-                                        (setq definition-re module-re)
-                                        nil)
-                                    ;; Class/module. For performance,
-                                    ;; comparing indentation.
-                                    (or (not (numberp indent))
-                                        (> indent (current-indentation))))
-                                  (throw 'found t)
-                                t))))
-            (goto-char (match-beginning 1))
-            (if (not (string-equal "def" (match-string 1)))
-                (setq mlist (list (match-string 2)))
-              (setq mname (match-string 2)))
-            (setq indent (current-column))
-            (beginning-of-line))
-          ;; Walk up the class/module nesting.
-          (while (and indent
-                      (> indent 0)
-                      (re-search-backward module-re nil t))
-            (goto-char (match-beginning 1))
-            (when (< (current-column) indent)
-              (setq mlist (cons (match-string 2) mlist))
-              (setq indent (current-column))
-              (beginning-of-line)))
-          ;; Process the method name.
-          (when mname
-            (let ((mn (split-string mname "\\.\\|::")))
-              (if (cdr mn)
-                  (progn
-                    (unless (string-equal "self" (car mn)) ; def self.foo
-                      ;; def C.foo
-                      (let ((ml (reverse mlist)))
-                        ;; If the method name references one of the
-                        ;; containing modules, drop the more nested ones.
-                        (while ml
-                          (if (string-equal (car ml) (car mn))
-                              (setq mlist (nreverse (cdr ml)) ml nil))
-                          (setq ml (cdr ml))))
-                      (if mlist
-                          (setcdr (last mlist) (butlast mn))
-                        (setq mlist (butlast mn))))
-                    (setq mname (concat "." (car (last mn)))))
-                ;; See if the method is in singleton class context.
-                (let ((in-singleton-class
-                       (when (re-search-forward ruby-singleton-class-re start t)
-                         (goto-char (match-beginning 0))
-                         ;; FIXME: Optimize it out, too?
-                         ;; This can be slow in a large file, but
-                         ;; unlike class/module declaration
-                         ;; indentations, method definitions can be
-                         ;; intermixed with these, and may or may not
-                         ;; be additionally indented after visibility
-                         ;; keywords.
-                         (ruby-block-contains-point start))))
-                  (setq mname (concat
-                               (if in-singleton-class "." "#")
-                               mname))))))
-          ;; Generate the string.
-          (if (consp mlist)
-              (setq mlist (mapconcat (function identity) mlist "::")))
-          (if mname
-              (if mlist (concat mlist mname) mname)
-            mlist)))))
+  (save-excursion
+    (let* ((indent (ruby--add-log-current-indent))
+           mname mlist
+           (start (point))
+           (make-definition-re
+            (lambda (re &optional method-name?)
+              (concat "^[ \t]*" re "[ \t]+"
+                      "\\("
+                      ;; \\. and :: for class methods
+                      "\\([A-Za-z_]" ruby-symbol-re "*[?!]?"
+                      "\\|"
+                      (if method-name? ruby-operator-re "\\.")
+                      "\\|::" "\\)"
+                      "+\\)")))
+           (definition-re (funcall make-definition-re ruby-defun-beg-re t))
+           (module-re (funcall make-definition-re "\\(class\\|module\\)")))
+      ;; Get the current method definition (or class/module).
+      (when (catch 'found
+              (while (and (re-search-backward definition-re nil t)
+                          (if (if (string-equal "def" (match-string 1))
+                                  ;; We're inside a method.
+                                  (if (ruby-block-contains-point (1- start))
+                                      t
+                                    ;; Try to match a method only once.
+                                    (setq definition-re module-re)
+                                    nil)
+                                ;; Class/module. For performance,
+                                ;; comparing indentation.
+                                (or (not (numberp indent))
+                                    (> indent (current-indentation))))
+                              (throw 'found t)
+                            t))))
+        (goto-char (match-beginning 1))
+        (if (not (string-equal "def" (match-string 1)))
+            (setq mlist (list (match-string 2)))
+          (setq mname (match-string 2)))
+        (setq indent (current-column))
+        (beginning-of-line))
+      ;; Walk up the class/module nesting.
+      (while (and indent
+                  (> indent 0)
+                  (re-search-backward module-re nil t))
+        (goto-char (match-beginning 1))
+        (when (< (current-column) indent)
+          (setq mlist (cons (match-string 2) mlist))
+          (setq indent (current-column))
+          (beginning-of-line)))
+      ;; Process the method name.
+      (when mname
+        (let ((mn (split-string mname "\\.\\|::")))
+          (if (cdr mn)
+              (progn
+                (unless (string-equal "self" (car mn)) ; def self.foo
+                  ;; def C.foo
+                  (let ((ml (reverse mlist)))
+                    ;; If the method name references one of the
+                    ;; containing modules, drop the more nested ones.
+                    (while ml
+                      (if (string-equal (car ml) (car mn))
+                          (setq mlist (nreverse (cdr ml)) ml nil))
+                      (setq ml (cdr ml))))
+                  (if mlist
+                      (setcdr (last mlist) (butlast mn))
+                    (setq mlist (butlast mn))))
+                (setq mname (concat "." (car (last mn)))))
+            ;; See if the method is in singleton class context.
+            (let ((in-singleton-class
+                   (when (re-search-forward ruby-singleton-class-re start t)
+                     (goto-char (match-beginning 0))
+                     ;; FIXME: Optimize it out, too?
+                     ;; This can be slow in a large file, but
+                     ;; unlike class/module declaration
+                     ;; indentations, method definitions can be
+                     ;; intermixed with these, and may or may not
+                     ;; be additionally indented after visibility
+                     ;; keywords.
+                     (ruby-block-contains-point start))))
+              (setq mname (concat
+                           (if in-singleton-class "." "#")
+                           mname))))))
+      ;; Generate the string.
+      (if (consp mlist)
+          (setq mlist (mapconcat (function identity) mlist "::")))
+      (if mname
+          (if mlist (concat mlist mname) mname)
+        mlist))))
 
 (defun ruby-block-contains-point (pt)
   (save-excursion
@@ -2105,12 +2129,6 @@ or `gem' statement around point."
     "\\(%\\)[qQrswWxIi]?\\([[:punct:]]\\)"
     "Regexp to match the beginning of percent literal.")
 
-  (defconst ruby-syntax-methods-before-regexp
-    '("gsub" "gsub!" "sub" "sub!" "scan" "split" "split!" "index" "match"
-      "assert_match" "Given" "Then" "When")
-    "Methods that can take regexp as the first argument.
-It will be properly highlighted even when the call omits parens.")
-
   (defvar ruby-syntax-before-regexp-re
     (concat
      ;; Special tokens that can't be followed by a division operator.
@@ -2122,11 +2140,9 @@ It will be properly highlighted even when the call omits parens.")
      "\\|\\(?:^\\|\\s \\)"
      (regexp-opt '("if" "elsif" "unless" "while" "until" "when" "and"
                    "or" "not" "&&" "||"))
-     ;; Method name from the list.
-     "\\|\\_<"
-     (regexp-opt ruby-syntax-methods-before-regexp t)
      "\\)\\s *")
-    "Regexp to match text that can be followed by a regular expression."))
+    "Regexp to match text that disambiguates a regular expression.
+A slash character after any of these should begin a regexp."))
 
 (defun ruby-syntax-propertize (start end)
   "Syntactic keywords for Ruby mode.  See `syntax-propertize-function'."
@@ -2182,20 +2198,18 @@ It will be properly highlighted even when the call omits parens.")
         (when (save-excursion
                 (forward-char -1)
                 (cl-evenp (skip-chars-backward "\\\\")))
-          (let ((state (save-excursion (syntax-ppss (match-beginning 1))))
-                division-like)
+          (let ((state (save-excursion (syntax-ppss (match-beginning 1)))))
             (when (or
                    ;; Beginning of a regexp.
                    (and (null (nth 8 state))
-                        (save-excursion
-                          (setq division-like
-                                (or (eql (char-after) ?\s)
-                                    (not (eql (char-before (1- (point))) ?\s))))
-                          (forward-char -1)
-                          (looking-back ruby-syntax-before-regexp-re
-                                        (line-beginning-position)))
-                        (not (and division-like
-                                  (match-beginning 2))))
+                        (or (not
+                             ;; Looks like division.
+                             (or (eql (char-after) ?\s)
+                                 (not (eql (char-before (1- (point))) ?\s))))
+                            (save-excursion
+                              (forward-char -1)
+                              (looking-back ruby-syntax-before-regexp-re
+                                            (line-beginning-position)))))
                    ;; End of regexp.  We don't match the whole
                    ;; regexp at once because it can have
                    ;; string interpolation inside, or span
@@ -2562,6 +2576,17 @@ If there is no Rubocop config file, Rubocop will be passed a flag
   :type 'string
   :safe 'stringp)
 
+(defcustom ruby-rubocop-use-bundler 'check
+  "Non-nil with allow `ruby-flymake-rubocop' to use `bundle exec'.
+When the value is `check', it will first see whether Gemfile exists in
+the same directory as the configuration file, and whether it mentions
+the gem \"rubocop\".  When t, it is used unconditionally."
+  :type '(choice (const :tag "Always" t)
+                 (const :tag "No" nil)
+                 (const :tag "If rubocop is in Gemfile" check))
+  :version "30.1"
+  :safe 'booleanp)
+
 (defun ruby-flymake-rubocop (report-fn &rest _args)
   "RuboCop backend for Flymake."
   (unless (executable-find "rubocop")
@@ -2623,11 +2648,17 @@ If there is no Rubocop config file, Rubocop will be passed a flag
           finally (funcall report-fn diags)))))))
 
 (defun ruby-flymake-rubocop--use-bundler-p (dir)
-  (let ((file (expand-file-name "Gemfile" dir)))
-    (and (file-exists-p file)
-         (with-temp-buffer
-           (insert-file-contents file)
-           (re-search-forward "^ *gem ['\"]rubocop['\"]" nil t)))))
+  (cond
+   ((eq t ruby-rubocop-use-bundler)
+    t)
+   ((null ruby-rubocop-use-bundler)
+    nil)
+   (t
+    (let ((file (expand-file-name "Gemfile" dir)))
+      (and (file-exists-p file)
+           (with-temp-buffer
+             (insert-file-contents file)
+             (re-search-forward "^ *gem ['\"]rubocop['\"]" nil t)))))))
 
 (defun ruby-flymake-auto (report-fn &rest args)
   (apply
@@ -2704,19 +2735,23 @@ Currently there are `ruby-mode' and `ruby-ts-mode'."
 ;;;###autoload
 (add-to-list 'auto-mode-alist
              (cons (purecopy (concat "\\(?:\\.\\(?:"
-                                     "rbw?\\|ru\\|rake\\|thor"
+                                     "rbw?\\|ru\\|rake\\|thor\\|axlsx"
                                      "\\|jbuilder\\|rabl\\|gemspec\\|podspec"
                                      "\\)"
                                      "\\|/"
                                      "\\(?:Gem\\|Rake\\|Cap\\|Thor"
-                                     "\\|Puppet\\|Berks\\|Brew"
+                                     "\\|Puppet\\|Berks\\|Brew\\|Fast"
                                      "\\|Vagrant\\|Guard\\|Pod\\)file"
                                      "\\)\\'"))
                    'ruby-mode))
 
 ;;;###autoload
-(dolist (name (list "ruby" "rbx" "jruby" "ruby1.9" "ruby1.8"))
+(dolist (name (list "ruby" "rbx" "jruby" "j?ruby\\(?:[0-9.]+\\)"))
   (add-to-list 'interpreter-mode-alist (cons (purecopy name) 'ruby-mode)))
+
+;; See ruby-ts-mode.el for why we do this.
+(setq major-mode-remap-defaults
+      (assq-delete-all 'ruby-mode major-mode-remap-defaults))
 
 (provide 'ruby-mode)
 

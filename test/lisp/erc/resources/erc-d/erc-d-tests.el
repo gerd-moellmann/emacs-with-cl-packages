@@ -1,6 +1,6 @@
 ;;; erc-d-tests.el --- tests for erc-d -*- lexical-binding: t -*-
 
-;; Copyright (C) 2020-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -367,8 +367,6 @@
       (should (equal (funcall it) "foo3foo")))
 
     (ert-info ("Exits clean")
-      (when (listp (alist-get 'f (erc-d-dialog-vars dialog))) ; may be compiled
-        (should (eq 'closure (car (alist-get 'f (erc-d-dialog-vars dialog))))))
       (should-not (funcall it))
       (should (equal (erc-d-dialog-vars dialog)
                      `((:a . 1)
@@ -646,7 +644,7 @@ nonzero for this to work."
 (ert-deftest erc-d-run-basic ()
   :tags '(:expensive-test)
   (erc-d-tests-with-server (_ _) basic
-    (with-current-buffer (erc-d-t-wait-for 3 (get-buffer "#chan"))
+    (with-current-buffer (erc-d-t-wait-for 10 (get-buffer "#chan"))
       (erc-d-t-search-for 2 "hey"))
     (when noninteractive
       (kill-buffer "#chan"))))
@@ -674,7 +672,7 @@ nonzero for this to work."
 (ert-deftest erc-d-run-linger ()
   :tags '(:unstable :expensive-test)
   (erc-d-tests-with-server (dumb-s _) linger
-    (with-current-buffer (erc-d-t-wait-for 6 (get-buffer "#chan"))
+    (with-current-buffer (erc-d-t-wait-for 10 (get-buffer "#chan"))
       (erc-d-t-search-for 2 "hey"))
     (with-current-buffer (process-buffer dumb-s)
       (erc-d-t-search-for 2 "Lingering for 1.00 seconds"))

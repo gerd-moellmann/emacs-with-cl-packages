@@ -1,6 +1,6 @@
 ;;; cl-indent.el --- Enhanced lisp-indent mode  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1987, 2000-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1987, 2000-2025 Free Software Foundation, Inc.
 
 ;; Author: Richard Mlynarik <mly@eddie.mit.edu>
 ;; Created: July 1987
@@ -192,7 +192,7 @@ the standard Lisp indent package."
     (list
      (cond ((not (lisp-extended-loop-p (elt state 1)))
 	    (+ loop-indentation lisp-simple-loop-indentation))
-	   ((looking-at "^\\s-*\\(:?\\sw+\\|;\\)")
+	   ((looking-at "^\\s-*\\(?::?\\sw+\\|;\\)")
 	    (+ loop-indentation lisp-loop-keyword-indentation))
 	   (t
 	    (+ loop-indentation lisp-loop-forms-indentation)))

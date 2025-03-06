@@ -1,6 +1,6 @@
 ;;; grep.el --- run `grep' and display the results  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1987, 1993-1999, 2001-2024 Free Software
+;; Copyright (C) 1985-1987, 1993-1999, 2001-2025 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Roland McGrath <roland@gnu.org>
@@ -213,6 +213,21 @@ by `grep-compute-defaults'; to change the default value, use
 		 (const :tag "Not Set" nil))
   :set #'grep-apply-setting
   :version "22.1")
+
+(defvar rgrep-find-ignores-in-<f> t
+  "If nil, when `rgrep' expands `grep-find-template', file ignores go in <X>.
+
+By default, the <X> placeholder contains find options for affecting the
+directory list, and the <F> placeholder contains the find options which
+affect which files are matched, both `grep-find-ignored-files' and the
+FILES argument to `rgrep'.
+
+This separation allows the two sources of file matching in <F> to be
+optimized together into a set of options which are overall faster for
+\"find\" to evaluate.
+
+If nil, <X> contains ignores both for directories and files, and <F>
+contains only the FILES argument.  This is the old behavior.")
 
 (defvar grep-quoting-style nil
   "Whether to use POSIX-like shell argument quoting.")
@@ -457,6 +472,33 @@ buffer `default-directory'."
   :type '(repeat (choice (const :tag "Default" nil)
 			 (string :tag "Directory"))))
 
+(defcustom grep-use-headings nil
+  "If non-nil, subdivide grep output into sections, one per file."
+  :type 'boolean
+  :version "30.1")
+
+(defface grep-heading `((t :inherit ,grep-hit-face))
+  "Face of headings when `grep-use-headings' is non-nil."
+  :version "30.1")
+
+(defvar grep-heading-regexp
+  (rx bol
+      (or
+       (group-n 2
+         (group-n 1 (+ (not (any 0 ?\n))))
+         0)
+       (group-n 2
+        (group-n 1 (+? nonl))
+        (any ?: ?- ?=)))
+      (+ digit)
+      (any ?: ?- ?=))
+  "Regexp used to create headings from grep output lines.
+It should be anchored at beginning of line.  The first capture
+group, if present, should match the heading associated to the
+line.  The buffer range of the second capture, if present, is
+made invisible (presumably because displaying it would be
+redundant).")
+
 (defvar grep-find-abbreviate-properties
   (let ((ellipsis (if (char-displayable-p ?…) "[…]" "[...]"))
         (map (make-sparse-keymap)))
@@ -611,6 +653,40 @@ This function is called from `compilation-filter-hook'."
         (goto-char beg)
         (while (re-search-forward "\033\\[[0-9;]*[mK]" end 1)
           (replace-match "" t t))))))
+
+(defvar grep--heading-format
+  (eval-when-compile
+    (let ((title (propertize "%s"
+                             'font-lock-face 'grep-heading
+                             'outline-level 1)))
+      (propertize (concat title "\n") 'compilation-annotation t)))
+  "Format string of grep headings.
+This is passed to `format' with one argument, the text of the
+first capture group of `grep-heading-regexp'.")
+
+(defvar-local grep--heading-state nil
+  "Variable to keep track of the `grep--heading-filter' state.")
+
+(defun grep--heading-filter ()
+  "Filter function to add headings to output of a grep process."
+  (unless grep--heading-state
+    (setq grep--heading-state (cons (point-min-marker) nil)))
+  (save-excursion
+    (let ((limit (car grep--heading-state)))
+      ;; Move point to the old limit and update limit marker.
+      (move-marker limit (prog1 (pos-bol) (goto-char limit)))
+      (while (re-search-forward grep-heading-regexp limit t)
+        (unless (get-text-property (point) 'compilation-annotation)
+          (let ((heading (match-string-no-properties 1))
+                (start (match-beginning 2))
+                (end (match-end 2)))
+            (when start
+              (put-text-property start end 'invisible t))
+            (when (and heading (not (equal heading (cdr grep--heading-state))))
+              (save-excursion
+                (goto-char (pos-bol))
+                (insert-before-markers (format grep--heading-format heading)))
+              (setf (cdr grep--heading-state) heading))))))))
 
 (defun grep-probe (command args &optional func result)
   (let (process-file-side-effects)
@@ -906,6 +982,11 @@ The value depends on `grep-command', `grep-template',
   (add-function :filter-return (local 'kill-transform-function)
                 (lambda (string)
                   (string-replace "\0" ":" string)))
+  (when grep-use-headings
+    (add-hook 'compilation-filter-hook #'grep--heading-filter 80 t)
+    (setq-local outline-search-function #'outline-search-level
+                outline-level (lambda () (get-text-property
+                                          (point) 'outline-level))))
   (add-hook 'compilation-filter-hook #'grep-filter nil t))
 
 (defun grep--save-buffers ()
@@ -1100,15 +1181,26 @@ REGEXP is used as a string in the prompt."
          (files (completing-read
                  (format-prompt "Search for \"%s\" in files matching wildcard"
                                 default regexp)
-                 (completion-table-merge
-                  (lambda (_string _pred _action) defaults)
-                  #'read-file-name-internal)
+                 (completion-table-merge defaults #'completion-file-name-table)
 		 nil nil nil 'grep-files-history defaults)))
     (and files
 	 (or (cdr (assoc files grep-files-aliases))
 	     files))))
 
 (defvar grep-use-directories-skip 'auto-detect)
+
+(defun grep--filter-list-by-dir (list dir)
+  "Include elements of LIST which are applicable to DIR."
+  (delq nil (mapcar
+             (lambda (ignore)
+               (cond ((stringp ignore) ignore)
+                     ((consp ignore)
+                      (and (funcall (car ignore) dir) (cdr ignore)))))
+             list)))
+
+(defun grep-find-ignored-files (dir)
+  "Return the list of ignored files applicable to DIR."
+  (grep--filter-list-by-dir grep-find-ignored-files dir))
 
 ;;;###autoload
 (defun lgrep (regexp &optional files dir confirm)
@@ -1170,20 +1262,13 @@ command before it's run."
 		       regexp
 		       files
 		       nil
-		       (and grep-find-ignored-files
-			    (concat " --exclude="
-				    (mapconcat
-                                     (lambda (ignore)
-                                       (cond ((stringp ignore)
-                                              (shell-quote-argument
-                                               ignore grep-quoting-style))
-                                             ((consp ignore)
-                                              (and (funcall (car ignore) dir)
-                                                   (shell-quote-argument
-                                                    (cdr ignore)
-                                                    grep-quoting-style)))))
-				     grep-find-ignored-files
-				     " --exclude=")))
+                       (when-let ((ignores (grep-find-ignored-files dir)))
+			 (concat " --exclude="
+				 (mapconcat
+                                  (lambda (ignore)
+                                    (shell-quote-argument ignore grep-quoting-style))
+                                  ignores
+                                  " --exclude=")))
 		       (and (eq grep-use-directories-skip t)
 			    '("--directories=skip"))))
 	(when command
@@ -1287,61 +1372,54 @@ to indicate whether the grep should be case sensitive or not."
 	      (setq default-directory dir)))))))
 
 (defun rgrep-find-ignored-directories (dir)
-  "Return the list of ignored directories applicable to `dir'."
-  (delq nil (mapcar
-             (lambda (ignore)
-               (cond ((stringp ignore) ignore)
-                     ((consp ignore)
-                      (and (funcall (car ignore) dir) (cdr ignore)))))
-             grep-find-ignored-directories)))
+  "Return the list of ignored directories applicable to DIR."
+  (grep--filter-list-by-dir grep-find-ignored-directories dir))
 
 (defun rgrep-default-command (regexp files dir)
   "Compute the command for \\[rgrep] to use by default."
-  (require 'find-dired)      ; for `find-name-arg'
-  (grep-expand-template
-   grep-find-template
-   regexp
-   (concat (shell-quote-argument "(" grep-quoting-style)
-           " " find-name-arg " "
-           (mapconcat
-            (lambda (x) (shell-quote-argument x grep-quoting-style))
-            (split-string files)
-            (concat " -o " find-name-arg " "))
-           " "
-           (shell-quote-argument ")" grep-quoting-style))
-   dir
-   (concat
-    (and grep-find-ignored-directories
-         (concat "-type d "
-                 (shell-quote-argument "(" grep-quoting-style)
-                 ;; we should use shell-quote-argument here
-                 " -path "
-                 (mapconcat
-                  (lambda (d)
-                    (shell-quote-argument (concat "*/" d) grep-quoting-style))
-                  (rgrep-find-ignored-directories dir)
-                  " -o -path ")
-                 " "
-                 (shell-quote-argument ")" grep-quoting-style)
-                 " -prune -o "))
-    (and grep-find-ignored-files
-         (concat (shell-quote-argument "!" grep-quoting-style) " -type d "
-                 (shell-quote-argument "(" grep-quoting-style)
-                 ;; we should use shell-quote-argument here
-                 " -name "
-                 (mapconcat
-                  (lambda (ignore)
-                    (cond ((stringp ignore)
-                           (shell-quote-argument ignore grep-quoting-style))
-                          ((consp ignore)
-                           (and (funcall (car ignore) dir)
-                                (shell-quote-argument
-                                 (cdr ignore) grep-quoting-style)))))
-                  grep-find-ignored-files
-                  " -o -name ")
-                 " "
-                 (shell-quote-argument ")" grep-quoting-style)
-                 " -prune -o ")))))
+  (require 'find-dired)                 ; for `find-name-arg'
+  (let ((ignored-files-arg
+         (when-let ((ignored-files (grep-find-ignored-files dir)))
+           (concat (shell-quote-argument "(" grep-quoting-style)
+                   ;; we should use shell-quote-argument here
+                   " -name "
+                   (mapconcat
+                    (lambda (ignore) (shell-quote-argument ignore grep-quoting-style))
+                    ignored-files
+                    " -o -name ")
+                   " " (shell-quote-argument ")" grep-quoting-style)))))
+    (grep-expand-template
+     grep-find-template
+     regexp
+     (concat (shell-quote-argument "(" grep-quoting-style)
+             " " find-name-arg " "
+             (mapconcat
+              (lambda (x) (shell-quote-argument x grep-quoting-style))
+              (split-string files)
+              (concat " -o " find-name-arg " "))
+             " "
+             (shell-quote-argument ")" grep-quoting-style)
+             (when (and rgrep-find-ignores-in-<f> ignored-files-arg)
+               (concat " " (shell-quote-argument "!" grep-quoting-style) " " ignored-files-arg)))
+     dir
+     (concat
+      (when-let ((ignored-dirs (rgrep-find-ignored-directories dir)))
+        (concat "-type d "
+                (shell-quote-argument "(" grep-quoting-style)
+                ;; we should use shell-quote-argument here
+                " -path "
+                (mapconcat
+                 (lambda (d)
+                   (shell-quote-argument (concat "*/" d) grep-quoting-style))
+                 ignored-dirs
+                 " -o -path ")
+                " "
+                (shell-quote-argument ")" grep-quoting-style)
+                " -prune -o "))
+      (when (and (not rgrep-find-ignores-in-<f>) ignored-files-arg)
+        (concat (shell-quote-argument "!" grep-quoting-style) " -type d "
+                ignored-files-arg
+                " -prune -o "))))))
 
 (defun grep-find-toggle-abbreviation ()
   "Toggle showing the hidden part of rgrep/lgrep/zrgrep command line."

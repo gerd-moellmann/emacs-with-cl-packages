@@ -1,6 +1,6 @@
 ;;; completion.el --- dynamic word-completion code  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1990-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1990-2025 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: abbrev convenience
@@ -65,7 +65,7 @@
 ;;---------------------
 ;;
 ;;   A "word" is any string containing characters with either word or symbol
-;; syntax.  [E.G. Any alphanumeric string with hyphens, underscores, etc.]
+;; syntax.  [E.g., any alphanumeric string with hyphens, underscores, etc.]
 ;; Unless you change the constants, you must type at least three characters
 ;; for the word to be recognized.  Only words longer than 6 characters are
 ;; saved.
@@ -875,11 +875,11 @@ This is sensitive to `case-fold-search'."
 ;; GNU implements obarrays
 (defconst cmpl-obarray-length 511)
 
-(defvar cmpl-prefix-obarray (make-vector cmpl-obarray-length 0)
+(defvar cmpl-prefix-obarray (obarray-make cmpl-obarray-length)
   "An obarray used to store the downcased completion prefixes.
 Each symbol is bound to a list of completion entries.")
 
-(defvar cmpl-obarray (make-vector cmpl-obarray-length 0)
+(defvar cmpl-obarray (obarray-make cmpl-obarray-length)
   "An obarray used to store the downcased completions.
 Each symbol is bound to a single completion entry.")
 
@@ -962,8 +962,8 @@ Each symbol is bound to a single completion entry.")
 (defun clear-all-completions ()
   "Initialize the completion storage.  All existing completions are lost."
   (interactive)
-  (setq cmpl-prefix-obarray (make-vector cmpl-obarray-length 0))
-  (setq cmpl-obarray (make-vector cmpl-obarray-length 0)))
+  (setq cmpl-prefix-obarray (obarray-make cmpl-obarray-length))
+  (setq cmpl-obarray (obarray-make cmpl-obarray-length)))
 
 (defun list-all-completions ()
   "Return a list of all the known completion entries."
@@ -992,7 +992,7 @@ Each symbol is bound to a single completion entry.")
 ;; Updating the database
 ;;-----------------------------------------------
 ;;
-;;   These are the internal functions used to update the datebase
+;;   These are the internal functions used to update the database
 ;;
 ;;
 (defvar completion-to-accept nil

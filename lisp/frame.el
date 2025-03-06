@@ -1,6 +1,6 @@
 ;;; frame.el --- multi-frame management independent of window systems  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1993-1994, 1996-1997, 2000-2024 Free Software
+;; Copyright (C) 1993-1994, 1996-1997, 2000-2025 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -239,7 +239,8 @@ that's not the whole story: see `after-focus-change-function'."
 This function runs the abnormal hook `move-frame-functions'."
   (interactive "e")
   (let ((frame (posn-window (event-start event))))
-    (run-hook-with-args 'move-frame-functions frame)))
+    (when (frame-live-p frame) ;Experience shows it can die in the meantime.
+      (run-hook-with-args 'move-frame-functions frame))))
 
 ;;;; Arrangement of frames at startup
 
@@ -1193,7 +1194,7 @@ e.g. (mapc \\='frame-set-background-mode (frame-list))."
 
 (defvar inhibit-frame-set-background-mode nil)
 
-(defun frame--current-backround-mode (frame)
+(defun frame--current-background-mode (frame)
   (let* ((frame-default-bg-mode (frame-terminal-default-bg-mode frame))
          (bg-color (frame-parameter frame 'background-color))
          (tty-type (tty-type frame))
@@ -1223,7 +1224,7 @@ If optional arg KEEP-FACE-SPECS is non-nil, don't recalculate
 face specs for the new background mode."
   (unless inhibit-frame-set-background-mode
     (let* ((bg-mode
-	    (frame--current-backround-mode frame))
+	    (frame--current-background-mode frame))
 	   (display-type
 	    (cond ((null (window-system frame))
 		   (if (tty-display-color-p frame) 'color 'mono))
@@ -1302,7 +1303,7 @@ the `background-mode' terminal parameter."
 ;;   :global t
 ;;   :group 'faces
 ;;   (when (eq dark-mode
-;;             (eq 'light (frame--current-backround-mode (selected-frame))))
+;;             (eq 'light (frame--current-background-mode (selected-frame))))
 ;;     ;; FIXME: Change the face's SPEC instead?
 ;;     (set-face-attribute 'default nil
 ;;                         :foreground (face-attribute 'default :background)
@@ -1653,6 +1654,7 @@ live frame and defaults to the selected one."
 (declare-function ns-frame-geometry "nsfns.m" (&optional frame))
 (declare-function pgtk-frame-geometry "pgtkfns.c" (&optional frame))
 (declare-function haiku-frame-geometry "haikufns.c" (&optional frame))
+(declare-function android-frame-geometry "androidfns.c" (&optional frame))
 
 (defun frame-geometry (&optional frame)
   "Return geometric attributes of FRAME.
@@ -1708,6 +1710,8 @@ and width values are in pixels.
       (pgtk-frame-geometry frame))
      ((eq frame-type 'haiku)
       (haiku-frame-geometry frame))
+     ((eq frame-type 'android)
+      (android-frame-geometry frame))
      (t
       (list
        '(outer-position 0 . 0)
@@ -1835,6 +1839,7 @@ of frames like calls to map a frame or change its visibility."
 (declare-function ns-frame-edges "nsfns.m" (&optional frame type))
 (declare-function pgtk-frame-edges "pgtkfns.c" (&optional frame type))
 (declare-function haiku-frame-edges "haikufns.c" (&optional frame type))
+(declare-function android-frame-edges "androidfns.c" (&optional frame type))
 
 (defun frame-edges (&optional frame type)
   "Return coordinates of FRAME's edges.
@@ -1864,6 +1869,8 @@ FRAME."
       (pgtk-frame-edges frame type))
      ((eq frame-type 'haiku)
       (haiku-frame-edges frame type))
+     ((eq frame-type 'android)
+      (android-frame-edges frame type))
      (t
       (list 0 0 (frame-width frame) (frame-height frame))))))
 
@@ -1873,6 +1880,7 @@ FRAME."
 (declare-function ns-mouse-absolute-pixel-position "nsfns.m")
 (declare-function pgtk-mouse-absolute-pixel-position "pgtkfns.c")
 (declare-function haiku-mouse-absolute-pixel-position "haikufns.c")
+(declare-function android-mouse-absolute-pixel-position "androidfns.c")
 
 (defun mouse-absolute-pixel-position ()
   "Return absolute position of mouse cursor in pixels.
@@ -1893,6 +1901,8 @@ position (0, 0) of the selected frame's terminal."
       (pgtk-mouse-absolute-pixel-position))
      ((eq frame-type 'haiku)
       (haiku-mouse-absolute-pixel-position))
+     ((eq frame-type 'android)
+      (android-mouse-absolute-pixel-position))
      (t
       (cons 0 0)))))
 
@@ -1902,6 +1912,8 @@ position (0, 0) of the selected frame's terminal."
 (declare-function w32-set-mouse-absolute-pixel-position "w32fns.c" (x y))
 (declare-function x-set-mouse-absolute-pixel-position "xfns.c" (x y))
 (declare-function haiku-set-mouse-absolute-pixel-position "haikufns.c" (x y))
+(declare-function android-set-mouse-absolute-pixel-position
+                  "androidfns.c" (x y))
 
 (defun set-mouse-absolute-pixel-position (x y)
   "Move mouse pointer to absolute pixel position (X, Y).
@@ -1920,7 +1932,9 @@ position (0, 0) of the selected frame's terminal."
      ((eq frame-type 'mac)
       (mac-set-mouse-absolute-pixel-position x y))
      ((eq frame-type 'haiku)
-      (haiku-set-mouse-absolute-pixel-position x y)))))
+      (haiku-set-mouse-absolute-pixel-position x y))
+     ((eq frame-type 'android)
+      (android-set-mouse-absolute-pixel-position x y)))))
 
 (defun frame-monitor-attributes (&optional frame)
   "Return the attributes of the physical monitor dominating FRAME.
@@ -2017,9 +2031,10 @@ workarea attribute."
 ;; TODO: implement this on PGTK.
 ;; (declare-function pgtk-frame-list-z-order "pgtkfns.c" (&optional display))
 (declare-function haiku-frame-list-z-order "haikufns.c" (&optional display))
+(declare-function android-frame-list-z-order "androidfns.c" (&optional display))
 
 (defun frame-list-z-order (&optional display)
-  "Return list of Emacs' frames, in Z (stacking) order.
+  "Return list of Emacs's frames, in Z (stacking) order.
 The optional argument DISPLAY specifies which display to poll.
 DISPLAY should be either a frame or a display name (a string).
 If omitted or nil, that stands for the selected frame's display.
@@ -2044,7 +2059,9 @@ Return nil if DISPLAY contains no Emacs frame."
       ;; (pgtk-frame-list-z-order display)
       nil)
      ((eq frame-type 'haiku)
-      (haiku-frame-list-z-order display)))))
+      (haiku-frame-list-z-order display))
+     ((eq frame-type 'android)
+      (android-frame-list-z-order display)))))
 
 (declare-function x-frame-restack "xfns.c" (frame1 frame2 &optional above))
 (declare-function w32-frame-restack "w32fns.c" (frame1 frame2 &optional above))
@@ -2052,6 +2069,8 @@ Return nil if DISPLAY contains no Emacs frame."
 (declare-function ns-frame-restack "nsfns.m" (frame1 frame2 &optional above))
 (declare-function pgtk-frame-restack "pgtkfns.c" (frame1 frame2 &optional above))
 (declare-function haiku-frame-restack "haikufns.c" (frame1 frame2 &optional above))
+(declare-function android-frame-restack "androidfns.c" (frame1 frame2
+                                                               &optional above))
 
 (defun frame-restack (frame1 frame2 &optional above)
   "Restack FRAME1 below FRAME2.
@@ -2087,7 +2106,9 @@ Some window managers may refuse to restack windows."
          ((eq frame-type 'haiku)
           (haiku-frame-restack frame1 frame2 above))
          ((eq frame-type 'pgtk)
-          (pgtk-frame-restack frame1 frame2 above))))
+          (pgtk-frame-restack frame1 frame2 above))
+         ((eq frame-type 'android)
+          (android-frame-restack frame1 frame2 above))))
     (error "Cannot restack frames")))
 
 (defun frame-size-changed-p (&optional frame)
@@ -2122,6 +2143,7 @@ for FRAME."
 ;; or in https://debbugs.gnu.org/cgi/bugreport.cgi?bug=35058#17.
 
 (declare-function msdos-mouse-p "dosfns.c")
+(declare-function android-detect-mouse "androidfns.c")
 
 (defun display-mouse-p (&optional display)
   "Return non-nil if DISPLAY has a mouse available.
@@ -2136,6 +2158,8 @@ frame's display)."
        (> w32-num-mouse-buttons 0)))
      ((memq frame-type '(x mac ns haiku pgtk))
       t)    ;; We assume X, Mac, NeXTstep, GTK, and Haiku *always* have a pointing device
+     ((eq frame-type 'android)
+      (android-detect-mouse))
      (t
       (or (and (featurep 'xt-mouse)
 	       xterm-mouse-mode)
@@ -2151,8 +2175,12 @@ frame's display)."
   "Return non-nil if popup menus are supported on DISPLAY.
 DISPLAY can be a display name, a frame, or nil (meaning the selected
 frame's display).
-Support for popup menus requires that the mouse be available."
-  (display-mouse-p display))
+Support for popup menus requires that a suitable pointing device
+be available."
+  ;; Android menus work fine with touch screens as well, and one must
+  ;; be present.
+  (or (eq (framep-on-display display) 'android)
+      (display-mouse-p display)))
 
 (defun display-graphic-p (&optional display)
   "Return non-nil if DISPLAY is a graphic display.
@@ -2161,7 +2189,8 @@ frames and several different fonts at once.  This is true for displays
 that use a window system such as X, and false for text-only terminals.
 DISPLAY can be a display name, a frame, or nil (meaning the selected
 frame's display)."
-  (not (null (memq (framep-on-display display) '(x w32 mac ns pgtk haiku)))))
+  (not (null (memq (framep-on-display display) '(x w32 mac ns pgtk haiku
+                                                   android)))))
 
 (defun display-images-p (&optional display)
   "Return non-nil if DISPLAY can display images.
@@ -2213,7 +2242,7 @@ frame's display)."
 This means that, for example, DISPLAY can differentiate between
 the keybinding RET and [return]."
   (let ((frame-type (framep-on-display display)))
-    (or (memq frame-type '(x w32 mac ns pc pgtk haiku))
+    (or (memq frame-type '(x w32 mac ns pc pgtk haiku android))
         ;; MS-DOS and MS-Windows terminals have built-in support for
         ;; function (symbol) keys
         (memq system-type '(ms-dos windows-nt)))))
@@ -2226,7 +2255,7 @@ DISPLAY should be either a frame or a display name (a string).
 If DISPLAY is omitted or nil, it defaults to the selected frame's display."
   (let ((frame-type (framep-on-display display)))
     (cond
-     ((memq frame-type '(x w32 mac ns haiku pgtk))
+     ((memq frame-type '(x w32 mac ns haiku pgtk android))
       (x-display-screens display))
      (t
       1))))
@@ -2246,7 +2275,7 @@ with DISPLAY.  To get information for each physical monitor, use
 `display-monitor-attributes-list'."
   (let ((frame-type (framep-on-display display)))
     (cond
-     ((memq frame-type '(x w32 mac ns haiku pgtk))
+     ((memq frame-type '(x w32 mac ns haiku pgtk android))
       (x-display-pixel-height display))
      (t
       (frame-height (if (framep display) display (selected-frame)))))))
@@ -2266,7 +2295,7 @@ with DISPLAY.  To get information for each physical monitor, use
 `display-monitor-attributes-list'."
   (let ((frame-type (framep-on-display display)))
     (cond
-     ((memq frame-type '(x w32 mac ns haiku pgtk))
+     ((memq frame-type '(x w32 mac ns haiku pgtk android))
       (x-display-pixel-width display))
      (t
       (frame-width (if (framep display) display (selected-frame)))))))
@@ -2304,7 +2333,7 @@ For graphical terminals, note that on \"multi-monitor\" setups this
 refers to the height in millimeters for all physical monitors
 associated with DISPLAY.  To get information for each physical
 monitor, use `display-monitor-attributes-list'."
-  (and (memq (framep-on-display display) '(x w32 mac ns haiku pgtk))
+  (and (memq (framep-on-display display) '(x w32 mac ns haiku pgtk android))
        (or (cddr (assoc (or display (frame-parameter nil 'display))
 			display-mm-dimensions-alist))
 	   (cddr (assoc t display-mm-dimensions-alist))
@@ -2325,7 +2354,7 @@ For graphical terminals, note that on \"multi-monitor\" setups this
 refers to the width in millimeters for all physical monitors
 associated with DISPLAY.  To get information for each physical
 monitor, use `display-monitor-attributes-list'."
-  (and (memq (framep-on-display display) '(x w32 mac ns haiku pgtk))
+  (and (memq (framep-on-display display) '(x w32 mac ns haiku pgtk android))
        (or (cadr (assoc (or display (frame-parameter nil 'display))
 			display-mm-dimensions-alist))
 	   (cadr (assoc t display-mm-dimensions-alist))
@@ -2343,7 +2372,7 @@ DISPLAY can be a display name or a frame.
 If DISPLAY is omitted or nil, it defaults to the selected frame's display."
   (let ((frame-type (framep-on-display display)))
     (cond
-     ((memq frame-type '(x w32 mac ns haiku pgtk))
+     ((memq frame-type '(x w32 mac ns haiku pgtk android))
       (x-display-backing-store display))
      (t
       'not-useful))))
@@ -2356,7 +2385,7 @@ DISPLAY can be a display name or a frame.
 If DISPLAY is omitted or nil, it defaults to the selected frame's display."
   (let ((frame-type (framep-on-display display)))
     (cond
-     ((memq frame-type '(x w32 mac ns haiku pgtk))
+     ((memq frame-type '(x w32 mac ns haiku pgtk android))
       (x-display-save-under display))
      (t
       'not-useful))))
@@ -2369,7 +2398,7 @@ DISPLAY can be a display name or a frame.
 If DISPLAY is omitted or nil, it defaults to the selected frame's display."
   (let ((frame-type (framep-on-display display)))
     (cond
-     ((memq frame-type '(x w32 mac ns haiku pgtk))
+     ((memq frame-type '(x w32 mac ns haiku pgtk android))
       (x-display-planes display))
      ((eq frame-type 'pc)
       4)
@@ -2384,7 +2413,7 @@ DISPLAY can be a display name or a frame.
 If DISPLAY is omitted or nil, it defaults to the selected frame's display."
   (let ((frame-type (framep-on-display display)))
     (cond
-     ((memq frame-type '(x w32 mac ns haiku pgtk))
+     ((memq frame-type '(x w32 mac ns haiku pgtk android))
       (x-display-color-cells display))
      ((eq frame-type 'pc)
       16)
@@ -2401,7 +2430,7 @@ DISPLAY can be a display name or a frame.
 If DISPLAY is omitted or nil, it defaults to the selected frame's display."
   (let ((frame-type (framep-on-display display)))
     (cond
-     ((memq frame-type '(x w32 mac ns haiku pgtk))
+     ((memq frame-type '(x w32 mac ns haiku pgtk android))
       (x-display-visual-class display))
      ((and (memq frame-type '(pc t))
 	   (tty-display-color-p display))
@@ -2421,6 +2450,8 @@ If DISPLAY is omitted or nil, it defaults to the selected frame's display."
 		  (&optional terminal))
 (declare-function haiku-display-monitor-attributes-list "haikufns.c"
 		  (&optional terminal))
+(declare-function android-display-monitor-attributes-list "androidfns.c"
+                  (&optional terminal))
 
 (defun display-monitor-attributes-list (&optional display)
   "Return a list of physical monitor attributes on DISPLAY.
@@ -2454,6 +2485,10 @@ details depend on the platform and environment.
 The `source' attribute describes the source from which the
 information was obtained.  On X, this may be one of: \"Gdk\",
 \"XRandR 1.5\", \"XRandr\", \"Xinerama\", or \"fallback\".
+If it is \"fallback\", it means Emacs was built without GTK
+and without XrandR or Xinerama extensions, in which case the
+information about multiple physical monitors will be provided
+as if they all as a whole formed a single monitor.
 
 A frame is dominated by a physical monitor when either the
 largest area of the frame resides in the monitor, or the monitor
@@ -2476,6 +2511,8 @@ monitors."
       (pgtk-display-monitor-attributes-list display))
      ((eq frame-type 'haiku)
       (haiku-display-monitor-attributes-list display))
+     ((eq frame-type 'android)
+      (android-display-monitor-attributes-list display))
      (t
       (let ((geometry (list 0 0 (display-pixel-width display)
 			    (display-pixel-height display))))
@@ -2549,6 +2586,28 @@ symbols."
                'core-pointer)
               ((string= name "Virtual core keyboard")
                'core-keyboard))))))
+
+
+;;;; On-screen keyboard management.
+
+(declare-function android-toggle-on-screen-keyboard "androidfns.c")
+
+(defun frame-toggle-on-screen-keyboard (frame hide)
+  "Display or hide the on-screen keyboard.
+On systems with an on-screen keyboard, display the on screen
+keyboard on behalf of the frame FRAME if HIDE is nil.  Else, hide
+the on screen keyboard.
+
+Return whether or not the on screen keyboard may have been
+displayed; that is, return t on systems with an on screen
+keyboard, and nil on those without.
+
+FRAME must already have the input focus for this to work
+ reliably."
+  (let ((frame-type (framep-on-display frame)))
+    (cond ((eq frame-type 'android)
+           (android-toggle-on-screen-keyboard frame hide) t)
+          (t nil))))
 
 
 ;;;; Frame geometry values
@@ -3132,6 +3191,9 @@ If FRAME isn't maximized, show the title bar."
   (set-frame-parameter
    frame 'undecorated
    (eq (alist-get 'fullscreen (frame-parameters frame)) 'maximized)))
+
+(define-obsolete-function-alias 'frame--current-backround-mode
+  #'frame--current-background-mode "30.1")
 
 (provide 'frame)
 

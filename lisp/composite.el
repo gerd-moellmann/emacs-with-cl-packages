@@ -1,6 +1,6 @@
 ;;; composite.el --- support character composition  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2001-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2025 Free Software Foundation, Inc.
 
 ;; Copyright (C) 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007,
 ;;   2008, 2009, 2010, 2011
@@ -818,7 +818,7 @@ prepending a space before it."
 	      (setq glyph (lgstring-glyph gstring i))
 	      (lglyph-set-char glyph 32)
 	      (lglyph-set-width glyph 1)
-	      (setq i (+ 2)))
+	      (setq i (+ i 2)))
 	  (let ((from (lglyph-from glyph))
 		(to (lglyph-to glyph))
 		(j (1+ i)))

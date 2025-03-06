@@ -1,5 +1,5 @@
 /* Haiku window system support.
-   Copyright (C) 2021-2024 Free Software Foundation, Inc.
+   Copyright (C) 2021-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -111,6 +111,8 @@ haiku_len (enum haiku_event_type type)
       return sizeof (struct haiku_clipboard_changed_event);
     case FONT_CHANGE_EVENT:
       return sizeof (struct haiku_font_change_event);
+    case NOTIFICATION_CLICK_EVENT:
+      return sizeof (struct haiku_notification_click_event);
     }
 
   emacs_abort ();

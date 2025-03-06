@@ -1,6 +1,6 @@
 ;;; semantic/db-ebrowse.el --- Semanticdb backend using ebrowse.  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2005-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2025 Free Software Foundation, Inc.
 
 ;; Authors: Eric M. Ludlam <zappo@gnu.org>
 ;;	Joakim Verona
@@ -158,7 +158,8 @@ is specified by `semanticdb-default-save-directory'."
       ;; Call the EBROWSE command.
       (message "Creating ebrowse file: %s ..." savein)
       (call-process-region (point-min) (point-max)
-			   "ebrowse" nil "*EBROWSE OUTPUT*" nil
+			   ebrowse-program-name
+                           nil "*EBROWSE OUTPUT*" nil
 			   (concat "--output-file=" savein)
 			   "--very-verbose")
       )

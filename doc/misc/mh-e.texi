@@ -25,7 +25,7 @@
 This is version @value{VERSION}@value{EDITION} of @cite{The MH-E
 Manual}, last updated @value{UPDATED}.
 
-Copyright @copyright{} 1995, 2001--2003, 2005--2024 Free Software
+Copyright @copyright{} 1995, 2001--2003, 2005--2025 Free Software
 Foundation, Inc.
 
 @c This dual license has been agreed upon by the FSF.
@@ -793,7 +793,7 @@ You should see the scan line for your message, and perhaps others. Use
 
 @cartouche
 @smallexample
-  3 t08/24 root       received fax files on Wed Aug 24 11:00:13 PDT 1
+  3 t08/24 root       received fax files on Wed Aug 24 11:00:13 -0700 1
 # 4+t08/24 To:wohler  Test<<This is a test message to get the wheels
 
 -:%%  @{+inbox/select@} 4 msgs (1-4)   Bot L4     (MH-Folder Show)---------
@@ -1479,7 +1479,6 @@ Binding} of @samp{m}.
 
 @cindex @command{emacsclient}
 @cindex @command{xbuffy}
-@cindex @samp{gnuserv}
 @cindex Unix commands, @command{emacsclient}
 @cindex Unix commands, @command{xbuffy}
 
@@ -8920,7 +8919,7 @@ Bill Wohler, August 2008
 @c LocalWords: Baushke Bcc BBN Beranek bogofilter bogofilter's
 @c LocalWords: cmd CMU contrib cron
 @c LocalWords: DesBrisay Dcc devel dir dired docstring filll forw
-@c LocalWords: GECOS Gildea Gildea's Ginnean GnuCash goto gnuserv htm
+@c LocalWords: GECOS Gildea Gildea's Ginnean GnuCash goto htm
 @c LocalWords: ImageMagick inbox ispell keychain
 @c LocalWords: Larus licensor LocalWords lookup lpr
 @c LocalWords: makeinfo mairix mbox mh mhbuild mhl mhpath mlisp

@@ -1,6 +1,6 @@
 ### @configure_input@
 
-# Copyright (C) 2010-2024 Free Software Foundation, Inc.
+# Copyright (C) 2010-2025 Free Software Foundation, Inc.
 
 # This file is part of GNU Emacs.
 
@@ -92,6 +92,10 @@ export TEST_LOAD_EL ?= \
 # Additional settings for ert.
 ert_opts =
 
+# Supply a path to local tree-sitter installations, as we run tests
+# without a valid HOME.
+ert_opts += --eval "(setq treesit-extra-load-path '(\"$(HOME)/.emacs.d/tree-sitter\"))"
+
 # Maximum length of lines in ert backtraces; nil for no limit.
 # (if empty, use the default ert-batch-backtrace-right-margin).
 TEST_BACKTRACE_LINE_LENGTH =
@@ -166,7 +170,7 @@ WRITE_LOG = > $@ 2>&1 || { STAT=$$?; cat $@; exit $$STAT; }
 endif
 ## On Emba, always show logs for certain problematic tests.
 ifdef EMACS_EMBA_CI
-lisp/filenotify-tests.log lisp/net/tramp-tests.log src/emacs-module-tests.log \
+lisp/filenotify-tests.log lisp/net/tramp-tests.log \
 : WRITE_LOG = 2>&1 | tee $@
 endif
 
@@ -271,8 +275,8 @@ endif
 
 GMP_H = @GMP_H@
 LIBGMP = @LIBGMP@
-LIB_CLOCK_GETTIME = @LIB_CLOCK_GETTIME@
-LIB_NANOSLEEP = @LIB_NANOSLEEP@
+CLOCK_TIME_LIB = @CLOCK_TIME_LIB@
+NANOSLEEP_LIB = @NANOSLEEP_LIB@
 
 MODULE_CFLAGS = $(and $(GMP_H),-I.) -I../src -I$(srcdir)/../src \
   $(FPIC_CFLAGS) $(PROFILING_CFLAGS) \
@@ -293,7 +297,7 @@ $(test_module): $(test_module:${SO}=.c) ../src/emacs-module.h \
 	$(AM_V_at)$(CC) -shared $(CPPFLAGS) $(MODULE_CFLAGS) $(LDFLAGS) \
 	  -o $@ $< $(LIBGMP) \
 	  $(and $(GMP_H),$(srcdir)/../lib/mini-gmp.c) \
-	  $(LIB_CLOCK_GETTIME) $(LIB_NANOSLEEP)
+	  $(CLOCK_TIME_LIB) $(NANOSLEEP_LIB)
 endif
 
 src/emacs-tests.log: ../lib-src/seccomp-filter.c
@@ -325,6 +329,9 @@ check-all: mostlyclean check-no-automated-subdir
 .PHONY: check-maybe
 check-maybe: check-no-automated-subdir
 	@${MAKE} check-doit SELECTOR="${SELECTOR_ACTUAL}"
+
+check-byte-compile:
+	@${MAKE} $(ELFILES:.el=.elc)
 
 ## Run the tests.
 .PHONY: check-doit

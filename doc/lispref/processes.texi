@@ -1,6 +1,6 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990--1995, 1998--1999, 2001--2024 Free Software
+@c Copyright (C) 1990--1995, 1998--1999, 2001--2025 Free Software
 @c Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Processes
@@ -134,8 +134,8 @@ but all the 3 primitives allow optionally to direct the standard error
 stream to a different destination.
 
 @cindex program arguments
-  All three of the subprocess-creating functions allow to specify
-command-line arguments for the process to run. For @code{call-process}
+  All three of the subprocess-creating functions allow specifying
+command-line arguments for the process to run.  For @code{call-process}
 and @code{call-process-region}, these come in the form of a
 @code{&rest} argument, @var{args}.  For @code{make-process}, both the
 program to run and its command-line arguments are specified as a list
@@ -184,6 +184,25 @@ returns a list of directories used for searching programs on the
 respective remote host.  In case of a local @code{default-directory},
 the function returns just the value of the variable @code{exec-path}.
 @end defun
+
+@cindex programs distributed with Emacs, starting
+@vindex ctags-program-name
+@vindex etags-program-name
+@vindex hexl-program-name
+@vindex emacsclient-program-name
+@vindex movemail-program-name
+@vindex ebrowse-program-name
+@vindex rcs2log-program-name
+  When starting a program that is part of the Emacs distribution, you
+must take into account that the program may have been renamed in order
+to comply with executable naming restrictions present on the system.
+
+  Instead of starting @command{ctags}, for example, you should specify
+the value of @code{ctags-program-name} instead.  Likewise, instead of
+starting @command{movemail}, you must start
+@code{movemail-program-name}, and the same goes for @command{etags},
+@command{hexl}, @command{emacsclient}, @code{rcs2log}, and
+@command{ebrowse}.
 
 @node Shell Arguments
 @section Shell Arguments
@@ -501,7 +520,7 @@ This user option indicates whether a call of @code{process-file}
 returns a string describing the signal interrupting a remote process.
 
 When a process returns an exit code greater than 128, it is
-interpreted as a signal.  @code{process-file} requires to return a
+interpreted as a signal.  @code{process-file} requires returning a
 string describing this signal.
 
 Since there are processes violating this rule, returning exit codes
@@ -597,11 +616,24 @@ is similar than @code{call-process-region}, with process being a shell.
 The arguments @code{delete}, @code{destination} and the return value
 are like in @code{call-process-region}.
 Note that this function doesn't accept additional arguments.
+
+If @var{command} names a shell (e.g., via @code{shell-file-name}), keep
+in mind that behavior of various shells when commands are piped to their
+standard input is shell- and system-dependent, and thus non-portable.
+The differences are especially prominent when the region includes more
+than one line, i.e.@: when piping to a shell commands with embedded
+newlines.  Lisp programs using this technique will therefore need to
+format the text in the region differently, according to the expectations
+of the shell.
 @end defun
 
 @defun shell-command-to-string command
 This function executes @var{command} (a string) as a shell command,
-then returns the command's output as a string.
+then returns the command's output as a string.  If @var{command}
+actually includes more than one command, the behavior depends on the
+shell to be invoked (determined by @code{shell-file-name} for local
+commands).  In particular, the separator between the commands cannot be
+a newline on MS-Windows; use @samp{&&} instead.
 @end defun
 
 @c There is also shell-command-on-region, but that is more of a user
@@ -662,13 +694,13 @@ This function is the basic low-level primitive for starting
 asynchronous subprocesses.  It returns a process object representing
 the subprocess.  Compared to the more high-level @code{start-process},
 described below, it takes keyword arguments, is more flexible, and
-allows to specify process filters and sentinels in a single call.
+enables you to specify process filters and sentinels in a single call.
 
 The arguments @var{args} are a list of keyword/argument pairs.
 Omitting a keyword is always equivalent to specifying it with value
 @code{nil}.  Here are the meaningful keywords:
 
-@table @asis
+@table @code
 @item :name @var{name}
 Use the string @var{name} as the process name; if a process with this
 name already exists, then @var{name} is modified (by appending
@@ -798,7 +830,7 @@ Omitting a keyword is always equivalent to specifying it with value
 
 Here are the meaningful keywords:
 
-@table @asis
+@table @code
 @item :name @var{name}
 Use the string @var{name} as the process name.  As with
 @code{make-process}, it is modified if necessary to make it unique.
@@ -925,6 +957,7 @@ example the function @code{ange-ftp-hook-function}).  In such cases,
 this function does nothing and returns @code{nil}.
 @end defun
 
+@vindex shell-file-name
 @defun start-process-shell-command name buffer-or-name command
 This function is like @code{start-process}, except that it uses a
 shell to execute the specified @var{command}.  The argument
@@ -2653,10 +2686,12 @@ If non-@code{nil}, do opportunistic @acronym{STARTTLS} upgrades even if Emacs
 doesn't have built-in @acronym{TLS} support.
 
 @item :warn-unless-encrypted @var{boolean}
-If non-@code{nil}, and @code{:return-value} is also non-@code{nil},
-Emacs will warn if the connection isn't encrypted.  This is useful for
-protocols like @acronym{IMAP} and the like, where most users would
-expect the network traffic to be encrypted.
+If non-@code{nil}, warn the user if the final connection type is not
+encrypted.  This is useful for protocols like @acronym{IMAP} and the
+like, where most users would expect the network traffic to be encrypted.
+This may be due to @acronym{STARTTLS} upgrade failure, specifying
+@code{:return-list} non-@code{nil} allows you to capture any error
+encountered.
 
 @vindex network-stream-use-client-certificates
 @item :client-certificate @var{list-or-t}
@@ -2682,6 +2717,9 @@ If non-@code{nil}, the greeting string returned by the host.
 If non-@code{nil}, the host's capability string.
 @item :type @var{symbol}
 The connection type: @samp{plain} or @samp{tls}.
+@item :error @var{symbol}
+A string describing any error encountered when performing
+@acronym{STARTTLS} upgrade.
 @end table
 
 @item :shell-command @var{string-or-nil}
@@ -2809,7 +2847,7 @@ equivalent to specifying it with value @code{nil}, except for
 are the meaningful keywords (those corresponding to network options
 are listed in the following section):
 
-@table @asis
+@table @code
 @item :name @var{name}
 Use the string @var{name} as the process name.  It is modified if
 necessary to make it unique.
@@ -2998,7 +3036,7 @@ modify these options later, using @code{set-network-process-option}.
 connections, so you will need to set the necessary options for each
 child connection as it is created.
 
-@table @asis
+@table @code
 @item :bindtodevice @var{device-name}
 If @var{device-name} is a non-empty string identifying a network
 interface name (see @code{network-interface-list}), only handle
@@ -3121,7 +3159,7 @@ machine you are using.  The value is an alist whose elements have the
 form @code{(@var{ifname} . @var{address})}.  @var{ifname} is a string
 naming the interface, @var{address} has the same form as the
 @var{local-address} and @var{remote-address} arguments to
-@code{make-network-process}, i.e. a vector of integers.  By default
+@code{make-network-process}, i.e.@: a vector of integers.  By default
 both IPv4 and IPv6 addresses are returned if possible.
 
 Optional argument @var{full} non-@code{nil} means to instead return a

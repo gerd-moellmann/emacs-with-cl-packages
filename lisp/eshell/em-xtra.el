@@ -1,6 +1,6 @@
 ;;; em-xtra.el --- extra alias functions  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2025 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -25,12 +25,10 @@
 
 (require 'cl-lib)
 (require 'esh-util)
-(eval-when-compile
-  (require 'eshell))
 
 ;; There are no items in this custom group, but eshell modules (ab)use
 ;; custom groups.
-;;;###autoload
+;;;###esh-module-autoload
 (progn
 (defgroup eshell-xtra nil
   "This module defines some extra alias functions which are entirely
@@ -87,9 +85,4 @@ naturally accessible within Emacs."
 (defalias 'eshell/gf #'find-grep-dired)
 
 (provide 'em-xtra)
-
-;; Local Variables:
-;; generated-autoload-file: "esh-groups.el"
-;; End:
-
 ;;; em-xtra.el ends here

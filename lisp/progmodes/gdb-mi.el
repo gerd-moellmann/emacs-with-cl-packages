@@ -1,6 +1,6 @@
 ;;; gdb-mi.el --- User Interface for running GDB  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2007-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2025 Free Software Foundation, Inc.
 
 ;; Author: Nick Roberts <nickrob@gnu.org>
 ;; Maintainer: emacs-devel@gnu.org
@@ -222,7 +222,6 @@ address for root variables.")
 Only used for files that Emacs can't find.")
 (defvar gdb-active-process nil
   "GUD tooltips display variable values when t, and macro definitions otherwise.")
-(defvar gdb-error "Non-nil when GDB is reporting an error.")
 (defvar gdb-macro-info nil
   "Non-nil if GDB knows that the inferior includes preprocessor macro info.")
 (defvar gdb-register-names nil "List of register names.")
@@ -237,6 +236,7 @@ Only used for files that Emacs can't find.")
 (defvar gdb-source-file-list nil
   "List of source files for the current executable.")
 (defvar gdb-first-done-or-error t)
+(defvar gdb-target-async-checked nil)
 (defvar gdb-source-window-list nil
   "List of windows used for displaying source files.
 Sorted in most-recently-visited-first order.")
@@ -453,9 +453,7 @@ valid signal handlers.")
           (const   :tag "Unlimited" nil))
   :version "22.1")
 
-;; This is disabled by default because we don't really support
-;; asynchronous execution of the debuggee; see bug#63084.  FIXME.
-(defcustom gdb-non-stop-setting nil
+(defcustom gdb-non-stop-setting (not (eq system-type 'windows-nt))
   "If non-nil, GDB sessions are expected to support the non-stop mode.
 When in the non-stop mode, stopped threads can be examined while
 other threads continue to execute.
@@ -470,7 +468,7 @@ don't support the non-stop mode.
 GDB session needs to be restarted for this setting to take effect."
   :type 'boolean
   :group 'gdb-non-stop
-  :version "29.1")
+  :version "30.1")
 
 (defcustom gdb-debuginfod-enable-setting
   ;; debuginfod servers are only for ELF executables, and elfutils, of
@@ -718,6 +716,13 @@ that GDB starts to reuse existing source windows."
   :group 'gdb
   :version "28.1")
 
+(defcustom gdb-display-io-buffer t
+  "When non-nil, display the separate `gdb-inferior-io' buffer.
+Otherwise, send program output to the GDB buffer."
+  :type 'boolean
+  :group 'gdb-buffers
+  :version "30.1")
+
 (defvar gdbmi-debug-mode nil
   "When non-nil, print the messages sent/received from GDB/MI in *Messages*.")
 
@@ -812,6 +817,42 @@ NOARG must be t when this macro is used outside `gud-def'."
 
 (defvar gdb-control-level 0)
 
+(defun gdb-load-history ()
+  "Load GDB history from a history file.
+The name of the history file is given by environment variable GDBHISTFILE,
+falling back to \".gdb_history\" and \".gdbinit\"."
+  (when (ring-empty-p comint-input-ring) ; cf shell-mode
+    (let ((hfile (expand-file-name (or (getenv "GDBHISTFILE")
+				       (if (eq system-type 'ms-dos)
+					   "_gdb_history"
+					 ".gdb_history"))))
+	  ;; gdb defaults to 256, but we'll default to comint-input-ring-size.
+	  (hsize (getenv "HISTSIZE")))
+      (dolist (file (append '("~/.gdbinit")
+			    (unless (string-equal (expand-file-name ".")
+                                                  (expand-file-name "~"))
+			      '(".gdbinit"))))
+	(if (file-readable-p (setq file (expand-file-name file)))
+	    (with-temp-buffer
+	      (insert-file-contents file)
+	      ;; TODO? check for "set history save\\(  *on\\)?" and do
+	      ;; not use history otherwise?
+	      (while (re-search-forward
+		      "^ *set history \\(filename\\|size\\)  *\\(.*\\)" nil t)
+		(cond ((string-equal (match-string 1) "filename")
+		       (setq hfile (expand-file-name
+				    (match-string 2)
+				    (file-name-directory file))))
+		      ((string-equal (match-string 1) "size")
+		       (setq hsize (match-string 2))))))))
+      (and (stringp hsize)
+	   (integerp (setq hsize (string-to-number hsize)))
+	   (> hsize 0)
+           (setq-local comint-input-ring-size hsize))
+      (if (stringp hfile)
+          (setq-local comint-input-ring-file-name hfile))
+      (comint-read-input-ring t))))
+
 ;;;###autoload
 (defun gdb (command-line)
   "Run gdb passing it COMMAND-LINE as arguments.
@@ -897,39 +938,10 @@ detailed description of this mode.
   (setq-local gud-minor-mode 'gdbmi)
   (setq-local gdb-control-level 0)
   (setq comint-input-sender 'gdb-send)
-  (when (ring-empty-p comint-input-ring) ; cf shell-mode
-    (let ((hfile (expand-file-name (or (getenv "GDBHISTFILE")
-				       (if (eq system-type 'ms-dos)
-					   "_gdb_history"
-					 ".gdb_history"))))
-	  ;; gdb defaults to 256, but we'll default to comint-input-ring-size.
-	  (hsize (getenv "HISTSIZE")))
-      (dolist (file (append '("~/.gdbinit")
-			    (unless (string-equal (expand-file-name ".")
-                                                  (expand-file-name "~"))
-			      '(".gdbinit"))))
-	(if (file-readable-p (setq file (expand-file-name file)))
-	    (with-temp-buffer
-	      (insert-file-contents file)
-	      ;; TODO? check for "set history save\\(  *on\\)?" and do
-	      ;; not use history otherwise?
-	      (while (re-search-forward
-		      "^ *set history \\(filename\\|size\\)  *\\(.*\\)" nil t)
-		(cond ((string-equal (match-string 1) "filename")
-		       (setq hfile (expand-file-name
-				    (match-string 2)
-				    (file-name-directory file))))
-		      ((string-equal (match-string 1) "size")
-		       (setq hsize (match-string 2))))))))
-      (and (stringp hsize)
-	   (integerp (setq hsize (string-to-number hsize)))
-	   (> hsize 0)
-           (setq-local comint-input-ring-size hsize))
-      (if (stringp hfile)
-          (setq-local comint-input-ring-file-name hfile))
-      (comint-read-input-ring t)))
+  (gdb-load-history)
+
   (gud-def gud-tbreak "tbreak %f:%l" "\C-t"
-	   "Set temporary breakpoint at current line.")
+	   "Set temporary breakpoint at current line." t)
   (gud-def gud-jump
 	   (progn (gud-call "tbreak %f:%l" arg) (gud-call "jump %f:%l"))
 	   "\C-j" "Set execution address to current line.")
@@ -960,7 +972,7 @@ detailed description of this mode.
 	   "Finish executing current function.")
   (gud-def gud-run    "-exec-run"
            nil
-           "Run the program.")
+           "Run the program." t)
 
   (gud-def gud-break (if (not (string-match "Disassembly" mode-name))
 			 (gud-call "break %f:%l" arg)
@@ -968,7 +980,7 @@ detailed description of this mode.
 			 (beginning-of-line)
 			 (forward-char 2)
 			 (gud-call "break *%a" arg)))
-	   "\C-b" "Set breakpoint at current line or address.")
+	   "\C-b" "Set breakpoint at current line or address." t)
 
   (gud-def gud-remove (if (not (string-match "Disassembly" mode-name))
 			  (gud-call "clear %f:%l" arg)
@@ -976,7 +988,7 @@ detailed description of this mode.
 			  (beginning-of-line)
 			  (forward-char 2)
 			  (gud-call "clear *%a" arg)))
-	   "\C-d" "Remove breakpoint at current line or address.")
+	   "\C-d" "Remove breakpoint at current line or address." t)
 
   ;; -exec-until doesn't support --all yet
   (gud-def gud-until  (if (not (string-match "Disassembly" mode-name))
@@ -1001,9 +1013,10 @@ detailed description of this mode.
   (gud-def gud-pp
 	   (gud-call
 	    (concat
-	     "pp " (if (eq (buffer-local-value
-			    'major-mode (window-buffer)) 'speedbar-mode)
-		       (gdb-find-watch-expression) "%e")) arg)
+	     "pp " (if (eq (buffer-local-value 'major-mode (window-buffer))
+			   'speedbar-mode)
+		       (gdb-find-watch-expression) "%e"))
+	    arg)
 	   nil   "Print the Emacs s-expression.")
 
   (define-key gud-minor-mode-map [left-margin mouse-1]
@@ -1045,6 +1058,7 @@ detailed description of this mode.
 
   (setq gdb-first-prompt t)
   (setq gud-running nil)
+  (setq gud-async-running nil)
 
   (gdb-update)
 
@@ -1069,6 +1083,7 @@ detailed description of this mode.
 	gdb-handler-list '()
 	gdb-prompt-name nil
 	gdb-first-done-or-error t
+	gdb-target-async-checked nil
 	gdb-buffer-fringe-width (car (window-fringes))
 	gdb-debug-log nil
 	gdb-source-window-list nil
@@ -1078,7 +1093,8 @@ detailed description of this mode.
         gdb-threads-list '()
         gdb-breakpoints-list '()
         gdb-register-names '()
-        gdb-non-stop gdb-non-stop-setting
+        gdb-supports-non-stop nil
+        gdb-non-stop nil
         gdb-debuginfod-enable gdb-debuginfod-enable-setting)
   ;;
   (gdbmi-bnf-init)
@@ -1097,9 +1113,10 @@ detailed description of this mode.
                      (if gdb-debuginfod-enable "on" "off"))
              'gdb-debuginfod-message)
 
-  (gdb-get-buffer-create 'gdb-inferior-io)
-  (gdb-clear-inferior-io)
-  (gdb-inferior-io--init-proc (get-process "gdb-inferior"))
+  (when gdb-display-io-buffer
+    (gdb-get-buffer-create 'gdb-inferior-io)
+    (gdb-clear-inferior-io)
+    (gdb-inferior-io--init-proc (get-process "gdb-inferior")))
 
   (when (eq system-type 'windows-nt)
     ;; Don't create a separate console window for the debuggee.
@@ -1110,7 +1127,7 @@ detailed description of this mode.
     (gdb-input "-gdb-set interactive-mode on" 'ignore))
   (gdb-input "-gdb-set height 0" 'ignore)
 
-  (when gdb-non-stop
+  (when gdb-non-stop-setting
     (gdb-input "-gdb-set non-stop 1" 'gdb-non-stop-handler))
 
   (gdb-input "-enable-pretty-printing" 'ignore)
@@ -1145,16 +1162,30 @@ detailed description of this mode.
 	(setq gdb-non-stop nil)
 	(setq gdb-supports-non-stop nil))
     (setq gdb-supports-non-stop t)
-    (gdb-input "-gdb-set target-async 1" 'ignore)
+    ;; Try to use "mi-async" first, needs GDB 7.7 onwards.  Note if
+    ;; "mi-async" is not available, GDB is still running in "sync"
+    ;; mode, "No symbol" for "mi-async" must appear before other
+    ;; commands.
+    (gdb-input "-gdb-set mi-async 1" 'gdb-set-mi-async-handler)))
+
+(defun gdb-set-mi-async-handler()
+  (goto-char (point-min))
+  (if (re-search-forward "No symbol" nil t)
+      (gdb-input "-gdb-set target-async 1" 'ignore)))
+
+(defun gdb-try-check-target-async-support()
+  (when (and gdb-non-stop-setting gdb-supports-non-stop
+             (not gdb-target-async-checked))
     (gdb-input "-list-target-features" 'gdb-check-target-async)))
 
 (defun gdb-check-target-async ()
   (goto-char (point-min))
-  (unless (re-search-forward "async" nil t)
+  (if (re-search-forward "async" nil t)
+      (setq gdb-non-stop t)
     (message
      "Target doesn't support non-stop mode.  Turning it off.")
-    (setq gdb-non-stop nil)
-    (gdb-input "-gdb-set non-stop 0" 'ignore)))
+    (gdb-input "-gdb-set non-stop 0" 'ignore))
+  (setq gdb-target-async-checked t))
 
 (defun gdb-delchar-or-quit (arg)
   "Delete ARG characters or send a quit command to GDB.
@@ -1169,13 +1200,13 @@ no input, and GDB is waiting for input."
              (process-live-p proc)
 	     (not gud-running)
 	     (= (point) (marker-position (process-mark proc))))
-	;; Sending an EOF does not work with GDB-MI; submit an
-	;; explicit quit command.
-	(progn
-          (if (> gdb-control-level 0)
-              (process-send-eof proc)
-            (insert "quit")
-            (comint-send-input t t)))
+      ;; Exit a recursive reading loop or quit.
+      (if (> gdb-control-level 0)
+          (process-send-eof proc)
+        ;; Sending an EOF does not work with GDB-MI; submit an
+        ;; explicit quit command.
+        (insert "quit")
+        (comint-send-input t t))
       (delete-char arg))))
 
 (defvar gdb-define-alist nil "Alist of #define directives for GUD tooltips.")
@@ -1254,8 +1285,8 @@ no input, and GDB is waiting for input."
 (defun gdb-mouse-until (event)
   "Continue running until a source line past the current line.
 The destination source line can be selected either by clicking
-with mouse-3 on the fringe/margin or dragging the arrow
-with mouse-1 (default bindings)."
+with \\`mouse-3' on the fringe/margin or dragging the arrow
+with \\`mouse-1' (default bindings)."
   (interactive "e")
   (let ((start (event-start event))
 	(end (event-end event)))
@@ -1271,8 +1302,8 @@ with mouse-1 (default bindings)."
 
 (defun gdb-mouse-jump (event)
   "Set execution address/line.
-The destination source line can be selected either by clicking with C-mouse-3
-on the fringe/margin or dragging the arrow with C-mouse-1 (default bindings).
+The destination source line can be selected either by clicking with \\`C-mouse-3'
+on the fringe/margin or dragging the arrow with \\`C-mouse-1' (default bindings).
 Unlike `gdb-mouse-until' the destination address can be before the current
 line, and no execution takes place."
   (interactive "e")
@@ -1938,19 +1969,23 @@ static char *magick[] = {
   :group 'gdb)
 
 
-(defvar gdb-python-guile-commands-regexp
-  "python\\|python-interactive\\|pi\\|guile\\|guile-repl\\|gr"
-  "Regexp that matches Python and Guile commands supported by GDB.")
-
 (defvar gdb-control-commands-regexp
-  (concat
-   "^\\("
-   "comm\\(a\\(n\\(ds?\\)?\\)?\\)?\\|if\\|while"
-   "\\|def\\(i\\(ne?\\)?\\)?\\|doc\\(u\\(m\\(e\\(nt?\\)?\\)?\\)?\\)?\\|"
-   gdb-python-guile-commands-regexp
-   "\\|while-stepping\\|stepp\\(i\\(ng?\\)?\\)?\\|ws\\|actions"
-   "\\|expl\\(o\\(re?\\)?\\)?"
-   "\\)\\([[:blank:]]+\\([^[:blank:]]*\\)\\)*$")
+  (rx bol
+      (or
+       (or "comm" "comma" "comman" "command" "commands"
+           "if" "while"
+           "def" "defi" "defin" "define"
+           "doc" "docu" "docum" "docume" "documen" "document"
+           "while-stepping"
+           "stepp" "steppi" "steppin" "stepping"
+           "ws" "actions"
+           "expl" "explo" "explor" "explore")
+       (group         ; group 1: Python and Guile commands
+        (or "python" "python-interactive" "pi" "guile" "guile-repl" "gr")))
+      (? (+ blank)
+         (group       ; group 2: command arguments
+          (* nonl)))
+      eol)
   "Regexp matching GDB commands that enter a recursive reading loop.
 As long as GDB is in the recursive reading loop, it does not expect
 commands to be prefixed by \"-interpreter-exec console\".")
@@ -2010,15 +2045,13 @@ commands to be prefixed by \"-interpreter-exec console\".")
       (setq gdb-continuation nil)))
   ;; Python and Guile commands that have an argument don't enter the
   ;; recursive reading loop.
-  (let* ((control-command-p (string-match gdb-control-commands-regexp string))
-         (command-arg (and control-command-p (match-string 3 string)))
-         (python-or-guile-p (string-match gdb-python-guile-commands-regexp
-                                          string)))
-    (if (and control-command-p
-             (or (not python-or-guile-p)
-                 (null command-arg)
-                 (zerop (length command-arg))))
-        (setq gdb-control-level (1+ gdb-control-level)))))
+  (when (string-match gdb-control-commands-regexp string)
+    (let ((python-or-guile-p (match-beginning 1))
+          (command-arg (match-string 2 string)))
+      (when (or (not python-or-guile-p)
+                (null command-arg)
+                (zerop (length command-arg)))
+        (setq gdb-control-level (1+ gdb-control-level))))))
 
 (defun gdb-mi-quote (string)
   "Return STRING quoted properly as an MI argument.
@@ -2653,6 +2686,16 @@ Sets `gdb-thread-number' to new id."
 (defun gdb-starting (_output-field _result)
   ;; CLI commands don't emit ^running at the moment so use gdb-running too.
   (setq gdb-inferior-status "running")
+
+  ;; Set `gdb-non-stop' when `gdb-last-command' is a CLI background
+  ;; running command e.g. "run &", attach &" or a MI command
+  ;; e.g. "-exec-run" or "-exec-attach".
+  (if (or (string-match "&\s*$" gdb-last-command)
+          (string-match "^-" gdb-last-command))
+      (progn (gdb-try-check-target-async-support)
+             (setq gud-async-running t))
+    (setq gud-async-running nil))
+
   (gdb-force-mode-line-update
    (propertize gdb-inferior-status 'face font-lock-type-face))
   (setq gdb-active-process t)
@@ -2723,6 +2766,10 @@ current thread and update GDB buffers."
 
     ;; Print "(gdb)" to GUD console
     (when gdb-first-done-or-error
+      ;; If running target with a non-background CLI command
+      ;; e.g. "run" (no trailing '&'), target async feature can only
+      ;; be checked when when the program stops for the first time
+      (gdb-try-check-target-async-support)
       (setq gdb-filter-output (concat gdb-filter-output gdb-prompt-name)))
 
     ;; In non-stop, we update information as soon as another thread gets
@@ -3248,7 +3295,8 @@ Place breakpoint icon in its buffer."
       (if (re-search-forward gdb-source-file-regexp nil t)
           (progn
             (setq source-file (gdb-mi--c-string-from-string (match-string 1)))
-            (delete (cons bptno "File not found") gdb-location-alist)
+            (setq gdb-location-alist
+                  (delete (cons bptno "File not found") gdb-location-alist))
             (push (cons bptno source-file) gdb-location-alist))
         (gdb-resync)
         (unless (assoc bptno gdb-location-alist)
@@ -4408,6 +4456,24 @@ member."
   :group 'gud
   :version "29.1")
 
+(defcustom gdb-locals-table-row-config `((name . 20)
+                                         (type . 20)
+                                         (value . ,gdb-locals-value-limit))
+  "Configuration for table rows in the local variable display.
+
+An alist that controls the display of the name, type and value of
+local variables inside the currently active stack-frame.  The key
+controls which column to change whereas the value determines the
+maximum number of characters to display in each column.  A value
+of 0 means there is no limit.
+
+Additionally, the order the element in the alist determines the
+left-to-right display order of the properties."
+  :type '(alist :key-type symbol :value-type integer)
+  :group 'gud
+  :version "30.1")
+
+
 (defvar gdb-locals-values-table (make-hash-table :test #'equal)
   "Mapping of local variable names to a string with their value.")
 
@@ -4437,12 +4503,9 @@ member."
 
 (defun gdb-locals-value-filter (value)
   "Filter function for the local variable VALUE."
-  (let* ((no-nl (replace-regexp-in-string "\n" " " value))
-         (str (replace-regexp-in-string "[[:space:]]+" " " no-nl))
-         (limit gdb-locals-value-limit))
-    (if (>= (length str) limit)
-        (concat (substring str 0 limit) "...")
-      str)))
+  (let* ((no-nl (replace-regexp-in-string "\n" " " (or value "<Unknown>")))
+         (str (replace-regexp-in-string "[[:space:]]+" " " no-nl)))
+    str))
 
 (defun gdb-edit-locals-value (&optional event)
   "Assign a value to a variable displayed in the locals buffer."
@@ -4455,6 +4518,22 @@ member."
 	   (value (read-string (format "New value (%s): " var))))
       (gud-basic-call
        (concat  "-gdb-set variable " var " = " value)))))
+
+
+(defun gdb-locals-table-columns-list (alist)
+  "Format and arrange the columns in locals display based on ALIST."
+  (let (columns)
+    (dolist (config gdb-locals-table-row-config columns)
+      (let* ((key  (car config))
+             (max  (cdr config))
+             (prop (alist-get key alist)))
+        (when prop
+          (if (and (> max 0) (length> prop max))
+              (push (propertize (string-truncate-left prop max) 'help-echo prop)
+                    columns)
+            (push prop columns)))))
+    (nreverse columns)))
+
 
 ;; Complex data types are looked up in `gdb-locals-values-table'.
 (defun gdb-locals-handler-custom ()
@@ -4484,12 +4563,14 @@ member."
                                             help-echo "mouse-2: edit value"
                                             local-map ,gdb-edit-locals-map-1)
                                value))
+        (setf (gdb-table-right-align table) t)
+        (setq name (propertize name 'font-lock-face font-lock-variable-name-face))
+        (setq type (propertize type 'font-lock-face font-lock-type-face))
         (gdb-table-add-row
          table
-         (list
-          (propertize type 'font-lock-face font-lock-type-face)
-          (propertize name 'font-lock-face font-lock-variable-name-face)
-          value)
+         (gdb-locals-table-columns-list `((name  . ,name)
+                                          (type  . ,type)
+                                          (value . ,value)))
          `(gdb-local-variable ,local))))
     (insert (gdb-table-string table " "))
     (setq mode-name
@@ -4515,7 +4596,8 @@ member."
                            (gdb-set-window-buffer
                             (gdb-get-buffer-create
                              'gdb-registers-buffer
-                             gdb-thread-number) t)))
+                             gdb-thread-number)
+                            t)))
     map))
 
 (define-derived-mode gdb-locals-mode gdb-parent-mode "Locals"
@@ -4635,7 +4717,8 @@ executes FUNCTION."
                            (gdb-set-window-buffer
                             (gdb-get-buffer-create
                              'gdb-locals-buffer
-                             gdb-thread-number) t)))
+                             gdb-thread-number)
+                            t)))
     (define-key map "f" #'gdb-registers-toggle-filter)
     map))
 
@@ -5035,11 +5118,11 @@ Function buffers are locals buffer, registers buffer, etc, but
 not including main command buffer (the one where you type GDB
 commands) or source buffers (that display program source code)."
   (with-current-buffer buffer
-    (derived-mode-p 'gdb-parent-mode 'gdb-inferior-io-mode)))
+    (derived-mode-p '(gdb-parent-mode gdb-inferior-io-mode))))
 
 (defun gdb--buffer-type (buffer)
   "Return the type of BUFFER if it is a function buffer.
-Buffer type is like `gdb-registers-type', `gdb-stack-buffer'.
+Buffer type is like `gdb-registers-buffer', `gdb-stack-buffer'.
 These symbols are used by `gdb-get-buffer-create'.
 
 Return nil if BUFFER is not a GDB function buffer."
@@ -5177,6 +5260,8 @@ This arrangement depends on the values of variable
 (defun gdb-reset ()
   "Exit a debugging session cleanly.
 Kills the gdb buffers, and resets variables and the source buffers."
+  ;; Save GDB history
+  (comint-write-input-ring)
   ;; The gdb-inferior buffer has a pty hooked up to the main gdb
   ;; process.  This pty must be deleted explicitly.
   (let ((pty (get-process "gdb-inferior")))

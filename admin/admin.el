@@ -1,6 +1,6 @@
 ;;; admin.el --- utilities for Emacs administration  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2001-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -28,12 +28,19 @@
 
 (defvar add-log-time-format)		; in add-log
 
+(defun admin--read-root-directory ()
+  (read-directory-name "Emacs root directory: "
+                       source-directory nil t))
+
+(defun admin--read-version ()
+  (read-string "Version number: " emacs-version))
+
 (defun add-release-logs (root version &optional date)
   "Add \"Version VERSION released.\" change log entries in ROOT.
 Also update the etc/HISTORY file.
 Root must be the root of an Emacs source tree.
 Optional argument DATE is the release date, default today."
-  (interactive (list (read-directory-name "Emacs root directory: ")
+  (interactive (list (admin--read-root-directory)
 		     (read-string "Version number: "
 				  (format "%s.%s" emacs-major-version
 					  emacs-minor-version))
@@ -94,9 +101,8 @@ Optional argument DATE is the release date, default today."
 (defun set-version (root version)
   "Set Emacs version to VERSION in relevant files under ROOT.
 Root must be the root of an Emacs source tree."
-  (interactive (list
-		(read-directory-name "Emacs root directory: " source-directory)
-		(read-string "Version number: " emacs-version)))
+  (interactive (list (admin--read-root-directory)
+		     (admin--read-version)))
   (unless (file-exists-p (expand-file-name "src/emacs.c" root))
     (user-error "%s doesn't seem to be the root of an Emacs source tree" root))
   (unless admin-git-command
@@ -109,6 +115,10 @@ Root must be the root of an Emacs source tree."
 		       (rx (and "version" (1+ space)
 				(submatch (1+ (in "0-9."))))))
   (set-version-in-file root "configure.ac" version
+		       (rx (and "AC_INIT" (1+ (not (in ?,)))
+                                ?, (0+ space) ?\[
+                                (submatch (1+ (in "0-9."))))))
+  (set-version-in-file root "exec/configure.ac" version
 		       (rx (and "AC_INIT" (1+ (not (in ?,)))
                                 ?, (0+ space) ?\[
                                 (submatch (1+ (in "0-9."))))))
@@ -127,6 +137,11 @@ Root must be the root of an Emacs source tree."
       (set-version-in-file root "etc/refcards/ru-refcard.tex" newmajor
                            "\\\\newcommand{\\\\versionemacs}\\[0\\]\
 {\\([0-9]\\{2,\\}\\)}.+%.+version of Emacs")))
+  ;; Note: There's also the "android:versionCode=" property in
+  ;; java/AndroidManifest.xml, whose value is the major Emacs version,
+  ;; but if we increase it, upgraded installation will be unable to be
+  ;; downgraded to previous Emacs releases.  (The corresponding
+  ;; "android:versionName=" value there is updated by configure.)
   (let* ((oldversion
           (with-temp-buffer
             (insert-file-contents (expand-file-name "README" root))
@@ -204,9 +219,9 @@ Documentation changes might not have been completed!"))))
         (dolist (s '("Installation Changes" "Startup Changes" "Changes"
                      "Editing Changes"
                      "Changes in Specialized Modes and Packages"
-                          "New Modes and Packages"
-                          "Incompatible Lisp Changes"
-                          "Lisp Changes"))
+                     "New Modes and Packages"
+                     "Incompatible Lisp Changes"
+                     "Lisp Changes"))
           (insert (format "\n\n* %s in Emacs %s\n" s newshort)))
         (insert (format "\n\n* Changes in Emacs %s on \
 Non-Free Operating Systems\n" newshort)))
@@ -221,7 +236,7 @@ Non-Free Operating Systems\n" newshort)))
   "Set Emacs short copyright to COPYRIGHT in relevant files under ROOT.
 Root must be the root of an Emacs source tree."
   (interactive (list
-                (read-directory-name "Emacs root directory: " nil nil t)
+                (admin--read-root-directory)
                 (read-string
                  "Short copyright string: "
                  (format "Copyright (C) %s Free Software Foundation, Inc."
@@ -280,8 +295,7 @@ Optional argument TYPE is type of output (nil means all)."
                       (if noninteractive
                           (or (pop command-line-args-left)
                               default-directory)
-                        (read-directory-name "Emacs root directory: "
-                                             source-directory nil t))))
+                        (admin--read-root-directory))))
 		 (list root
 		       (if current-prefix-arg
 			   (completing-read
@@ -613,9 +627,7 @@ style=\"text-align:left\">")
       ;; item is not there anymore.  So for HTML manuals produced by
       ;; those newer versions of Texinfo we punt and leave the menu in
       ;; its original form.
-      (when (or (search-forward "<ul class=\"menu\">" nil t)
-	        ;; FIXME?  The following search seems dangerously lax.
-	        (search-forward "<ul>" nil t))
+      (when (or (search-forward "<ul class=\"menu\">" nil t))
         ;; Convert the list that Makeinfo made into a table.
         (replace-match "<table style=\"float:left\" width=\"100%\">")
         (forward-line 1)
@@ -765,8 +777,7 @@ Optional argument TYPE is type of output (nil means all)."
                       (if noninteractive
                           (or (pop command-line-args-left)
                               default-directory)
-                        (read-directory-name "Emacs root directory: "
-                                             source-directory nil t))))
+                        (admin--read-root-directory))))
 		 (list root
 		       (if current-prefix-arg
 			   (completing-read
@@ -843,16 +854,18 @@ $Date: %s $
       (package-install pkg)
       (require pkg nil t))))
 
+(declare-function org-html-export-as-html "ox-html.el")
 (defvar org-html-postamble)
 (defvar org-html-mathjax-template)
+(defvar htmlize-output-type)
+
 (defun make-news-html-file (root version)
   "Convert the NEWS file into an HTML file."
   (interactive (let ((root
                       (if noninteractive
                           (or (pop command-line-args-left)
                               default-directory)
-                        (read-directory-name "Emacs root directory: "
-                                             source-directory nil t))))
+                        (admin--read-root-directory))))
                  (list root
                        (read-string "Major version number: "
                                     (number-to-string emacs-major-version)))))
@@ -1035,8 +1048,7 @@ If optional argument OLD is non-nil, also scan for `defvar's."
 		  (and grp
 		       (setq grp (car (cdr-safe grp))) ; (quote foo) -> foo
 		       (setq ver (assq grp glist))))
-		(setq alist (cons (cons var ver) alist))))
-          (if form (format-message "Malformed defcustom: `%s'" form)))))
+		(setq alist (cons (cons var ver) alist)))))))
     (message "%sdone" m)
     alist))
 

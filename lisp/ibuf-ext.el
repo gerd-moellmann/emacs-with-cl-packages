@@ -1,6 +1,6 @@
 ;;; ibuf-ext.el --- extensions for ibuffer  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2000-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2025 Free Software Foundation, Inc.
 
 ;; Author: Colin Walters <walters@verbum.org>
 ;; Maintainer: John Paul Wallington <jpw@gnu.org>
@@ -143,10 +143,10 @@ Returns (OLD-FORMAT-DETECTED . UPDATED-SAVED-FILTERS-LIST)."
                                         (mode         . bibtex-mode)))
                                    ("web"
                                     (or (derived-mode . sgml-mode)
-                                        (derived-mode . css-mode)
-                                        (mode         . javascript-mode)
+                                        (derived-mode . css-base-mode)
+                                        (derived-mode . js-base-mode)
+                                        (derived-mode . typescript-ts-base-mode)
                                         (mode         . js2-mode)
-                                        (mode         . scss-mode)
                                         (derived-mode . haml-mode)
                                         (mode         . sass-mode)))
                                    ("gnus"
@@ -400,9 +400,9 @@ format.  See `ibuffer-update-saved-filters-format' and
     (error "This buffer is not in Ibuffer mode"))
   (cond (ibuffer-auto-mode
          (frame-or-buffer-changed-p 'ibuffer-auto-buffers-changed) ; Initialize state vector
-         (add-hook 'post-command-hook 'ibuffer-auto-update-changed))
+         (add-hook 'post-command-hook #'ibuffer-auto-update-changed))
         (t
-         (remove-hook 'post-command-hook 'ibuffer-auto-update-changed))))
+         (remove-hook 'post-command-hook #'ibuffer-auto-update-changed))))
 
 (defun ibuffer-auto-update-changed ()
   (when (frame-or-buffer-changed-p 'ibuffer-auto-buffers-changed)
@@ -557,7 +557,7 @@ See `ibuffer-do-view-and-eval' for that."
    (list (read--expression "Eval in buffers (form): "))
    :opstring "evaluated in"
    :modifier-p :maybe)
-  (eval form))
+  (eval form t))
 
 ;;;###autoload (autoload 'ibuffer-do-view-and-eval "ibuf-ext")
 (define-ibuffer-op view-and-eval (form)
@@ -575,7 +575,7 @@ To evaluate a form without viewing the buffer, see `ibuffer-do-eval'."
     (unwind-protect
 	(progn
 	  (switch-to-buffer buf)
-	  (eval form))
+	  (eval form t))
       (switch-to-buffer ibuffer-buf))))
 
 ;;;###autoload (autoload 'ibuffer-do-rename-uniquely "ibuf-ext")
@@ -594,22 +594,16 @@ To evaluate a form without viewing the buffer, see `ibuffer-do-eval'."
    :modifier-p :maybe)
   (revert-buffer t t))
 
-;;;###autoload (autoload 'ibuffer-do-isearch "ibuf-ext")
-(define-ibuffer-op ibuffer-do-isearch ()
+;;;###autoload
+(defun ibuffer-do-isearch ()
   "Perform a `isearch-forward' in marked buffers."
-  (:interactive ()
-   :opstring "searched in"
-   :complex t
-   :modifier-p :maybe)
+  (interactive "" ibuffer-mode)
   (multi-isearch-buffers (ibuffer-get-marked-buffers)))
 
-;;;###autoload (autoload 'ibuffer-do-isearch-regexp "ibuf-ext")
-(define-ibuffer-op ibuffer-do-isearch-regexp ()
+;;;###autoload
+(defun ibuffer-do-isearch-regexp ()
   "Perform a `isearch-forward-regexp' in marked buffers."
-  (:interactive ()
-   :opstring "searched regexp in"
-   :complex t
-   :modifier-p :maybe)
+  (interactive "" ibuffer-mode)
   (multi-isearch-buffers-regexp (ibuffer-get-marked-buffers)))
 
 ;;;###autoload (autoload 'ibuffer-do-replace-regexp "ibuf-ext")
@@ -1185,10 +1179,12 @@ Interactively, prompt for NAME, and use the current filters."
      (concat " [filter: " (cdr qualifier) "]"))
     ('or
      (concat " [OR" (mapconcat #'ibuffer-format-qualifier
-                               (cdr qualifier) "") "]"))
+                               (cdr qualifier))
+             "]"))
     ('and
      (concat " [AND" (mapconcat #'ibuffer-format-qualifier
-                                (cdr qualifier) "") "]"))
+                                (cdr qualifier))
+             "]"))
     (_
      (let ((type (assq (car qualifier) ibuffer-filtering-alist)))
        (unless qualifier
@@ -1202,11 +1198,12 @@ Interactively, prompt for NAME, and use the current filters."
 If INCLUDE-PARENTS is non-nil then include parent modes."
   (let ((modes))
     (dolist (buf (buffer-list))
-      (let ((this-mode (buffer-local-value 'major-mode buf)))
-        (while (and this-mode (not (memq this-mode modes)))
-          (push this-mode modes)
-          (setq this-mode (and include-parents
-                               (get this-mode 'derived-mode-parent))))))
+      (let ((this-modes (derived-mode-all-parents
+                         (buffer-local-value 'major-mode buf))))
+        (while (and this-modes (not (memq (car this-modes) modes)))
+          (push (car this-modes) modes)
+          (setq this-modes (and include-parents
+                                (cdr this-modes))))))
     (mapcar #'symbol-name modes)))
 
 
@@ -1391,7 +1388,7 @@ matches against the value of `default-directory' in that buffer."
   (:description "predicate"
    :reader (read-minibuffer "Filter by predicate (form): "))
   (with-current-buffer buf
-    (eval qualifier)))
+    (eval qualifier t)))
 
 ;;;###autoload (autoload 'ibuffer-filter-chosen-by-completion "ibuf-ext")
 (defun ibuffer-filter-chosen-by-completion ()
@@ -1508,7 +1505,7 @@ Ordering is lexicographic."
   "Emulate `bs-show' from the bs.el package."
   (interactive)
   (ibuffer t "*Ibuffer-bs*" '((filename . ".*")) nil t)
-  (define-key (current-local-map) "a" 'ibuffer-bs-toggle-all))
+  (define-key (current-local-map) "a" #'ibuffer-bs-toggle-all))
 
 (defun ibuffer-bs-toggle-all ()
   "Emulate `bs-toggle-show-all' from the bs.el package."
@@ -1650,68 +1647,67 @@ a prefix argument reverses the meaning of that variable."
 	  (error "No buffer with name %s" name)
 	(goto-char buf-point)))))
 
+(declare-function diff-check-labels "diff" (&optional force))
+(declare-function diff-file-local-copy "diff" (file-or-buf))
 (declare-function diff-sentinel "diff"
 		  (code &optional old-temp-file new-temp-file))
 
 (defun ibuffer-diff-buffer-with-file-1 (buffer)
-  (let ((bufferfile (buffer-local-value 'buffer-file-name buffer))
-	(tempfile (make-temp-file "buffer-content-")))
-    (when bufferfile
-      (unwind-protect
-	  (progn
-	    (with-current-buffer buffer
-	      (write-region nil nil tempfile nil 'nomessage))
-	    (let* ((old (expand-file-name bufferfile))
-		   (new (expand-file-name tempfile))
-		   (oldtmp (file-local-copy old))
-		   (newtmp (file-local-copy new))
-		   (switches diff-switches)
-		   (command
-		    (mapconcat
-		     'identity
-		     `(,diff-command
-		       ;; Use explicitly specified switches
-		       ,@(if (listp switches) switches (list switches))
-		       ,@(if (or old new)
-			     (list "-L" (shell-quote-argument old)
-				   "-L" (shell-quote-argument
-					 (format "Buffer %s" (buffer-name buffer)))))
-		       ,(shell-quote-argument (or oldtmp old))
-		       ,(shell-quote-argument (or newtmp new)))
-		     " ")))
-	      (let ((inhibit-read-only t))
-		(insert command "\n")
-		(diff-sentinel
-		 (call-process shell-file-name nil
-			       (current-buffer) nil
-			       shell-command-switch command))
-		(insert "\n")))))
-      (sit-for 0)
-      (when (file-exists-p tempfile)
-	(delete-file tempfile)))))
+  "Compare BUFFER with its associated file, if any.
+Unlike `diff-no-select', insert output into current buffer
+without erasing it."
+  (when-let ((old (buffer-file-name buffer)))
+    (defvar diff-use-labels)
+    (let* ((new buffer)
+           (oldtmp (diff-file-local-copy old))
+           (newtmp (diff-file-local-copy new))
+           (switches diff-switches)
+           (command
+            (string-join
+             `(,diff-command
+               ,@(if (listp switches) switches (list switches))
+               ,@(and (eq diff-use-labels t)
+                      (list "--label" (shell-quote-argument old)
+                            "--label" (shell-quote-argument (format "%S" new))))
+               ,(shell-quote-argument (or oldtmp old))
+               ,(shell-quote-argument (or newtmp new)))
+             " "))
+           (inhibit-read-only t))
+      (insert ?\n command ?\n)
+      (diff-sentinel (call-process shell-file-name nil t nil
+                                   shell-command-switch command)
+                     oldtmp newtmp)
+      (goto-char (point-max)))
+    (redisplay)))
 
 ;;;###autoload
 (defun ibuffer-diff-with-file ()
   "View the differences between marked buffers and their associated files.
 If no buffers are marked, use buffer at point.
-This requires the external program \"diff\" to be in your `exec-path'."
+This requires the external program `diff-command' to be in your
+`exec-path'."
   (interactive)
   (require 'diff)
-  (let ((marked-bufs (ibuffer-get-marked-buffers)))
-    (when (null marked-bufs)
-      (setq marked-bufs (list (ibuffer-current-buffer t))))
-    (with-current-buffer (get-buffer-create "*Ibuffer Diff*")
-      (setq buffer-read-only nil)
-      (buffer-disable-undo (current-buffer))
-      (erase-buffer)
-      (buffer-enable-undo (current-buffer))
+  (let ((marked-bufs (or (ibuffer-get-marked-buffers)
+                         (list (ibuffer-current-buffer t))))
+        (diff-buf (get-buffer-create "*Ibuffer Diff*")))
+    (with-current-buffer diff-buf
+      (setq buffer-read-only t)
+      (buffer-disable-undo)
+      (let ((inhibit-read-only t))
+        (erase-buffer))
+      (buffer-enable-undo)
       (diff-mode)
+      (diff-check-labels)
       (dolist (buf marked-bufs)
 	(unless (buffer-live-p buf)
 	  (error "Buffer %s has been killed" buf))
-	(ibuffer-diff-buffer-with-file-1 buf))
-      (setq buffer-read-only t)))
-  (switch-to-buffer "*Ibuffer Diff*"))
+        (ibuffer-diff-buffer-with-file-1 buf))
+      (goto-char (point-min))
+      (when (= (following-char) ?\n)
+        (let ((inhibit-read-only t))
+          (delete-char 1))))
+    (pop-to-buffer-same-window diff-buf)))
 
 ;;;###autoload
 (defun ibuffer-copy-filename-as-kill (&optional arg)
@@ -1747,7 +1743,7 @@ You can then feed the file name(s) to other commands with \\[yank]."
                        (t (file-name-nondirectory name))))))
            buffers))
          (string
-          (mapconcat 'identity (delete "" file-names) " ")))
+          (mapconcat #'identity (delete "" file-names) " ")))
     (unless (string= string "")
       (if (eq last-command 'kill-region)
           (kill-append string nil)

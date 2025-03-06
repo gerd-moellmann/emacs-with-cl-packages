@@ -1,6 +1,6 @@
 ;;; em-alias-tests.el --- em-alias test suite  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -71,6 +71,15 @@
    (eshell-match-command-output "show-all-args" "\\`\\'")
    (eshell-match-command-output "show-all-args a" "a\n")
    (eshell-match-command-output "show-all-args a b c" "a\nb\nc\n")))
+
+(ert-deftest em-alias-test/alias-all-args-var-splice ()
+  "Test alias with splicing the $* variable"
+  (with-temp-eshell
+   (eshell-insert-command "alias show-all-args 'echo args: $@*'")
+   (eshell-match-command-output "show-all-args" "args:\n")
+   (eshell-match-command-output "show-all-args a" "(\"args:\" \"a\")\n")
+   (eshell-match-command-output "show-all-args a b c"
+                                "(\"args:\" \"a\" \"b\" \"c\")\n")))
 
 (ert-deftest em-alias-test/alias-all-args-var-indices ()
   "Test alias with the $* variable using indices"

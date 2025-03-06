@@ -1,6 +1,6 @@
 /* Header file for the buffer manipulation primitives.
 
-Copyright (C) 1985-2024 Free Software Foundation, Inc.
+Copyright (C) 1985-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -216,7 +216,7 @@ extern ptrdiff_t advance_to_char_boundary (ptrdiff_t byte_pos);
 /* Return the byte at byte position N.
    Do not check that the position is in range.  */
 
-#define FETCH_BYTE(n) *(BYTE_POS_ADDR ((n)))
+#define FETCH_BYTE(n) (*BYTE_POS_ADDR (n))
 
 /* Define the actual buffer data structures.  */
 
@@ -309,6 +309,9 @@ struct buffer
   /* The name of this buffer.  */
   Lisp_Object name_;
 
+  /* The last name of this buffer before it was renamed or killed.  */
+  Lisp_Object last_name_;
+
   /* The name of the file visited in this buffer, or nil.  */
   Lisp_Object filename_;
 
@@ -379,7 +382,6 @@ struct buffer
   /* Values of several buffer-local variables.  */
   /* tab-width is buffer-local so that redisplay can find it
      in buffers that are not current.  */
-  Lisp_Object case_fold_search_;
   Lisp_Object tab_width_;
   Lisp_Object fill_column_;
   Lisp_Object left_margin_;
@@ -566,6 +568,11 @@ struct buffer
   /* A list of tree-sitter parsers for this buffer.  */
   Lisp_Object ts_parser_list_;
 #endif
+
+  /* What type of text conversion the input method should apply to
+     this buffer.  */
+  Lisp_Object text_conversion_style_;
+
   /* Cursor type to display in non-selected windows.
      t means to use hollow box cursor.
      See `cursor-type' for other values.  */
@@ -840,6 +847,12 @@ INLINE void
 bset_width_table (struct buffer *b, Lisp_Object val)
 {
   b->width_table_ = val;
+}
+
+INLINE void
+bset_text_conversion_style (struct buffer *b, Lisp_Object val)
+{
+  b->text_conversion_style_ = val;
 }
 
 /* BUFFER_CEILING_OF (resp. BUFFER_FLOOR_OF), when applied to n, return
@@ -1164,8 +1177,6 @@ extern void delete_all_overlays (struct buffer *);
 extern void reset_buffer (struct buffer *);
 extern void compact_buffer (struct buffer *);
 extern ptrdiff_t overlays_at (ptrdiff_t, bool, Lisp_Object **, ptrdiff_t *, ptrdiff_t *);
-extern ptrdiff_t overlays_in (ptrdiff_t, ptrdiff_t, bool, Lisp_Object **,
-                              ptrdiff_t *,  bool, bool, ptrdiff_t *);
 extern ptrdiff_t previous_overlay_change (ptrdiff_t);
 extern ptrdiff_t next_overlay_change (ptrdiff_t);
 extern ptrdiff_t sort_overlays (Lisp_Object *, ptrdiff_t, struct window *);
@@ -1266,8 +1277,7 @@ set_buffer_intervals (struct buffer *b, INTERVAL i)
 INLINE bool
 buffer_has_overlays (void)
 {
-  return current_buffer->overlays
-         && (current_buffer->overlays->root != NULL);
+  return !itree_empty_p (current_buffer->overlays);
 }
 
 /* Functions for accessing a character or byte,

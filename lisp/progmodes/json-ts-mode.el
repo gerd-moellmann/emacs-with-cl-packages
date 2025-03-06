@@ -1,6 +1,6 @@
 ;;; json-ts-mode.el --- tree-sitter support for JSON  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2025 Free Software Foundation, Inc.
 
 ;; Author     : Theodor Thornhill <theo@thornhill.no>
 ;; Maintainer : Theodor Thornhill <theo@thornhill.no>
@@ -147,6 +147,10 @@ Return nil if there is no name or if NODE is not a defun node."
               (rx (or "pair" "object")))
   (setq-local treesit-defun-name-function #'json-ts-mode--defun-name)
 
+  (setq-local treesit-thing-settings
+              `((json
+                 (sentence "pair"))))
+
   ;; Font-lock.
   (setq-local treesit-font-lock-settings json-ts-mode--font-lock-settings)
   (setq-local treesit-font-lock-feature-list
@@ -159,6 +163,8 @@ Return nil if there is no name or if NODE is not a defun node."
               '((nil "\\`pair\\'" nil nil)))
 
   (treesit-major-mode-setup))
+
+(derived-mode-add-parents 'json-ts-mode '(json-mode))
 
 (if (treesit-ready-p 'json)
     (add-to-list 'auto-mode-alist

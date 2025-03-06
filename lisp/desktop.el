@@ -1,6 +1,6 @@
 ;;; desktop.el --- save partial status of Emacs when killed -*- lexical-binding: t -*-
 
-;; Copyright (C) 1993-1995, 1997, 2000-2024 Free Software Foundation,
+;; Copyright (C) 1993-1995, 1997, 2000-2025 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Morten Welinder <terra@diku.dk>
@@ -122,7 +122,7 @@
 ;; things you did not mean to keep.  Use M-x desktop-clear RET.
 
 ;; Thanks to  hetrick@phys.uva.nl (Jim Hetrick)      for useful ideas.
-;;            avk@rtsg.mot.com (Andrew V. Klein)     for a dired tip.
+;;            avk@rtsg.mot.com (Andrew V. Klein)     for a Dired tip.
 ;;            chris@tecc.co.uk (Chris Boucher)       for a mark tip.
 ;;            f89-kam@nada.kth.se (Klas Mellbourn)   for a mh-e tip.
 ;;            kifer@cs.stonybrook.edu (M. Kifer)     for a bug hunt.
@@ -296,7 +296,7 @@ If nil, just print error messages in the message buffer."
 (defcustom desktop-no-desktop-file-hook nil
   "Normal hook run when `desktop-read' can't find a desktop file.
 Run in the directory in which the desktop file was sought.
-May be used to show a dired buffer."
+May be used to show a Dired buffer."
   :type 'hook
   :group 'desktop
   :version "22.1")
@@ -406,7 +406,12 @@ or `desktop-modes-not-to-save'."
 (defcustom desktop-files-not-to-save
   "\\(\\`/[^/:]*:\\|(ftp)\\'\\)"
   "Regexp identifying files whose buffers are to be excluded from saving.
-The default value excludes buffers visiting remote files."
+The default value excludes buffers visiting remote files.
+
+If you modify this such that buffers visiting remote files are not excluded,
+you may wish customizing `remote-file-name-access-timeout' to a non-nil
+value, to avoid hanging the desktop restoration because some remote
+host is off-line."
   :type '(choice (const :tag "None" nil)
 		 regexp)
   :group 'desktop)
@@ -837,7 +842,7 @@ is nil, ask the user where to save the desktop."
   ;; If we own it, we don't anymore.
   (when (eq (emacs-pid) (desktop-owner))
     ;; Allow exiting Emacs even if we can't delete the desktop file.
-    (ignore-error 'file-error
+    (ignore-error file-error
       (desktop-release-lock))))
 
 ;; ----------------------------------------------------------------------------
@@ -1508,6 +1513,11 @@ This function is called from `window-configuration-change-hook'."
   (desktop-clear)
   (desktop-read desktop-dirname))
 
+;; ----------------------------------------------------------------------------
+(defun desktop-access-file (filename)
+  "Check whether FILENAME is accessible."
+  (ignore-errors (not (access-file filename "Restoring desktop buffer"))))
+
 (defvar desktop-buffer-major-mode)
 (defvar desktop-buffer-locals)
 (defvar auto-insert)  ; from autoinsert.el
@@ -1517,8 +1527,8 @@ This function is called from `window-configuration-change-hook'."
                                     _buffer-misc)
   "Restore a file buffer."
   (when buffer-filename
-    (if (or (file-exists-p buffer-filename)
-	    (let ((msg (format "Desktop: File \"%s\" no longer exists."
+    (if (or (desktop-access-file buffer-filename)
+	    (let ((msg (format "Desktop: File \"%s\" no longer accessible."
 			       buffer-filename)))
 	      (if desktop-missing-file-warning
 		  (y-or-n-p (concat msg " Re-create buffer? "))

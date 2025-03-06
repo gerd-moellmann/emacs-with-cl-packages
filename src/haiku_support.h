@@ -1,5 +1,5 @@
 /* Haiku window system support.  Hey Emacs, this is -*- C++ -*-
-   Copyright (C) 2021-2024 Free Software Foundation, Inc.
+   Copyright (C) 2021-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -116,6 +116,7 @@ enum haiku_event_type
     MENU_BAR_LEFT,
     CLIPBOARD_CHANGED_EVENT,
     FONT_CHANGE_EVENT,
+    NOTIFICATION_CLICK_EVENT,
   };
 
 struct haiku_clipboard_changed_event
@@ -464,6 +465,12 @@ struct haiku_font_change_event
   enum haiku_what_font what;
 };
 
+struct haiku_notification_click_event
+{
+  /* ID uniquely designating a single notification.  */
+  intmax_t id;
+};
+
 struct haiku_session_manager_reply
 {
   bool quit_reply;
@@ -683,6 +690,8 @@ extern int be_get_display_planes (void);
 extern int be_get_display_color_cells (void);
 extern bool be_is_display_grayscale (void);
 extern void be_warp_pointer (int, int);
+
+extern bool haiku_should_pass_control_tab_to_system (void);
 
 extern void EmacsView_set_up_double_buffering (void *);
 extern void EmacsView_disable_double_buffering (void *);

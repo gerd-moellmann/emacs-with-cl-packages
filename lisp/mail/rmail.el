@@ -1,6 +1,6 @@
 ;;; rmail.el --- main code of "RMAIL" mail reader for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1988, 1993-1998, 2000-2024 Free Software
+;; Copyright (C) 1985-1988, 1993-1998, 2000-2025 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -40,6 +40,7 @@
 (require 'mail-utils)
 (require 'rfc2047)
 (require 'auth-source)
+(require 'rfc6068)
 
 (declare-function compilation--message->loc "compile" (cl-x) t)
 (declare-function epa--find-coding-system-for-mime-charset "epa" (mime-charset))
@@ -89,7 +90,6 @@
 its character representation and its display representation.")
 
 (defvar deleted-head)
-(defvar font-lock-fontified)
 (defvar mail-abbrev-syntax-table)
 (defvar mail-abbrevs)
 (defvar messages-head)
@@ -263,7 +263,7 @@ Otherwise, look for `movemail' in the directories in
 	  ;; assuming it would work.
 	  ;; https://lists.gnu.org/r/bug-gnu-emacs/2008-02/msg00087.html
 	  (let ((progname (expand-file-name
-			   (concat "movemail"
+			   (concat movemail-program-name
 				   (if (memq system-type '(ms-dos windows-nt))
 				       ".exe")) dir)))
 	    (when (and (not (file-directory-p progname))
@@ -519,8 +519,7 @@ For a given message, Rmail applies only the first matching directive.
 
 Examples:
   (\"/dev/null\" \"from\" \"@spam.com\") ; delete all mail from spam.com
-  (\"RMS\" \"from\" \"rms@\") ; save all mail from RMS.
-"
+  (\"RMS\" \"from\" \"rms@\") ; save all mail from RMS."
   :group 'rmail
   :version "21.1"
   :type '(repeat (sexp :tag "Directive")))
@@ -807,8 +806,8 @@ that knows the exact ordering of the \\( \\) subexpressions.")
 			"\\(" cite-chars "[ \t]*\\)\\)+\\)"
 			"\\(.*\\)")
 	       (beginning-of-line) (end-of-line)
-	       (1 font-lock-comment-delimiter-face nil t)
-	       (5 font-lock-comment-face nil t)))
+	       (1 'font-lock-comment-delimiter-face nil t)
+	       (5 'font-lock-comment-face nil t)))
 	    '("^\\(X-[a-z0-9-]+\\|In-Reply-To\\|Date\\):.*\\(\n[ \t]+.*\\)*$"
 	      . 'rmail-header-name))))
   "Additional expressions to highlight in Rmail mode.")
@@ -817,7 +816,7 @@ that knows the exact ordering of the \\( \\) subexpressions.")
 (defun rmail-pop-to-buffer (&rest args)
   "Like `pop-to-buffer', but with `split-width-threshold' set to nil."
   (let (split-width-threshold)
-    (apply 'pop-to-buffer args)))
+    (apply #'pop-to-buffer args)))
 
 ;; Perform BODY in the summary buffer
 ;; in such a way that its cursor is properly updated in its own window.
@@ -1010,66 +1009,66 @@ The buffer is expected to be narrowed to just the header of the message."
 (defvar rmail-mode-map
   (let ((map (make-keymap)))
     (suppress-keymap map)
-    (define-key map "a"      'rmail-add-label)
-    (define-key map "b"      'rmail-bury)
-    (define-key map "c"      'rmail-continue)
-    (define-key map "d"      'rmail-delete-forward)
-    (define-key map "\C-d"   'rmail-delete-backward)
-    (define-key map "e"      'rmail-edit-current-message)
+    (define-key map "a"      #'rmail-add-label)
+    (define-key map "b"      #'rmail-bury)
+    (define-key map "c"      #'rmail-continue)
+    (define-key map "d"      #'rmail-delete-forward)
+    (define-key map "\C-d"   #'rmail-delete-backward)
+    (define-key map "e"      #'rmail-edit-current-message)
     ;; If you change this, change the rmail-resend menu-item's :keys.
-    (define-key map "f"      'rmail-forward)
-    (define-key map "g"      'rmail-get-new-mail)
-    (define-key map "h"      'rmail-summary)
-    (define-key map "i"      'rmail-input)
-    (define-key map "j"      'rmail-show-message)
-    (define-key map "k"      'rmail-kill-label)
-    (define-key map "l"      'rmail-summary-by-labels)
-    (define-key map "\e\C-h" 'rmail-summary)
-    (define-key map "\e\C-l" 'rmail-summary-by-labels)
-    (define-key map "\e\C-r" 'rmail-summary-by-recipients)
-    (define-key map "\e\C-s" 'rmail-summary-by-regexp)
-    (define-key map "\e\C-f" 'rmail-summary-by-senders)
-    (define-key map "\e\C-t" 'rmail-summary-by-topic)
-    (define-key map "m"      'rmail-mail)
-    (define-key map "\em"    'rmail-retry-failure)
-    (define-key map "n"      'rmail-next-undeleted-message)
-    (define-key map "\en"    'rmail-next-message)
-    (define-key map "\e\C-n" 'rmail-next-labeled-message)
-    (define-key map "o"      'rmail-output)
-    (define-key map "\C-o"   'rmail-output-as-seen)
-    (define-key map "p"      'rmail-previous-undeleted-message)
-    (define-key map "\ep"    'rmail-previous-message)
-    (define-key map "\e\C-p" 'rmail-previous-labeled-message)
-    (define-key map "q"      'rmail-quit)
-    (define-key map "r"      'rmail-reply)
+    (define-key map "f"      #'rmail-forward)
+    (define-key map "g"      #'rmail-get-new-mail)
+    (define-key map "h"      #'rmail-summary)
+    (define-key map "i"      #'rmail-input)
+    (define-key map "j"      #'rmail-show-message)
+    (define-key map "k"      #'rmail-kill-label)
+    (define-key map "l"      #'rmail-summary-by-labels)
+    (define-key map "\e\C-h" #'rmail-summary)
+    (define-key map "\e\C-l" #'rmail-summary-by-labels)
+    (define-key map "\e\C-r" #'rmail-summary-by-recipients)
+    (define-key map "\e\C-s" #'rmail-summary-by-regexp)
+    (define-key map "\e\C-f" #'rmail-summary-by-senders)
+    (define-key map "\e\C-t" #'rmail-summary-by-topic)
+    (define-key map "m"      #'rmail-mail)
+    (define-key map "\em"    #'rmail-retry-failure)
+    (define-key map "n"      #'rmail-next-undeleted-message)
+    (define-key map "\en"    #'rmail-next-message)
+    (define-key map "\e\C-n" #'rmail-next-labeled-message)
+    (define-key map "o"      #'rmail-output)
+    (define-key map "\C-o"   #'rmail-output-as-seen)
+    (define-key map "p"      #'rmail-previous-undeleted-message)
+    (define-key map "\ep"    #'rmail-previous-message)
+    (define-key map "\e\C-p" #'rmail-previous-labeled-message)
+    (define-key map "q"      #'rmail-quit)
+    (define-key map "r"      #'rmail-reply)
     ;; I find I can't live without the default M-r command -- rms.
-    ;;  (define-key rmail-mode-map "\er"  'rmail-search-backwards)
-    (define-key map "s"      'rmail-expunge-and-save)
-    (define-key map "\es"    'rmail-search)
-    (define-key map "t"      'rmail-toggle-header)
-    (define-key map "u"      'rmail-undelete-previous-message)
-    (define-key map "v"      'rmail-mime)
-    (define-key map "w"      'rmail-output-body-to-file)
-    (define-key map "\C-c\C-w"    'rmail-widen)
-    (define-key map "x"      'rmail-expunge)
-    (define-key map "."      'rmail-beginning-of-message)
-    (define-key map "/"      'rmail-end-of-message)
-    (define-key map "<"      'rmail-first-message)
-    (define-key map ">"      'rmail-last-message)
-    (define-key map " "      'scroll-up-command)
-    (define-key map [?\S-\ ] 'scroll-down-command)
-    (define-key map "\177"   'scroll-down-command)
-    (define-key map "?"      'describe-mode)
-    (define-key map "\C-c\C-d" 'rmail-epa-decrypt)
-    (define-key map "\C-c\C-s\C-d" 'rmail-sort-by-date)
-    (define-key map "\C-c\C-s\C-s" 'rmail-sort-by-subject)
-    (define-key map "\C-c\C-s\C-a" 'rmail-sort-by-author)
-    (define-key map "\C-c\C-s\C-r" 'rmail-sort-by-recipient)
-    (define-key map "\C-c\C-s\C-c" 'rmail-sort-by-correspondent)
-    (define-key map "\C-c\C-s\C-l" 'rmail-sort-by-lines)
-    (define-key map "\C-c\C-s\C-k" 'rmail-sort-by-labels)
-    (define-key map "\C-c\C-n" 'rmail-next-same-subject)
-    (define-key map "\C-c\C-p" 'rmail-previous-same-subject)
+    ;;  (define-key rmail-mode-map "\er"  #'rmail-search-backwards)
+    (define-key map "s"      #'rmail-expunge-and-save)
+    (define-key map "\es"    #'rmail-search)
+    (define-key map "t"      #'rmail-toggle-header)
+    (define-key map "u"      #'rmail-undelete-previous-message)
+    (define-key map "v"      #'rmail-mime)
+    (define-key map "w"      #'rmail-output-body-to-file)
+    (define-key map "\C-c\C-w"    #'rmail-widen)
+    (define-key map "x"      #'rmail-expunge)
+    (define-key map "."      #'rmail-beginning-of-message)
+    (define-key map "/"      #'rmail-end-of-message)
+    (define-key map "<"      #'rmail-first-message)
+    (define-key map ">"      #'rmail-last-message)
+    (define-key map " "      #'scroll-up-command)
+    (define-key map [?\S-\ ] #'scroll-down-command)
+    (define-key map "\177"   #'scroll-down-command)
+    (define-key map "?"      #'describe-mode)
+    (define-key map "\C-c\C-d" #'rmail-epa-decrypt)
+    (define-key map "\C-c\C-s\C-d" #'rmail-sort-by-date)
+    (define-key map "\C-c\C-s\C-s" #'rmail-sort-by-subject)
+    (define-key map "\C-c\C-s\C-a" #'rmail-sort-by-author)
+    (define-key map "\C-c\C-s\C-r" #'rmail-sort-by-recipient)
+    (define-key map "\C-c\C-s\C-c" #'rmail-sort-by-correspondent)
+    (define-key map "\C-c\C-s\C-l" #'rmail-sort-by-lines)
+    (define-key map "\C-c\C-s\C-k" #'rmail-sort-by-labels)
+    (define-key map "\C-c\C-n" #'rmail-next-same-subject)
+    (define-key map "\C-c\C-p" #'rmail-previous-same-subject)
 
 
     (define-key map [menu-bar] (make-sparse-keymap))
@@ -1122,10 +1121,36 @@ The buffer is expected to be narrowed to just the header of the message."
     (define-key map [menu-bar mail]
       (cons "Mail" (make-sparse-keymap "Mail")))
 
+    (define-key map [menu-bar mail mailing-list]
+      (cons "Mailing List" (make-sparse-keymap "Mailing List")))
+
+    (define-key map [menu-bar mail mailing-list list-help]
+      '(menu-item "Mailing List Help" rmail-mailing-list-help
+                  :enable (rmail-get-header "List-Help")
+                  :help "Compose email requesting help about this mailing list"))
+
+    (define-key map [menu-bar mail mailing-list list-archive]
+      '(menu-item "Mailing List Archive" rmail-mailing-list-archive
+                  :enable (rmail-get-header "List-Archive")
+                  :help "Browse the archive of this mailing list"))
+
+    (define-key map [menu-bar mail mailing-list list-unsubscribe]
+      '(menu-item "Unsubscribe From List" rmail-mailing-list-unsubscribe
+                  :enable (rmail-get-header "List-Unsubscribe")
+                  :help "Compose email to unsubscribe from this mailing list"))
+
+    (define-key map [menu-bar mail mailing-list list-post]
+      '(menu-item "Post To List" rmail-mailing-list-post
+                  :enable (rmail-get-header "List-Post")
+                  :help "Compose email to post to this mailing list"))
+
+    (define-key map [menu-bar mail lambda1]
+      '("----"))
+
     (define-key map [menu-bar mail rmail-get-new-mail]
       '("Get New Mail" . rmail-get-new-mail))
 
-    (define-key map [menu-bar mail lambda]
+    (define-key map [menu-bar mail lambda2]
       '("----"))
 
     (define-key map [menu-bar mail continue]
@@ -1320,9 +1345,9 @@ Instead, these commands are available:
   (setq local-abbrev-table text-mode-abbrev-table)
   ;; Functions to support buffer swapping:
   (add-hook 'write-region-annotate-functions
-	    'rmail-write-region-annotate nil t)
-  (add-hook 'kill-buffer-hook 'rmail-mode-kill-buffer-hook nil t)
-  (add-hook 'change-major-mode-hook 'rmail-change-major-mode-hook nil t))
+	    #'rmail-write-region-annotate nil t)
+  (add-hook 'kill-buffer-hook #'rmail-mode-kill-buffer-hook nil t)
+  (add-hook 'change-major-mode-hook #'rmail-change-major-mode-hook nil t))
 
 (defun rmail-generate-viewer-buffer ()
   "Return a reusable buffer suitable for viewing messages.
@@ -1339,7 +1364,7 @@ Create the buffer if necessary."
 		    (file-name-nondirectory
 		     (or buffer-file-name (buffer-name)))))))
       (with-current-buffer newbuf
-	(add-hook 'kill-buffer-hook 'rmail-view-buffer-kill-buffer-hook nil t))
+	(add-hook 'kill-buffer-hook #'rmail-view-buffer-kill-buffer-hook nil t))
       newbuf)))
 
 (defun rmail-swap-buffers ()
@@ -1455,7 +1480,7 @@ If so restore the actual mbox message collection."
   ;; Don't turn off auto-saving based on the size of the buffer
   ;; because that code does not understand buffer-swapping.
   (setq-local auto-save-include-big-deletions t)
-  (setq-local revert-buffer-function 'rmail-revert)
+  (setq-local revert-buffer-function #'rmail-revert)
   (setq-local font-lock-defaults
               '(rmail-font-lock-keywords
                 t t nil nil
@@ -1466,7 +1491,7 @@ If so restore the actual mbox message collection."
   (setq-local file-precious-flag t)
   (setq-local desktop-save-buffer t)
   (setq-local save-buffer-coding-system 'no-conversion)
-  (setq next-error-move-function 'rmail-next-error-move))
+  (setq next-error-move-function #'rmail-next-error-move))
 
 ;; Handle M-x revert-buffer done in an rmail-mode buffer.
 (defun rmail-revert (arg noconfirm)
@@ -1582,7 +1607,7 @@ The duplicate copy goes into the Rmail file just after the original."
 	     (files (directory-files start t rmail-secondary-file-regexp)))
 	;; Sort here instead of in directory-files
 	;; because this list is usually much shorter.
-	(sort files 'string<))))
+	(sort files #'string<))))
 
 (defun rmail-list-to-menu (menu-name l action &optional full-name)
   (let ((menu (make-sparse-keymap menu-name))
@@ -1991,7 +2016,9 @@ Value is the size of the newly read mail after conversion."
 		 (buffer-disable-undo errors)
 		 (let ((args
 			(append
-			 (list (or rmail-movemail-program "movemail") nil errors nil)
+			 (list (or rmail-movemail-program
+                                   movemail-program-name)
+                               nil errors nil)
 			 (if rmail-preserve-inbox
 			     (list "-p")
 			   nil)
@@ -2000,7 +2027,7 @@ Value is the size of the newly read mail after conversion."
 			   rmail-movemail-flags)
 			 (list file tofile)
 			 (if password (list password) nil))))
-		   (apply 'call-process args))
+		   (apply #'call-process args))
 		 (if (not (buffer-modified-p errors))
 		     ;; No output => movemail won
 		     nil
@@ -2287,7 +2314,7 @@ significant attribute change was made."
             (insert value)))
       ;; Otherwise add a header line to record the attributes and set
       ;; all but this one to no.
-      (let ((header-value "--------"))
+      (let ((header-value (copy-sequence "--------")))
         (aset header-value attr value)
         (goto-char (if limit (1- limit) (point-max)))
         (setq altered (/= value ?-))
@@ -2492,7 +2519,7 @@ Output a helpful message unless NOMSG is non-nil."
 	;; which will never be used.
 	(push nil messages-head)
 	(push ?0 deleted-head)
-	(setq rmail-message-vector (apply 'vector messages-head)
+	(setq rmail-message-vector (apply #'vector messages-head)
 	      rmail-deleted-vector (concat deleted-head))
 
 	(setq rmail-summary-vector (make-vector rmail-total-messages nil)
@@ -3579,10 +3606,10 @@ If `rmail-confirm-expunge' is non-nil, ask user to confirm."
 			  (cons (aref messages number) nil)))
 	    (setq rmail-current-message new-message-number
 		  rmail-total-messages counter
-		  rmail-message-vector (apply 'vector messages-head)
+		  rmail-message-vector (apply #'vector messages-head)
 		  rmail-deleted-vector (make-string (1+ counter) ?\s)
 		  rmail-summary-vector (vconcat (nreverse new-summary))
-		  rmail-msgref-vector (apply 'vector (nreverse new-msgref))
+		  rmail-msgref-vector (apply #'vector (nreverse new-msgref))
 		  win t)))
       (message "Expunging deleted messages...done")
       (if (not win)
@@ -3658,7 +3685,12 @@ If BUFFER is not swapped, yank out of its message viewer buffer."
 				   other-headers)
   (let ((switch-function
 	 (cond (same-window nil)
-	       (rmail-mail-new-frame 'switch-to-buffer-other-frame)
+	       (rmail-mail-new-frame
+                (progn
+                  ;; Record the frame from which we invoked this command.
+                  (modify-frame-parameters (selected-frame)
+				           '((rmail-orig-frame . t)))
+                  'switch-to-buffer-other-frame))
 	       (t 'switch-to-buffer-other-window)))
 	yank-action)
     (if replybuffer
@@ -3687,6 +3719,11 @@ If BUFFER is not swapped, yank out of its message viewer buffer."
 	  ;; sendmail.el looks at it.
 	  (modify-frame-parameters (selected-frame)
 				   '((mail-dedicated-frame . t)))))))
+
+(defun rmail--find-orig-rmail-frame ()
+  (car (filtered-frame-list
+        (lambda (frame)
+          (eq (frame-parameter frame 'rmail-orig-frame) t)))))
 
 (defun rmail-mail-return (&optional newbuf)
   "Try to return to Rmail from the mail window.
@@ -3729,9 +3766,19 @@ to switch to."
    ;; probably wants to delete it now.
    ((display-multi-frame-p)
     (delete-frame))
-   ;; The previous frame is where normally they have the Rmail buffer
-   ;; displayed.
-   (t (other-frame -1))))
+   (t
+    ;; Try to find the original Rmail frame and make it the top frame.
+    (let ((fr (selected-frame))
+          (orig-fr (rmail--find-orig-rmail-frame)))
+      (if orig-fr
+          (progn
+            (modify-frame-parameters orig-fr '((rmail-orig-frame . nil)))
+            (select-frame-set-input-focus orig-fr))
+        ;; If we cannot find the frame from which we started, punt, and
+        ;; display the previous frame, which is where they normally have
+        ;; the Rmail buffer displayed.
+        (other-frame -1))
+      (delete-frame fr)))))
 
 (defun rmail-mail ()
   "Send mail in another window.
@@ -3865,7 +3912,7 @@ use \\[mail-yank-original] to yank the original message into it."
      (if (or references message-id)
 	 (list (cons "References" (if references
 				      (concat
-				       (mapconcat 'identity references " ")
+				       (mapconcat #'identity references " ")
 				       " " message-id)
 				    message-id)))))))
 
@@ -4063,26 +4110,24 @@ typically for purposes of moderating a list."
 		(insert "Resent-Bcc: " (user-login-name) "\n"))
 	    (insert "Resent-To: " (if (stringp address)
 			       address
-			     (mapconcat 'identity address ",\n\t"))
+			     (mapconcat #'identity address ",\n\t"))
 		    "\n")
 	    ;; Expand abbrevs in the recipients.
 	    (save-excursion
 	      (if (featurep 'mailabbrev)
 		  (let ((end (point-marker))
-			(local-abbrev-table mail-abbrevs)
-			(old-syntax-table (syntax-table)))
-		    (if (and (not (vectorp mail-abbrevs))
+			(local-abbrev-table mail-abbrevs))
+		    (if (and (not (obarrayp mail-abbrevs))
 			     (file-exists-p mail-personal-alias-file))
 			(build-mail-abbrevs))
 		    (unless mail-abbrev-syntax-table
 		      (mail-abbrev-make-syntax-table))
-		    (set-syntax-table mail-abbrev-syntax-table)
-		    (goto-char before)
-		    (while (and (< (point) end)
-				(progn (forward-word-strictly 1)
-				       (<= (point) end)))
-		      (expand-abbrev))
-		    (set-syntax-table old-syntax-table))
+		    (with-syntax-table mail-abbrev-syntax-table
+		      (goto-char before)
+		      (while (and (< (point) end)
+				  (progn (forward-word-strictly 1)
+				         (<= (point) end)))
+			(expand-abbrev))))
 		(expand-mail-aliases before (point)))))
 	  ;;>> Set up comment, if any.
 	  (if (and (sequencep comment) (not (zerop (length comment))))
@@ -4269,7 +4314,7 @@ In fact, the non-nil value returned is the summary buffer itself."
        rmail-summary-buffer))
 
 (defun rmail-summary-displayed ()
-  "t if in RMAIL buffer and an associated summary buffer is displayed."
+  "Return t if in RMAIL buffer and an associated summary buffer is displayed."
   (and rmail-summary-buffer (get-buffer-window rmail-summary-buffer)))
 
 (defcustom rmail-redisplay-summary nil
@@ -4309,7 +4354,7 @@ This has an effect only if a summary buffer exists."
 
 (defun rmail-fontify-buffer-function ()
   ;; This function's symbol is bound to font-lock-fontify-buffer-function.
-  (add-hook 'rmail-show-message-hook 'rmail-fontify-message nil t)
+  (add-hook 'rmail-show-message-hook #'rmail-fontify-message nil t)
   ;; If we're already showing a message, fontify it now.
   (if rmail-current-message (rmail-fontify-message))
   ;; Prevent Font Lock mode from kicking in.
@@ -4320,7 +4365,7 @@ This has an effect only if a summary buffer exists."
   (with-silent-modifications
     (save-restriction
       (widen)
-      (remove-hook 'rmail-show-message-hook 'rmail-fontify-message t)
+      (remove-hook 'rmail-show-message-hook #'rmail-fontify-message t)
       (remove-text-properties (point-min) (point-max) '(rmail-fontified nil))
       (font-lock-default-unfontify-buffer))))
 
@@ -4355,11 +4400,12 @@ browsing, and moving of messages."
   "Install those variables used by speedbar to enhance rmail."
   (unless rmail-speedbar-key-map
     (setq rmail-speedbar-key-map (speedbar-make-specialized-keymap))
-    (define-key rmail-speedbar-key-map "e" 'speedbar-edit-line)
-    (define-key rmail-speedbar-key-map "r" 'speedbar-edit-line)
-    (define-key rmail-speedbar-key-map "\C-m" 'speedbar-edit-line)
+    (declare-function speedbar-edit-line "speedbar")
+    (define-key rmail-speedbar-key-map "e" #'speedbar-edit-line)
+    (define-key rmail-speedbar-key-map "r" #'speedbar-edit-line)
+    (define-key rmail-speedbar-key-map "\C-m" #'speedbar-edit-line)
     (define-key rmail-speedbar-key-map "M"
-      'rmail-speedbar-move-message-to-folder-on-line)))
+      #'rmail-speedbar-move-message-to-folder-on-line)))
 
 ;; Mouse-3.
 (defvar rmail-speedbar-menu-items
@@ -4584,6 +4630,19 @@ Argument MIME is non-nil if this is a mime message."
 	     (current-buffer))))
       (error nil))
 
+    ;; Decode any base64-encoded material in what we just decrypted.
+    (rmail-epa-decode armor-start after-end)
+
+    ;; If this is in a MIME part, convert CRLF into just LF (newline)
+    (when mime
+      (save-restriction
+        (narrow-to-region armor-start  (- (point-max) after-end))
+        (goto-char (point-min))
+        (let ((inhibit-read-only t))
+          (while (search-forward "\r\n" nil t)
+            (delete-region (- (point) 2) (- (point) 1)))))
+      )
+
     (list armor-start (- (point-max) after-end) mime
           armor-end-regexp
           (buffer-substring armor-start (- (point-max) after-end)))))
@@ -4626,11 +4685,34 @@ Argument MIME is non-nil if this is a mime message."
 		     "> ")
 	      (push (rmail-epa-decrypt-1 mime) decrypts))))
 
-      ;; Decode any base64-encoded mime sections.
-      (rmail-epa-decode)
-
       (when (and decrypts (rmail-buffers-swapped-p))
-	(when (y-or-n-p "Replace the original message? ")
+	(if (not (y-or-n-p "Replace the original message? "))
+            ;; User wants to decrypt only temporarily.
+	    ;; Find, in the view buffer, the armors
+	    ;; that we made decrypts for, and replace each one
+            ;; with its decrypt.  In a mime part, replace CRLF with NL.
+            (dolist (d decrypts)
+	      (if (re-search-forward "-----BEGIN PGP MESSAGE-----$" nil t)
+		  (let (armor-start armor-end armor-end-regexp)
+		    (setq armor-start (match-beginning 0)
+			  armor-end-regexp (nth 3 d)
+			  armor-end (re-search-forward
+				     armor-end-regexp
+				     nil t))
+
+		    ;; Found as expected -- now replace it with the decrypt.
+		    (when armor-end
+                      (if (null (nth 2 d))
+                          nil
+                        ;; In a mime part --
+                        ;; replace CRLF with NL in it.
+                        (save-restriction
+                          (narrow-to-region armor-start armor-end)
+                          (goto-char (point-min))
+                          (while (search-forward "\r\n" nil t)
+                            (delete-region (- (point) 2) (- (point) 1))))))
+		      )))
+          ;; User wants to decrypt the message permanently.
           (when (eq major-mode 'rmail-mode)
             (rmail-add-label "decrypt"))
 	  (setq decrypts (nreverse decrypts))
@@ -4693,12 +4775,14 @@ Argument MIME is non-nil if this is a mime message."
       (unless decrypts
 	(error "Nothing to decrypt")))))
 
-;; Decode all base64-encoded mime sections, so that this change
-;; is made in the Rmail file, not just in the viewing buffer.
-(defun rmail-epa-decode ()
+;; Decode all base64-encoded mime sections from BEG to (Z - BACK-FROM-END),
+;; so that we save the decoding permanently in the Rmail buffer
+;; if we permanently save the decryption.
+(defun rmail-epa-decode (beg back-from-end)
   (save-excursion
-    (goto-char (point-min))
-    (while (re-search-forward "--------------[0-9a-zA-Z]+\n" nil t)
+    (goto-char beg)
+    (while (re-search-forward "--------------[0-9a-zA-Z]+\n"
+                              (- (point-max) back-from-end) t)
       ;; The ending delimiter is a start delimiter if another section follows.
       ;; Otherwise it is an end delimiter, with -- affixed.
       (let ((delim (concat (substring (match-string 0) 0 -1) "\\(\\|--\\)\n")))
@@ -4765,8 +4849,72 @@ Content-Transfer-Encoding: base64\n")
       (with-current-buffer
 	  (if (rmail-buffers-swapped-p) rmail-buffer rmail-view-buffer)
 	(setq buffer-file-coding-system rmail-message-encoding))))
-(add-hook 'after-save-hook 'rmail-after-save-hook)
+;; FIXME: Don't do it globally!!
+(add-hook 'after-save-hook #'rmail-after-save-hook)
 
+
+;;; Mailing list support
+(defun rmail--mailing-list-message (which)
+  "Send a message to mailing list whose purpose is identified by WHICH.
+WHICH is a symbol, one of `help', `unsubscribe', or `post'."
+  (let ((header
+         (cond ((eq which 'help) "List-Help")
+               ((eq which 'unsubscribe) "List-Unsubscribe")
+               ((eq which 'post) "List-Post")))
+        (msg
+         (cond ((eq which 'post)
+                "Write Subject and body, then type \\[%s] to send the message.")
+               (t
+                "Type \\[%s] to send the message.")))
+        address header-list to subject)
+    (setq address (rmail-get-header header))
+    (cond ((and address (string-match "<\\(mailto:[^>]*\\)>" address))
+           (setq address (match-string 1 address))
+           (setq header-list (rfc6068-parse-mailto-url address)
+                 to (cdr (assoc-string "To" header-list t))
+                 subject (or (cdr (assoc-string "Subject" header-list t)) ""))
+           (rmail-start-mail nil to subject nil nil rmail-buffer)
+           (message (substitute-command-keys
+                     (format msg (get mail-user-agent 'sendfunc)))))
+          (t
+           (user-error "This message does not specify \"%s\" address"
+                       header)))))
+
+(defun rmail-mailing-list-help ()
+  "Send Help request to the mailing list which delivered the current message.
+This command starts composing an email message to the mailing list
+requesting help about the list.  When the message is ready, send it
+as usual, via your MUA's send-email command."
+  (interactive nil rmail-mode)
+  (rmail--mailing-list-message 'help))
+
+(defun rmail-mailing-list-post ()
+  "Post a message to the mailing list which delivered the current message.
+This command starts composing an email message to the mailing list.
+Fill the Subject and the body of the message.  When the message is
+ready, send it as usual, via your MUA's send-email command."
+  (interactive nil rmail-mode)
+  (rmail--mailing-list-message 'post))
+
+(defun rmail-mailing-list-unsubscribe ()
+  "Send unsubscribe request to the mailing list which delivered current message.
+This command starts composing an email message to the mailing list
+requesting to unsubscribe you from the list.  When the message is
+ready, send it as usual, via your MUA's send-email command."
+  (interactive nil rmail-mode)
+  (rmail--mailing-list-message 'unsubscribe))
+
+(defun rmail-mailing-list-archive ()
+  "Browse the archive of the mailing list which delivered the current message."
+  (interactive nil rmail-mode)
+  (let* ((header (rmail-get-header "List-Archive"))
+         (url (and (stringp header)
+                   (string-match " *<\\([^>]*\\)>" header)
+                   (match-string 1 header))))
+    (if url
+        (browse-url url)
+      (user-error
+       "This message does not specify a valid \"List-Archive\" URL"))))
 
 (provide 'rmail)
 

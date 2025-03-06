@@ -1,6 +1,6 @@
 ;;; conf-mode.el --- Simple major mode for editing conf/ini/properties files  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2004-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2025 Free Software Foundation, Inc.
 
 ;; Author: Daniel Pfeiffer <occitan@esperanto.org>
 ;; Keywords: conf ini windows java
@@ -245,6 +245,7 @@ This variable is best set in the file local variables, or through
     ("^\\s-*\\(.+?\\)\\(?:\\[\\(.*?\\)\\]\\)?\\s-*="
      (1 'font-lock-variable-name-face)
      (2 'font-lock-constant-face nil t))
+    ;; Must be lower-case according to the TOML spec.
     ("\\_<false\\|true\\_>" 0 'font-lock-keyword-face))
   "Keywords to highlight in Conf TOML mode.")
 
@@ -435,6 +436,7 @@ The optional arg FONT-LOCK is the value for FONT-LOCK-KEYWORDS."
   (setq-local comment-start comment)
   (setq-local comment-start-skip
               (concat (regexp-quote comment-start) "+\\s *"))
+  (setq-local text-conversion-style t)
   (if font-lock
       (setq-local font-lock-defaults `(,font-lock nil t nil nil))))
 
@@ -611,27 +613,26 @@ For details see `conf-mode'.  Example:
   "Font-lock helper function for `conf-toml-mode'.
 Handles recognizing TOML section names, like [section],
 \[[section]], or [something.\"else\".section]."
-  (save-excursion
-    ;; Skip any number of "[" to handle things like [[section]].
-    (when (re-search-forward "^\\s-*\\[+" limit t)
-      (let ((start (point)))
-        (backward-char)
-        (let ((end (min limit
-                        (condition-case nil
-                            (progn
-                              (forward-list)
-                              (1- (point)))
-                          (scan-error
-                           (end-of-line)
-                           (point))))))
-          ;; If there is a comma in the text, then we assume this is
-          ;; an array and not a section.  (This could be refined to
-          ;; look only for unquoted commas if necessary.)
-          (save-excursion
-            (goto-char start)
-            (unless (search-forward "," end t)
-              (set-match-data (list start end))
-              t)))))))
+  ;; Skip any number of "[" to handle things like [[section]].
+  (when (re-search-forward "^\\s-*\\[+" limit t)
+    (let ((start (point)))
+      (backward-char)
+      (let ((end (min limit
+                      (condition-case nil
+                          (progn
+                            (forward-list)
+                            (1- (point)))
+                        (scan-error
+                         (end-of-line)
+                         (point))))))
+        ;; If there is a comma in the text, then we assume this is
+        ;; an array and not a section.  (This could be refined to
+        ;; look only for unquoted commas if necessary.)
+        (save-excursion
+          (goto-char start)
+          (unless (search-forward "," end t)
+            (set-match-data (list start end))
+            t))))))
 
 ;;;###autoload
 (define-derived-mode conf-toml-mode conf-mode "Conf[TOML]"
@@ -643,7 +644,10 @@ For details see `conf-mode'.  Example:
 
 \[entry]
 value = \"some string\""
-  (conf-mode-initialize "#" 'conf-toml-font-lock-keywords)
+  (conf-mode-initialize "#")
+  ;; Booleans are "always lowercase", so we must *not* use case
+  ;; folding.  Therefore, we can't set it using `conf-mode-initialize´.
+  (setq-local font-lock-defaults `(,conf-toml-font-lock-keywords nil nil nil nil))
   (setq-local conf-assignment-column 0)
   (setq-local conf-assignment-sign ?=))
 

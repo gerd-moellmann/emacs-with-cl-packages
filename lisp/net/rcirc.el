@@ -1,6 +1,6 @@
 ;;; rcirc.el --- default, simple IRC client          -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2005-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2025 Free Software Foundation, Inc.
 
 ;; Author: Ryan Yeske <rcyeske@gmail.com>
 ;; Maintainers: Ryan Yeske <rcyeske@gmail.com>,
@@ -229,6 +229,12 @@ Uninteresting lines are those whose responses are listed in
 Used as the first arg to `format-time-string'."
   :type 'string)
 
+(defcustom rcirc-log-time-format "%d-%b %H:%M "
+  "Describes how timestamps are printed in the log files.
+Used as the first arg to `format-time-string'."
+  :version "30.1"
+  :type 'string )
+
 (defcustom rcirc-input-ring-size 1024
   "Size of input history ring."
   :type 'integer)
@@ -392,8 +398,9 @@ and the cdr part is used for encoding."
                                     (cons (coding-system :tag "Decode")
                                           (coding-system :tag "Encode")))))
 
-(defcustom rcirc-multiline-major-mode 'fundamental-mode
+(defcustom rcirc-multiline-major-mode #'text-mode
   "Major-mode function to use in multiline edit buffers."
+  :version "30.1"
   :type 'function)
 
 (defcustom rcirc-nick-completion-format "%s: "
@@ -1190,7 +1197,7 @@ With no argument or nil as argument, use the current buffer."
   "Return PROCESS server name, given by the 001 response."
   (with-rcirc-process-buffer process
     (or rcirc-server-name
-        (warn "server name for process %S unknown" process))))
+        (warn "Server name for process %S unknown" process))))
 
 (defun rcirc-nick (process)
   "Return PROCESS nick."
@@ -1397,10 +1404,10 @@ inserted."
   (interactive "P")
   (rcirc-format "\^_" replace))
 
-(defun rcirc-format-strike-trough (replace)
-  "Insert strike-trough formatting.
+(defun rcirc-format-strike-through (replace)
+  "Insert strike-through formatting.
 If REPLACE is non-nil or a prefix argument is given, any prior
-formatting will be replaced before the strike-trough formatting
+formatting will be replaced before the strike-through formatting
 is inserted."
   (interactive "P")
   (rcirc-format "\^^" replace))
@@ -1422,7 +1429,7 @@ inserted."
   "C-c C-f C-b" #'rcirc-format-bold
   "C-c C-f C-i" #'rcirc-format-italic
   "C-c C-f C-u" #'rcirc-format-underline
-  "C-c C-f C-s" #'rcirc-format-strike-trough
+  "C-c C-f C-s" #'rcirc-format-strike-through
   "C-c C-f C-f" #'rcirc-format-fixed-width
   "C-c C-f C-t" #'rcirc-format-fixed-width ;as in AucTeX
   "C-c C-f C-d" #'rcirc-unformat
@@ -1808,7 +1815,7 @@ extracted."
   "C-c C-f C-b" #'rcirc-format-bold
   "C-c C-f C-i" #'rcirc-format-italic
   "C-c C-f C-u" #'rcirc-format-underline
-  "C-c C-f C-s" #'rcirc-format-strike-trough
+  "C-c C-f C-s" #'rcirc-format-strike-through
   "C-c C-f C-f" #'rcirc-format-fixed-width
   "C-c C-f C-t" #'rcirc-format-fixed-width ;as in AucTeX
   "C-c C-f C-d" #'rcirc-unformat
@@ -2208,7 +2215,7 @@ disk.  PROCESS is the process object for the current connection."
                 (parse-iso8601-time-string time t))))
     (unless (null filename)
       (let ((cell (assoc-string filename rcirc-log-alist))
-            (line (concat (format-time-string rcirc-time-format time)
+            (line (concat (format-time-string rcirc-log-time-format time)
                           (substring-no-properties
                            (rcirc-format-response-string process sender
                                                          response target text))
@@ -2371,9 +2378,11 @@ This function does not alter the INPUT string."
   "C-c C-@"   #'rcirc-next-active-buffer
   "C-c C-SPC" #'rcirc-next-active-buffer)
 
-(defcustom rcirc-track-abbrevate-flag t
+(define-obsolete-variable-alias 'rcirc-track-abbrevate-flag
+  'rcirc-track-abbreviate-flag "30.1")
+(defcustom rcirc-track-abbreviate-flag t
   "Non-nil means `rcirc-track-minor-mode' should abbreviate names."
-  :version "28.1"
+  :version "30.1"
   :type 'boolean)
 
 ;;;###autoload
@@ -2439,7 +2448,8 @@ This function does not alter the INPUT string."
 
 (defun rcirc-next-active-buffer (arg)
   "Switch to the next rcirc buffer with activity.
-With prefix ARG, go to the next low priority buffer with activity."
+With prefix ARG, go to the next low priority buffer with activity.
+When there are no buffers with activity, bury all rcirc buffers."
   (interactive "P")
   (let* ((pair (rcirc-split-activity rcirc-activity))
          (lopri (car pair))
@@ -2528,9 +2538,25 @@ activity.  Only run if the buffer is not visible and
                                       (rcirc-activity-string lopri)
                                       ")"))
                          (and hipri "]")))
+                ;; Consistently don't display anything if there aren't
+                ;; any IRC connections.  Otherwise, whether we display
+                ;; "[]" or not depends on whether or not this function
+                ;; happens to have been called in this session yet.
+                ;;
+                ;; Consistently display nothing, rather than
+                ;; consistently displaying "[]", for the sake of the
+                ;; following sort of case: the user has enabled
+                ;; `rcirc-track-minor-mode' using the customization
+                ;; system, but also starts up Emacs instances that
+                ;; aren't used for IRC.  Due to the use of easy
+                ;; customization, `rcirc-track-minor-mode' will be
+                ;; turned on for every instance of Emacs.  But we don't
+                ;; want to take up valuable mode line space when, say,
+                ;; Emacs is started up as the value of EDITOR/VISUAL.
                 ((not (null (rcirc-process-list)))
                  "[]")
-                (t "[]")))
+                (t
+                 "")))
     (run-hooks 'rcirc-update-activity-string-hook)
     (force-mode-line-update t)))
 
@@ -2559,7 +2585,7 @@ activity.  Only run if the buffer is not visible and
     (funcall rcirc-channel-filter
              (replace-regexp-in-string
               "@.*?\\'" ""
-              (or (and rcirc-track-abbrevate-flag
+              (or (and rcirc-track-abbreviate-flag
                        rcirc-short-buffer-name)
                   (buffer-name))))))
 
@@ -2971,20 +2997,13 @@ keywords when no KEYWORD is given."
     browse-url-button-regexp)
   "Regexp matching URLs.  Set to nil to disable URL features in rcirc.")
 
-;; cf cl-remove-if-not
-(defun rcirc-condition-filter (condp lst)
-  "Remove all items not satisfying condition CONDP in list LST.
-CONDP is a function that takes a list element as argument and returns
-non-nil if that element should be included.  Returns a new list."
-  (delq nil (mapcar (lambda (x) (and (funcall condp x) x)) lst)))
-
 (defun rcirc-browse-url (&optional arg)
   "Prompt for URL to browse based on URLs in buffer before point.
 
 If ARG is given, opens the URL in a new browser window."
   (interactive "P")
   (let* ((point (point))
-         (filtered (rcirc-condition-filter
+         (filtered (seq-filter
                     (lambda (x) (>= point (cdr x)))
                     rcirc-urls))
          (completions (mapcar (lambda (x) (car x)) filtered))
@@ -3692,7 +3711,7 @@ Passwords are stored in `rcirc-authinfo' (which see)."
   "Notify user of an invitation from SENDER.
 ARGS should have the form (TARGET CHANNEL).  PROCESS is the
 process object for the current connection."
-  (let ((self (buffer-local-value 'rcirc-nick rcirc-process))
+  (let ((self (with-rcirc-process-buffer process rcirc-nick))
         (target (car args))
         (chan (cadr args)))
     ;; `rcirc-channel-filter' is not used here because joining
@@ -4001,6 +4020,11 @@ PROCESS is the process object for the current connection."
            when (and (= (length setting) 2)
                      (string-equal (downcase (car setting)) parameter))
            return (cadr setting)))
+
+(define-obsolete-function-alias 'rcirc-format-strike-trough
+  'rcirc-format-strike-through "30.1")
+
+(define-obsolete-function-alias 'rcirc-condition-filter #'seq-filter "30.1")
 
 (provide 'rcirc)
 

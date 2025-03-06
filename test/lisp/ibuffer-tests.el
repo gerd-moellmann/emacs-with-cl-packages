@@ -1,6 +1,6 @@
 ;;; ibuffer-tests.el --- Test suite. -*- lexical-binding: t -*-
 
-;; Copyright (C) 2015-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -34,7 +34,7 @@
 
 (ert-deftest ibuffer-0autoload ()       ; sort first
   "Tests to see whether ibuffer has been autoloaded"
-  (skip-unless (not (featurep 'ibuf-ext)))
+  (skip-when (featurep 'ibuf-ext))
   (should
    (fboundp 'ibuffer-mark-unsaved-buffers))
   (should

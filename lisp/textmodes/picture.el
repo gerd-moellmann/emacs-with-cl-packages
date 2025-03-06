@@ -1,10 +1,10 @@
 ;;; picture.el --- "Picture mode" -- editing using quarter-plane screen model -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1985-2025 Free Software Foundation, Inc.
 
 ;; Author: K. Shane Hartman
 ;; Maintainer: emacs-devel@gnu.org
-;; Keywords: convenience wp
+;; Keywords: convenience text
 
 ;; This file is part of GNU Emacs.
 
@@ -257,16 +257,23 @@ Use \"\\[command-apropos] picture-movement\" to see commands which control motio
 		   (> width 1)
 		   (< (abs picture-horizontal-step) 2))
 	      (* picture-horizontal-step 2)
-	    picture-horizontal-step)))
+	    picture-horizontal-step))
+         actual-col)
     (while (> arg 0)
       (setq arg (1- arg))
       (if (/= picture-desired-column (current-column))
-	  (move-to-column picture-desired-column t))
-      (let ((col (+ picture-desired-column width)))
+	  (setq actual-col (move-to-column picture-desired-column t))
+        (setq actual-col picture-desired-column))
+      (let ((col (+ actual-col width)))
 	(or (eolp)
-	    (let ((pos (point)))
-	      (move-to-column col t)
-	      (let ((old-width (string-width (buffer-substring pos (point)))))
+	    (let ((pos (point))
+                  (col0 (current-column))
+                  col1)
+	      (setq col1 (move-to-column col t))
+              ;; We count columns, not width, because move-to-column
+              ;; could insert TABs, which width depends on horizontal
+              ;; position.
+	      (let ((old-width (- (max col0 col1) (min col0 col1))))
 		(delete-region pos (point))
 		(when (> old-width width)
 		  (insert-char ?  (- old-width width))
@@ -383,7 +390,7 @@ Interactively, ARG is the numeric argument, and defaults to 1."
 The syntax for this variable is like the syntax used inside of `[...]'
 in a regular expression--but without the `[' and the `]'.
 It is NOT a regular expression, and should follow the usual
-rules for the contents of a character alternative.
+rules for the contents of a bracket expression.
 It defines a set of \"interesting characters\" to look for when setting
 \(or searching for) tab stops, initially \"!-~\" (all printing characters).
 For example, suppose that you are editing a table which is formatted thus:

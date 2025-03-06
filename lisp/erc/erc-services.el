@@ -1,6 +1,6 @@
 ;;; erc-services.el --- Identify to NickServ  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2002-2004, 2006-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2004, 2006-2025 Free Software Foundation, Inc.
 
 ;; Maintainer: Amin Bandali <bandali@gnu.org>, F. Jason Park <jp@neverwas.me>
 ;; URL: https://www.emacswiki.org/emacs/ErcNickserv
@@ -22,6 +22,13 @@
 
 ;;; Commentary:
 
+;; As of ERC 5.6, this library's main module, `services', mainly
+;; concerns itself with authenticating to legacy IRC servers.  If your
+;; server supports SASL or CERTFP, please use one of those instead.
+;; See (info "(erc) client-certificate") and (info "(erc) SASL") for
+;; details.  Note that this library also contains the local module
+;; `services-regain' as well as standalone utility functions.
+
 ;; There are two ways to go about identifying yourself automatically to
 ;; NickServ with this module.  The more secure way is to listen for identify
 ;; requests from the user NickServ.  Another way is to identify yourself to
@@ -37,10 +44,7 @@
 
 ;; Usage:
 ;;
-;; Put into your .emacs:
-;;
-;; (require 'erc-services)
-;; (erc-services-mode 1)
+;; Customize the option `erc-modules' to include `services'.
 ;;
 ;; Add your nickname and NickServ password to `erc-nickserv-passwords'.
 ;; Using the Libera.Chat network as an example:
@@ -50,10 +54,7 @@
 ;;
 ;; The default automatic identification mode is autodetection of NickServ
 ;; identify requests.  Set the variable `erc-nickserv-identify-mode' if
-;; you'd like to change this behavior.  You can also change the way
-;; automatic identification is handled by using:
-;;
-;; M-x erc-nickserv-identify-mode
+;; you'd like to change this behavior.
 ;;
 ;; If you'd rather not identify yourself automatically but would like access
 ;; to the functions contained in this file, just load this file without
@@ -102,6 +103,7 @@ You can also use \\[erc-nickserv-identify-mode] to change modes."
 	 (when (featurep 'erc-services)
 	   (erc-nickserv-identify-mode val))))
 
+;;;###autoload(put 'nickserv 'erc--module 'services)
 ;;;###autoload(autoload 'erc-services-mode "erc-services" nil t)
 (define-erc-module services nickserv
   "This mode automates communication with services."
@@ -308,21 +310,26 @@ Example of use:
      "/msg\\s-NickServ\\s-IDENTIFY\\s-\^_password"
      "NickServ@services.slashnet.org"
      "IDENTIFY" nil nil nil))
-   "Alist of NickServer details, sorted by network.
+  "Alist of NickServer details, sorted by network.
 Every element in the list has the form
-  (SYMBOL NICKSERV REGEXP NICK KEYWORD USE-CURRENT ANSWER SUCCESS-REGEXP)
+  (NETWORK SENDER INSTRUCT-RX NICK SUBCMD YOUR-NICK-P ANSWER SUCCESS-RX)
 
-SYMBOL is a network identifier, a symbol, as used in `erc-networks-alist'.
-NICKSERV is the description of the nickserv in the form nick!user@host.
-REGEXP is a regular expression matching the message from nickserv.
-NICK is nickserv's nickname.  Use nick@server where necessary/possible.
-KEYWORD is the keyword to use in the reply message to identify yourself.
-USE-CURRENT indicates whether the current nickname must be used when
-  identifying.
-ANSWER is the command to use for the answer.  The default is `privmsg'.
-SUCCESS-REGEXP is a regular expression matching the message nickserv
-  sends when you've successfully identified.
-The last two elements are optional."
+NETWORK is a network identifier, a symbol, as used in `erc-networks-alist'.
+SENDER is the exact nick!user@host \"source\" for \"NOTICE\" messages
+indicating success or requesting that the user identify.
+INSTRUCT-RX is a regular expression matching a \"NOTICE\" from the
+  services bot instructing the user to identify.  It must be non-null
+  when the option `erc-nickserv-identify-mode' is set to `autodetect'.
+  When it's `both', and this field is non-null, ERC will forgo
+  identifying on nick changes and after connecting.
+NICK is the nickname of the services bot to use when issuing commands.
+SUBCMD is the bot command for identifying, typically \"IDENTIFY\".
+YOUR-NICK-P indicates whether to send the user's current nickname before
+  their password when identifying.
+ANSWER is the command to use for the answer.  The default is \"PRIVMSG\".
+SUCCESS-RX is a regular expression matching the message NickServ sends
+  when you've successfully identified.
+The last two elements are optional, as are others, where implied."
    :type '(repeat
 	   (list :tag "Nickserv data"
 		 (symbol :tag "Network name")
@@ -511,6 +518,127 @@ Returns t if the identify message could be sent, nil otherwise."
     (erc-error "Cannot find a password for nickname %s"
                nick)
     nil))
+
+
+;;;; Regaining nicknames
+
+(defcustom erc-services-regain-alist nil
+  "Alist mapping networks to nickname-regaining functions.
+This option depends on the `services-regain' module being loaded.
+Keys can also be symbols for user-provided \"context IDs\" (see
+Info node `Network Identifier').  Functions run once, when first
+establishing a logical IRC connection.  Although ERC currently
+calls them with one argument, the desired but rejected nickname,
+robust user implementations should leave room for later additions
+by defining an &rest _ parameter, as well.
+
+The simplest value is `erc-services-retry-nick-on-connect', which
+attempts to kill off stale connections without engaging services
+at all.  Others, like `erc-services-issue-regain', and
+`erc-services-issue-ghost-and-retry-nick', only speak a
+particular flavor of NickServ.  See their respective doc strings
+for details and use cases."
+  :package-version '(ERC . "5.6")
+  :group 'erc-hooks
+  :type '(alist :key-type (symbol :tag "Network")
+                :value-type
+                (choice :tag "Strategy function"
+                        (function-item erc-services-retry-nick-on-connect)
+                        (function-item erc-services-issue-regain)
+                        (function-item erc-services-issue-ghost-and-retry-nick)
+                        function)))
+
+(defun erc-services-retry-nick-on-connect (want)
+  "Try at most once to grab nickname WANT after reconnecting.
+Expect to be used when automatically reconnecting to servers
+that are slow to abandon the previous connection.
+
+Note that this strategy may only work under certain conditions,
+such as when a user's account name matches their nick."
+  (erc-cmd-NICK want))
+
+(defun erc-services-issue-regain (want)
+  "Ask NickServ to regain nickname WANT.
+Assume WANT belongs to the user and that the services suite
+offers a \"REGAIN\" sub-command."
+  (erc-cmd-MSG (concat "NickServ REGAIN " want)))
+
+(defun erc-services-issue-ghost-and-retry-nick (want)
+  "Ask NickServ to \"GHOST\" nickname WANT.
+After which, attempt to grab WANT before the contending party
+reconnects.  Assume the ERC user owns WANT and that the server's
+services suite lacks a \"REGAIN\" command.
+
+Note that this function will only work for a specific services
+implementation and is meant primarily as an example for adapting
+as needed."
+  ;; While heuristics based on error text may seem brittle, consider
+  ;; the fact that \"is not online\" has been present in Atheme's
+  ;; \"GHOST\" responses since at least 2005.
+  (letrec ((attempts 3)
+           (on-notice
+            (lambda (_proc parsed)
+              (when-let ((nick (erc-extract-nick
+                                (erc-response.sender parsed)))
+                         ((erc-nick-equal-p nick "nickserv"))
+                         (contents (erc-response.contents parsed))
+                         (case-fold-search t)
+                         ((string-match (rx (or "ghost" "is not online"))
+                                        contents)))
+                (setq attempts 1)
+                (erc-server-send (concat "NICK " want) 'force))
+              (when (zerop (cl-decf attempts))
+                (remove-hook 'erc-server-NOTICE-functions on-notice t))
+              nil)))
+    (add-hook 'erc-server-NOTICE-functions on-notice nil t)
+    (erc-message "PRIVMSG" (concat "NickServ GHOST " want))))
+
+;;;###autoload(put 'services-regain 'erc--feature 'erc-services)
+(define-erc-module services-regain nil
+  "Reacquire a nickname from your past self or some interloper.
+This module only concerns itself with initial nick rejections
+that occur during connection registration in response to an
+opening \"NICK\" command.  More specifically, the following
+conditions must be met for ERC to activate this mechanism and
+consider its main option, `erc-services-regain-alist':
+
+  - the server must reject the opening \"NICK\" request
+  - ERC must request a temporary nickname
+  - the user must successfully authenticate
+
+In practical terms, this means that this module, which is still
+somewhat experimental, is likely only useful in conjunction with
+SASL authentication rather than the traditional approach provided
+by the `services' module it shares a library with (see Info
+node `(erc) SASL' for more)."
+  nil nil 'local)
+
+(cl-defmethod erc--nickname-in-use-make-request
+  ((want string) temp &context (erc-server-connected null)
+   (erc-services-regain-mode (eql t))
+   (erc-services-regain-alist cons))
+  "Schedule possible regain attempt upon establishing connection.
+Expect WANT to be the desired nickname and TEMP to be the current
+one."
+  (letrec
+      ((after-connect
+        (lambda (_ nick)
+          (remove-hook 'erc-after-connect after-connect t)
+          (when-let*
+              (((equal temp nick))
+               (conn (or (erc-networks--id-given erc-networks--id)
+                         (erc-network)))
+               (found (alist-get conn erc-services-regain-alist)))
+            (funcall found want))))
+       (on-900
+        (lambda (_ parsed)
+          (remove-hook 'erc-server-900-functions on-900 t)
+          (unless erc-server-connected
+            (when (equal (car (erc-response.command-args parsed)) temp)
+              (add-hook 'erc-after-connect after-connect nil t)))
+          nil)))
+    (add-hook 'erc-server-900-functions on-900 nil t))
+  (cl-call-next-method))
 
 (provide 'erc-services)
 

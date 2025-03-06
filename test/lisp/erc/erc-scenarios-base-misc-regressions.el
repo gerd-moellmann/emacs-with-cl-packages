@@ -1,6 +1,6 @@
 ;;; erc-scenarios-base-misc-regressions.el --- misc regressions scenarios -*- lexical-binding: t -*-
 
-;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -77,7 +77,7 @@ Originally from scenario rebuffed/gapless as explained in Bug#48598:
 
     (with-current-buffer (erc-d-t-wait-for 20 (get-buffer "#bar"))
       (funcall expect 10 "was created on")
-      (funcall expect 2 "his second fit"))
+      (funcall expect 10 "his second fit"))
 
     (with-current-buffer (erc-d-t-wait-for 20 (get-buffer "#foo"))
       (funcall expect 10 "was created on")
@@ -108,7 +108,7 @@ Originally from scenario rebuffed/gapless as explained in Bug#48598:
         (should (string= (buffer-name) (format "127.0.0.1:%d" port)))))
 
     (ert-info ("Server buffer is unique and temp name is absent")
-      (erc-d-t-wait-for 1 (get-buffer "FooNet"))
+      (erc-d-t-wait-for 10 (get-buffer "FooNet"))
       (should-not (erc-scenarios-common-buflist "127.0.0.1"))
       (with-current-buffer erc-server-buffer-foo
         (erc-cmd-JOIN "#chan")))

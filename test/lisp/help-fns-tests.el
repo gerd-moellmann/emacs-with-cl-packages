@@ -1,6 +1,6 @@
 ;;; help-fns-tests.el --- tests for help-fns.el  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2014-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2014-2025 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 
@@ -48,12 +48,12 @@ Return first line of the output of (describe-function-1 FUNC)."
     (should (string-match regexp result))))
 
 (ert-deftest help-fns-test-built-in ()
-  (let ((regexp "a built-in function in .C source code")
+  (let ((regexp "a primitive-function in .C source code")
         (result (help-fns-tests--describe-function 'mapcar)))
     (should (string-match regexp result))))
 
 (ert-deftest help-fns-test-interactive-built-in ()
-  (let ((regexp "an interactive built-in function in .C source code")
+  (let ((regexp "an interactive primitive-function in .C source code")
         (result (help-fns-tests--describe-function 're-search-forward)))
     (should (string-match regexp result))))
 
@@ -63,14 +63,14 @@ Return first line of the output of (describe-function-1 FUNC)."
     (should (string-match regexp result))))
 
 (ert-deftest help-fns-test-lisp-defun ()
-  (let ((regexp (if (featurep 'native-compile)
-                    "a native-compiled Lisp function in .+subr\\.el"
-                  "a byte-compiled Lisp function in .+subr\\.el"))
+  (let ((regexp "a \\([^ ]+\\) in .+subr\\.el")
         (result (help-fns-tests--describe-function 'last)))
-    (should (string-match regexp result))))
+    (should (string-match regexp result))
+    (should (member (match-string 1 result)
+                    '("native-comp-function" "byte-code-function")))))
 
 (ert-deftest help-fns-test-lisp-defsubst ()
-  (let ((regexp "a byte-compiled Lisp function in .+subr\\.el")
+  (let ((regexp "a byte-code-function in .+subr\\.el")
         (result (help-fns-tests--describe-function 'posn-window)))
     (should (string-match regexp result))))
 
@@ -132,6 +132,12 @@ Return first line of the output of (describe-function-1 FUNC)."
 
 
 ;;; Tests for describe-keymap
+
+(defvar-keymap help-fns-test-map
+  "a" 'test-cmd-a
+  "b" 'test-cmd-b
+  "c" 'test-cmd-c)
+
 (ert-deftest help-fns-test-find-keymap-name ()
   (should (equal (help-fns-find-keymap-name lisp-mode-map) 'lisp-mode-map))
   ;; Follow aliasing.
@@ -142,27 +148,32 @@ Return first line of the output of (describe-function-1 FUNC)."
     (makunbound 'foo-test-map)))
 
 (ert-deftest help-fns-test-describe-keymap/symbol ()
-  (describe-keymap 'minibuffer-local-must-match-map)
+  (describe-keymap 'help-fns-test-map)
   (with-current-buffer "*Help*"
-    (should (looking-at "^minibuffer-local-must-match-map is"))))
+    (should (looking-at "^help-fns-test-map is"))
+    (should (re-search-forward (rx word-start "a" word-end
+                                   (+ blank)
+                                   word-start "test-cmd-a" word-end)
+                               nil t))))
 
 (ert-deftest help-fns-test-describe-keymap/value ()
-  (describe-keymap minibuffer-local-must-match-map)
+  (describe-keymap help-fns-test-map)
   (with-current-buffer "*Help*"
     (should (looking-at "\nKey"))))
 
 (ert-deftest help-fns-test-describe-keymap/not-keymap ()
   (should-error (describe-keymap nil))
-  (should-error (describe-keymap emacs-version)))
+  (should-error (describe-keymap emacs-version))
+  (should-error (describe-keymap 'some-undefined-variable-foobar)))
 
 (ert-deftest help-fns-test-describe-keymap/let-bound ()
-  (let ((foobar minibuffer-local-must-match-map))
+  (let ((foobar help-fns-test-map))
     (describe-keymap foobar)
     (with-current-buffer "*Help*"
       (should (looking-at "\nKey")))))
 
 (ert-deftest help-fns-test-describe-keymap/dynamically-bound-no-file ()
-  (setq help-fns-test--describe-keymap-foo minibuffer-local-must-match-map)
+  (setq help-fns-test--describe-keymap-foo help-fns-test-map)
   (describe-keymap 'help-fns-test--describe-keymap-foo)
   (with-current-buffer "*Help*"
     (should (looking-at "^help-fns-test--describe-keymap-foo is"))))
@@ -180,10 +191,6 @@ Return first line of the output of (describe-function-1 FUNC)."
 
 (ert-deftest help-fns--analyze-function-recursive ()
   (defalias 'help-fns--a 'help-fns--b)
-  (should (equal (help-fns--analyze-function 'help-fns--a)
-                 '(help-fns--a help-fns--b t help-fns--b)))
-  ;; Make a loop and see that it doesn't infloop.
-  (defalias 'help-fns--b 'help-fns--a)
   (should (equal (help-fns--analyze-function 'help-fns--a)
                  '(help-fns--a help-fns--b t help-fns--b))))
 

@@ -1,6 +1,6 @@
 ;;; esh-util.el --- general utilities  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2025 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -94,13 +94,6 @@ a non-nil value, will be passed strings, not numbers, even when an
 argument matches `eshell-number-regexp'."
   :type 'boolean)
 
-(defcustom eshell-number-regexp "-?\\([0-9]*\\.\\)?[0-9]+\\(e[-0-9.]+\\)?"
-  "Regular expression used to match numeric arguments.
-If `eshell-convert-numeric-arguments' is non-nil, and an argument
-matches this regexp, it will be converted to a Lisp number, using the
-function `string-to-number'."
-  :type 'regexp)
-
 (defcustom eshell-ange-ls-uids nil
   "List of user/host/id strings, used to determine remote ownership."
   :type '(repeat (cons :tag "Host for User/UID map"
@@ -109,7 +102,33 @@ function `string-to-number'."
 				     (string :tag "Username")
 				     (repeat :tag "UIDs" string))))))
 
+(defcustom eshell-debug-command nil
+  "A list of debug features to enable when running Eshell commands.
+Possible entries are `form', to log the manipulation of Eshell
+command forms, and `process', to log external process operations.
+
+If nil, don't debug commands at all."
+  :version "30.1"
+  :type '(set (const :tag "Form manipulation" form)
+              (const :tag "Process operations" process)))
+
 ;;; Internal Variables:
+
+(defvar eshell-number-regexp
+  (rx (? "-")
+      (or (seq (+ digit) (? "." (* digit)))
+          (seq (* digit) "." (+ digit)))
+      ;; Optional exponent
+      (? (or "e" "E")
+         (or "+INF" "+NaN"
+             (seq (? (or "+" "-")) (+ digit)))))
+  "Regular expression used to match numeric arguments.
+If `eshell-convert-numeric-arguments' is non-nil, and an argument
+matches this regexp, it will be converted to a Lisp number, using the
+function `string-to-number'.")
+
+(defvar eshell-integer-regexp (rx (? "-") (+ digit))
+  "Regular expression used to match integer arguments.")
 
 (defvar eshell-group-names nil
   "A cache to hold the names of groups.")
@@ -122,6 +141,22 @@ function `string-to-number'."
 
 (defvar eshell-user-timestamp nil
   "A timestamp of when the user file was read.")
+
+(defvar eshell-command-output-properties
+  `( field command-output
+     front-sticky (field)
+     rear-nonsticky (field)
+     ;; Text inserted by a user in the middle of process output
+     ;; should be marked as output.  This is needed for commands
+     ;; such as `yank' or `just-one-space' which don't use
+     ;; `insert-and-inherit' and thus bypass default text property
+     ;; inheritance.
+     insert-in-front-hooks (,#'eshell--mark-as-output
+                            ,#'eshell--mark-yanked-as-output))
+  "A list of text properties to apply to command output.")
+
+(defvar eshell-debug-command-buffer "*eshell last cmd*"
+  "The name of the buffer to log debug messages about command invocation.")
 
 ;;; Obsolete variables:
 
@@ -142,16 +177,118 @@ function `string-to-number'."
   "If `eshell-handle-errors' is non-nil, this is `condition-case'.
 Otherwise, evaluates FORM with no error handling."
   (declare (indent 2) (debug (sexp form &rest form)))
-  (if eshell-handle-errors
-      `(condition-case-unless-debug ,tag
-	   ,form
-	 ,@handlers)
-    form))
+  `(if eshell-handle-errors
+       (condition-case-unless-debug ,tag
+           ,form
+         ,@handlers)
+     ,form))
+
+(defun eshell-debug-command-start (command)
+  "Start debugging output for the command string COMMAND.
+If debugging is enabled (see `eshell-debug-command'), this will
+start logging to `*eshell last cmd*'."
+  (when eshell-debug-command
+    (with-current-buffer (get-buffer-create eshell-debug-command-buffer)
+      (erase-buffer)
+      (insert "command: \"" command "\"\n"))))
+
+(defun eshell-always-debug-command (kind string &rest objects)
+  "Output a debugging message to `*eshell last cmd*'.
+KIND is the kind of message to log.  STRING and OBJECTS are as
+`format-message' (which see)."
+  (declare (indent 1))
+  (with-current-buffer (get-buffer-create eshell-debug-command-buffer)
+    (insert "\n\C-l\n[" (symbol-name kind) "] "
+            (apply #'format-message string objects))))
+
+(defmacro eshell-debug-command (kind string &rest objects)
+  "Output a debugging message to `*eshell last cmd*' if debugging is enabled.
+KIND is the kind of message to log (either `form' or `process').  If
+present in `eshell-debug-command', output this message; otherwise, ignore it.
+
+STRING and OBJECTS are as `format-message' (which see)."
+  (declare (indent 1))
+  (let ((kind-sym (make-symbol "kind")))
+    `(let ((,kind-sym ,kind))
+       (when (memq ,kind-sym eshell-debug-command)
+         (eshell-always-debug-command ,kind-sym ,string ,@objects)))))
+
+(defun eshell--mark-as-output (start end &optional object)
+  "Mark the text from START to END as Eshell output.
+OBJECT can be a buffer or string.  If nil, mark the text in the
+current buffer."
+  (with-silent-modifications
+    (add-text-properties start end eshell-command-output-properties
+                         object)))
+
+(defun eshell--mark-yanked-as-output (start end)
+  "Mark yanked text from START to END as Eshell output."
+  ;; `yank' removes the field text property from the text it inserts
+  ;; due to `yank-excluded-properties', so arrange for this text
+  ;; property to be reapplied in the `after-change-functions'.
+  (letrec ((hook
+            (lambda (start1 end1 _len1)
+              (remove-hook 'after-change-functions hook t)
+              (when (and (= start start1)
+                         (= end end1))
+                (eshell--mark-as-output start1 end1)))))
+    (add-hook 'after-change-functions hook nil t)))
+
+(defun eshell--unmark-string-as-output (string)
+  "Unmark STRING as Eshell output."
+  (remove-list-of-text-properties
+   0 (length string)
+   '(rear-nonsticky front-sticky field insert-in-front-hooks)
+   string)
+  string)
+
+(defsubst eshell--region-p (object)
+  "Return non-nil if OBJECT is a pair of numbers or markers."
+  (and (consp object)
+       (number-or-marker-p (car object))
+       (number-or-marker-p (cdr object))))
+
+(defmacro eshell-with-temp-command (command &rest body)
+  "Temporarily insert COMMAND into the buffer and execute the forms in BODY.
+
+COMMAND can be a string to insert, a cons cell (START . END)
+specifying a region in the current buffer, or (:file . FILENAME)
+to temporarily insert the contents of FILENAME.
+
+Before executing BODY, narrow the buffer to the text for COMMAND
+and set point to the beginning of the narrowed region.
+
+The value returned is the last form in BODY."
+  (declare (indent 1))
+  (let ((command-sym (make-symbol "command"))
+        (begin-sym (make-symbol "begin"))
+        (end-sym (make-symbol "end")))
+    `(let ((,command-sym ,command))
+       (if (eshell--region-p ,command-sym)
+           (save-restriction
+             (narrow-to-region (car ,command-sym) (cdr ,command-sym))
+             (goto-char (car ,command-sym))
+             ,@body)
+         ;; Since parsing relies partly on buffer-local state
+         ;; (e.g. that of `eshell-parse-argument-hook'), we need to
+         ;; perform the parsing in the Eshell buffer.
+         (let ((,begin-sym (point)) ,end-sym)
+           (with-silent-modifications
+             (if (stringp ,command-sym)
+                 (insert ,command-sym)
+               (forward-char (cadr (insert-file-contents (cdr ,command-sym)))))
+             (setq ,end-sym (point))
+             (unwind-protect
+                 (save-restriction
+                   (narrow-to-region ,begin-sym ,end-sym)
+                   (goto-char ,begin-sym)
+                   ,@body)
+               (delete-region ,begin-sym ,end-sym))))))))
 
 (defun eshell-find-delimiter
   (open close &optional bound reverse-p backslash-p)
   "From point, find the CLOSE delimiter corresponding to OPEN.
-The matching is bounded by BOUND. If REVERSE-P is non-nil,
+The matching is bounded by BOUND.  If REVERSE-P is non-nil,
 process the region backwards.
 
 If BACKSLASH-P is non-nil, or OPEN and CLOSE are different
@@ -280,7 +417,8 @@ as the $PATH was actually specified."
                                       (butlast (exec-path))))))
       (when (and (not literal-p)
                  (not remote)
-                 (eshell-under-windows-p))
+                 (eshell-under-windows-p)
+                 (not (member "." path)))
         (push "." path))
       (if (and remote (not literal-p))
           (mapcar (lambda (x) (concat remote x)) path)
@@ -310,29 +448,33 @@ Prepend remote identification of `default-directory', if any."
 	 (parse-colon-path path-env))
       (parse-colon-path path-env))))
 
-(defun eshell-split-path (path)
-  "Split a path into multiple subparts."
-  (let ((len (length path))
-	(i 0) (li 0)
-	parts)
-    (if (and (eshell-under-windows-p)
-	     (> len 2)
-	     (eq (aref path 0) ?/)
-	     (eq (aref path 1) ?/))
-	(setq i 2))
-    (while (< i len)
-      (if (and (eq (aref path i) ?/)
-	       (not (get-text-property i 'escaped path)))
-	  (setq parts (cons (if (= li i) "/"
-			      (substring path li (1+ i))) parts)
-		li (1+ i)))
-      (setq i (1+ i)))
-    (if (< li i)
-	(setq parts (cons (substring path li i) parts)))
-    (if (and (eshell-under-windows-p)
-	     (string-match "\\`[A-Za-z]:\\'" (car (last parts))))
-	(setcar (last parts) (concat (car (last parts)) "/")))
-    (nreverse parts)))
+(defun eshell-split-filename (filename)
+  "Split a FILENAME into a list of file/directory components."
+  (let* ((remote (file-remote-p filename))
+         (filename (file-local-name filename))
+         (len (length filename))
+         (index 0) (curr-start 0)
+         parts)
+    (when (and (eshell-under-windows-p)
+               (string-prefix-p "//" filename))
+      (setq index 2))
+    (while (< index len)
+      (when (eq (aref filename index) ?/)
+        (push (if (= curr-start index) "/"
+                (substring filename curr-start (1+ index)))
+              parts)
+        (setq curr-start (1+ index)))
+      (setq index (1+ index)))
+    (when (< curr-start len)
+      (push (substring filename curr-start) parts))
+    (setq parts (nreverse parts))
+    (when (and (eshell-under-windows-p)
+               (string-match "\\`[A-Za-z]:\\'" (car parts)))
+      (setcar parts (concat (car parts) "/")))
+    (if remote (cons remote parts) parts)))
+
+(define-obsolete-function-alias 'eshell-split-path
+  'eshell-split-filename "30.1")
 
 (defun eshell-to-flat-string (value)
   "Make value a string.  If separated by newlines change them to spaces."
@@ -362,9 +504,13 @@ Prepend remote identification of `default-directory', if any."
   "Convert each element of ARGS into a string value."
   (mapcar #'eshell-stringify args))
 
+(defsubst eshell-list-to-string (list)
+  "Convert LIST into a single string separated by spaces."
+  (mapconcat #'eshell-stringify list " "))
+
 (defsubst eshell-flatten-and-stringify (&rest args)
   "Flatten and stringify all of the ARGS into a single string."
-  (mapconcat #'eshell-stringify (flatten-tree args) " "))
+  (eshell-list-to-string (flatten-tree args)))
 
 (defsubst eshell-directory-files (regexp &optional directory)
   "Return a list of files in the given DIRECTORY matching REGEXP."
@@ -386,37 +532,21 @@ Prepend remote identification of `default-directory', if any."
 (defun eshell-printable-size (filesize &optional human-readable
 				       block-size use-colors)
   "Return a printable FILESIZE."
+  (when (and human-readable
+             (not (= human-readable 1000))
+             (not (= human-readable 1024)))
+    (error "human-readable must be 1000 or 1024"))
   (let ((size (float (or filesize 0))))
     (if human-readable
-	(if (< size human-readable)
-	    (if (= (round size) 0)
-		"0"
-	      (if block-size
-		  "1.0k"
-		(format "%.0f" size)))
-	  (setq size (/ size human-readable))
-	  (if (< size human-readable)
-	      (if (<= size 9.94)
-		  (format "%.1fk" size)
-		(format "%.0fk" size))
-	    (setq size (/ size human-readable))
-	    (if (< size human-readable)
-		(let ((str (if (<= size 9.94)
-			       (format "%.1fM" size)
-			     (format "%.0fM" size))))
-		  (if use-colors
-		      (put-text-property 0 (length str)
-					 'face 'bold str))
-		  str)
-	      (setq size (/ size human-readable))
-	      (if (< size human-readable)
-		  (let ((str (if (<= size 9.94)
-				 (format "%.1fG" size)
-			       (format "%.0fG" size))))
-		    (if use-colors
-			(put-text-property 0 (length str)
-					   'face 'bold-italic str))
-		    str)))))
+        (let* ((flavor (and (= human-readable 1000) 'si))
+               (str (file-size-human-readable size flavor)))
+          (if (not use-colors)
+              str
+            (cond ((> size (expt human-readable 3))
+                   (propertize str 'face 'bold-italic))
+                  ((> size (expt human-readable 2))
+                   (propertize str 'face 'bold))
+                  (t str))))
       (if block-size
 	  (setq size (/ size block-size)))
       (format "%.0f" size))))
@@ -445,15 +575,10 @@ list."
 	(cadr flist)
       (cdr flist))))
 
-(defsubst eshell-redisplay ()
-  "Allow Emacs to redisplay buffers."
-  ;; for some strange reason, Emacs 21 is prone to trigger an
-  ;; "args out of range" error in `sit-for', if this function
-  ;; runs while point is in the minibuffer and the users attempt
-  ;; to use completion.  Don't ask me.
-  (condition-case nil
-      (sit-for 0)
-    (error nil)))
+(defun eshell-user-login-name ()
+  "Return the connection-aware value of the user's login name.
+See also `user-login-name'."
+  (or (file-remote-p default-directory 'user) (user-login-name)))
 
 (defun eshell-read-passwd-file (file)
   "Return an alist correlating gids to group names in FILE."
@@ -576,8 +701,6 @@ list."
 	  (setq host-users (cdr host-users))
 	  (cdr (assoc user host-users))))))
 
-(autoload 'parse-time-string "parse-time")
-
 (eval-when-compile
   (require 'ange-ftp))		; ange-ftp-parse-filename
 
@@ -671,19 +794,18 @@ gid format.  Valid values are `string' and `integer', defaulting to
   "If the `processp' function does not exist, PROC is not a process."
   (and (fboundp 'processp) (processp proc)))
 
-(defun eshell-process-pair-p (procs)
-  "Return non-nil if PROCS is a pair of process objects."
-  (and (consp procs)
-       (eshell-processp (car procs))
-       (eshell-processp (cdr procs))))
+(defun eshell-process-list-p (procs)
+  "Return non-nil if PROCS is a list of process objects."
+  (and (listp procs)
+       (seq-every-p #'eshell-processp procs)))
 
-(defun eshell-make-process-pair (procs)
-  "Make a pair of process objects from PROCS if possible.
-This represents the head and tail of a pipeline of processes,
-where the head and tail may be the same process."
+(defun eshell-make-process-list (procs)
+  "Make a list of process objects from PROCS if possible.
+PROCS can be a single process or a list thereof.  If PROCS is
+anything else, return nil instead."
   (pcase procs
-    ((pred eshell-processp) (cons procs procs))
-    ((pred eshell-process-pair-p) procs)))
+    ((pred eshell-processp) (list procs))
+    ((pred eshell-process-list-p) procs)))
 
 ;; (defun eshell-copy-file
 ;;   (file newname &optional ok-if-already-exists keep-date)
@@ -760,6 +882,8 @@ where the head and tail may be the same process."
 If N or M is nil, it means the end of the list."
   (declare (obsolete seq-subseq "28.1"))
   (seq-subseq l n (1+ m)))
+
+(define-obsolete-function-alias 'eshell-redisplay #'redisplay "30.1")
 
 (provide 'esh-util)
 

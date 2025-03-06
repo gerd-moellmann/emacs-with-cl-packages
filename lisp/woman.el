@@ -1,6 +1,6 @@
 ;;; woman.el --- browse UN*X manual pages `wo (without) man'  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2000-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2025 Free Software Foundation, Inc.
 
 ;; Author: Francis J. Wright <F.J.Wright@qmul.ac.uk>
 ;; Maintainer: emacs-devel@gnu.org
@@ -92,7 +92,7 @@
 ;; (add-hook 'dired-mode-hook
 ;;          (lambda ()
 ;;            (define-key dired-mode-map "W" 'woman-dired-find-file)))
-;; and open the directory containing the man page file using dired,
+;; and open the directory containing the man page file using Dired,
 ;; put the cursor on the file, and press `W'.
 
 ;; In each case, the result should (!) be a buffer in Man mode showing
@@ -102,7 +102,7 @@
 ;; manual-browsing facility rather than `WoMan' -- this is
 ;; intentional!)
 
-;; (By default, WoMan will automatically define the dired keys "W" and
+;; (By default, WoMan will automatically define the Dired keys "W" and
 ;; "w" when it loads, but only if they are not already defined.  This
 ;; behavior is controlled by the user option `woman-dired-keys'.
 ;; Note that the `dired-x' (dired extra) package binds
@@ -1346,8 +1346,8 @@ PATH-DIRS should be a list of general manual directories (like
 manual directory regexps (like `woman-path').
 Ignore any paths that are unreadable or not directories."
   ;; Allow each path to be a single string or a list of strings:
-  (if (not (listp path-dirs)) (setq path-dirs (list path-dirs)))
-  (if (not (listp path-regexps)) (setq path-regexps (list path-regexps)))
+  (setq path-dirs (ensure-list path-dirs))
+  (setq path-regexps (ensure-list path-regexps))
   (let (head dirs path)
     (dolist (dir path-dirs)
       (when (consp dir)
@@ -1526,7 +1526,7 @@ Also make each path-info component into a list.
       (woman-dired-define-key key)))
 
 (defun woman-dired-define-keys ()
-  "Define dired keys to run WoMan according to `woman-dired-keys'."
+  "Define Dired keys to run WoMan according to `woman-dired-keys'."
   (if woman-dired-keys
       (if (listp woman-dired-keys)
 	  (mapc #'woman-dired-define-key woman-dired-keys)
@@ -1544,7 +1544,7 @@ Also make each path-info component into a list.
 
 ;;;###autoload
 (defun woman-dired-find-file ()
-  "In dired, run the WoMan man-page browser on this file."
+  "In Dired, run the WoMan man-page browser on this file."
   (interactive)
   (woman-find-file (dired-get-filename)))
 
@@ -1698,11 +1698,11 @@ Do not call directly!"
       (progn
 	(goto-char (point-min))
 	(while (search-forward "__\b\b" nil t)
-	  (backward-delete-char 4)
+	  (delete-char -4)
 	  (woman-set-face (point) (1+ (point)) 'woman-italic))
 	(goto-char (point-min))
 	(while (search-forward "\b\b__" nil t)
-	  (backward-delete-char 4)
+	  (delete-char -4)
 	  (woman-set-face (1- (point)) (point) 'woman-italic))))
 
   ;; Interpret overprinting to indicate bold face:
@@ -1854,7 +1854,6 @@ Argument EVENT is the invoking mouse event."
 
 (defun woman-reset-emulation (value)
   "Reset `woman-emulation' to VALUE and reformat, for menu use."
-  (interactive)
   (setq woman-emulation value)
   (woman-reformat-last-file))
 
@@ -2089,8 +2088,6 @@ European characters."
 
 
 ;;; The main decoding driver:
-
-(defvar font-lock-mode)			; for the compiler
 
 (defun woman-decode-buffer ()
   "Decode a buffer in UN*X man-page source format.
@@ -2569,7 +2566,8 @@ If DELETE is non-nil then delete from point."
 		       ;; "\\(\\\\{\\)\\|\\(\n[.']\\)?[ \t]*\\\\}[ \t]*"
 		       ;; Interpret bogus `el \}' as `el \{',
 		       ;; especially for Tcl/Tk man pages:
-		       "\\(\\\\{\\|el[ \t]*\\\\}\\)\\|\\(\n[.']\\)?[ \t]*\\\\}[ \t]*")
+		       "\\(\\\\{\\|el[ \t]*\\\\}\\)\\|\\(\n[.']\\)?[ \t]*\\\\}[ \t]*"
+                       nil t)
 		      (match-beginning 1))
 	       (re-search-forward "\\\\}"))
 	     (delete-region (if delete from (match-beginning 0)) (point))

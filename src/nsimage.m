@@ -1,5 +1,5 @@
 /* Image support for the NeXT/Open/GNUstep and macOS window system.
-   Copyright (C) 1989, 1992-1994, 2005-2006, 2008-2024 Free Software
+   Copyright (C) 1989, 1992-1994, 2005-2006, 2008-2025 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -77,6 +77,10 @@ ns_can_use_native_image_api (Lisp_Object type)
 #ifndef HAVE_RSVG
   else if (EQ (type, Qsvg))
     imageType = @"public.svg-image";
+#endif
+#ifndef HAVE_WEBP
+  else if (EQ (type, Qwebp))
+    imageType = @"org.webmproject.webp";
 #endif
   else if (EQ (type, Qheic))
     imageType = @"public.heic";

@@ -1,6 +1,6 @@
 ;;; recentf.el --- keep track of recently opened files  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1999-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2025 Free Software Foundation, Inc.
 
 ;; Author: David Ponce <david@dponce.com>
 ;; Created: July 19 1999
@@ -112,11 +112,15 @@ must return non-nil to exclude it."
   :group 'recentf
   :type '(repeat (choice regexp function)))
 
+(defun recentf-access-file (filename)
+  "Check whether FILENAME is accessible."
+  (ignore-errors (not (access-file filename "Checking recentf file"))))
+
 (defun recentf-keep-default-predicate (file)
   "Return non-nil if FILE should be kept in the recent list.
 It handles the case of remote files as well."
   (cond
-   ((file-remote-p file nil t) (file-readable-p file))
+   ((file-remote-p file nil t) (recentf-access-file file))
    ((file-remote-p file))
    ((file-readable-p file))))
 
@@ -519,9 +523,9 @@ See also the command `recentf-open-most-recent-file'."
 
 (defvar recentf-menu-items-for-commands
   (list
-   ["Cleanup list"
+   ["Clean up list"
     recentf-cleanup
-    :help "Remove duplicates, and obsoletes files from the recent list"
+    :help "Remove duplicates, and obsolete files from the recent list"
     :active t]
    ["Edit list..."
     recentf-edit-list
@@ -801,25 +805,31 @@ Filenames are relative to the `default-directory'."
 ;;; Rule based menu filters
 ;;
 (defcustom recentf-arrange-rules
-  '(
-    ("Elisp files (%d)" ".\\.el\\'")
-    ("Java files (%d)"  ".\\.java\\'")
-    ("C/C++ files (%d)" "c\\(pp\\)?\\'")
+  `(
+    ("Elisp files (%d)" ,(rx nonl ".el" eos))
+    ("C/C++ files (%d)" ,(rx nonl "."
+                             (or "c" "cc" "cpp" "h" "hpp" "cxx" "hxx")
+                             eos))
+    ("Python files (%d)" ,(rx nonl ".py" eos))
+    ("Java files (%d)" ,(rx nonl ".java" eos))
     )
   "List of rules used by `recentf-arrange-by-rule' to build sub-menus.
+
 A rule is a pair (SUB-MENU-TITLE . MATCHER).  SUB-MENU-TITLE is the
 displayed title of the sub-menu where a `%d' `format' pattern is
 replaced by the number of items in the sub-menu.  MATCHER is a regexp
 or a list of regexps.  Items matching one of the regular expressions in
 MATCHER are added to the corresponding sub-menu.
-SUB-MENU-TITLE can be a function.  It is passed every items that
+
+SUB-MENU-TITLE can be a function.  It is passed every item that
 matched the corresponding MATCHER, and it must return a
 pair (SUB-MENU-TITLE . ITEM).  SUB-MENU-TITLE is a computed sub-menu
 title that can be another function.  ITEM is the received item which
 may have been modified to match another rule."
   :group 'recentf-filters
   :type '(repeat (cons (choice string function)
-                       (repeat regexp))))
+                       (repeat regexp)))
+  :version "30.1")
 
 (defcustom recentf-arrange-by-rule-others "Other files (%d)"
   "Title of the `recentf-arrange-by-rule' sub-menu.

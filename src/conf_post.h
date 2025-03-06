@@ -1,6 +1,6 @@
 /* conf_post.h --- configure.ac includes this via AH_BOTTOM
 
-Copyright (C) 1988, 1993-1994, 1999-2002, 2004-2024 Free Software
+Copyright (C) 1988, 1993-1994, 1999-2002, 2004-2025 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -183,8 +183,8 @@ You lose; /* Emacs for DOS must be compiled with DJGPP */
 
 /* Things that lib/reg* wants.  */
 
-#define mbrtowc(pwc, s, n, ps) mbtowc ((pwc), (s), (n))
-#define wcrtomb(s, wc, ps) wctomb ((s), (wc))
+#define mbrtowc(pwc, s, n, ps) mbtowc (pwc, s, n)
+#define wcrtomb(s, wc, ps) wctomb (s, wc)
 #define btowc(b) ((wchar_t) (b))
 #define towupper(chr) toupper (chr)
 #define towlower(chr) tolower (chr)
@@ -322,7 +322,7 @@ extern int emacs_setenv_TZ (char const *);
   type _GL_ATTRIBUTE_MAY_ALIAS *name = (type *) (addr)
 
 #if 3 <= __GNUC__
-# define ATTRIBUTE_SECTION(name) __attribute__((section (name)))
+# define ATTRIBUTE_SECTION(name) __attribute__ ((section (name)))
 #else
 # define ATTRIBUTE_SECTION(name)
 #endif
@@ -466,3 +466,17 @@ extern int emacs_setenv_TZ (char const *);
 #else
 # define UNINIT /* empty */
 #endif
+
+/* MB_CUR_MAX is often broken on systems which copy-paste LLVM
+   headers, so replace its definition with a working one if
+   necessary.  */
+
+#ifdef REPLACEMENT_MB_CUR_MAX
+#include <stdlib.h>
+#undef MB_CUR_MAX
+#define MB_CUR_MAX REPLACEMENT_MB_CUR_MAX
+#endif /* REPLACEMENT_MB_CUR_MAX */
+
+/* Emacs does not need glibc strftime behavior for AM and PM
+   indicators.  */
+#define REQUIRE_GNUISH_STRFTIME_AM_PM false

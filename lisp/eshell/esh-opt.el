@@ -1,6 +1,6 @@
 ;;; esh-opt.el --- command options processing  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2025 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -28,6 +28,11 @@
 ;; Macro expansion of eshell-eval-using-options refers to eshell-stringify-list
 ;; defined in esh-util.
 (require 'esh-util)
+
+(defgroup eshell-opt nil
+  "Functions for argument parsing in Eshell commands."
+  :tag "Option parsing"
+  :group 'eshell)
 
 (defmacro eshell-eval-using-options (name macro-args options &rest body-forms)
   "Process NAME's MACRO-ARGS using a set of command line OPTIONS.
@@ -95,29 +100,37 @@ the new process for its value.
 Lastly, any remaining arguments will be available in the locally
 let-bound variable `args'."
   (declare (debug (form form sexp body)))
-  `(let* ((temp-args
-           ,(if (memq ':preserve-args (cadr options))
-                (list 'copy-tree macro-args)
-              (list 'eshell-stringify-list
-                    (list 'flatten-tree macro-args))))
-          (processed-args (eshell--do-opts ,name ,options temp-args ,macro-args))
-          ,@(delete-dups
-             (delq nil (mapcar (lambda (opt)
-                                 (and (listp opt) (nth 3 opt)
-                                      `(,(nth 3 opt) (pop processed-args))))
-                               ;; `options' is of the form (quote OPTS).
-                               (cadr options))))
-          (args processed-args))
-     ;; Silence unused lexical variable warning if body does not use `args'.
-     (ignore args)
-     ,@body-forms))
+  (let ((option-syms (eshell--get-option-symbols
+                      ;; `options' is of the form (quote OPTS).
+                      (cadr options))))
+    `(let* ((temp-args
+             ,(if (memq ':preserve-args (cadr options))
+                  (list 'copy-tree macro-args)
+                (list 'eshell-stringify-list
+                      (list 'flatten-tree macro-args))))
+            (args (eshell--do-opts ,name temp-args ,macro-args
+                                   ,options ',option-syms))
+            ;; Bind all the option variables.  When done, `args' will
+            ;; contain any remaining positional arguments.
+            ,@(mapcar (lambda (sym) `(,sym (pop args))) option-syms))
+       ;; Silence unused lexical variable warning if body does not use `args'.
+       (ignore args)
+       ,@body-forms)))
 
 ;;; Internal Functions:
 
 ;; Documented part of the interface; see eshell-eval-using-options.
 (defvar eshell--args)
 
-(defun eshell--do-opts (name options args orig-args)
+(defun eshell--get-option-symbols (options)
+  "Get a list of symbols for the specified OPTIONS.
+OPTIONS is a list of command-line options from
+`eshell-eval-using-options' (which see)."
+  (delete-dups
+   (delq nil (mapcar (lambda (opt) (and (listp opt) (nth 3 opt)))
+                     options))))
+
+(defun eshell--do-opts (name args orig-args options option-syms)
   "Helper function for `eshell-eval-using-options'.
 This code doesn't really need to be macro expanded everywhere."
   (require 'esh-ext)
@@ -129,10 +142,11 @@ This code doesn't really need to be macro expanded everywhere."
                     (if (and (= (length args) 0)
                              (memq ':show-usage options))
                         (eshell-show-usage name options)
-                      (setq args (eshell--process-args name args options))
+                      (setq args (eshell--process-args name args options
+                                                       option-syms))
                       nil))))
              (when usage-msg
-               (error "%s" usage-msg))))))
+               (user-error "%s" usage-msg))))))
     (if ext-command
         (throw 'eshell-external
                (eshell-external-command ext-command orig-args))
@@ -237,7 +251,7 @@ remaining characters in SWITCH to be processed later as further short
 options.
 
 If no matching handler is found, and an :external command is defined
-(and available), it will be called; otherwise, an error will be
+\(and available), it will be called; otherwise, an error will be
 triggered to say that the switch is unrecognized."
   (let ((switch (eshell--split-switch switch kind))
         (opts options)
@@ -264,16 +278,13 @@ triggered to say that the switch is unrecognized."
                    "%s: unrecognized option --%s")
                  name (car switch)))))))
 
-(defun eshell--process-args (name args options)
-  "Process the given ARGS using OPTIONS."
-  (let* ((seen ())
-         (opt-vals (delq nil (mapcar (lambda (opt)
-                                       (when (listp opt)
-                                         (let ((sym (nth 3 opt)))
-                                           (when (and sym (not (memq sym seen)))
-					     (push sym seen)
-                                             (list sym)))))
-				     options)))
+(defun eshell--process-args (name args options option-syms)
+  "Process the given ARGS for the command NAME using OPTIONS.
+OPTION-SYMS is a list of symbols that will hold the processed arguments.
+
+Return a list of values corresponding to each element in OPTION-SYMS,
+followed by any additional positional arguments."
+  (let* ((opt-vals (mapcar #'list option-syms))
          (ai 0) arg
          (eshell--args args)
          (pos-argument-found nil))

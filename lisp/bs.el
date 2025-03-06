@@ -1,6 +1,6 @@
 ;;; bs.el --- menu for selecting and displaying buffers -*- lexical-binding: t -*-
 
-;; Copyright (C) 1998-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2025 Free Software Foundation, Inc.
 
 ;; Author: Olaf Sylvester <Olaf.Sylvester@netsurf.de>
 ;; Maintainer: emacs-devel@gnu.org
@@ -420,9 +420,6 @@ naming a sort behavior.  Default is \"by nothing\" which means no sorting."
 Non-nil means to show all buffers.  Otherwise show buffers
 defined by current configuration `bs-current-configuration'.")
 
-(defvar bs--window-config-coming-from nil
-  "Window configuration before starting Buffer Selection Menu.")
-
 (defvar bs--intern-show-never "^ \\|\\*buffer-selection\\*"
   "Regular expression specifying which buffers never to show.
 A buffer whose name matches this regular expression will never be
@@ -490,6 +487,23 @@ Used internally, only.")
   "?"       #'describe-mode
   "<mouse-2>" #'bs-mouse-select
   "<mouse-3>" #'bs-mouse-select-other-frame)
+
+(defcustom bs-default-action-list '((display-buffer-reuse-window
+				     display-buffer-below-selected)
+				    (reusable-frames . nil)
+				    (window-height . window-min-height))
+  "Default action list for showing the '*bs-selection*' buffer.
+
+This list will be passed to `pop-to-buffer' as its ACTION argument.
+It should be a cons cell (FUNCTIONS . ALIST), where FUNCTIONS is
+an action function or a list of action functions and ALIST is an
+action alist.  Each such action function should accept two
+arguments: a buffer to display and an alist of the same form as
+ALIST.  See `display-buffer' for details."
+  :type display-buffer--action-custom-type
+  :risky t
+  :version "30.1"
+  :group 'bs)
 
 ;; ----------------------------------------------------------------------
 ;; Functions
@@ -590,21 +604,6 @@ in `bs-string-current' or `bs-string-current-marked'."
     (format "Show buffer by configuration %S"
 	    bs-current-configuration)))
 
-(defun bs--track-window-changes (frame)
-  "Track window changes to refresh the buffer list.
-Used from `window-size-change-functions'."
-  (let ((win (get-buffer-window "*buffer-selection*" frame)))
-    (when win
-      (with-selected-window win
-	(bs--set-window-height)))))
-
-(defun bs--remove-hooks ()
-  "Remove `bs--track-window-changes' and auxiliary hooks."
-  (remove-hook 'window-size-change-functions 'bs--track-window-changes)
-  ;; Remove itself
-  (remove-hook 'kill-buffer-hook 'bs--remove-hooks t)
-  (remove-hook 'change-major-mode-hook 'bs--remove-hooks t))
-
 (put 'bs-mode 'mode-class 'special)
 
 (define-derived-mode bs-mode nil "Buffer-Selection-Menu"
@@ -663,25 +662,13 @@ apply it.
   (setq-local font-lock-defaults '(bs-mode-font-lock-keywords t))
   (setq-local font-lock-verbose nil)
   (setq-local font-lock-global-modes '(not bs-mode))
-  (setq-local revert-buffer-function 'bs-refresh)
-  (add-hook 'window-size-change-functions 'bs--track-window-changes)
-  (add-hook 'kill-buffer-hook 'bs--remove-hooks nil t)
-  (add-hook 'change-major-mode-hook 'bs--remove-hooks nil t))
-
-(defun bs--restore-window-config ()
-  "Restore window configuration on the current frame."
-  (when bs--window-config-coming-from
-    (let ((frame (selected-frame)))
-      (unwind-protect
-	   (set-window-configuration bs--window-config-coming-from)
-	(select-frame frame)))
-    (setq bs--window-config-coming-from nil)))
+  (setq-local revert-buffer-function 'bs-refresh))
 
 (defun bs-kill ()
   "Let buffer disappear and reset window configuration."
   (interactive)
   (bury-buffer (current-buffer))
-  (bs--restore-window-config))
+  (quit-window))
 
 (defun bs-abort ()
   "Ding and leave Buffer Selection Menu without a selection."
@@ -705,7 +692,9 @@ Arguments are IGNORED (for `revert-buffer')."
 (defun bs--set-window-height ()
   "Change the height of the selected window to suit the current buffer list."
   (unless (one-window-p t)
-    (fit-window-to-buffer (selected-window) bs-max-window-height)))
+    (fit-window-to-buffer (selected-window) bs-max-window-height nil nil nil
+			  ;; preserve-size
+			  t)))
 
 (defun bs--current-buffer ()
   "Return buffer on current line.
@@ -742,7 +731,7 @@ Leave Buffer Selection Menu."
   (interactive)
   (let ((buffer (bs--current-buffer)))
     (bury-buffer (current-buffer))
-    (bs--restore-window-config)
+    (quit-window)
     (switch-to-buffer buffer)
     (when bs--marked-buffers
       ;; Some marked buffers for selection
@@ -765,7 +754,7 @@ Leave Buffer Selection Menu."
   (interactive)
   (let ((buffer (bs--current-buffer)))
     (bury-buffer (current-buffer))
-    (bs--restore-window-config)
+    (quit-window)
     (switch-to-buffer-other-window buffer)))
 
 (defun bs-tmp-select-other-window ()
@@ -781,7 +770,7 @@ Leave Buffer Selection Menu."
   (interactive)
   (let ((buffer (bs--current-buffer)))
     (bury-buffer (current-buffer))
-    (bs--restore-window-config)
+    (quit-window)
     (switch-to-buffer-other-frame buffer)))
 
 (defun bs-mouse-select-other-frame (event)
@@ -944,7 +933,7 @@ WHAT is a value of nil, `never', or `always'."
 			     (end-of-line)
 			     (if (eobp) (point) (1+ (point)))))
     (when (eobp)
-      (backward-delete-char 1)
+      (delete-char -1)
       (beginning-of-line)
       (recenter -1))
     (bs--set-window-height)))
@@ -1165,7 +1154,18 @@ Select buffer *buffer-selection* and display buffers according to current
 configuration `bs-current-configuration'.  Set window height, fontify buffer
 and move point to current buffer."
   (setq bs-current-list list)
-  (switch-to-buffer (get-buffer-create "*buffer-selection*"))
+  (let* ((window-combination-limit 'window-size)
+	 (bs-buf (get-buffer-create "*buffer-selection*"))
+	 (bs-win (progn
+		   (pop-to-buffer bs-buf bs-default-action-list)
+		   (selected-window))))
+    ;; Delete other windows showing *buffer-selection*.
+    ;; Done after pop-to-buffer, instead of just calling delete-windows-on,
+    ;; to allow display-buffer-reuse(-mode)?-window to be used in ALIST.
+    (dolist (w (get-buffer-window-list bs-buf 'not t))
+      (unless (eq w bs-win)
+	(with-demoted-errors "Error deleting window: %S"
+	  (delete-window w)))))
   (bs-mode)
   (let* ((inhibit-read-only t)
 	 (map-fun (lambda (entry)
@@ -1346,11 +1346,11 @@ ALL-BUFFERS is the list of buffers appearing in Buffer Selection Menu."
               'help-echo "mouse-2: select this buffer, mouse-3: select in other frame"
               'mouse-face 'highlight))
 
-(defun bs--get-mode-name (start-buffer _all-buffers)
+(defun bs--get-mode-name (_start-buffer _all-buffers)
   "Return the name of mode of current buffer for Buffer Selection Menu.
 START-BUFFER is the buffer where we started buffer selection.
 ALL-BUFFERS is the list of buffers appearing in Buffer Selection Menu."
-  (format-mode-line mode-name nil nil start-buffer))
+  (format-mode-line mode-name nil nil nil))
 
 (defun bs--get-file-name (_start-buffer _all-buffers)
   "Return string for column `File' in Buffer Selection Menu.
@@ -1435,21 +1435,8 @@ for buffer selection."
       ;; Only when not in buffer *buffer-selection*
       ;; we have to set the buffer we started the command
       (setq bs--buffer-coming-from (current-buffer)))
-    (let ((liste (bs-buffer-list))
-	  (active-window (get-window-with-predicate
-			  (lambda (w)
-			    (string= (buffer-name (window-buffer w))
-				     "*buffer-selection*"))
-			  nil (selected-frame))))
-      (if active-window
-	  (select-window active-window)
-	(bs--restore-window-config)
-	(setq bs--window-config-coming-from (current-window-configuration))
-	(when (> (window-height) 7)
-          ;; Errors would mess with the window configuration (bug#10882).
-          (ignore-errors (select-window (split-window-below)))))
-      (bs-show-in-buffer liste)
-      (bs-message-without-log "%s" (bs--current-config-message)))))
+    (bs-show-in-buffer (bs-buffer-list))
+    (bs-message-without-log "%s" (bs--current-config-message))))
 
 (defun bs--configuration-name-for-prefix-arg (prefix)
   "Convert prefix argument PREFIX to a name of a buffer configuration.

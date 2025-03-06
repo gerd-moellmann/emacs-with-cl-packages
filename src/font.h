@@ -1,5 +1,5 @@
 /* font.h -- Interface definition for font handling.
-   Copyright (C) 2006-2024 Free Software Foundation, Inc.
+   Copyright (C) 2006-2025 Free Software Foundation, Inc.
    Copyright (C) 2006, 2007, 2008, 2009, 2010, 2011
      National Institute of Advanced Industrial Science and Technology (AIST)
      Registration Number H13PRO009
@@ -191,16 +191,16 @@ enum font_property_index
 
 /* Return the numeric weight value of FONT.  */
 #define FONT_WEIGHT_NUMERIC(font)		\
-  (FIXNUMP (AREF ((font), FONT_WEIGHT_INDEX))	\
-   ? (XFIXNUM (AREF ((font), FONT_WEIGHT_INDEX)) >> 8) : -1)
+  (FIXNUMP (AREF (font, FONT_WEIGHT_INDEX))	\
+   ? (XFIXNUM (AREF (font, FONT_WEIGHT_INDEX)) >> 8) : -1)
 /* Return the numeric slant value of FONT.  */
 #define FONT_SLANT_NUMERIC(font)		\
-  (FIXNUMP (AREF ((font), FONT_SLANT_INDEX))	\
-   ? (XFIXNUM (AREF ((font), FONT_SLANT_INDEX)) >> 8) : -1)
+  (FIXNUMP (AREF (font, FONT_SLANT_INDEX))	\
+   ? (XFIXNUM (AREF (font, FONT_SLANT_INDEX)) >> 8) : -1)
 /* Return the numeric width value of FONT.  */
 #define FONT_WIDTH_NUMERIC(font)		\
-  (FIXNUMP (AREF ((font), FONT_WIDTH_INDEX))	\
-   ? (XFIXNUM (AREF ((font), FONT_WIDTH_INDEX)) >> 8) : -1)
+  (FIXNUMP (AREF (font, FONT_WIDTH_INDEX))	\
+   ? (XFIXNUM (AREF (font, FONT_WIDTH_INDEX)) >> 8) : -1)
 /* Return the symbolic weight value of FONT.  */
 #define FONT_WEIGHT_SYMBOLIC(font)	\
   font_style_symbolic (font, FONT_WEIGHT_INDEX, false)
@@ -222,19 +222,19 @@ enum font_property_index
 
 /* Return the numeric weight value corresponding to the symbol NAME.  */
 #define FONT_WEIGHT_NAME_NUMERIC(name)	\
-  (font_style_to_value (FONT_WEIGHT_INDEX, (name), false) >> 8)
+  (font_style_to_value (FONT_WEIGHT_INDEX, name, false) >> 8)
 /* Return the numeric slant value corresponding to the symbol NAME.  */
 #define FONT_SLANT_NAME_NUMERIC(name)	\
-  (font_style_to_value (FONT_SLANT_INDEX, (name), false) >> 8)
+  (font_style_to_value (FONT_SLANT_INDEX, name, false) >> 8)
 /* Return the numeric width value corresponding to the symbol NAME.  */
 #define FONT_WIDTH_NAME_NUMERIC(name)	\
-  (font_style_to_value (FONT_WIDTH_INDEX, (name), false) >> 8)
+  (font_style_to_value (FONT_WIDTH_INDEX, name, false) >> 8)
 
 /* Set the font property PROP of FONT to VAL.  PROP is one of
    style-related font property index (FONT_WEIGHT/SLANT/WIDTH_INDEX).
    VAL (integer or symbol) is the numeric or symbolic style value.  */
 #define FONT_SET_STYLE(font, prop, val)	\
-  ASET ((font), prop, make_fixnum (font_style_to_value (prop, val, true)))
+  ASET (font, prop, make_fixnum (font_style_to_value (prop, val, true)))
 
 #ifndef MSDOS
 #define FONT_WIDTH(f) ((f)->max_width)
@@ -260,6 +260,11 @@ struct font_entity
 {
   union vectorlike_header header;
   Lisp_Object props[FONT_ENTITY_MAX];
+
+#if defined HAVE_ANDROID && !defined ANDROID_STUBIFY
+  /* Whether or not this is an Android font entity.  */
+  bool is_android;
+#endif
 };
 
 /* A value which may appear in the member `encoding' of struct font
@@ -544,7 +549,7 @@ GC_XFONT_OBJECT (Lisp_Object p)
   return XUNTAG (p, Lisp_Vectorlike, struct font);
 }
 
-#define XSETFONT(a, b) (XSETPSEUDOVECTOR (a, b, PVEC_FONT))
+#define XSETFONT(a, b) XSETPSEUDOVECTOR (a, b, PVEC_FONT)
 
 INLINE struct font *
 CHECK_FONT_GET_OBJECT (Lisp_Object x)
@@ -553,8 +558,14 @@ CHECK_FONT_GET_OBJECT (Lisp_Object x)
   return XFONT_OBJECT (x);
 }
 
+#ifndef HAVE_ANDROID
 /* Number of pt per inch (from the TeXbook).  */
 #define PT_PER_INCH 72.27
+#else
+/* Android uses this value instead to compensate for different device
+   dimensions.  */
+#define PT_PER_INCH 160.00
+#endif
 
 /* Return a pixel size (integer) corresponding to POINT size (double)
    on resolution DPI.  */
@@ -829,6 +840,9 @@ extern Lisp_Object copy_font_spec (Lisp_Object);
 extern Lisp_Object merge_font_spec (Lisp_Object, Lisp_Object);
 
 extern Lisp_Object font_make_entity (void);
+#ifdef HAVE_ANDROID
+extern Lisp_Object font_make_entity_android (int);
+#endif
 extern Lisp_Object font_make_object (int, Lisp_Object, int);
 #ifdef HAVE_MACGUI
 extern Lisp_Object font_make_spec (void);
@@ -880,8 +894,8 @@ extern void font_parse_family_registry (Lisp_Object family,
                                         Lisp_Object spec);
 
 extern int font_parse_xlfd (char *name, ptrdiff_t len, Lisp_Object font);
-extern ptrdiff_t font_unparse_xlfd (Lisp_Object font, int pixel_size,
-				    char *name, int bytes);
+extern char *font_dynamic_unparse_xlfd (Lisp_Object, int);
+extern ptrdiff_t font_unparse_xlfd (Lisp_Object, int, char *, int);
 extern void register_font_driver (struct font_driver const *, struct frame *);
 extern void free_font_driver_list (struct frame *f);
 #ifdef ENABLE_CHECKING
@@ -997,13 +1011,13 @@ extern void font_deferred_log (const char *, Lisp_Object, Lisp_Object);
 #define FONT_ADD_LOG(ACTION, ARG, RESULT)	\
   do {						\
     if (! EQ (Vfont_log, Qt))			\
-      font_add_log ((ACTION), (ARG), (RESULT));	\
+      font_add_log (ACTION, ARG, RESULT);	\
   } while (false)
 
 #define FONT_DEFERRED_LOG(ACTION, ARG, RESULT)		\
   do {							\
     if (! EQ (Vfont_log, Qt))				\
-      font_deferred_log ((ACTION), (ARG), (RESULT));	\
+      font_deferred_log (ACTION, ARG, RESULT);		\
   } while (false)
 
 /* FIXME: This is for use in functions that can be called while

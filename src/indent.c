@@ -1,5 +1,5 @@
 /* Indentation functions.
-   Copyright (C) 1985-1988, 1993-1995, 1998, 2000-2024 Free Software
+   Copyright (C) 1985-1988, 1993-1995, 1998, 2000-2025 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -616,7 +616,7 @@ scan_for_column (ptrdiff_t *endpos, EMACS_INT *goalcol,
 
   memset (&cmp_it, 0, sizeof cmp_it);
   cmp_it.id = -1;
-  composition_compute_stop_pos (&cmp_it, scan, scan_byte, end, Qnil);
+  composition_compute_stop_pos (&cmp_it, scan, scan_byte, end, Qnil, true);
 
   /* Scan forward to the target position.  */
   while (scan < end)
@@ -681,7 +681,7 @@ scan_for_column (ptrdiff_t *endpos, EMACS_INT *goalcol,
 	    {
 	      cmp_it.id = -1;
 	      composition_compute_stop_pos (&cmp_it, scan, scan_byte, end,
-					    Qnil);
+					    Qnil, true);
 	    }
 	  else
 	    cmp_it.from = cmp_it.to;
@@ -1290,7 +1290,7 @@ compute_motion (ptrdiff_t from, ptrdiff_t frombyte, EMACS_INT fromvpos,
   prev_tab_offset = tab_offset;
   memset (&cmp_it, 0, sizeof cmp_it);
   cmp_it.id = -1;
-  composition_compute_stop_pos (&cmp_it, pos, pos_byte, to, Qnil);
+  composition_compute_stop_pos (&cmp_it, pos, pos_byte, to, Qnil, true);
 
   unsigned short int quit_count = 0;
 
@@ -1600,7 +1600,7 @@ compute_motion (ptrdiff_t from, ptrdiff_t frombyte, EMACS_INT fromvpos,
 		{
 		  cmp_it.id = -1;
 		  composition_compute_stop_pos (&cmp_it, pos, pos_byte, to,
-						Qnil);
+						Qnil, true);
 		}
 	      else
 		cmp_it.from = cmp_it.to;
@@ -2031,7 +2031,7 @@ vmotion (ptrdiff_t from, ptrdiff_t from_byte,
 }
 
 /* Return the width taken by line-number display in window W.  */
-static void
+void
 line_number_display_width (struct window *w, int *width, int *pixel_width)
 {
   if (NILP (Vdisplay_line_numbers))
@@ -2101,7 +2101,7 @@ numbers on display.  */)
 {
   int width, pixel_width;
   struct window *w = XWINDOW (selected_window);
-  line_number_display_width (XWINDOW (selected_window), &width, &pixel_width);
+  line_number_display_width (w, &width, &pixel_width);
   if (EQ (pixelwise, Qcolumns))
     {
       struct frame *f = XFRAME (w->frame);

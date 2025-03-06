@@ -1,6 +1,6 @@
 ;;; erc-networks-tests.el --- Tests for erc-networks.  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2020-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 ;;
@@ -18,27 +18,24 @@
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Code:
+(require 'erc-compat)
 
 (require 'ert-x) ; cl-lib
-(require 'erc)
+(eval-and-compile
+  (let ((load-path (cons (ert-resource-directory) load-path)))
+    (require 'erc-tests-common)))
 
 (defun erc-networks-tests--create-dead-proc (&optional buf)
   (let ((p (start-process "true" (or buf (current-buffer)) "true")))
     (while (process-live-p p) (sit-for 0.1))
     p))
 
-(defun erc-networks-tests--create-live-proc (&optional buf)
-  (let ((proc (start-process "sleep" (or buf (current-buffer)) "sleep" "1")))
-    (set-process-query-on-exit-flag proc nil)
-    proc))
+(defun erc-networks-tests--create-live-proc ()
+  (erc-tests-common-init-server-proc "sleep" "1"))
 
 ;; When we drop 27, call `get-buffer-create with INHIBIT-BUFFER-HOOKS.
 (defun erc-networks-tests--clean-bufs ()
-  (let (erc-kill-channel-hook
-        erc-kill-server-hook
-        erc-kill-buffer-hook)
-    (dolist (buf (erc-buffer-list))
-      (kill-buffer buf))))
+  (erc-tests-common-kill-buffers))
 
 (defun erc-networks-tests--bufnames (prefix)
   (let* ((case-fold-search)
@@ -136,10 +133,12 @@
     (with-temp-buffer
       (setq erc-networks--id (erc-networks--id-fixed-create 'oldest)
             oldest (current-buffer))
+      (sleep-for 0.02)
 
       (with-temp-buffer
         (setq erc-networks--id (erc-networks--id-fixed-create 'middle)
               middle (current-buffer))
+        (sleep-for 0.02)
 
         (with-temp-buffer
           (setq erc-networks--id (erc-networks--id-fixed-create 'newest)
@@ -623,11 +622,6 @@
                                :symbol 'foonet/dummy
                                :parts [foonet "dummy"]
                                :len 2)
-             ;; `erc-kill-buffer-function' uses legacy target detection
-             ;; but falls back on buffer name, so no need for:
-             ;;
-             ;;   erc-default-recipients '("#a")
-             ;;
              erc--target (erc--target-from-string "#a")
              erc-server-process (with-temp-buffer
                                   (erc-networks-tests--create-dead-proc)))
@@ -1206,8 +1200,8 @@
           calls)
       (erc-mode)
 
-      (cl-letf (((symbol-function 'erc-display-line)
-                 (lambda (&rest r) (push r calls))))
+      (cl-letf (((symbol-function 'erc--route-insertion)
+                 (lambda (&rest r) (ignore (push r calls)))))
 
         (ert-info ("Signals when `erc-server-announced-name' unset")
           (should-error (erc-networks--set-name nil (make-erc-response)))
@@ -1233,10 +1227,7 @@
                    :contents "MOTD File is missing")))
 
       (erc-mode) ; boilerplate displayable start (needs `erc-server-process')
-      (insert "\n\n")
-      (setq erc-input-marker (make-marker) erc-insert-marker (make-marker))
-      (set-marker erc-insert-marker (point-max))
-      (erc-display-prompt) ; boilerplate displayable end
+      (erc--initialize-markers (point) nil)
 
       (erc-networks--ensure-announced erc-server-process parsed)
       (goto-char (point-min))
@@ -1254,6 +1245,7 @@
 
   (with-current-buffer (get-buffer-create "irc.foonet.org")
     (erc-mode)
+    (erc--initialize-markers (point) nil)
     (setq erc-network 'FooNet
           erc-server-current-nick "tester"
           erc-server-process (erc-networks-tests--create-live-proc)
@@ -1277,9 +1269,9 @@
     (with-current-buffer old-buf
       (erc-mode)
       (insert "*** Old buf")
+      (erc--initialize-markers (point) nil)
       (setq erc-network 'FooNet
             erc-server-current-nick "tester"
-            erc-insert-marker (set-marker (make-marker) (point-max))
             erc-server-process old-proc
             erc-networks--id (erc-networks--id-create nil)))
 
@@ -1293,6 +1285,7 @@
     (ert-info ("New buffer steals name, content")
       (with-current-buffer (get-buffer-create "irc.foonet.org")
         (erc-mode)
+        (erc--initialize-markers (point) nil)
         (setq erc-network 'FooNet
               erc-server-current-nick "tester"
               erc-server-process (erc-networks-tests--create-live-proc)
@@ -1328,10 +1321,10 @@
            erc-reuse-buffers)
       (with-current-buffer old-buf
         (erc-mode)
+        (erc--initialize-markers (point) nil)
         (insert "*** Old buf")
         (setq erc-network 'FooNet
               erc-server-current-nick "tester"
-              erc-insert-marker (set-marker (make-marker) (point-max))
               erc-server-process old-proc
               erc-networks--id (erc-networks--id-create nil)))
       (with-current-buffer (get-buffer-create "#chan")
@@ -1360,7 +1353,7 @@
         (should-not
          (erc-server-process-alive
           (should (get-buffer "#chan/irc.foonet.org"))))
-        (with-current-buffer (get-buffer "#chan/irc.foonet.org")
+        (with-current-buffer "#chan/irc.foonet.org"
           (should-not erc-server-connected)
           (should (eq erc-server-process old-proc))
           (erc-with-server-buffer
@@ -1377,10 +1370,10 @@
 
     (with-current-buffer old-buf
       (erc-mode)
+      (erc--initialize-markers (point) nil)
       (insert "*** Old buf")
       (setq erc-network 'FooNet
             erc-server-current-nick "tester"
-            erc-insert-marker (set-marker (make-marker) (point-max))
             erc-server-process old-proc
             erc-networks--id (erc-networks--id-create nil)))
 
@@ -1415,10 +1408,10 @@
 
     (with-current-buffer old-buf
       (erc-mode)
+      (erc--initialize-markers (point) nil)
       (insert "*** Old buf")
       (setq erc-network 'FooNet
             erc-networks--id (erc-networks--id-create 'MySession)
-            erc-insert-marker (set-marker (make-marker) (point-max))
             erc-server-process old-proc))
 
     (with-current-buffer (get-buffer-create "#chan")
@@ -1450,14 +1443,16 @@
   (let* (erc-kill-server-hook
          erc-insert-modify-hook
          (old-buf (get-buffer-create "FooNet"))
-         (old-proc (erc-networks-tests--create-live-proc old-buf))) ; live
+         ;;
+         old-proc) ; live
 
     (with-current-buffer old-buf
       (erc-mode)
+      (setq old-proc (erc-networks-tests--create-live-proc))
+      (erc--initialize-markers (point) nil)
       (insert "*** Old buf")
       (setq erc-network 'FooNet
             erc-server-current-nick "tester"
-            erc-insert-marker (set-marker (make-marker) (point-max))
             erc-server-process old-proc
             erc-networks--id (erc-networks--id-create nil))
       (should (erc-server-process-alive)))
@@ -1473,12 +1468,15 @@
     (ert-info ("New buffer rejected, abandoned, not killed")
       (with-current-buffer (get-buffer-create "irc.foonet.org")
         (erc-mode)
+        (erc--initialize-markers (point) nil)
         (setq erc-network 'FooNet
               erc-server-current-nick "tester"
-              erc-insert-marker (set-marker (make-marker) (point-max))
               erc-server-process (erc-networks-tests--create-live-proc)
               erc-networks--id (erc-networks--id-create nil))
-        (should-not (erc-networks--rename-server-buffer erc-server-process))
+        (set-process-sentinel erc-server-process #'ignore)
+        (erc-display-message nil 'notice (current-buffer) "notice")
+        (with-silent-modifications
+          (should-not (erc-networks--rename-server-buffer erc-server-process)))
         (should (eq erc-active-buffer old-buf))
         (should-not (erc-server-process-alive))
         (should (string= (buffer-name) "irc.foonet.org"))
@@ -1508,10 +1506,10 @@
     (with-current-buffer old-buf
       (erc-mode)
       (insert "*** Old buf")
+      (erc--initialize-markers (point) nil)
       (setq erc-network 'FooNet
             erc-server-current-nick "tester"
             erc-server-announced-name "us-east.foonet.org"
-            erc-insert-marker (set-marker (make-marker) (point-max))
             erc-server-process old-proc
             erc--isupport-params (make-hash-table)
             erc-networks--id (erc-networks--id-create nil))
@@ -1528,6 +1526,7 @@
     (ert-info ("New server buffer steals name, content")
       (with-current-buffer (get-buffer-create "irc.foonet.org")
         (erc-mode)
+        (erc--initialize-markers (point) nil)
         (setq erc-network 'FooNet
               erc-server-current-nick "tester"
               erc-server-announced-name "us-east.foonet.org"
@@ -1560,10 +1559,10 @@
     (with-current-buffer old-buf
       (erc-mode)
       (insert "*** Old buf")
+      (erc--initialize-markers (point) nil)
       (setq erc-network 'FooNet
             erc-server-current-nick "tester"
             erc-server-announced-name "us-west.foonet.org"
-            erc-insert-marker (set-marker (make-marker) (point-max))
             erc-server-process old-proc
             erc--isupport-params (make-hash-table)
             erc-networks--id (erc-networks--id-create nil))
@@ -1580,6 +1579,7 @@
     (ert-info ("New server buffer steals name, content")
       (with-current-buffer (get-buffer-create "irc.foonet.org")
         (erc-mode)
+        (erc--initialize-markers (point) nil)
         (setq erc-network 'FooNet
               erc-server-current-nick "tester"
               erc-server-announced-name "us-east.foonet.org" ; east
@@ -1749,5 +1749,69 @@
   (let ((erc-server-announced-name "irc-us2.alphachat.net"))
     (should (eq (erc-networks--determine)
                 erc-networks--name-missing-sentinel))))
+
+(ert-deftest erc-ports-list ()
+  (with-suppressed-warnings ((obsolete erc-server-alist))
+    (let* ((srv (assoc "Libera.Chat: Random server" erc-server-alist)))
+      (should (equal (erc-ports-list (nth 3 srv))
+                     '(6665 6666 6667 8000 8001 8002)))
+      (should (equal (erc-ports-list (nth 4 srv))
+                     '(6697 7000 7070))))
+
+    (let* ((srv (assoc "Libera.Chat: Random Europe server" erc-server-alist)))
+      (should (equal (erc-ports-list (nth 3 srv)) '(6667)))
+      (should (equal (erc-ports-list (nth 4 srv)) '(6697))))
+
+    (let* ((srv (assoc "OFTC: Random server" erc-server-alist)))
+      (should (equal (erc-ports-list (nth 3 srv))
+                     '(6667 6668 6669 6670 7000)))
+      (should (equal (erc-ports-list (nth 4 srv))
+                     '(6697 9999))))))
+
+(ert-deftest erc-networks--examine-targets ()
+  (with-current-buffer (erc-tests-common-make-server-buf "foonet")
+    (erc--open-target "#chan")
+    (erc--open-target "#spam"))
+
+  (with-current-buffer (erc-tests-common-make-server-buf "barnet")
+    (with-current-buffer (erc--open-target "*query")
+      (setq erc-networks--id nil))
+    (with-current-buffer (erc--open-target "#chan")
+      (let ((calls ())
+            (snap (lambda (parameter)
+                    (list parameter
+                          (erc-target)
+                          (erc-networks--id-symbol erc-networks--id)))))
+
+        ;; Search for "#chan" dupes among targets of all servers.
+        (should (equal
+                 (erc-networks--examine-targets erc-networks--id erc--target
+                   (lambda () (push (funcall snap 'ON-DUPE) calls))
+                   (lambda () (push (funcall snap 'ON-COLL) calls)))
+                 (list (get-buffer "#chan@foonet")
+                       (get-buffer "#chan@barnet"))))
+
+        (should (equal (pop calls) '(ON-DUPE "#chan" barnet)))
+        (should (equal (pop calls) '(ON-COLL "#chan" foonet)))
+        (should-not calls)
+        (should-not (get-buffer "#chan"))
+        (should (get-buffer "#chan@barnet"))
+        (should (get-buffer "#chan@foonet"))
+
+        ;; Search for "*query" dupes among targets of all servers.
+        (should (equal (erc-networks--examine-targets erc-networks--id
+                           (buffer-local-value 'erc--target
+                                               (get-buffer "*query"))
+                         (lambda () (push (funcall snap 'ON-DUPE) calls))
+                         (lambda () (push (funcall snap 'ON-COLL) calls)))
+                       (list (get-buffer "*query"))))
+
+        (should (equal (pop calls) '(ON-DUPE "*query" barnet)))
+        (should-not calls)))
+
+    (goto-char (point-min))
+    (should (search-forward "Missing network session" nil t)))
+
+  (erc-tests-common-kill-buffers))
 
 ;;; erc-networks-tests.el ends here

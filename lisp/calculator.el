@@ -1,6 +1,6 @@
 ;;; calculator.el --- a calculator for Emacs  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1998, 2000-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1998, 2000-2025 Free Software Foundation, Inc.
 
 ;; Author: Eli Barzilay <eli@barzilay.org>
 ;; Keywords: tools, convenience
@@ -775,7 +775,7 @@ Defaults to 1."
   (or (nth 4 op) 1))
 
 (defun calculator-add-operators (more-ops)
-  "This function handles operator addition.
+  "Handle operator addition.
 Adds MORE-OPS to `calculator-operator', called initially to handle
 `calculator-initial-operators' and `calculator-user-operators'."
   (let ((added-ops nil))
@@ -1350,8 +1350,9 @@ Optional string argument KEYS will force using it as the keys entered."
   (calculator-update-display t))
 
 (defun calculator-saved-move (n)
-  "Go N elements up the list of saved values."
-  (interactive)
+  "Go N elements up the list of saved values.
+Interactively, N is the prefix numeric argument and defaults to 1."
+  (interactive "p")
   (when (and calculator-saved-list
              (or (null calculator-stack) calculator-display-fragile))
     (setq calculator-saved-ptr

@@ -1,10 +1,11 @@
-# serial 10
-# See if we need to provide faccessat replacement.
-
-dnl Copyright (C) 2009-2024 Free Software Foundation, Inc.
+# faccessat.m4
+# serial 12
+dnl Copyright (C) 2009-2025 Free Software Foundation, Inc.
 dnl This file is free software; the Free Software Foundation
 dnl gives unlimited permission to copy and/or distribute it,
 dnl with or without modifications, as long as this notice is preserved.
+
+# See if we need to provide faccessat replacement.
 
 # Written by Eric Blake.
 
@@ -16,9 +17,12 @@ AC_DEFUN([gl_FUNC_FACCESSAT],
   dnl Persuade glibc <unistd.h> to declare faccessat().
   AC_REQUIRE([gl_USE_SYSTEM_EXTENSIONS])
 
-  AC_CHECK_FUNCS_ONCE([faccessat])
+  gl_CHECK_FUNCS_ANDROID([faccessat], [[#include <unistd.h>]])
   if test $ac_cv_func_faccessat = no; then
     HAVE_FACCESSAT=0
+    case "$gl_cv_onwards_func_faccessat" in
+      future*) REPLACE_FACCESSAT=1 ;;
+    esac
   else
     case $gl_cv_func_lstat_dereferences_slashed_symlink in
       *yes) ;;

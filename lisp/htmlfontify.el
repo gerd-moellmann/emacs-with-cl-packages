@@ -1,15 +1,12 @@
 ;;; htmlfontify.el --- htmlize a buffer/source tree with optional hyperlinks -*- lexical-binding: t -*-
 
-;; Copyright (C) 2002-2003, 2009-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2025 Free Software Foundation, Inc.
 
-;; Emacs Lisp Archive Entry
 ;; Package: htmlfontify
-;; Filename: htmlfontify.el
-;; Version: 0.21
+;; Old-Version: 0.21
 ;; Keywords: html, hypermedia, markup, etags
 ;; Author: Vivek Dasmohapatra <vivek@etla.org>
 ;; Created: 2002-01-05
-;; Description: htmlize a buffer/source tree with optional hyperlinks
 ;; URL: http://rtfm.etla.org/emacs/htmlfontify/
 
 ;; This file is part of GNU Emacs.
@@ -308,13 +305,14 @@ done;")
   :tag   "etags-cmd-alist"
   :type  '(alist :key-type (string) :value-type (string)))
 
-(defcustom hfy-etags-bin "etags"
+(defcustom hfy-etags-bin etags-program-name
   "Location of etags binary (we begin by assuming it's in your path).
 
 Note that if etags is not in your path, you will need to alter the shell
 commands in `hfy-etags-cmd-alist'."
   :tag   "etags-bin"
-  :type  '(file))
+  :type  '(file)
+  :version "30.1")
 
 (defcustom hfy-shell-file-name "/bin/sh"
   "Shell (Bourne or compatible) to invoke for complex shell operations."
@@ -585,6 +583,7 @@ If a window system is unavailable, calls `hfy-fallback-color-values'."
 (defvar hfy-cperl-mode-kludged-p nil)
 
 (defun hfy-kludge-cperl-mode ()
+  ;; FIXME: Still?
   "CPerl mode does its damnedest not to do some of its fontification when not
 in a windowing system - try to trick it..."
   (declare (obsolete nil "28.1"))

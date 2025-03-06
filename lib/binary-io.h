@@ -1,5 +1,5 @@
 /* Binary mode I/O.
-   Copyright (C) 2001, 2003, 2005, 2008-2024 Free Software Foundation,
+   Copyright (C) 2001, 2003, 2005, 2008-2025 Free Software Foundation,
    Inc.
 
    This file is free software: you can redistribute it and/or modify
@@ -18,6 +18,11 @@
 #ifndef _BINARY_H
 #define _BINARY_H
 
+/* This file uses _GL_INLINE_HEADER_BEGIN, _GL_INLINE, _GL_UNUSED.  */
+#if !_GL_CONFIG_H_INCLUDED
+ #error "Please include config.h first."
+#endif
+
 /* For systems that distinguish between text and binary I/O.
    O_BINARY is guaranteed by the gnulib <fcntl.h>. */
 #include <fcntl.h>
@@ -26,9 +31,6 @@
    so we include it here first.  */
 #include <stdio.h>
 
-#ifndef _GL_INLINE_HEADER_BEGIN
- #error "Please include config.h first."
-#endif
 _GL_INLINE_HEADER_BEGIN
 #ifndef BINARY_IO_INLINE
 # define BINARY_IO_INLINE _GL_INLINE
@@ -54,6 +56,11 @@ __gl_setmode (_GL_UNUSED int fd, _GL_UNUSED int mode)
 }
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 /* Set FD's mode to MODE, which should be either O_TEXT or O_BINARY.
    Return the old mode if successful, -1 (setting errno) on failure.
    Ordinarily this function would be called 'setmode', since that is
@@ -72,6 +79,11 @@ set_binary_mode (int fd, int mode)
 
 /* This macro is obsolescent.  */
 #define SET_BINARY(fd) ((void) set_binary_mode (fd, O_BINARY))
+
+
+#ifdef __cplusplus
+}
+#endif
 
 _GL_INLINE_HEADER_END
 

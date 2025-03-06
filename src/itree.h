@@ -1,6 +1,6 @@
 /* This file implements an efficient interval data-structure.
 
-Copyright (C) 2017-2024 Free Software Foundation, Inc.
+Copyright (C) 2017-2025 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -24,6 +24,8 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <inttypes.h>
 
 #include "lisp.h"
+
+INLINE_HEADER_BEGIN
 
 /* The tree and node structs are mainly here, so they can be
    allocated.
@@ -114,6 +116,11 @@ extern void itree_node_set_region (struct itree_tree *, struct itree_node *,
 				   ptrdiff_t, ptrdiff_t);
 extern struct itree_tree *itree_create (void);
 extern void itree_destroy (struct itree_tree *);
+INLINE bool
+itree_empty_p (struct itree_tree *tree)
+{
+  return !tree || !tree->root;
+}
 extern intmax_t itree_size (struct itree_tree *);
 extern void itree_clear (struct itree_tree *);
 extern void itree_insert (struct itree_tree *, struct itree_node *,
@@ -177,5 +184,7 @@ struct itree_iterator
 
 #define ITREE_FOREACH_NARROW(beg, end) \
   itree_iterator_narrow (itree_iter_, beg, end)
+
+INLINE_HEADER_END
 
 #endif

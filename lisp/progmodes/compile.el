@@ -1,6 +1,6 @@
 ;;; compile.el --- run compiler as inferior of Emacs, parse error messages  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1987, 1993-1999, 2001-2024 Free Software
+;; Copyright (C) 1985-1987, 1993-1999, 2001-2025 Free Software
 ;; Foundation, Inc.
 
 ;; Authors: Roland McGrath <roland@gnu.org>,
@@ -61,12 +61,28 @@ If nil, use Emacs default."
 
 (defcustom compilation-transform-file-match-alist
   '(("/bin/[a-z]*sh\\'" nil))
-  "Alist of regexp/replacements to alter file names in compilation errors.
-If the replacement is nil, the file will not be considered an
-error after all.  If not nil, it should be a regexp replacement
-string."
-  :type '(repeat (list regexp (choice (const :tag "No replacement" nil)
-                                      string)))
+  "Alist of regexp/replacements to alter file names in compiler messages.
+If the replacement is nil, the matching message will not be considered
+an error or warning.  If not nil, it should be a replacement string
+for the matched regexp.
+
+If a non-nil replacement is specified, the value of the matched file name
+used to locate the warning or error is modified using the replacement, but
+the compilation buffer still displays the original value.
+
+For example, to prepend a subdirectory \"bar/\" to all file names in
+compiler messages, add an entry matching \"\\\\=`\" and a replacement
+string of \"bar/\", i.e.:
+
+    (\"\\\\=`\" \"bar/\")
+
+Similarly, to remove a prefix \"bar/\", use:
+
+    (\"\\\\=`bar/\" \"\")"
+  :type '(repeat (list (regexp :tag "Filename that matches")
+                       (radio :tag "Action"
+                              (const :tag "Do not consider as error" nil)
+                              (string :tag "Replace matched filename with"))))
   :version "27.1")
 
 (defvar compilation-filter-hook nil
@@ -95,8 +111,8 @@ like.
 For instance, to hide the verbose output from recursive
 makefiles, you can say something like:
 
-  (setq compilation-hidden-output
-        \\='(\"^make[^\n]+\n\"))"
+  (setopt compilation-hidden-output
+          \\='(\"^make[^\\n]+\\n\"))"
   :type '(choice regexp
                  (repeat regexp))
   :version "29.1")
@@ -194,6 +210,11 @@ and a string describing how the process finished.")
 
 (defvar compilation-error-regexp-alist-alist
  (eval-when-compile
+   ;; The order of this list is the default order of items in
+   ;; `compilation-error-regexp-alist' which is also the matching order,
+   ;; so don't add things in alphabetic order just out of habit.
+   ;; FIXME: We should sort it by frequency (less often used ones in the back),
+   ;; but individual patterns also have their own partial order.
   `((absoft
      "^\\(?:[Ee]rror on \\|[Ww]arning on\\( \\)\\)?[Ll]ine[ \t]+\\([0-9]+\\)[ \t]+\
 of[ \t]+\"?\\([a-zA-Z]?:?[^\":\n]+\\)\"?:" 3 2 nil (1))
@@ -258,10 +279,28 @@ of[ \t]+\"?\\([a-zA-Z]?:?[^\":\n]+\\)\"?:" 3 2 nil (1))
      "\\(^Warning .*\\)? line[ \n]\\([0-9]+\\)[ \n]\\(?:col \\([0-9]+\\)[ \n]\\)?file \\([^ :;\n]+\\)"
      4 2 3 (1))
 
-    ;; Gradle with kotlin-gradle-plugin (see
-    ;; GradleStyleMessagerRenderer.kt in kotlin sources, see
-    ;; https://youtrack.jetbrains.com/issue/KT-34683).
+    ;; Introduced in Kotlin 1.8 and current as of Kotlin 2.0.
+    ;; Emitted by `GradleStyleMessagerRenderer' in Kotlin sources.
     (gradle-kotlin
+     ,(rx bol
+          (| (group "w")                ; 1: warning
+             (group (in "iv"))          ; 2: info
+             "e")                       ; error
+          ": "
+          "file://"
+          (group                        ; 3: file
+           (? (in "A-Za-z") ":")
+           (+ (not (in "\n:"))))
+          ":"
+          (group (+ digit))             ; 4: line
+          ":"
+          (group (+ digit))             ; 5: column
+          " ")
+     3 4 5 (1 . 2))
+
+    ;; Obsoleted in Kotlin 1.8 Beta, released on Nov 15, 2022.
+    ;; See commit `93a0cdbf973' in Kotlin Git repository.
+    (gradle-kotlin-legacy
      ,(rx bol
           (| (group "w")                ; 1: warning
              (group (in "iv"))          ; 2: info
@@ -361,6 +400,28 @@ of[ \t]+\"?\\([a-zA-Z]?:?[^\":\n]+\\)\"?:" 3 2 nil (1))
 
     (ruby-Test::Unit
      "^    [[ ]?\\([^ (].*\\):\\([1-9][0-9]*\\)\\(\\]\\)?:in " 1 2)
+
+    ;; Tested with Lua 5.1, 5.2, 5.3, 5.4, and LuaJIT 2.1.
+    (lua
+     ,(rx bol
+          (+? (not (in "\t\n")))
+          ": "
+          (group (+? (not (in "\t\n"))))
+          ":"
+          (group (+ (in "0-9")))
+          ": "
+          (+ nonl)
+          "\nstack traceback:\n\t")
+     1 2 nil 2 1)
+    (lua-stack
+     ,(rx bol "\t"
+          (| "[C]:"
+             (: (group (+? (not (in "\t\n"))))
+                ":"
+                (? (group (+ (in "0-9")))
+                   ":")))
+          " in ")
+     1 2 nil 0 1)
 
     (gmake
      ;; Set GNU make error messages as INFO level.
@@ -683,7 +744,10 @@ File = \\(.+\\), Line = \\([0-9]+\\)\\(?:, Column = \\([0-9]+\\)\\)?"
   "Alist of values for `compilation-error-regexp-alist'.")
 
 (defcustom compilation-error-regexp-alist
-  (mapcar #'car compilation-error-regexp-alist-alist)
+  ;; Omit `omake' by default: its mere presence here triggers special processing
+  ;; and modifies regexps for other rules (see `compilation-parse-errors'),
+  ;; which may slow down matching (or even cause mismatches).
+  (delq 'omake (mapcar #'car compilation-error-regexp-alist-alist))
   "Alist that specifies how to match errors in compiler output.
 On GNU and Unix, any string is a valid filename, so these
 matchers must make some common sense assumptions, which catch
@@ -741,10 +805,10 @@ Alternatively, FACE can evaluate to a property list of the
 form (face FACE PROP1 VAL1 PROP2 VAL2 ...), in which case all the
 listed text properties PROP# are given values VAL# as well.
 
-After identifying errors and warnings determined by this
+After identifying compilation errors and warnings determined by this
 variable, the `compilation-transform-file-match-alist' variable
 is then consulted.  It allows further transformations of the
-matched file names, and weeding out false positives."
+matched file names, and ignoring false positives."
   :type '(repeat (choice (symbol :tag "Predefined symbol")
 			 (sexp :tag "Error specification")))
   :link `(file-link :tag "example file"
@@ -1706,7 +1770,7 @@ to `compilation-error-regexp-alist' if RULES is nil."
             (set-marker (make-marker)
                         (save-excursion
                           (goto-char (point-min))
-                          (text-property-search-forward 'compilation-header-end)
+                          (text-property-search-forward 'compilation-annotation)
                           ;; If we have no end marker, this will be
                           ;; `point-min' still.
                           (point)))))
@@ -1854,6 +1918,23 @@ If nil, don't hide anything."
   ;; buffers when it changes from nil to non-nil or vice-versa.
   (unless compilation-in-progress (force-mode-line-update t)))
 
+(defun compilation-insert-annotation (&rest args)
+  "Insert ARGS at point, adding the `compilation-annotation' text property.
+This property is used to distinguish output of the compilation
+process from additional information inserted by Emacs."
+  (let ((start (point)))
+    (apply #'insert args)
+    (put-text-property start (point) 'compilation-annotation t)))
+
+(defvar-local compilation--start-time nil
+  "The time when the compilation started as returned by `float-time'.")
+
+(defun compilation--downcase-mode-name (mode)
+  "Downcase the name of major MODE, even if MODE is not a string.
+The function `downcase' will barf if passed the name of a `major-mode'
+which is not a string, but instead a symbol or a list."
+  (downcase (format-mode-line mode)))
+
 ;;;###autoload
 (defun compilation-start (command &optional mode name-function highlight-regexp
                                   continue)
@@ -1975,17 +2056,17 @@ Returns the compilation buffer created."
             (setq-local compilation-auto-jump-to-next t))
         (when (zerop (buffer-size))
 	  ;; Output a mode setter, for saving and later reloading this buffer.
-	  (insert "-*- mode: " name-of-mode
-		  "; default-directory: "
-                  (prin1-to-string (abbreviate-file-name default-directory))
-		  " -*-\n"))
-        (insert (format "%s started at %s\n\n"
-			mode-name
-			(substring (current-time-string) 0 19))
-		command "\n")
-        ;; Mark the end of the header so that we don't interpret
-        ;; anything in it as an error.
-        (put-text-property (1- (point)) (point) 'compilation-header-end t)
+	  (compilation-insert-annotation
+           "-*- mode: " name-of-mode
+           "; default-directory: "
+           (prin1-to-string (abbreviate-file-name default-directory))
+	   " -*-\n"))
+        (compilation-insert-annotation
+         (format "%s started at %s\n\n"
+                 mode-name
+		 (substring (current-time-string) 0 19))
+	 command "\n")
+        (setq compilation--start-time (float-time))
 	(setq thisdir default-directory))
       (set-buffer-modified-p nil))
     ;; Pop up the compilation buffer.
@@ -2045,11 +2126,12 @@ Returns the compilation buffer created."
 		        (get-buffer-process
 			 (with-no-warnings
 			   (comint-exec
-			    outbuf (downcase mode-name)
+			    outbuf (compilation--downcase-mode-name mode-name)
 			    shell-file-name
 			    nil `(,shell-command-switch ,command)))))
-		     (start-file-process-shell-command (downcase mode-name)
-						       outbuf command))))
+		     (start-file-process-shell-command
+                      (compilation--downcase-mode-name mode-name)
+		      outbuf command))))
               ;; Make the buffer's mode line show process state.
               (setq mode-line-process
                     '((:propertize ":%s" face compilation-mode-line-run)
@@ -2226,6 +2308,9 @@ Returns the compilation buffer created."
     (define-key map [mouse-2] 'compile-goto-error)
     (define-key map [follow-link] 'mouse-face)
     (define-key map "\C-m" 'compile-goto-error)
+    (define-key map "\M-\C-m" 'push-button)
+    (define-key map [M-down-mouse-2] 'push-button)
+    (define-key map [M-mouse-2] 'push-button)
     map)
   "Keymap for compilation-message buttons.")
 (fset 'compilation-button-map compilation-button-map)
@@ -2467,13 +2552,20 @@ commands of Compilation major mode are available.  See
 	(cur-buffer (current-buffer)))
     ;; Record where we put the message, so we can ignore it later on.
     (goto-char omax)
-    (insert ?\n mode-name " " (car status))
+    (compilation-insert-annotation ?\n mode-name " " (car status))
     (if (and (numberp compilation-window-height)
 	     (zerop compilation-window-height))
 	(message "%s" (cdr status)))
     (if (bolp)
 	(forward-char -1))
-    (insert " at " (substring (current-time-string) 0 19))
+    (compilation-insert-annotation
+     " at "
+     (substring (current-time-string) 0 19)
+     ", duration "
+     (let ((elapsed (- (float-time) compilation--start-time)))
+       (cond ((< elapsed 10) (format "%.2f s" elapsed))
+             ((< elapsed 60) (format "%.1f s" elapsed))
+             (t (format-seconds "%h:%02m:%02s" elapsed)))))
     (goto-char (point-max))
     ;; Prevent that message from being recognized as a compilation error.
     (add-text-properties omax (point)
@@ -2594,24 +2686,26 @@ and runs `compilation-filter-hook'."
          (text-properties-at (1- beg))))
     (insert string)
     ;; If we exceeded the limit, hide the last portion of the line.
-    (when (> (current-column) width)
-      (let ((start (save-excursion
-                     (move-to-column width)
-                     (point))))
-        (buttonize-region
-         start (point)
-         (lambda (start)
-           (let ((inhibit-read-only t))
-             (remove-text-properties start (save-excursion
-                                             (goto-char start)
-                                             (line-end-position))
-                                     (text-properties-at start)))))
-        (put-text-property
-         start (if (= (aref string (1- (length string))) ?\n)
-                   ;; Don't hide the final newline.
-                   (1- (point))
-                 (point))
-         'display (if (char-displayable-p ?…) "[…]" "[...]"))))))
+    (let* ((ends-in-nl (= (aref string (1- (length string))) ?\n))
+           (curcol (if ends-in-nl
+                       (progn (backward-char) (current-column))
+                     (current-column))))
+      (when (> curcol width)
+        (let ((start (save-excursion
+                       (move-to-column width)
+                       (point))))
+          (buttonize-region
+           start (point)
+           (lambda (start)
+             (let ((inhibit-read-only t))
+               (remove-text-properties start (save-excursion
+                                               (goto-char start)
+                                               (line-end-position))
+                                       (text-properties-at start)))))
+          (put-text-property
+           start (point)
+           'display (if (char-displayable-p ?…) "[…]" "[...]"))))
+      (if ends-in-nl (forward-char)))))
 
 (defsubst compilation-buffer-internal-p ()
   "Test if inside a compilation buffer."
@@ -2703,7 +2797,7 @@ looking for the next message."
 	  (compilation-loop > compilation-next-single-property-change 1-
 			    (if (get-buffer-process (current-buffer))
 				"No more %ss yet"
-			      "Moved past last %s")
+			      "Past last %s")
 			    (point-max))
 	;; Don't move "back" to message at or before point.
 	;; Pass an explicit (point-min) to make sure pt is non-nil.
@@ -2747,7 +2841,8 @@ Prefix arg N says how many files to move backwards (or forwards, if negative)."
   (let ((buffer (compilation-find-buffer)))
     (if (get-buffer-process buffer)
 	(interrupt-process (get-buffer-process buffer))
-      (error "The %s process is not running" (downcase mode-name)))))
+      (error "The %s process is not running"
+             (compilation--downcase-mode-name mode-name)))))
 
 (defalias 'compile-mouse-goto-error 'compile-goto-error)
 
@@ -3101,7 +3196,16 @@ and overlay is highlighted between MK and END-MK."
       (cancel-timer next-error-highlight-timer))
   (remove-hook 'pre-command-hook
 	       #'compilation-goto-locus-delete-o))
-
+
+(defun compilation--expand-fn (directory filename)
+  "Expand FILENAME or resolve its true name.
+Unlike `expand-file-name', `file-truename' follows symlinks, which
+we try to avoid if possible."
+  (let* ((expandedname (expand-file-name filename directory)))
+    (if (file-exists-p expandedname)
+        expandedname
+      (file-truename (file-name-concat directory filename)))))
+
 (defun compilation-find-file-1 (marker filename directory &optional formats)
   (or formats (setq formats '("%s")))
   (let ((dirs compilation-search-path)
@@ -3122,8 +3226,8 @@ and overlay is highlighted between MK and END-MK."
             fmts formats)
       ;; For each directory, try each format string.
       (while (and fmts (null buffer))
-        (setq name (file-truename
-                    (file-name-concat thisdir (format (car fmts) filename)))
+        (setq name (compilation--expand-fn thisdir
+                                           (format (car fmts) filename))
               buffer (and (file-exists-p name)
                           (find-file-noselect name))
               fmts (cdr fmts)))
@@ -3145,8 +3249,8 @@ and overlay is highlighted between MK and END-MK."
         (setq thisdir (car dirs)
               fmts formats)
         (while (and fmts (null buffer))
-          (setq name (file-truename
-                      (file-name-concat thisdir (format (car fmts) filename)))
+          (setq name (compilation--expand-fn thisdir
+                                             (format (car fmts) filename))
                 buffer (and (file-exists-p name)
                             (find-file-noselect name))
                 fmts (cdr fmts)))
@@ -3206,8 +3310,7 @@ attempts to find a file whose name is produced by (format FMT FILENAME)."
               (ding) (sit-for 2))
              ((and (file-directory-p name)
                    (not (file-exists-p
-                         (setq name (file-truename
-                                     (file-name-concat name filename))))))
+                         (setq name (compilation--expand-fn name filename)))))
               (message "No `%s' in directory %s" filename origname)
               (ding) (sit-for 2))
              (t

@@ -1,6 +1,6 @@
 ;;; nnspool.el --- spool access for GNU Emacs  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1988-1990, 1993-1998, 2000-2024 Free Software
+;; Copyright (C) 1988-1990, 1993-1998, 2000-2025 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Masanobu UMEDA <umerin@flab.flab.fujitsu.junet>
@@ -35,7 +35,7 @@
 ;; It's only used to init nnspool-spool-directory, so why not just
 ;; set that variable's default directly?
 (eval-and-compile
-  (defvaralias 'news-path 'news-directory)
+  (define-obsolete-variable-alias 'news-path 'news-directory "30.1")
   (defvar news-directory (if (file-exists-p "/usr/spool/news/")
 			     "/usr/spool/news/"
 			   "/var/spool/news/")
@@ -62,9 +62,7 @@ This is most commonly `inews' or `injnews'.")
 If you are using Cnews, you probably should set this variable to nil.")
 
 (defvoo nnspool-spool-directory
-    (file-name-as-directory (if (boundp 'news-directory)
-				(symbol-value 'news-directory)
-			      news-path))
+    (file-name-as-directory news-directory)
   "Local news spool directory.")
 
 (defvoo nnspool-nov-directory (concat nnspool-spool-directory "over.view/")

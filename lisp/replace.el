@@ -1,6 +1,6 @@
 ;;; replace.el --- replace commands for Emacs -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1987, 1992, 1994, 1996-1997, 2000-2024 Free
+;; Copyright (C) 1985-1987, 1992, 1994, 1996-1997, 2000-2025 Free
 ;; Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -1667,13 +1667,15 @@ A positive number means to include that many lines both before and after."
 (defcustom list-matching-lines-face 'match
   "Face used by \\[list-matching-lines] to show the text that matches.
 If the value is nil, don't highlight the matching portions specially."
-  :type 'face
+  :type '(choice (const :tag "Don't highlight matching portions" nil)
+                 face)
   :group 'matching)
 
 (defcustom list-matching-lines-buffer-name-face 'underline
   "Face used by \\[list-matching-lines] to show the names of buffers.
 If the value is nil, don't highlight the buffer names specially."
-  :type 'face
+  :type '(choice (const :tag "Don't highlight buffer names" nil)
+                 face)
   :group 'matching)
 
 (defcustom list-matching-lines-current-line-face 'lazy-highlight
@@ -1929,7 +1931,7 @@ See also `multi-occur'."
                    (lambda (boo)
                      (buffer-name (if (overlayp boo) (overlay-buffer boo) boo)))
                    active-bufs))
-      (with-current-buffer (get-buffer buf-name)
+      (with-current-buffer buf-name
 	(rename-uniquely)))
 
     ;; Now find or create the output buffer.
@@ -2640,10 +2642,6 @@ passed in.  If LITERAL is set, no checking is done, anyway."
 	    noedit nil)))
   (set-match-data match-data)
   (replace-match newtext fixedcase literal)
-  ;; `query-replace' undo feature needs the beginning of the match position,
-  ;; but `replace-match' may change it, for instance, with a regexp like "^".
-  ;; Ensure that this function preserves the match data (Bug#31492).
-  (set-match-data match-data)
   ;; `replace-match' leaves point at the end of the replacement text,
   ;; so move point to the beginning when replacing backward.
   (when backward (goto-char (nth 0 match-data)))
@@ -2757,6 +2755,7 @@ to a regexp that is actually used for the search.")
 	    (isearch-regexp-lax-whitespace
 	     replace-regexp-lax-whitespace)
 	    (isearch-case-fold-search case-fold)
+	    (isearch-invisible search-invisible)
 	    (isearch-forward (not backward))
 	    (isearch-other-end match-beg)
 	    (isearch-error nil)
@@ -2917,7 +2916,7 @@ characters."
 
     ;; If last typed key in previous call of multi-buffer perform-replace
     ;; was `automatic-all', don't ask more questions in next files
-    (when (eq (lookup-key map (vector last-input-event)) 'automatic-all)
+    (when (eq (lookup-key map (vector last-input-event) t) 'automatic-all)
       (setq query-flag nil multi-buffer t))
 
     (cond
@@ -3101,7 +3100,7 @@ characters."
 		  ;; read-event that clobbers the match data.
 		  (set-match-data real-match-data)
 		  (setq key (vector key))
-		  (setq def (lookup-key map key))
+		  (setq def (lookup-key map key t))
 		  ;; Restore the match data while we process the command.
 		  (cond ((eq def 'help)
 			 (let ((display-buffer-overriding-action

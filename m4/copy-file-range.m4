@@ -1,5 +1,6 @@
 # copy-file-range.m4
-dnl Copyright 2019-2024 Free Software Foundation, Inc.
+# serial 5
+dnl Copyright 2019-2025 Free Software Foundation, Inc.
 dnl This file is free software; the Free Software Foundation
 dnl gives unlimited permission to copy and/or distribute it,
 dnl with or without modifications, as long as this notice is preserved.
@@ -17,43 +18,42 @@ AC_DEFUN([gl_FUNC_COPY_FILE_RANGE],
   dnl Programs that use copy_file_range must fall back on read+write
   dnl anyway, and there's little point to substituting the Gnulib stub
   dnl for a glibc stub.
-  AC_CACHE_CHECK([for copy_file_range], [gl_cv_func_copy_file_range],
-    [AC_LINK_IFELSE(
-       [AC_LANG_PROGRAM(
-          [[#include <unistd.h>
-          ]],
-          [[ssize_t (*func) (int, off_t *, int, off_t *, size_t, unsigned)
-              = copy_file_range;
-            return func (0, 0, 0, 0, 0, 0) & 127;
-          ]])
-       ],
-       [gl_cv_func_copy_file_range=yes],
-       [gl_cv_func_copy_file_range=no])
-    ])
-
+  case "$host_os" in
+    *-gnu* | gnu*)
+      AC_CACHE_CHECK([for copy_file_range], [gl_cv_func_copy_file_range],
+        [AC_LINK_IFELSE(
+           [AC_LANG_PROGRAM(
+              [[#include <unistd.h>
+              ]],
+              [[ssize_t (*func) (int, off_t *, int, off_t *, size_t, unsigned)
+                  = copy_file_range;
+                return func (0, 0, 0, 0, 0, 0) & 127;
+              ]])
+           ],
+           [gl_cv_func_copy_file_range=yes],
+           [gl_cv_func_copy_file_range=no])
+        ])
+      gl_cv_onwards_func_copy_file_range="$gl_cv_func_copy_file_range"
+      ;;
+    *)
+      gl_CHECK_FUNCS_ANDROID([copy_file_range], [[#include <unistd.h>]])
+      gl_cv_func_copy_file_range="$ac_cv_func_copy_file_range"
+      ;;
+  esac
   if test "$gl_cv_func_copy_file_range" != yes; then
     HAVE_COPY_FILE_RANGE=0
+    case "$gl_cv_onwards_func_copy_file_range" in
+      future*) REPLACE_COPY_FILE_RANGE=1 ;;
+    esac
   else
     AC_DEFINE([HAVE_COPY_FILE_RANGE], 1,
       [Define to 1 if the function copy_file_range exists.])
 
     case $host_os in
       linux*)
-        AC_CACHE_CHECK([whether copy_file_range is known to work],
-          [gl_cv_copy_file_range_known_to_work],
-          [AC_COMPILE_IFELSE(
-             [AC_LANG_PROGRAM(
-                [[#include <linux/version.h>
-                ]],
-                [[#if LINUX_VERSION_CODE < KERNEL_VERSION (5, 3, 0)
-                   #error "copy_file_range is buggy"
-                  #endif
-                ]])],
-             [gl_cv_copy_file_range_known_to_work=yes],
-             [gl_cv_copy_file_range_known_to_work=no])])
-        if test "$gl_cv_copy_file_range_known_to_work" = no; then
-          REPLACE_COPY_FILE_RANGE=1
-        fi;;
+        # See copy-file-range.c comment re pre-5.3 Linux kernel bugs.
+        # We should be able to remove this hack in 2025.
+        REPLACE_COPY_FILE_RANGE=1;;
     esac
   fi
 ])

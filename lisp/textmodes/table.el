@@ -1,8 +1,8 @@
 ;;; table.el --- create and edit WYSIWYG text based embedded tables  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2000-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2025 Free Software Foundation, Inc.
 
-;; Keywords: wp, convenience
+;; Keywords: text, convenience
 ;; Author: Takaaki Ota <Takaaki.Ota@am.sony.com>
 ;; Created: Sat Jul 08 2000 13:28:45 (PST)
 
@@ -1456,8 +1456,8 @@ first cell.
     |-!-  |     |     |
     +-----+-----+-----+
 
-Inside a table cell, there are special key bindings. \\<table-cell-map>
-
+Inside a table cell, there are special key bindings.
+\\<table-cell-map>
 M-9 \\[table-widen-cell] (or \\[universal-argument] 9 \\[table-widen-cell]) widens the first cell by 9 character
 width, which results as
 
@@ -1466,7 +1466,7 @@ width, which results as
     +--------------+-----+-----+
 
 Type TAB \\[table-widen-cell] then type TAB M-2 M-7 \\[table-widen-cell] (or \\[universal-argument] 2 7 \\[table-widen-cell]).  Typing
-TAB moves the point forward by a cell. The result now looks like this:
+TAB moves the point forward by a cell.  The result now looks like this:
 
     +--------------+------+--------------------------------+
     |              |      |-!-                             |
@@ -1935,8 +1935,8 @@ specific features."
 		      (if (and cell table-detect-cell-alignment)
 			  (table--detect-cell-alignment cell)))
 		    (unless (re-search-forward border end t)
-		      (goto-char end))))))))))
-    (restore-buffer-modified-p modified-flag)))
+		      (goto-char end))))))
+            (restore-buffer-modified-p modified-flag)))))))
 
 ;;;###autoload
 (defun table-unrecognize-region (beg end)
@@ -5301,8 +5301,8 @@ Current buffer must already be set to the cache buffer."
 
 (defun table--fill-region-strictly (beg end)
   "Fill region strictly so that no line exceeds `fill-column'.
-When a word exceeds fill-column the word is chopped into pieces.  The
-chopped location is indicated with table-word-continuation-char."
+When a word exceeds `fill-column' the word is chopped into pieces.  The
+chopped location is indicated with `table-word-continuation-char'."
   (or (and (markerp beg) (markerp end))
       (error "markerp"))
   (if (< fill-column 2)

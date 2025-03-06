@@ -2,7 +2,7 @@
 
 ### make-info-dir - create info/dir, for systems without install-info
 
-## Copyright (C) 2013-2024 Free Software Foundation, Inc.
+## Copyright (C) 2013-2025 Free Software Foundation, Inc.
 
 ## Author: Glenn Morris <rgm@gnu.org>
 ## Maintainer: emacs-devel@gnu.org
@@ -39,7 +39,7 @@ shift
 
 exec "${AWK-awk}" '
   function detexinfo() {
-    gsub(/@value{emacsname}/, "Emacs")
+    gsub(/@value\{emacsname\}/, "Emacs")
     gsub(/@[^{]*\{/, "")
     gsub(/}/, "")
   }
@@ -86,7 +86,7 @@ exec "${AWK-awk}" '
       for (dircat = 0; dircat < ntopics && topic[dircat] != $0; dircat++)
         continue;
     }
-    if (tolower($0) ~ /^#\+texinfo_dir_title/) {
+    if (tolower($0) ~ /^#\+(texinfo_dir_title|texinfo_dir_name)/) {
       sub(/^#[^:]*: /, "")
       ## Note this does not fill any long descriptions.
       data[dircat] = data[dircat] sprintf("* %-30s", ($0 ". "))

@@ -1,6 +1,6 @@
 ;;; mule-cmds.el --- commands for multilingual environment  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1997-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1997-2025 Free Software Foundation, Inc.
 ;; Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
 ;;   2005, 2006, 2007, 2008, 2009, 2010, 2011
 ;;   National Institute of Advanced Industrial Science and Technology (AIST)
@@ -88,7 +88,8 @@
     (bindings--define-key map [separator-3] menu-bar-separator)
     (bindings--define-key map [set-terminal-coding-system]
       '(menu-item "For Terminal" set-terminal-coding-system
-        :enable (null (memq initial-window-system '(x w32 mac ns haiku pgtk)))
+        :enable (null (memq initial-window-system '(x w32 mac ns haiku pgtk
+						    android)))
         :help "How to encode terminal output"))
     (bindings--define-key map [set-keyboard-coding-system]
       '(menu-item "For Keyboard" set-keyboard-coding-system
@@ -349,9 +350,10 @@ This also sets the following values:
       if CODING-SYSTEM is ASCII-compatible"
   (check-coding-system coding-system)
   (setq-default buffer-file-coding-system coding-system)
-
-  (if (eq system-type 'darwin)
-      ;; The file-name coding system on Darwin systems is always utf-8.
+  (if (or (eq system-type 'darwin)
+          (eq system-type 'android))
+      ;; The file-name coding system on Darwin and Android systems is
+      ;; always UTF-8.
       (setq default-file-name-coding-system 'utf-8-unix)
     (if (and (or (not coding-system)
 		 (coding-system-get coding-system 'ascii-compatible-p)))
@@ -735,7 +737,7 @@ DEFAULT is the coding system to use by default in the query."
 			  (format "string \"%s\"." from)
 			(format-message "buffer `%s'." bufname)))
 	    (insert
-	     "These default coding systems were tried to encode"
+	     "These default coding systems were tried to safely encode"
 	     (if (stringp from)
 		 (concat " \"" (if (> (length from) 10)
 				   (concat (substring from 0 10) "...\"")
@@ -756,9 +758,9 @@ e.g., for sending an email message.\n ")
 	      (insert (if rejected "The other coding systems"
 			"However, each of them")
 		      (substitute-command-keys
-		       " encountered characters it couldn't encode:\n"))
+		       " encountered characters it couldn't encode safely:\n"))
 	      (dolist (coding unsafe)
-		(insert (format "  %s cannot encode these:" (car coding)))
+		(insert (format "  %s cannot safely encode these:" (car coding)))
 		(let ((i 0)
 		      (func1
                        (lambda (bufname pos)
@@ -867,8 +869,7 @@ overrides ACCEPT-DEFAULT-P.
 
 Kludgy feature: if FROM is a string, the string is the target text,
 and TO is ignored."
-  (if (not (listp default-coding-system))
-      (setq default-coding-system (list default-coding-system)))
+  (setq default-coding-system (ensure-list default-coding-system))
 
   (let ((no-other-defaults nil)
 	auto-cs)
@@ -2159,7 +2160,9 @@ See `set-language-info-alist' for use in programs."
   (interactive
    (list (read-language-name
 	  'documentation
-	  (format-prompt "Describe language environment" current-language-environment))))
+	  (format-prompt "Describe language environment"
+                         current-language-environment)
+          current-language-environment)))
   (let ((help-buffer-under-preparation t))
     (if (null language-name)
 	(setq language-name current-language-environment))
@@ -3191,6 +3194,13 @@ on encoding."
     (let* ((char (gethash name ucs-names))
            (script (and char (aref char-script-table char))))
       (if script (symbol-name script) "ungrouped"))))
+
+(defun char-to-name (char)
+  "Return the Unicode name for CHAR, if it has one, else nil.
+Return nil if CHAR is not a character."
+  (and (characterp char)
+       (or (get-char-code-property char 'name)
+           (get-char-code-property char 'old-name))))
 
 (defun char-from-name (string &optional ignore-case)
   "Return a character as a number from its Unicode name STRING.

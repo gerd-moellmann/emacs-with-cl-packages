@@ -1,6 +1,6 @@
 ;;; xwidget.el --- api functions for xwidgets  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2011-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2025 Free Software Foundation, Inc.
 
 ;; Author: Joakim Verona <joakim@verona.se>
 
@@ -81,7 +81,7 @@ This returns the result of `make-xwidget'."
 (defun xwidget-at (pos)
   "Return xwidget at POS."
   (let* ((disp (get-text-property pos 'display))
-         (xw (car (cdr (cdr disp)))))
+         (xw (ignore-errors (car (cdr (cdr disp))))))
     (when (xwidget-live-p xw) xw)))
 
 
@@ -378,7 +378,7 @@ one char."
              (> (window-hscroll) 0))
         (set-window-hscroll nil (- (window-hscroll) n))
       (xwidget-webkit-execute-script session
-                                     (format "window.scrollBy(%-d, 0);"
+                                     (format "window.scrollBy(-%d, 0);"
                                              (* n (window-font-width)))))))
 
 (defun xwidget-webkit-scroll-top ()

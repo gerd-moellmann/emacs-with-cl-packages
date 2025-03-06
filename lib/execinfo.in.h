@@ -1,6 +1,6 @@
 /* Information about executables.
 
-   Copyright (C) 2012-2024 Free Software Foundation, Inc.
+   Copyright (C) 2012-2025 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as published by
@@ -20,13 +20,20 @@
 #ifndef _GL_EXECINFO_H
 #define _GL_EXECINFO_H
 
-#ifndef _GL_INLINE_HEADER_BEGIN
+/* This file uses _GL_INLINE_HEADER_BEGIN, _GL_INLINE.  */
+#if !_GL_CONFIG_H_INCLUDED
  #error "Please include config.h first."
 #endif
+
 _GL_INLINE_HEADER_BEGIN
 #ifndef _GL_EXECINFO_INLINE
 # define _GL_EXECINFO_INLINE _GL_INLINE
 #endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 
 _GL_EXECINFO_INLINE int
 backtrace (void **buffer, int size)
@@ -51,6 +58,11 @@ backtrace_symbols_fd (void *const *buffer, int size, int fd)
   (void) size;
   (void) fd;
 }
+
+
+#ifdef __cplusplus
+}
+#endif
 
 _GL_INLINE_HEADER_END
 

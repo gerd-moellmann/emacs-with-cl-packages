@@ -8,7 +8,7 @@
 @copying
 This file documents the GNU Emacs Web Wowser (EWW) package.
 
-Copyright @copyright{} 2014--2024 Free Software Foundation, Inc.
+Copyright @copyright{} 2014--2025 Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -92,9 +92,10 @@ searched via @code{eww-search-prefix}.  The default search engine is
 either prefix the file name with @code{file://} or use the command
 @kbd{M-x eww-open-file}.
 
-  If you invoke @code{eww} with a prefix argument, as in @w{@kbd{C-u
-M-x eww}}, it will create a new EWW buffer instead of reusing the
-default one, which is normally called @file{*eww*}.
+  If you invoke @code{eww} or @code{eww-open-file} with a prefix
+argument, as in @w{@kbd{C-u M-x eww}}, they will create a new EWW
+buffer instead of reusing the default one, which is normally called
+@file{*eww*}.
 
 @findex eww-quit
 @findex eww-reload
@@ -114,20 +115,57 @@ web page hit @kbd{g} (@code{eww-reload}).
 @kbd{w} calls @code{eww-copy-page-url}, which will copy the current
 page's URL to the kill ring instead.
 
+@findex eww-copy-alternate-url
+@kindex A
+  The @kbd{A} command (@code{eww-copy-alternate-url}) copies the URL
+of an alternate link on the current page into the kill ring.  If the
+page specifies multiple alternate links, this command prompts for one
+of them in the minibuffer, with completion.  Alternate links are
+references that an @acronym{HTML} page may include to point to other
+documents that act as its alternative representations.  Notably,
+@acronym{HTML} pages can use alternate links to point to their
+translated versions and to @acronym{RSS} feeds.  Alternate links
+appear in the @samp{<head>} section of @acronym{HTML} pages as
+@samp{<link>} elements with @samp{rel} attribute equal to
+@samp{``alternate''}; they are part of the page's metadata and are not
+visible in its rendered content.
+
 @findex eww-open-in-new-buffer
 @kindex M-RET
-  The @kbd{M-@key{RET}} command (@code{eww-open-in-new-buffer}) opens the
-URL at point in a new EWW buffer, akin to opening a link in a new
-``tab'' in other browsers.  When @code{global-tab-line-mode} is
-enabled, this buffer is displayed in the tab on the window tab line.
-When @code{tab-bar-mode} is enabled, a new tab is created on the frame
-tab bar.
+  The @kbd{M-@key{RET}} command (@code{eww-open-in-new-buffer}) opens
+the URL at point in a new EWW buffer, akin to opening a link in a new
+``tab'' in other browsers.  If invoked with prefix argument, the
+command will not make the new buffer the current one.  When
+@code{global-tab-line-mode} is enabled, this buffer is displayed in
+the tab on the window tab line.  When @code{tab-bar-mode} is enabled,
+a new tab is created on the frame tab bar.
 
 @findex eww-readable
 @kindex R
   The @kbd{R} command (@code{eww-readable}) will attempt to determine
 which part of the document contains the ``readable'' text, and will
 only display this part.  This usually gets rid of menus and the like.
+
+  When called interactively, this command toggles the display of the
+readable parts.  With a positive prefix argument, this command always
+displays the readable parts, and with a zero or negative prefix, it
+always displays the full page.
+
+@vindex eww-readable-urls
+  If you want EWW to render a certain page in ``readable'' mode by
+default, you can add a regular expression matching its URL to
+@code{eww-readable-urls}.  Each entry can either be a regular expression
+in string form or a cons cell of the form
+@w{@code{(@var{regexp} . @var{readability})}}.  If @var{readability} is
+non-@code{nil}, this behaves the same as the string form; otherwise,
+URLs matching @var{regexp} will never be displayed in readable mode by
+default.  For example, you can use this to make all pages default to
+readable mode, except for a few outliers:
+
+@example
+(setq eww-readable-urls '(("https://example\\.com/" . nil)
+                          ".*"))
+@end example
 
 @findex eww-toggle-fonts
 @vindex shr-use-fonts
@@ -174,6 +212,15 @@ to the previous URL@.  You can go forward again with @kbd{r}
 history press @kbd{H} (@code{eww-list-histories}) to open the history
 buffer @file{*eww history*}.  The history is lost when EWW is quit.
 If you want to remember websites you can use bookmarks.
+
+@vindex eww-before-browse-history-function
+  By default, when browsing to a new page from a ``historical'' one
+(i.e.@: a page loaded by navigating back via @code{eww-back-url}), EWW
+will first delete any history entries newer than the current page.  This
+is the same behavior as most other web browsers.  You can change this by
+customizing @code{eww-before-browse-history-function} to another value.
+For example, setting it to @code{ignore} will preserve the existing
+history entries and simply prepend the new page to the history list.
 
 @vindex eww-history-limit
   Along with the URLs visited, EWW also remembers both the rendered

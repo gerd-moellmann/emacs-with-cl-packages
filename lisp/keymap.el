@@ -1,6 +1,6 @@
 ;;; keymap.el --- Keymap functions  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2021-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2025 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: internal
@@ -84,6 +84,10 @@ as its DEFINITION argument.
 If COMMAND is a string (which can only happen when this function is
 called from Lisp), it must satisfy `key-valid-p'.
 
+The `key-description' convenience function converts a simple
+string of characters to an equivalent form that is acceptable for
+COMMAND.
+
 Note that if KEY has a local binding in the current buffer,
 that local binding will continue to shadow any global binding
 that you make with this function."
@@ -107,6 +111,10 @@ as its DEFINITION argument.
 
 If COMMAND is a string (which can only happen when this function is
 called from Lisp), it must satisfy `key-valid-p'.
+
+The `key-description' convenience function converts a simple
+string of characters to an equivalent form that is acceptable for
+COMMAND.
 
 The binding goes in the current buffer's local keymap, which in most
 cases is shared with all other buffers in the same major mode."
@@ -319,21 +327,29 @@ KEYS should be a string consisting of one or more key strokes,
 with a single space character separating one key stroke from another.
 
 Each key stroke is either a single character, or the name of an
-event, surrounded by angle brackets <like-this>.  In addition, any
-key stroke may be preceded by one or more modifier keys.  Finally,
-a limited number of characters have a special shorthand syntax.
+event, surrounded by angle brackets <like-this>.  An event may be
+pushing a key, clicking on a menu item, pressing a mouse button, etc.
+In addition, any key stroke may be preceded by one or more modifier
+keys.  Finally, a limited number of characters have a special shorthand
+syntax.
 
 Here are some example of valid key sequences.
 
   \"f\"           (the key `f')
+  \"<f6>\"        (the function key named \"F6\")
+  \"<mouse-1>\"   (the mouse button named \"mouse-1\", commonly referred to as
+                 the left button)
   \"S o m\"       (a three-key sequence of the keys `S', `o' and `m')
   \"C-c o\"       (a two-key sequence: the key `c' with the control modifier
                  followed by the key `o')
-  \"H-<left>\"    (the function key named \"left\" with the hyper modifier)
+  \"H-<left>\"    (the cursor control key named \"left\" with the hyper modifier)
+  \"RET\"         (the \"return\" key, also available as \"C-m\")
+  \"<return>\"    (the \"<return>\" function key, which can be bound separately
+                 from \"RET\" on some systems)
   \"M-RET\"       (the \"return\" key with a meta modifier)
   \"C-M-<space>\" (the \"space\" key with both the control and meta modifiers)
 
-These are the characters that have special shorthand syntax:
+These characters have special shorthand syntax:
 NUL, RET, TAB, LFD, ESC, SPC, DEL.
 
 Modifiers have to be specified in this order:
@@ -379,20 +395,35 @@ which is
 
 (defun key-translate (from to)
   "Translate character FROM to TO on the current terminal.
+
 This function creates a `keyboard-translate-table' if necessary
 and then modifies one entry in it.
 
-Both FROM and TO should be specified by strings that satisfy `key-valid-p'."
+Both FROM and TO should be specified by strings that satisfy `key-valid-p'.
+If TO is nil, remove any existing translation for FROM."
   (declare (compiler-macro
             (lambda (form) (keymap--compile-check from to) form)))
   (keymap--check from)
-  (keymap--check to)
-  (or (char-table-p keyboard-translate-table)
-      (setq keyboard-translate-table
-            (make-char-table 'keyboard-translate-table nil)))
-  (aset keyboard-translate-table
-        (aref (key-parse from) 0)
-        (aref (key-parse to) 0)))
+  (when to
+    (keymap--check to))
+  (let ((from-key (key-parse from))
+        (to-key (and to (key-parse to))))
+    (cond
+     ((= (length from-key) 0)
+      (error "FROM key is empty"))
+     ((> (length from-key) 1)
+      (error "FROM key %s is not a single key" from)))
+    (cond
+     ((and to (= (length to-key) 0))
+      (error "TO key is empty"))
+     ((and to (> (length to-key) 1))
+      (error "TO key %s is not a single key" to)))
+    (or (char-table-p keyboard-translate-table)
+        (setq keyboard-translate-table
+              (make-char-table 'keyboard-translate-table nil)))
+    (aset keyboard-translate-table
+          (aref from-key 0)
+          (and to (aref to-key 0)))))
 
 (defun keymap-lookup (keymap key &optional accept-default no-remap position)
   "Return the binding for command KEY in KEYMAP.
@@ -577,9 +608,15 @@ should be a MENU form as accepted by `easy-menu-define'.
           (let ((def (pop definitions)))
             (if (eq key :menu)
                 (easy-menu-define nil keymap "" def)
-              (if (member key seen-keys)
-                  (error "Duplicate definition for key: %S %s" key keymap)
-                (push key seen-keys))
+              (when (member key seen-keys)
+                ;; Since the keys can be computed dynamically, it can
+                ;; very well happen that we get duplicate definitions
+                ;; due to some unfortunate configuration rather than
+                ;; due to an actual bug.  While such duplicates are
+                ;; not desirable, they shouldn't prevent the users
+                ;; from getting their job done.
+                (message "Duplicate definition for key: %S %s" key keymap))
+              (push key seen-keys)
               (keymap-set keymap key def)))))
       keymap)))
 
@@ -597,10 +634,11 @@ non-nil, all commands in the map will have the `repeat-map'
 symbol property.
 
 More control is available over which commands are repeatable; the
-value can also be a property list with properties `:enter' and
-`:exit', for example:
+value can also be a property list with properties `:enter',
+`:exit' and `:hints', for example:
 
-     :repeat (:enter (commands ...) :exit (commands ...))
+     :repeat (:enter (commands ...) :exit (commands ...)
+              :hints ((command . \"hint\") ...))
 
 `:enter' specifies the list of additional commands that only
 enter `repeat-mode'.  When the list is empty, then only the
@@ -614,6 +652,10 @@ list is empty, no commands in the map exit `repeat-mode'.
 Specifying a list of commands is useful when those commands exist
 in this specific map, but should not have the `repeat-map' symbol
 property.
+
+`:hints' is a list of cons pairs where car is a command and
+cdr is a string that is displayed alongside of the repeatable key
+in the echo area.
 
 \(fn VARIABLE-NAME &key DOC FULL PARENT SUPPRESS NAME PREFIX KEYMAP REPEAT &rest [KEY DEFINITION]...)"
   (declare (indent 1))
@@ -654,7 +696,9 @@ property.
           (setq def (pop defs))
           (when (and (memq (car def) '(function quote))
                      (not (memq (cadr def) (plist-get repeat :exit))))
-            (push `(put ,def 'repeat-map ',variable-name) props)))))
+            (push `(put ,def 'repeat-map ',variable-name) props)))
+        (dolist (def (plist-get repeat :hints))
+          (push `(put ',(car def) 'repeat-hint ',(cdr def)) props))))
 
     (let ((defvar-form
            `(defvar ,variable-name

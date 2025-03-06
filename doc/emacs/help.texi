@@ -1,5 +1,5 @@
 @c This is part of the Emacs manual.
-@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2024 Free Software
+@c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2025 Free Software
 @c Foundation, Inc.
 @c See file emacs.texi for copying conditions.
 @node Help
@@ -265,6 +265,11 @@ by these buttons, Emacs provides the @code{button-describe} and
 @code{widget-describe} commands, that should be run with point over
 the button.
 
+@anchor{which-key}
+@kbd{M-x which-key} is a global minor mode which helps in discovering
+ keymaps.  It displays keybindings following your currently entered
+ incomplete command (prefix), in a popup.
+
 @node Name Help
 @section Help by Command or Variable Name
 
@@ -310,6 +315,23 @@ name is defined as a Lisp function.  Type @kbd{C-g} to cancel the
 @kbd{C-h f} command if you don't really want to view the
 documentation.
 
+  The function's documentation displayed by @code{describe-function}
+includes more than just the documentation string and the signature of
+the function.  It also shows auxiliary information such as its type, the
+file where it was defined, whether it has been declared obsolete, and
+yet further information is often reachable by clicking or typing
+@key{RET} on emphasized parts of the text.
+
+@cindex function type specifier
+@cindex declared type of a function
+@cindex inferred type of a function
+The function type, if known, is expressed with a @dfn{function type
+specifier} (@pxref{Type Specifiers,,,elisp, The Emacs Lisp Reference
+Manual}), it will be specified if the type was manually declared by a
+Lisp program or inferred by the compiler.  Note that function type
+inference works only when native compilation is enabled (@pxref{native
+compilation,,, elisp, The Emacs Lisp Reference Manual}).
+
 @vindex help-enable-symbol-autoload
   If you request help for an autoloaded function whose @code{autoload}
 form (@pxref{Autoload,,, elisp, The Emacs Lisp Reference Manual})
@@ -324,6 +346,16 @@ there's a doc string there.
 by using the @kbd{M-x shortdoc} command.  This will prompt you for an
 area of interest, e.g., @code{string}, and pop you to a buffer where
 many of the functions relevant for handling strings are listed.
+
+You can also request that documentation of functions and commands
+shown in @file{*Help*} buffers popped by @kbd{C-h f} includes examples
+of their use.  To that end, add the following to your initialization
+file (@pxref{Init File}):
+
+@example
+(add-hook 'help-fns-describe-function-functions
+          #'shortdoc-help-fns-examples-function)
+@end example
 
 @kindex C-h v
 @findex describe-variable
@@ -349,6 +381,11 @@ manuals, not just the Emacs manual, and finds the right one.
 variable, or a face.  If the symbol has more than one definition, like
 it has both definition as a function and as a variable, this command
 will show the documentation of all of them, one after the other.
+
+@kindex C-h 4 s
+@findex help-find-source
+  @kbd{C-h 4 s} (@code{help-find-source}) switch to a buffer visiting
+the source definition of what is being described in the help buffer.
 
 @vindex completions-detailed
   If the @code{completions-detailed} user option is non-@code{nil},
@@ -492,7 +529,7 @@ backward.  It also provides a few special commands:
 
 @table @kbd
 @item @key{RET}
-Follow a cross reference at point (@code{help-follow}).
+Follow a cross-reference at point (@code{help-follow}).
 @item @key{TAB}
 Move point forward to the next hyperlink (@code{forward-button}).
 @item S-@key{TAB}

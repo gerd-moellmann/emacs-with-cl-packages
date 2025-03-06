@@ -10665,8 +10665,7 @@
 	* textmodes/rst.el: Add comments.
 	(rst-transition, rst-adornment): New faces.
 	(rst-adornment-faces-alist): Make default safe to reevaluate.
-	Fixes
-	http://sourceforge.net/tracker/?func=detail&atid=422030&aid=3479603&group_id=38414.
+	Fixes https://sourceforge.net/p/docutils/bugs/180/.
 	Improve customization tags.
 	(rst-define-level-faces): Clarify meaning.
 
@@ -15383,7 +15382,7 @@
 	* calendar/calendar.el (calendar-mode):
 	Locally set scroll-margin to 0.  (Bug#10379)
 
-2012-01-06  Ulrich Mueller  <ulm@gentoo.org>
+2012-01-06  Ulrich Müller  <ulm@gentoo.org>
 
 	* play/doctor.el (doctor-death): Escape "," characters.  (Bug#10370)
 
@@ -17134,7 +17133,7 @@
 	(mouse-drag-vertical-line): Call mouse-drag-line.
 	* window.el (window-at-side-p, windows-at-side): New functions.
 
-2011-10-21  Ulrich Mueller  <ulm@gentoo.org>
+2011-10-21  Ulrich Müller  <ulm@gentoo.org>
 
 	* tar-mode.el (tar-grind-file-mode):
 	Fix handling of setuid/setgid, handle sticky bit.  (Bug#9817)
@@ -25199,7 +25198,7 @@
 	* emacs-lisp/package-x.el (package-upload-buffer-internal):
 	Use `equal' for upload base check.
 
-2011-03-08  Arni Magnusson  <arnima@hafro.is>  (tiny change)
+2011-03-08  Arni Magnusson  <thisisarni@gmail.com>  (tiny change)
 
 	* textmodes/texinfo.el (texinfo-environments):
 	Add deftypecv, deftypeivar, deftypemethod, deftypeop, html.  (Bug#2783)
@@ -25223,7 +25222,7 @@ See ChangeLog.15 for earlier changes.
 ;; coding: utf-8
 ;; End:
 
-  Copyright (C) 2011-2024 Free Software Foundation, Inc.
+  Copyright (C) 2011-2025 Free Software Foundation, Inc.
 
   This file is part of GNU Emacs.
 

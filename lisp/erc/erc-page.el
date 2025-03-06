@@ -1,6 +1,6 @@
 ;;; erc-page.el --- CTCP PAGE support for ERC  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2002, 2004, 2006-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2002, 2004, 2006-2025 Free Software Foundation, Inc.
 
 ;; Maintainer: Amin Bandali <bandali@gnu.org>, F. Jason Park <jp@neverwas.me>
 
@@ -30,16 +30,20 @@
 
 (require 'erc)
 
+(declare-function erc-controls-interpret "erc-goodies" (str))
+
 (defgroup erc-page nil
   "React to CTCP PAGE messages."
   :group 'erc)
 
+;;;###autoload(put 'ctcp-page 'erc--module 'page)
 ;;;###autoload(autoload 'erc-page-mode "erc-page")
 (define-erc-module page ctcp-page
   "Process CTCP PAGE requests from IRC."
   nil nil)
 
-(erc-define-catalog-entry 'english 'CTCP-PAGE "Page from %n (%u@%h): %m")
+(defvar erc-message-english-CTCP-PAGE "Page from %n (%u@%h): %m"
+  "English template for a CTCP PAGE message.")
 
 (defcustom erc-page-function nil
   "A function to process a \"page\" request.
@@ -69,6 +73,7 @@ SENDER and MSG, so that might be easier to use."
 This will call `erc-page-function', if defined, or it will just print
 a message and `beep'.  In addition to that, the page message is also
 inserted into the server buffer."
+  (require 'erc-goodies) ; for `erc-controls-interpret'
   (when (and erc-page-mode
 	     (string-match "PAGE\\(\\s-+.*\\)?$" msg))
     (let* ((m (match-string 1 msg))

@@ -1,6 +1,6 @@
 ;;; mouse.el --- window system-independent mouse support  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1993-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1993-2025 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: hardware, mouse
@@ -35,7 +35,7 @@
 (put 'track-mouse 'lisp-indent-function 0)
 
 (defgroup mouse nil
-  "Input from the mouse."  ;; "Mouse support."
+  "Input from the mouse."
   :group 'environment
   :group 'editing)
 
@@ -105,6 +105,15 @@ point at the click position."
   :type 'boolean
   :version "22.1")
 
+(defcustom mouse-1-double-click-prefer-symbols nil
+  "If non-nil, double-clicking Mouse-1 attempts to select the symbol at click.
+
+If nil, the default, double-clicking Mouse-1 on a word-constituent
+character will select only the word at click location, which could
+select fewer characters than the symbol at click."
+  :type 'boolean
+  :version "30.1")
+
 (defcustom mouse-drag-and-drop-region-scroll-margin nil
   "If non-nil, the scroll margin inside a window when dragging text.
 If the mouse moves this many lines close to the top or bottom of
@@ -123,6 +132,19 @@ This option is only supported on X, Haiku and Nextstep (GNUstep
 or macOS)."
   :type 'boolean
   :version "29.1")
+
+(defcustom mouse-wheel-buttons
+  '((4 . wheel-up) (5 . wheel-down) (6 . wheel-left) (7 . wheel-right))
+  "How to remap mouse button numbers to wheel events.
+This is an alist of (NUMBER . SYMBOL) used to remap old-style mouse wheel
+events represented as mouse button events.  It remaps mouse button
+NUMBER to the event SYMBOL.  SYMBOL must be one of `wheel-up', `wheel-down',
+`wheel-left', or `wheel-right'.
+This is used only for events that come from sources known to generate such
+events, such as X11 events when XInput2 is not used, or events coming from
+a text terminal."
+  :type '(alist)
+  :version "30.1")
 
 (defvar mouse--last-down nil)
 
@@ -197,8 +219,16 @@ always return a positive integer or zero."
 
 ;; Provide a mode-specific menu on a mouse button.
 
-(defun minor-mode-menu-from-indicator (indicator)
+(defun minor-mode-menu-from-indicator (indicator &optional window event)
   "Show menu for minor mode specified by INDICATOR.
+
+INDICATOR is either a string object returned by `posn-object' or
+the car of such an object.  WINDOW may be the window whose mode
+line is being displayed.
+
+EVENT may be the mouse event that is causing this menu to be
+displayed.
+
 Interactively, INDICATOR is read using completion.
 If there is no menu defined for the minor mode, then create one with
 items `Turn Off' and `Help'."
@@ -206,7 +236,44 @@ items `Turn Off' and `Help'."
    (list (completing-read
 	  "Minor mode indicator: "
 	  (describe-minor-mode-completion-table-for-indicator))))
-  (let* ((minor-mode (lookup-minor-mode-from-indicator indicator))
+  ;; If INDICATOR is a string object, WINDOW is set, and
+  ;; `mode-line-compact' might be enabled, find a string in
+  ;; `minor-mode-alist' that is present within the INDICATOR and whose
+  ;; extents within INDICATOR contain the position of the object
+  ;; within the string.
+  (when window
+    (catch 'found
+      (with-selected-window window
+        (let ((alist minor-mode-alist) string position)
+          (when (and (consp indicator) mode-line-compact)
+            (with-temp-buffer
+              (insert (car indicator))
+              (dolist (menu alist)
+                ;; If this is a valid minor mode menu entry,
+                (when (and (consp menu)
+                           (setq string (format-mode-line (cadr menu)
+                                                          nil window))
+                           (> (length string) 0))
+                  ;; Start searching for an appearance of (cdr menu).
+                  (goto-char (point-min))
+                  (while (search-forward string nil 0)
+                    ;; If the position of the string object is
+                    ;; contained within, set indicator to the minor
+                    ;; mode in question.
+                    (setq position (1+ (cdr indicator)))
+                    (and (>= position (match-beginning 0))
+                         (<= position (match-end 0))
+                         (setq indicator (car menu))
+                         (throw 'found nil)))))))))))
+  ;; If INDICATOR is still a cons, use its car.
+  (when (consp indicator)
+    (setq indicator (car indicator)))
+  (let* ((minor-mode (if (symbolp indicator)
+                         ;; indicator being set to a symbol means that
+                         ;; the loop above has already found a
+                         ;; matching minor mode.
+                         indicator
+                       (lookup-minor-mode-from-indicator indicator)))
          (mm-fun (or (get minor-mode :minor-mode-function) minor-mode)))
     (unless minor-mode (error "Cannot find minor mode for `%s'" indicator))
     (let* ((map (cdr-safe (assq minor-mode minor-mode-map-alist)))
@@ -225,14 +292,19 @@ items `Turn Off' and `Help'."
                           ,(lambda () (interactive)
                              (describe-function mm-fun)))))))
       (if menu
-          (popup-menu menu)
+          (popup-menu menu event)
         (message "No menu available")))))
 
 (defun mouse-minor-mode-menu (event)
   "Show minor-mode menu for EVENT on minor modes area of the mode line."
   (interactive "@e")
-  (let ((indicator (car (nth 4 (car (cdr event))))))
-    (minor-mode-menu-from-indicator indicator)))
+  (let* ((posn (event-start event))
+         (indicator (posn-object posn))
+         (window (posn-window posn)))
+    (minor-mode-menu-from-indicator indicator window event)))
+
+;; See (elisp)Touchscreen Events.
+(put 'mouse-minor-mode-menu 'mouse-1-menu-command t)
 
 (defun mouse-menu-major-mode-map ()
   (run-hooks 'activate-menubar-hook 'menu-bar-update-hook)
@@ -334,6 +406,7 @@ and should return the same menu with changes such as added new menu items."
                   (function-item context-menu-local)
                   (function-item context-menu-minor)
                   (function-item context-menu-buffers)
+                  (function-item context-menu-project)
                   (function-item context-menu-vc)
                   (function-item context-menu-ffap)
                   (function-item hi-lock-context-menu)
@@ -355,13 +428,17 @@ Each function receives the menu and the mouse click event
 and returns the same menu after adding own menu items to the composite menu.
 When there is a text property `context-menu-function' at CLICK,
 it overrides all functions from `context-menu-functions'.
+Whereas the property `context-menu-functions' doesn't override
+the variable `context-menu-functions', but adds menus from the
+list in the property after adding menus from the variable.
 At the end, it's possible to modify the final menu by specifying
 the function `context-menu-filter-function'."
   (let* ((menu (make-sparse-keymap (propertize "Context Menu" 'hide t)))
          (click (or click last-input-event))
-         (window (posn-window (event-start click)))
-         (fun (mouse-posn-property (event-start click)
-                                   'context-menu-function)))
+         (start (event-start click))
+         (window (posn-window start))
+         (fun (mouse-posn-property start 'context-menu-function))
+         (funs (mouse-posn-property start 'context-menu-functions)))
 
     (unless (eq (selected-window) window)
       (select-window window))
@@ -371,7 +448,9 @@ the function `context-menu-filter-function'."
       (run-hook-wrapped 'context-menu-functions
                         (lambda (fun)
                           (setq menu (funcall fun menu click))
-                          nil)))
+                          nil))
+      (dolist (fun funs)
+        (setq menu (funcall fun menu click))))
 
     ;; Remove duplicate separators as well as ones at the beginning or
     ;; end of the menu.
@@ -466,6 +545,12 @@ Some context functions add menu items below the separator."
                   (define-key-after menu (vector key)
                     (copy-sequence binding))))
               (mouse-buffer-menu-keymap))
+  menu)
+
+(defun context-menu-project (menu _click)
+  "Populate MENU with project commands."
+  (define-key-after menu [separator-project] menu-bar-separator)
+  (define-key-after menu [project-menu] menu-bar-project-item)
   menu)
 
 (defun context-menu-vc (menu _click)
@@ -1772,10 +1857,11 @@ The region will be defined with mark and point."
              map)
            t (lambda ()
                (funcall cleanup)
-               ;; Don't deactivate the mark when the context menu was invoked
-               ;; by down-mouse-3 immediately after down-mouse-1 and without
-               ;; releasing the mouse button with mouse-1. This allows to use
-               ;; region-related context menu to operate on the selected region.
+               ;; Don't deactivate the mark when the context menu was
+               ;; invoked by down-mouse-3 immediately after
+               ;; down-mouse-1 and without releasing the mouse button
+               ;; with mouse-1.  This enables region-related context
+               ;; menu to operate on the selected region.
                (unless (and context-menu-mode
                             (eq (car-safe (aref (this-command-keys-vector) 0))
                                 'down-mouse-3))
@@ -1803,10 +1889,17 @@ The region will be defined with mark and point."
 ;; Commands to handle xterm-style multiple clicks.
 (defun mouse-skip-word (dir)
   "Skip over word, over whitespace, or over identical punctuation.
+If `mouse-1-double-click-prefer-symbols' is non-nil, skip over symbol.
 If DIR is positive skip forward; if negative, skip backward."
   (let* ((char (following-char))
-	 (syntax (char-to-string (char-syntax char))))
-    (cond ((string= syntax "w")
+	 (syntax (char-to-string (char-syntax char)))
+         sym)
+    (cond ((and mouse-1-double-click-prefer-symbols
+                (setq sym (bounds-of-thing-at-point 'symbol)))
+           (goto-char (if (< dir 0)
+                          (car sym)
+                        (cdr sym))))
+          ((string= syntax "w")
 	   ;; Here, we can't use skip-syntax-forward/backward because
 	   ;; they don't pay attention to word-separating-categories,
 	   ;; and thus they will skip over a true word boundary.  So,

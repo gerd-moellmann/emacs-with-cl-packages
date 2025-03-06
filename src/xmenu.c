@@ -1,6 +1,6 @@
 /* X Communication module for terminals which understand the X protocol.
 
-Copyright (C) 1986, 1988, 1993-1994, 1996, 1999-2024 Free Software
+Copyright (C) 1986, 1988, 1993-1994, 1996, 1999-2025 Free Software
 Foundation, Inc.
 
 Author: Jon Arnold
@@ -236,7 +236,7 @@ x_menu_translate_generic_event (XEvent *event)
   XEvent copy;
   XIDeviceEvent *xev;
 
-  dpyinfo = x_display_info_for_display (event->xgeneric.display);
+  dpyinfo = x_dpyinfo (event->xgeneric.display);
 
   if (event->xgeneric.extension == dpyinfo->xi2_opcode)
     {
@@ -1607,6 +1607,7 @@ create_and_show_popup_menu (struct frame *f, widget_value *first_wv,
 
    For menu bars, we use numbers starting at 0, counted in
    next_menubar_widget_id.  */
+extern LWLIB_ID widget_id_tick; /* FIXME: Move this to a .h file.  */
 LWLIB_ID widget_id_tick;
 
 static void
@@ -1617,6 +1618,7 @@ popup_selection_callback (Widget widget, LWLIB_ID id, XtPointer client_data)
 
 
 #ifdef HAVE_XINPUT2
+
 static void
 prepare_for_entry_into_toolkit_menu (struct frame *f)
 {
@@ -1680,6 +1682,19 @@ leave_toolkit_menu (void *data)
   XISetMask (m, XI_Enter);
   XISetMask (m, XI_Leave);
 
+#ifdef HAVE_XINPUT2_4
+  /* Select for gesture events.  Emacs selects for gesture events from
+     all master devices on non-GTK3 builds, so that event mask is also
+     clobbered by prepare_for_entry_into_toolkit_menu.  (bug#65129) */
+
+  if (dpyinfo->xi2_version >= 4)
+    {
+      XISetMask (m, XI_GesturePinchBegin);
+      XISetMask (m, XI_GesturePinchUpdate);
+      XISetMask (m, XI_GesturePinchEnd);
+    }
+#endif /* HAVE_XINPUT2_4 */
+
   FOR_EACH_FRAME (tail, frame)
     {
       f = XFRAME (frame);
@@ -1691,7 +1706,8 @@ leave_toolkit_menu (void *data)
 			&mask, 1);
     }
 }
-#endif
+
+#endif /* HAVE_XINPUT2 */
 
 /* ID is the LWLIB ID of the dialog box.  */
 

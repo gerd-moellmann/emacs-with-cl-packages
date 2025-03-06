@@ -1,6 +1,6 @@
 ;;; em-cmpl.el --- completion using the TAB key  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2025 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 
@@ -74,11 +74,9 @@
 (require 'esh-util)
 (require 'em-dirs)
 
-(eval-when-compile
-  (require 'cl-lib)
-  (require 'eshell))
+(eval-when-compile (require 'cl-lib))
 
-;;;###autoload
+;;;###esh-module-autoload
 (progn
 (defgroup eshell-cmpl nil
   "This module provides a programmable completion function bound to
@@ -149,6 +147,11 @@ to writing a completion function."
 (defcustom eshell-cmpl-dir-ignore "\\`\\(\\.\\.?\\|CVS\\)/\\'"
   (eshell-cmpl--custom-variable-docstring 'pcomplete-dir-ignore)
   :type (get 'pcomplete-dir-ignore 'custom-type))
+
+(defcustom eshell-cmpl-remote-file-ignore nil
+  (eshell-cmpl--custom-variable-docstring 'pcomplete-remote-file-ignore)
+  :type (get 'pcomplete-remote-file-ignore 'custom-type)
+  :version "30.1")
 
 (defcustom eshell-cmpl-ignore-case (eshell-under-windows-p)
   (eshell-cmpl--custom-variable-docstring 'completion-ignore-case)
@@ -250,6 +253,8 @@ to writing a completion function."
               eshell-cmpl-file-ignore)
   (setq-local pcomplete-dir-ignore
               eshell-cmpl-dir-ignore)
+  (setq-local pcomplete-remote-file-ignore
+              eshell-cmpl-remote-file-ignore)
   (setq-local completion-ignore-case
               eshell-cmpl-ignore-case)
   (setq-local pcomplete-autolist
@@ -306,15 +311,44 @@ to writing a completion function."
     (insert-and-inherit "\t")
     (throw 'pcompleted t)))
 
+(defun eshell-complete--eval-argument-form (arg)
+  "Evaluate a single Eshell argument form ARG for the purposes of completion."
+  (condition-case err
+      (let* (;; Don't allow running commands; they could have
+             ;; arbitrary side effects, which we don't want when we're
+             ;; just performing completions!
+             (eshell-allow-commands)
+             ;; Handle errors ourselves so that we can properly catch
+             ;; `eshell-commands-forbidden'.
+             (eshell-handle-errors)
+             (result (eshell-do-eval `(eshell-commands ,arg) t)))
+        (cl-assert (eq (car result) 'quote))
+        (cadr result))
+    (eshell-commands-forbidden
+     (propertize "\0" 'eshell-argument-stub
+                 (intern (format "%s-command" (cadr err)))))
+    (error
+     (lwarn 'eshell :error
+            "Failed to evaluate argument form during completion: %S" arg)
+     (propertize "\0" 'eshell-argument-stub 'error))))
+
+;; Code stolen from `eshell-plain-command'.
+(defun eshell-external-command-p (command)
+  "Whether an external command shall be called."
+  (let* ((esym (eshell-find-alias-function command))
+	 (sym (or esym (intern-soft command))))
+    (not (and sym (fboundp sym)
+	      (or esym eshell-prefer-lisp-functions
+		  (not (eshell-search-path command)))))))
+
 (defun eshell-complete-parse-arguments ()
   "Parse the command line arguments for `pcomplete-argument'."
   (when (and eshell-no-completion-during-jobs
-	     (eshell-interactive-process-p))
+             eshell-foreground-command)
     (eshell--pcomplete-insert-tab))
   (let ((end (point-marker))
-	(begin (save-excursion (eshell-bol) (point)))
-	(posns (list t))
-	args delim)
+	(begin (save-excursion (beginning-of-line) (point)))
+	args posns delim incomplete-arg)
     (when (and pcomplete-allow-modifications
 	       (memq this-command '(pcomplete-expand
 			            pcomplete-expand-and-complete)))
@@ -322,59 +356,97 @@ to writing a completion function."
       (if (= begin end)
 	  (end-of-line))
       (setq end (point-marker)))
-    (if (setq delim
-	      (catch 'eshell-incomplete
-		(ignore
-		 (setq args (eshell-parse-arguments begin end)))))
-	(cond ((memq (car delim) '(?\{ ?\<))
-	       (setq begin (1+ (cadr delim))
-		     args (eshell-parse-arguments begin end)))
-	      ((eq (car delim) ?\()
-	       (throw 'pcompleted (elisp-completion-at-point)))
-	      (t
-	       (eshell--pcomplete-insert-tab))))
-    (when (get-text-property (1- end) 'comment)
+    ;; Don't expand globs when parsing arguments; we want to pass any
+    ;; globs to Pcomplete unaltered.
+    (declare-function eshell-parse-glob-chars "em-glob" ())
+    (let ((eshell-parse-argument-hook (remq #'eshell-parse-glob-chars
+                                            eshell-parse-argument-hook)))
+      (if (setq delim
+	        (catch 'eshell-incomplete
+		  (ignore
+		   (setq args (eshell-parse-arguments begin end)))))
+          (cond ((member (car delim) '("{" "${" "$<"))
+	         (setq begin (1+ (cadr delim))
+		       args (eshell-parse-arguments begin end)))
+                ((member (car delim) '("$'" "$\"" "#<"))
+                 ;; Add the (incomplete) argument to our arguments, and
+                 ;; note its position.
+                 (setq args (append (nth 2 delim) (list (car delim)))
+                       incomplete-arg t)
+                 (push (- (nth 1 delim) 2) posns))
+                ((member (car delim) '("(" "$("))
+	         (throw 'pcompleted (elisp-completion-at-point)))
+	        (t
+	         (eshell--pcomplete-insert-tab)))))
+    (when (and (< begin end)
+               (get-text-property (1- end) 'comment))
       (eshell--pcomplete-insert-tab))
-    (let ((pos begin))
-      (while (< pos end)
-	(if (get-text-property pos 'arg-begin)
-	    (nconc posns (list pos)))
-	(setq pos (1+ pos))))
-    (setq posns (cdr posns))
+    (let ((pos (1- end)))
+      (while (>= pos begin)
+        (when (get-text-property pos 'arg-begin)
+          (push pos posns))
+        (setq pos (1- pos))))
     (cl-assert (= (length args) (length posns)))
-    (let ((a args)
-	  (i 0)
-	  l)
+    (let ((a args) (i 0) new-start)
       (while a
-	(if (and (consp (car a))
-		 (eq (caar a) 'eshell-operator))
-	    (setq l i))
-	(setq a (cdr a) i (1+ i)))
-      (and l
-	   (setq args (nthcdr (1+ l) args)
-		 posns (nthcdr (1+ l) posns))))
+        ;; If there's an unreplaced `eshell-operator' sigil, consider
+        ;; the token after it the new start of our arguments.
+        (when (and (consp (car a))
+                   (eq (caar a) 'eshell-operator))
+          (setq new-start i))
+        (setq a (cdr a)
+              i (1+ i)))
+      (when new-start
+	(setq args (nthcdr (1+ new-start) args)
+	      posns (nthcdr (1+ new-start) posns))))
     (cl-assert (= (length args) (length posns)))
-    (when (and args (eq (char-syntax (char-before end)) ? )
+    (when (and args (not incomplete-arg)
+               (eq (char-syntax (char-before end)) ? )
 	       (not (eq (char-before (1- end)) ?\\)))
       (nconc args (list ""))
       (nconc posns (list (point))))
+    ;; Evaluate and expand Eshell forms.
+    (let (evaled-args evaled-posns)
+      (cl-mapc
+       (lambda (arg posn)
+         (pcase arg
+           (`(eshell-splice-args ,val)
+            (dolist (subarg (eshell-complete--eval-argument-form val))
+              (push subarg evaled-args)
+              (push posn evaled-posns)))
+           ((pred listp)
+            (push (eshell-complete--eval-argument-form arg) evaled-args)
+            (push posn evaled-posns))
+           (_
+            (push arg evaled-args)
+            (push posn evaled-posns))))
+       args posns)
+      (setq args (nreverse evaled-args)
+            posns (nreverse evaled-posns)))
+    ;; Determine, whether remote file names shall be completed.  They
+    ;; shouldn't for external commands, or when in a pipe.  Respect
+    ;; also `eshell-cmpl-remote-file-ignore', which could be set by
+    ;; the user.
+    (setq-local pcomplete-remote-file-ignore
+                (or eshell-cmpl-remote-file-ignore
+                    eshell-in-pipeline-p ; does not work
+                    (eshell-external-command-p (car args))))
+    ;; Convert arguments to forms that Pcomplete can understand.
     (cons (mapcar
            (lambda (arg)
-             (let ((val
-                    (if (listp arg)
-                        (let ((result
-                               (eshell-do-eval
-                                (list 'eshell-commands arg) t)))
-                          (cl-assert (eq (car result) 'quote))
-                          (cadr result))
-                      arg)))
-               (cond ((numberp val)
-                      (setq val (number-to-string val)))
-                     ;; expand .../ etc that only eshell understands to
-                     ;; standard ../../
-                     ((and (stringp val)) (string-match "\\.\\.\\.+/" val)
-                      (setq val (eshell-expand-multiple-dots val))))
-               (or val "")))
+             (pcase arg
+               ;; Expand ".../" etc that only Eshell understands to
+               ;; the standard "../../".
+               ((rx ".." (+ ".") "/")
+                (propertize (eshell-expand-multiple-dots arg)
+                            'pcomplete-arg-value arg))
+               ((pred stringp)
+                arg)
+               ('nil
+                (propertize "" 'pcomplete-arg-value arg))
+               (_
+                (propertize (eshell-stringify arg)
+                            'pcomplete-arg-value arg))))
 	   args)
 	  posns)))
 
@@ -447,9 +519,4 @@ to writing a completion function."
 (define-obsolete-function-alias 'eshell-pcomplete #'completion-at-point "27.1")
 
 (provide 'em-cmpl)
-
-;; Local Variables:
-;; generated-autoload-file: "esh-groups.el"
-;; End:
-
 ;;; em-cmpl.el ends here

@@ -1,6 +1,6 @@
 ;;; abbrev.el --- abbrev mode commands for Emacs -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1985-2025 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: abbrev convenience
@@ -531,7 +531,7 @@ PROPS is a list of properties."
 (defun abbrev-table-p (object)
   "Return non-nil if OBJECT is an abbrev table."
   (and (obarrayp object)
-       (numberp (ignore-error 'wrong-type-argument
+       (numberp (ignore-error wrong-type-argument
                   (abbrev-table-get object :abbrev-table-modiff)))))
 
 (defun abbrev-table-empty-p (object &optional ignore-system)
@@ -602,8 +602,7 @@ It is nil if the abbrev has already been unexpanded.")
   "Undefine all abbrevs in abbrev table TABLE, leaving TABLE empty."
   (setq abbrevs-changed t)
   (let* ((sym (obarray-get table "")))
-    (dotimes (i (length table))
-      (aset table i 0))
+    (obarray-clear table)
     ;; Preserve the table's properties.
     (cl-assert sym)
     (let ((newsym (obarray-put table "")))
@@ -721,7 +720,7 @@ either a single abbrev table or a list of abbrev tables."
   ;; to treat the distinction between a single table and a list of tables.
   (cond
    ((consp tables) tables)
-   ((vectorp tables) (list tables))
+   ((obarrayp tables) (list tables))
    (t
     (let ((tables (if (listp local-abbrev-table)
                       (append local-abbrev-table
