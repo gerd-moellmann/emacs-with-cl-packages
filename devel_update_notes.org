@@ -1,0 +1,57 @@
+#+TITLE: Updating emacs-mac
+
+~emacs-mac~ differs substantially from the main Emacs builds, including the official NS/NextStep build that supports Mac (see =README-mac= for more details).
+
+This document chronicles experiences merging upstream emacs into ~emacs-mac~, beginning with Emacs v30.1, which was released in Feb, 2025.  While most elisp changes typically merge smoothly, underlying Mac-specific C and ObjC code as well as build system details sometime need more significant updates as the main project continues to evolve.
+
+* Merging 30.1
+
+<2025-03-06 Thu>
+
+Merged from the upstream ~emacs-30~ branch into the ~emacs-mac~ ~work~ branch, which at the time of merge was based on upstream's v29.4.
+
+A number of issues were encountered:
+
+** Merge issues
+
+- This is the first Emacs version supporting Android, which caused numerous conflicts in places where systems are differentiated.  Many conflicts were resolved by adding various flags or symbols such as:
+  - ~HAVE_MACGUI~ or ~defined(HAVE_MACGUI)~.
+  - Referencing the =mac= directory in build configuration.
+  - ~(featurep 'mac-win)~ for e.g. mouse events.
+  - ~[frame]~-~type~ ~mac~ and ~window-system~ ~mac~ in various locations, e.g. for ~framep-on-display~ and ~eww~ browser.
+  - Mac-related doc entries that had been update or mangled.
+- ~docview~ has some special code for ~image-io~ support (untested) which had been updated.
+- Mouse events have been simplified to only ~wheel-up/down/left/right~ on most systems (including emacs-mac).
+- =Makefile= build flags like ~$(MAC_OBJ)~ needed to be re-included.
+- An updated file function ~sys_faccessat~ is now used.
+- Restore build flags like ~MAC_SELF_CONTAINED~.
+- Restore ~funcall_subr~.
+- Including structure entries like:
+  :  struct mac_output *mac;     /* From macterm.h.  */
+  :  struct mac_display_info *mac;     /* macterm.h */
+- =image.c= has lots of changes, including releasing images, masks, color processing, ~image_io~ support that needed restoring, and _2x file processing.  Needs testing.
+- Care was taken to to re-incorporate ~FRAME_OBSCURED_P~ in =xdisp=.
+- ~macfont.m~ has new font metrics for different weights.
+- Restore stipple support in =xfaces.c= (untested).
+
+** Further issues
+
+After the merge, additional issues were uncovered that prevented compilation from completing:
+
+- There were missing build config options like =mac/Makefile= and the ~MAC_OBJC_OBJ~ ~make~ variable.
+- Major updates to the underlying hash table API have appeared in v30 which required addressing.  These include:
+  + a new ~hash_hash_t~ type
+  + removal of size and threshold arguments for ~make_hash_table~
+  + new /separate/ ~hash_lookup_get_hash~ and ~hash_lookup~ functions
+  + etc.
+- Toolbars: unusually, this build enables both ~HAVE_EXT_TOOL_BAR~ and ~HAVE_INT_TOOL_BAR~, which are both required to have access to e.g. ~fset_tool_bar_window~.  Updated pre-processor tests made this combination fail, and required correction.
+- Some commands have changed arguments (e.g. to accommodate Android builds), like ~openp~, ~compute_image_size~, and ~window_from_coordinates~.
+- Some constants changed names, e.g. ~FACE_UNDERLINE_*~.
+- The compiler complained about a number of constants not being declared ~static~.
+
+** Tips
+
+- Invoke ~make~ via =M-x compile= so you can =C-x `= and directly visit errors.
+- ~consult-rg~ makes quick work of finding the parent function declaration.
+- From there, ~magit-blame~ can be used to quickly identify the recent commit which changed the calling convention, etc.
+- This commit often includes many examples of fixing code elsewhere to conform to the new conventions.  These can be used as a guide to update affected code (usually in ~macwin~, ~macterm~, etc).
