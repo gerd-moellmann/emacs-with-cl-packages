@@ -6541,7 +6541,7 @@ static BOOL emacsViewUpdateLayerDisabled;
     XSETINT (inputEvent.x, x);
     XSETINT (inputEvent.y, y);
 
-    window = window_from_coordinates (f, x, y, 0, true, true);
+    window = window_from_coordinates (f, x, y, 0, false, true, true);
     if (EQ (window, f->tab_bar_window))
       tab_bar_p = true;
     else if (EQ (window, f->tool_bar_window))
@@ -6739,7 +6739,7 @@ event_phase_to_symbol (NSEventPhase phase)
     return;
 
   Lisp_Object window = window_from_coordinates (f, point.x, point.y, 0,
-						true, true);
+						false, true, true);
   if (EQ (window, f->tab_bar_window) || EQ (window, f->tool_bar_window))
     return;
 
@@ -6855,7 +6855,7 @@ event_phase_to_symbol (NSEventPhase phase)
     {
       static Lisp_Object last_mouse_window;
       Lisp_Object window = window_from_coordinates (f, point.x, point.y, 0,
-						    false, false);
+						    false, false, false);
 
       /* A window will be autoselected only when it is not selected
 	 now and the last mouse movement event was not in it.  The
@@ -7439,7 +7439,7 @@ mac_ts_active_input_string_in_echo_area_p (struct frame *f)
   point = [frameController convertEmacsViewPointFromScreen:thePoint];
   x = point.x;
   y = point.y;
-  window = window_from_coordinates (f, x, y, &part, false, false);
+  window = window_from_coordinates (f, x, y, &part, false, false, false);
   if (!WINDOWP (window) || !EQ (window, f->selected_window))
     return result;
 
