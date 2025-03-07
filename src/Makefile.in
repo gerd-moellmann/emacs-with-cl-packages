@@ -1,4 +1,4 @@
-### @configure_input@
+## @configure_input@
 
 # Copyright (C) 1985, 1987-1988, 1993-1995, 1999-2025 Free Software
 # Foundation, Inc.
@@ -490,7 +490,7 @@ base_obj = dispnew.o frame.o scroll.o xdisp.o menu.o $(XMENU_OBJ) window.o     \
 	$(MSDOS_OBJ) $(MSDOS_X_OBJ) $(MAC_OBJ) $(NS_OBJ) $(CYGWIN_OBJ) $(FONT_OBJ) \
 	$(W32_OBJ) $(WINDOW_SYSTEM_OBJ) $(XGSELOBJ)			       \
 	$(HAIKU_OBJ) $(PGTK_OBJ) $(ANDROID_OBJ)
-doc_obj = $(base_obj) $(NS_OBJC_OBJ)
+doc_obj = $(base_obj) $(MAC_OBJC_OBJ) $(NS_OBJC_OBJ)
 obj = $(doc_obj) $(HAIKU_CXX_OBJ)
 
 ## Object files used on some machine or other.

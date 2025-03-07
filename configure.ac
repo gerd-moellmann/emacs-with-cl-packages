@@ -8006,7 +8006,7 @@ dnl config.status treats $srcdir specially, so I think this is ok...
 ARCH_INDEPENDENT_CONFIG_FILES([$srcdir/doc/man/emacs.1])
 
 AC_CONFIG_FILES([lib/Makefile lib-src/Makefile oldXMenu/Makefile src/Makefile
-                 lwlib/Makefile nextstep/Makefile nt/Makefile])
+                 lwlib/Makefile mac/Makefile nextstep/Makefile nt/Makefile])
 ARCH_INDEPENDENT_CONFIG_FILES([doc/emacs/Makefile doc/misc/Makefile
                                doc/lispintro/Makefile doc/lispref/Makefile
 			       lisp/Makefile leim/Makefile])
