@@ -2536,13 +2536,13 @@ This is a helper function for `mac-mouse-wheel-mode'."
     (cond
      ;; Bindings for changing font size.
      ((and (consp binding) (eq (cdr binding) 'text-scale))
-      (dolist (event (list mouse-wheel-down-event mouse-wheel-up-event))
+      (dolist (event (list 'wheel-down 'wheel-up))
         (mouse-wheel--add-binding `[,(list (caar binding) event)]
                                   'mac-mouse-wheel-text-scale)))
      ;; Bindings for scrolling.
      (t
-      (dolist (event (list mouse-wheel-down-event mouse-wheel-up-event
-                           mouse-wheel-left-event mouse-wheel-right-event))
+      (dolist (event (list 'wheel-down 'wheel-up
+                           'wheel-left 'wheel-right))
         (dolist (key (mouse-wheel--create-scroll-keys binding event))
           (mouse-wheel--add-binding key 'mac-mwheel-scroll)))))))
 
