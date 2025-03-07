@@ -1046,7 +1046,8 @@ cfdictionary_add_to_list (const void *key, const void *value, void *context)
 static void
 cfdictionary_puthash (const void *key, const void *value, void *context)
 {
-  Lisp_Object lisp_key, hash_code;
+  Lisp_Object lisp_key;
+  hash_hash_t hash_code;
   struct cfdict_context *cxt = (struct cfdict_context *)context;
   struct Lisp_Hash_Table *h = XHASH_TABLE (*(cxt->result));
 
@@ -1057,7 +1058,7 @@ cfdictionary_puthash (const void *key, const void *value, void *context)
   else
     lisp_key = cfstring_to_lisp (key);
 
-  hash_lookup (h, lisp_key, &hash_code);
+  hash_lookup_get_hash (h, lisp_key, &hash_code);
   hash_put (h, lisp_key,
 	    cfobject_to_lisp (value, cxt->flags, cxt->hash_bound),
 	    hash_code);
@@ -1144,8 +1145,7 @@ cfobject_to_lisp (CFTypeRef obj, int flags, int hash_bound)
 	}
       else
 	{
-	  result = make_hash_table (hashtest_equal, count, DEFAULT_REHASH_SIZE,
-				    DEFAULT_REHASH_THRESHOLD, Qnil, false);
+	  result = make_hash_table (&hashtest_equal, count, Weak_None, false);
 	  CFDictionaryApplyFunction (obj, cfdictionary_puthash,
 				     &context);
 	}
@@ -1375,7 +1375,7 @@ cfproperty_list_create_with_lisp_1 (Lisp_Object obj,
 		  ptrdiff_t i, size = HASH_TABLE_SIZE (h);
 
 		  for (i = 0; i < size; ++i)
-		    if (!NILP (HASH_HASH (h, i)))
+		    if (!hash_unused_entry_key_p (HASH_KEY (h, i)))
 		      {
 			CFPropertyListRef value = NULL;
 
@@ -1776,9 +1776,8 @@ xrm_create_database (void)
 {
   XrmDatabase database;
 
-  database = make_hash_table (hashtest_equal, DEFAULT_HASH_SIZE,
-			      DEFAULT_REHASH_SIZE, DEFAULT_REHASH_THRESHOLD,
-			      Qnil, false);
+  database = make_hash_table (&hashtest_equal, DEFAULT_HASH_SIZE,
+			      Weak_None, false);
   Fputhash (HASHKEY_MAX_NID, make_fixnum (0), database);
   Fputhash (HASHKEY_QUERY_CACHE, Qnil, database);
 
@@ -1791,7 +1790,8 @@ xrm_q_put_resource (XrmDatabase database, Lisp_Object quarks, Lisp_Object value)
   struct Lisp_Hash_Table *h = XHASH_TABLE (database);
   ptrdiff_t i;
   EMACS_INT max_nid;
-  Lisp_Object node_id, key, hash_code;
+  Lisp_Object node_id, key;
+  hash_hash_t hash_code;
 
   max_nid = XFIXNUM (Fgethash (HASHKEY_MAX_NID, database, Qnil));
 
@@ -1799,7 +1799,7 @@ xrm_q_put_resource (XrmDatabase database, Lisp_Object quarks, Lisp_Object value)
   for (; CONSP (quarks); quarks = XCDR (quarks))
     {
       key = Fcons (node_id, XCAR (quarks));
-      i = hash_lookup (h, key, &hash_code);
+      i = hash_lookup_get_hash (h, key, &hash_code);
       if (i < 0)
 	{
 	  max_nid++;
@@ -1854,7 +1854,7 @@ xrm_q_get_resource_1 (XrmDatabase database, Lisp_Object node_id,
   for (k = 0; k < ARRAYELTS (labels); k++)
     {
       XSETCDR (key, labels[k]);
-      i = hash_lookup (h, key, NULL);
+      i = hash_lookup (h, key);
       if (i >= 0)
 	{
 	  value = xrm_q_get_resource_1 (database, HASH_VALUE (h, i),
@@ -1866,7 +1866,7 @@ xrm_q_get_resource_1 (XrmDatabase database, Lisp_Object node_id,
 
   /* Then, try loose bindings */
   XSETCDR (key, LOOSE_BINDING);
-  i = hash_lookup (h, key, NULL);
+  i = hash_lookup (h, key);
   if (i >= 0)
     {
       value = xrm_q_get_resource_1 (database, HASH_VALUE (h, i),
@@ -1895,7 +1895,8 @@ xrm_q_get_resource (XrmDatabase database, Lisp_Object quark_name,
 Lisp_Object
 xrm_get_resource (XrmDatabase database, const char *name, const char *class)
 {
-  Lisp_Object key, query_cache, hash_code, quark_name, quark_class, tmp;
+  Lisp_Object key, query_cache, quark_name, quark_class, tmp;
+  hash_hash_t hash_code;
   ptrdiff_t i;
   EMACS_INT nn, nc;
   struct Lisp_Hash_Table *h;
@@ -1909,13 +1910,12 @@ xrm_get_resource (XrmDatabase database, const char *name, const char *class)
   query_cache = Fgethash (HASHKEY_QUERY_CACHE, database, Qnil);
   if (NILP (query_cache))
     {
-      query_cache = make_hash_table (hashtest_equal, DEFAULT_HASH_SIZE,
-				     DEFAULT_REHASH_SIZE,
-				     DEFAULT_REHASH_THRESHOLD, Qnil, false);
+      query_cache = make_hash_table (&hashtest_equal, DEFAULT_HASH_SIZE,
+				     Weak_None, false);
       Fputhash (HASHKEY_QUERY_CACHE, query_cache, database);
     }
   h = XHASH_TABLE (query_cache);
-  i = hash_lookup (h, key, &hash_code);
+  i = hash_lookup_get_hash (h, key, &hash_code);
   if (i >= 0)
     return HASH_VALUE (h, i);
 
