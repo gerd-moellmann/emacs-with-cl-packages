@@ -146,7 +146,10 @@ all; the preview buffer is still accessible with `help-char' (\\`C-h').
 
 When set to `traditional' (the default), provide a more basic preview
 according to `register-preview-delay'; this preserves the traditional
-behavior of Emacs 29 and before."
+behavior of Emacs 29 and before.
+
+Setting this variable with `setq' has no effect; use either `setopt'
+or `customize-option' to change its value."
   :type '(choice
           (const :tag "Use preview" t)
           (const :tag "Use preview and exit by pressing register name" insist)
@@ -566,7 +569,11 @@ or \\='never."
                        (setq pat input))))
                  (if (setq win (get-buffer-window buffer))
                      (with-selected-window win
-                       (when noconfirm
+                       (when (or (eq noconfirm t) ; Using insist
+                                 ;; Don't exit when noconfirm == (never)
+                                 ;; If we are here user has pressed C-h
+                                 ;; calling `register-preview-1'.
+                                 (memq nil noconfirm))
                          ;; Happen only when
                          ;; *-use-preview == insist.
                          (exit-minibuffer))
