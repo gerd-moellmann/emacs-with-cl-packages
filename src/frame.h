@@ -871,7 +871,8 @@ fset_tool_bar_items (struct frame *f, Lisp_Object val)
   f->tool_bar_items = val;
 }
 
-#if defined (HAVE_WINDOW_SYSTEM) && ! defined (HAVE_EXT_TOOL_BAR)
+#if defined (HAVE_WINDOW_SYSTEM) && \
+  (! defined (HAVE_EXT_TOOL_BAR) || defined (HAVE_INT_TOOL_BAR))
 
 INLINE void
 fset_tool_bar_window (struct frame *f, Lisp_Object val)
