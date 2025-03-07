@@ -12497,7 +12497,7 @@ static NSDragOperation mac_dnd_wanted_action;
       XSETINT (x, location.x);
       XSETINT (y, location.y);
       mac_within_lisp (^{
-	  safe_call (4, Vmac_drag_motion_function, frame, x, y);
+	  safe_calln (Vmac_drag_motion_function, frame, x, y);
 	  redisplay ();
 	});
     }
