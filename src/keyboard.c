@@ -5438,7 +5438,7 @@ static const char *const lispy_kana_keys[] =
 /* FIXME: Why are we using X11 keysym values for NS?  */
 static
 #endif
-const char *const lispy_function_keys[] =
+static const char *const lispy_function_keys[] =
   {
     /* X Keysym value */
 
