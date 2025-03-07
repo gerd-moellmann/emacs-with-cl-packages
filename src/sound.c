@@ -1475,7 +1475,7 @@ Internal use only, use `play-sound' instead.  */)
       /* Open the sound file.  */
       int fd =
 	openp (list1 (Vdata_directory), attrs[SOUND_FILE], Qnil, &file, Qnil,
-	       false, false);
+	       false, false, NULL);
 
       if (fd < 0)
 	{

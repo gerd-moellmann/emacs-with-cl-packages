@@ -1099,7 +1099,7 @@ image_create_bitmap_from_file (struct frame *f, Lisp_Object file)
   if (result != BitmapSuccess)
     return -1;
 #else  /* HAVE_MACGUI */
-  int fd = openp (Vx_bitmap_file_path, file, Qnil, &found, Qt, false, false);
+  int fd = openp (Vx_bitmap_file_path, file, Qnil, &found, Qt, false, false, NULL);
   if (fd < 0)
     return -1;
 
@@ -5534,7 +5534,7 @@ image_load_image_io (struct frame *f, struct image *img, CFStringRef type)
 	    }
 	}
 
-      compute_image_size (width, height, img, &desired_width, &desired_height);
+      compute_image_size (f, width, height, img, &desired_width, &desired_height);
 
       /* Don't share image data between multiple backing scale factors
 	 if the image involves non-integral transformations.  */
@@ -12700,7 +12700,7 @@ imagemagick_load_image (struct frame *f, struct image *img,
   image_height = MagickGetImageHeight (image_wand);
   if (img->target_backing_scale == 2)
     image_width /= 2, image_height /= 2;
-  compute_image_size (image_width, image_height,
+  compute_image_size (f, image_width, image_height,
 		      img, &desired_width, &desired_height);
 
   /* Don't share image data between multiple backing scale factors if
