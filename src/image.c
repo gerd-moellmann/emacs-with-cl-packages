@@ -152,6 +152,8 @@ static char *slurp_file (int, ptrdiff_t *);
 static bool xbm_read_bitmap_data (struct frame *, char *, char *, int *, int *,
 				  char **, bool);
 static Lisp_Object mac_find_2x_image_file (Lisp_Object, int *);
+static Lisp_Object mac_preprocess_image_for_2x_file (struct frame *, struct image *,
+						     Lisp_Object, int *);
 #endif /* HAVE_MACGUI */
 
 #ifdef HAVE_NS
