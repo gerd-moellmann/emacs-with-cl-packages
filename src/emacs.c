@@ -1292,15 +1292,15 @@ maybe_load_seccomp (int argc, char **argv)
 
 #endif  /* SECCOMP_USABLE */
 
-#if defined HAVE_ANDROID && !defined ANDROID_STUBIFY
+#if defined HAVE_MACGUI
 int
-android_emacs_init (int argc, char **argv, char *dump_file)
-#else
+emacs_main (int argc, char **argv)
+#elif !defined HAVE_ANDROID || defined ANDROID_STUBIFY
 int
-#ifndef HAVE_MACGUI
 main (int argc, char **argv)
 #else
-emacs_main (int argc, char **argv)
+int
+android_emacs_init (int argc, char **argv, char *dump_file)
 #endif
 {
   /* Variable near the bottom of the stack, and aligned appropriately
