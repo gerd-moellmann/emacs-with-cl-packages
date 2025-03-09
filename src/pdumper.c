@@ -78,7 +78,9 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #define VM_POSIX 1
 #define VM_MS_WINDOWS 2
 
-#if defined (HAVE_MMAP) && defined (MAP_FIXED)
+#if !USE_LSB_TAG
+# define VM_SUPPORTED 0
+#elif defined (HAVE_MMAP) && defined (MAP_FIXED)
 # define VM_SUPPORTED VM_POSIX
 # if !defined (MAP_POPULATE) && defined (MAP_PREFAULT_READ)
 #  define MAP_POPULATE MAP_PREFAULT_READ
@@ -2067,9 +2069,9 @@ dump_field_emacs_ptr (struct dump_context *ctx,
 }
 
 static void
-_dump_object_start_pseudovector (struct dump_context *ctx,
-				 struct vectorlike_header *out_hdr,
-				 const struct vectorlike_header *in_hdr)
+dump_object_start_pseudovector (struct dump_context *ctx,
+				struct vectorlike_header *out_hdr,
+				const struct vectorlike_header *in_hdr)
 {
   eassert (in_hdr->size & PSEUDOVECTOR_FLAG);
   ptrdiff_t vec_size = vectorlike_nbytes (in_hdr);
@@ -2079,9 +2081,9 @@ _dump_object_start_pseudovector (struct dump_context *ctx,
 
 /* Need a macro for alloca.  */
 #define START_DUMP_PVEC(ctx, hdr, type, out)                  \
-  const struct vectorlike_header *_in_hdr = (hdr);             \
-  type *out = alloca (vectorlike_nbytes (_in_hdr));           \
-  _dump_object_start_pseudovector (ctx, &out->header, _in_hdr)
+  const struct vectorlike_header *in_hdr = (hdr);	      \
+  type *out = alloca (vectorlike_nbytes (in_hdr));	      \
+  dump_object_start_pseudovector (ctx, &out->header, in_hdr)
 
 static dump_off
 finish_dump_pvec (struct dump_context *ctx,
@@ -4138,14 +4140,14 @@ dump_do_fixup (struct dump_context *ctx,
                Lisp_Object fixup,
                Lisp_Object prev_fixup)
 {
-  enum dump_fixup_type type =
-    (enum dump_fixup_type) XFIXNUM (dump_pop (&fixup));
+  enum dump_fixup_type type
+    = (enum dump_fixup_type) XFIXNUM (dump_pop (&fixup));
   dump_off dump_fixup_offset = dump_off_from_lisp (dump_pop (&fixup));
 #ifdef ENABLE_CHECKING
   if (!NILP (prev_fixup))
     {
-      dump_off prev_dump_fixup_offset =
-        dump_off_from_lisp (XCAR (XCDR (prev_fixup)));
+      dump_off prev_dump_fixup_offset
+	= dump_off_from_lisp (XCAR (XCDR (prev_fixup)));
       eassert (dump_fixup_offset - prev_dump_fixup_offset
 	       >= sizeof (void *));
     }
@@ -4821,7 +4823,6 @@ dump_anonymous_allocate (void *base,
 #endif
 }
 
-/* Undo the effect of dump_reserve_address_space().  */
 static void
 dump_anonymous_release (void *addr, size_t size)
 {
@@ -5015,29 +5016,22 @@ struct dump_memory_map
 void
 dump_discard_mem (void *mem, size_t size)
 {
-      int err = 0;
 #if VM_SUPPORTED == VM_MS_WINDOWS
-      /* Discard COWed pages.  */
-      err = (VirtualFree (mem, size, MEM_DECOMMIT) == 0);
-      if (err)
-	emacs_abort ();
-      /* Release the commit charge for the mapping.  */
-      DWORD old_prot;
-      err = (VirtualProtect (mem, size, PAGE_NOACCESS, &old_prot) == 0);
+  /* Discard COWed pages.  */
+  (void) VirtualFree (mem, size, MEM_DECOMMIT);
+  /* Release the commit charge for the mapping.  */
+  DWORD old_prot;
+  (void) VirtualProtect (mem, size, PAGE_NOACCESS, &old_prot);
 #elif VM_SUPPORTED == VM_POSIX
 # ifdef HAVE_POSIX_MADVISE
-      /* Discard COWed pages.  */
-      err = posix_madvise (mem, size, POSIX_MADV_DONTNEED);
+  /* Discard COWed pages.  */
+  (void) posix_madvise (mem, size, POSIX_MADV_DONTNEED);
 # elif defined HAVE_MADVISE
-      err = madvise (mem, size, MADV_DONTNEED);
+  (void) madvise (mem, size, MADV_DONTNEED);
 #endif
-      if (err)
-	emacs_abort ();
-      /* Release the commit charge for the mapping.  */
-      err = mprotect (mem, size, PROT_NONE);
+  /* Release the commit charge for the mapping.  */
+  (void) mprotect (mem, size, PROT_NONE);
 #endif
-      if (err)
-	emacs_abort ();
 }
 
 static void
@@ -5206,21 +5200,23 @@ dump_mmap_release_vm (struct dump_memory_map *map)
 static bool
 needs_mmap_retry_p (void)
 {
-#if defined CYGWIN || VM_SUPPORTED == VM_MS_WINDOWS || defined _AIX
+#if defined CYGWIN || VM_SUPPORTED == VM_MS_WINDOWS \
+  || defined _AIX
   return true;
-#else
+#else /* !CYGWIN && VM_SUPPORTED != VM_MS_WINDOWS && !_AIX */
   return false;
-#endif
+#endif /* !CYGWIN && VM_SUPPORTED != VM_MS_WINDOWS && !_AIX */
 }
 
 static bool
 dump_mmap_contiguous_vm (struct dump_memory_map *maps, int nr_maps,
 			 size_t total_size)
 {
+  int save_errno;
   bool ret = false;
   void *resv = NULL;
   bool retry = false;
-  const bool need_retry = needs_mmap_retry_p ();
+  bool need_retry = needs_mmap_retry_p ();
 
   do
     {
@@ -5233,11 +5229,10 @@ dump_mmap_contiguous_vm (struct dump_memory_map *maps, int nr_maps,
         }
 
       eassert (resv == NULL);
-      resv = dump_anonymous_allocate (NULL,
-                                      total_size,
+      resv = dump_anonymous_allocate (NULL, total_size,
                                       DUMP_MEMORY_ACCESS_NONE);
       if (!resv)
-        goto out;
+	goto out;
 
       char *mem = resv;
 
@@ -5286,6 +5281,7 @@ dump_mmap_contiguous_vm (struct dump_memory_map *maps, int nr_maps,
   ret = true;
   resv = NULL;
  out:
+  save_errno = errno;
   if (resv)
     dump_anonymous_release (resv, total_size);
   if (!ret)
@@ -5298,6 +5294,7 @@ dump_mmap_contiguous_vm (struct dump_memory_map *maps, int nr_maps,
 	    dump_mmap_release (&maps[i]);
 	}
     }
+  errno = save_errno;
   return ret;
 }
 #endif
@@ -5306,8 +5303,8 @@ dump_mmap_contiguous_vm (struct dump_memory_map *maps, int nr_maps,
 
    Each dump_memory_map structure describes how to fill the
    corresponding range of memory. On input, all members except MAPPING
-   are valid. On output, MAPPING contains the location of the given
-   chunk of memory. The MAPPING for MAPS[N] is MAPS[N-1].mapping +
+   are valid.  On output, MAPPING contains the location of the given
+   chunk of memory.  The MAPPING for MAPS[N] is MAPS[N-1].mapping +
    MAPS[N-1].size.
 
    Each mapping SIZE must be a multiple of the system page size except
@@ -5336,9 +5333,10 @@ dump_mmap_contiguous (struct dump_memory_map *maps, int nr_maps)
 #ifdef HAVE_MPS
   return dump_mmap_contiguous_mps (maps, nr_maps, total_size);
 #else
-  return (VM_SUPPORTED
-	      ? dump_mmap_contiguous_vm
-	      : dump_mmap_contiguous_heap) (maps, nr_maps, total_size);
+  if (VM_SUPPORTED)
+    return dump_mmap_contiguous_vm (maps, nr_maps, total_size);
+  else
+    return dump_mmap_contiguous_heap (maps, nr_maps, total_size);
 #endif
 }
 
@@ -5382,7 +5380,7 @@ dump_bitset_bit_set_p (const struct dump_bitset *bitset,
 {
   dump_bitset_word bit = 1;
   bit <<= bit_number % DUMP_BITSET_WORD_WIDTH;
-  return *dump_bitset__bit_slot (bitset, bit_number) & bit;
+  return (*dump_bitset__bit_slot (bitset, bit_number) & bit) != 0;
 }
 
 static void
@@ -5830,8 +5828,8 @@ dump_do_dump_relocation (const uintptr_t dump_base,
         struct bignum_reload_info reload_info;
 	static_assert (sizeof (reload_info) <= sizeof (*bignum_val (bignum)));
         memcpy (&reload_info, bignum_val (bignum), sizeof (reload_info));
-        const mp_limb_t *limbs =
-          dump_ptr (dump_base, reload_info.data_location);
+        const mp_limb_t *limbs = dump_ptr (dump_base,
+					   reload_info.data_location);
         mpz_roinit_n (bignum->value, limbs, reload_info.nlimbs);
         break;
       }
@@ -6085,15 +6083,29 @@ pdumper_load (const char *dump_filename, char *argv0)
     goto out;
 
   err = PDUMPER_LOAD_ERROR;
-  mark_bits_needed =
-    divide_round_up (header->discardable_start, DUMP_ALIGNMENT);
+  dump_base = (uintptr_t) sections[DS_HOT].mapping;
+
+#if !USE_LSB_TAG
+  /* The dump may have been mapped at a location that does not admit of
+     representation as Lisp_Objects.  Abort in this case.  */
+  if ((dump_base + dump_size) & ~VALMASK)
+    {
+      fprintf (stderr,
+	       "Failed to load dump file: 0x%p+0x%p & 0x%p != 0\n",
+	       (void *) dump_base, (void *) dump_size,
+	       (void *) (uintptr_t) VALMASK);
+      goto out;
+    }
+#endif /* !USE_LSB_TAG */
+
+  mark_bits_needed
+    = divide_round_up (header->discardable_start, DUMP_ALIGNMENT);
   if (!dump_bitsets_init (mark_bits, mark_bits_needed))
     goto out;
 
   /* Point of no return.  */
   err = PDUMPER_LOAD_SUCCESS;
-  dump_base = (uintptr_t) sections[DS_HOT].mapping;
-  gflags.dumped_with_pdumper_ = true;
+  gflags.dumped_with_pdumper = true;
   dump_private.header = *header;
   dump_private.mark_bits = mark_bits[0];
   dump_private.last_mark_bits = mark_bits[1];
@@ -6110,8 +6122,8 @@ pdumper_load (const char *dump_filename, char *argv0)
   Lisp_Object hashes = zero_vector;
   if (header->hash_list)
     {
-      struct Lisp_Vector *hash_tables =
-	(struct Lisp_Vector *) (dump_base + header->hash_list);
+      struct Lisp_Vector *hash_tables
+	= (struct Lisp_Vector *) (dump_base + header->hash_list);
       hashes = make_lisp_ptr (hash_tables, Lisp_Vectorlike);
     }
 
@@ -6172,7 +6184,6 @@ pdumper_load (const char *dump_filename, char *argv0)
     dump_mmap_release (&sections[i]);
   if (dump_fd >= 0)
     emacs_close (dump_fd);
-
   return err;
 }
 
