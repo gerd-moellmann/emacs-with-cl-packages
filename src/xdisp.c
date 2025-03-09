@@ -14378,7 +14378,10 @@ update_tab_bar (struct frame *f, bool save_match_data)
 
 	  /* Redisplay the tab-bar if we changed it.  */
 	  if (new_n_tab_bar != f->n_tab_bar_items
-	      || NILP (Fequal (new_tab_bar, f->tab_bar_items)))
+	      /* Some features modify the appearance of the tab bar by
+                 manipulating the text properties.  */
+	      || NILP (Fequal_including_properties (new_tab_bar,
+						    f->tab_bar_items)))
             {
               /* Redisplay that happens asynchronously due to an expose event
                  may access f->tab_bar_items.  Make sure we update both
@@ -15091,7 +15094,6 @@ handle_tab_bar_click (struct frame *f, int x, int y, bool down_p,
   return Fcons (Qtab_bar, Fcons (caption, make_fixnum (0)));
 }
 
-
 /* Possibly highlight a tab-bar item on frame F when mouse moves to
    tab-bar window-relative coordinates X/Y.  Called from
    note_mouse_highlight.  */
@@ -15103,8 +15105,7 @@ note_tab_bar_highlight (struct frame *f, int x, int y)
   struct window *w = XWINDOW (window);
   Mouse_HLInfo *hlinfo = MOUSE_HL_INFO (f);
   int hpos, vpos;
-  struct glyph *glyph;
-  struct glyph_row *row;
+  struct glyph *glyph = NULL;
   int i;
   Lisp_Object enabled_p;
   int prop_idx;
@@ -15150,25 +15151,124 @@ note_tab_bar_highlight (struct frame *f, int x, int y)
 
   /* If tab-bar item is not enabled, don't highlight it.  */
   enabled_p = AREF (f->tab_bar_items, prop_idx + TAB_BAR_ITEM_ENABLED_P);
+
   if (!NILP (enabled_p) && !NILP (Vmouse_highlight))
     {
-      /* Compute the x-position of the glyph.  In front and past the
-	 image is a space.  We include this in the highlighted area.  */
+      struct glyph_row *row = NULL;
+      struct glyph *row_start_glyph = NULL;
+      struct glyph *tmp_glyph;
+      int total_pixel_width;
+      Lisp_Object string;
+      Lisp_Object mouse_face;
+      int mouse_face_id = -1;
+      int hpos0, hpos_caption;
+
       row = MATRIX_ROW (w->current_matrix, vpos);
-      for (i = x = 0; i < hpos; ++i)
-	x += row->glyphs[TEXT_AREA][i].pixel_width;
+      /* display_tab_bar does not yet support R2L.  */
+      eassert (!row->reversed_p);
+      row_start_glyph = row->glyphs[TEXT_AREA];
 
-      /* Record this as the current active region.  */
-      hlinfo->mouse_face_beg_col = hpos;
-      hlinfo->mouse_face_beg_row = vpos;
-      hlinfo->mouse_face_beg_x = x;
-      hlinfo->mouse_face_past_end = false;
+      string = AREF (f->tab_bar_items, prop_idx + TAB_BAR_ITEM_CAPTION);
+      if (STRINGP (string))
+	{
+	  /* Compute starting column of the tab-bar-item to adjust col
+	     of the mouse face relative to row_start_glyph.
 
-      hlinfo->mouse_face_end_col = hpos + 1;
-      hlinfo->mouse_face_end_row = vpos;
-      hlinfo->mouse_face_end_x = x + glyph->pixel_width;
-      hlinfo->mouse_face_window = window;
-      hlinfo->mouse_face_face_id = TAB_BAR_FACE_ID;
+	     tab_bar_item_info does not contain the absolute starting
+	     offset of the item.  We compute it by looking backwards
+	     until we find a glyph that belongs to a previous tab bar
+	     item, or if this is the first item.  */
+	  hpos0 = hpos + 1;
+	  int tmp_prop_idx;
+	  bool tmp_bool;
+	  for (tmp_glyph = glyph;
+	       tmp_glyph >= row_start_glyph;
+	       tmp_glyph--)
+	    {
+	      if (!tab_bar_item_info (f, tmp_glyph, &tmp_prop_idx, &tmp_bool)
+		  || tmp_prop_idx != prop_idx)
+		break; /* Just before the beginning of this item.  */
+	      else
+		--hpos0;
+	    }
+
+	  /* Offset into the caption vs. the row.  */
+	  hpos_caption = hpos - hpos0;
+
+	  mouse_face = Fget_text_property (make_fixnum (hpos_caption),
+					   Qmouse_face, string);
+	  if (!NILP (mouse_face))
+	    {
+	      mouse_face_id = lookup_named_face (w, f, mouse_face, false);
+	      if (mouse_face_id < 0)
+		mouse_face_id = compute_char_face (f, ' ', mouse_face);
+	      draw = DRAW_MOUSE_FACE;
+	    }
+	}
+
+      if (draw == DRAW_MOUSE_FACE)
+	{
+	  Lisp_Object b, e;
+	  ptrdiff_t begpos, endpos;
+	  int beg_x, end_x;
+
+	  /* Search for mouse-face boundaries.  */
+	  b = Fprevious_single_property_change (make_fixnum (hpos_caption + 1),
+						Qmouse_face, string, Qnil);
+	  if (NILP (b))
+	    begpos = 0;
+	  else
+	    begpos = XFIXNUM (b);
+	  e = Fnext_single_property_change (make_fixnum (begpos), Qmouse_face, string, Qnil);
+	  if (NILP (e))
+	    endpos = SCHARS (string);
+	  else
+	    endpos = XFIXNUM (e);
+
+	  /* Compute the starting and ending pixel coordinates */
+	  for (i = beg_x = 0;
+	       i < hpos0 + begpos; ++i)
+	    beg_x += row->glyphs[TEXT_AREA][i].pixel_width;
+	  for (end_x = 0,
+		 i = hpos0 + begpos;
+	       i < hpos0 + endpos; ++i)
+	    end_x += row->glyphs[TEXT_AREA][i].pixel_width;
+
+	  if ( EQ (window, hlinfo->mouse_face_window)
+	       && (hlinfo->mouse_face_beg_col <= hpos
+		   && hpos < hlinfo->mouse_face_end_col)
+	       && hlinfo->mouse_face_beg_row == vpos )
+	    return;
+
+	  hlinfo->mouse_face_window = window;
+	  hlinfo->mouse_face_face_id = mouse_face_id;
+	  hlinfo->mouse_face_beg_row = vpos;
+	  hlinfo->mouse_face_end_row = vpos;
+	  hlinfo->mouse_face_past_end = false;
+	  hlinfo->mouse_face_beg_col = hpos0 + begpos;
+	  hlinfo->mouse_face_end_col = hpos0 + endpos;
+	  hlinfo->mouse_face_beg_x   = beg_x;
+	  hlinfo->mouse_face_end_x   = end_x;
+	}
+      else
+	{
+	  /* Compute the x-position of the glyph.  In front and past the
+	     image is a space.  We include this in the highlighted area.  */
+	  for (i = x = 0; i < hpos; ++i)
+	    x += row->glyphs[TEXT_AREA][i].pixel_width;
+	  total_pixel_width = glyph->pixel_width;
+
+	  hlinfo->mouse_face_face_id = TAB_BAR_FACE_ID;
+	  hlinfo->mouse_face_beg_col = hpos;
+	  hlinfo->mouse_face_beg_row = vpos;
+	  hlinfo->mouse_face_beg_x = x;
+	  hlinfo->mouse_face_past_end = false;
+
+	  hlinfo->mouse_face_end_col = hpos + 1;
+	  hlinfo->mouse_face_end_row = vpos;
+	  hlinfo->mouse_face_end_x = x + total_pixel_width;
+	  hlinfo->mouse_face_window = window;
+	}
 
       /* Display it as active.  */
       show_mouse_face (hlinfo, draw, true);
@@ -27619,15 +27719,31 @@ display_mode_line (struct window *w, enum face_id face_id, Lisp_Object format)
 	      int c = fetch_string_char_advance (mode_string, &i, &i_byte);
 	      if (c == ' ' && prev == ' ')
 		{
-		  display_string (NULL,
-				  Fsubstring (mode_string, make_fixnum (start),
-					      make_fixnum (i - 1)),
-				  Qnil, 0, 0, &it, 0, 0, 0,
-				  STRING_MULTIBYTE (mode_string));
-		  /* Skip past the rest of the space characters. */
-		  while (c == ' ' && i < SCHARS (mode_string))
-		      c = fetch_string_char_advance (mode_string, &i, &i_byte);
-		  start = i - 1;
+		  Lisp_Object prev_pos = make_fixnum (i - 1);
+
+		  /* SPC characters with 'display' properties are not
+                     really "empty", since they have non-trivial visual
+                     effects on the mode line.  */
+		  if (NILP (Fget_text_property (prev_pos, Qdisplay,
+						mode_string)))
+		    {
+		      display_string (NULL,
+				      Fsubstring (mode_string,
+						  make_fixnum (start),
+						  prev_pos),
+				      Qnil, 0, 0, &it, 0, 0, 0,
+				      STRING_MULTIBYTE (mode_string));
+		      /* Skip past the rest of the space characters. */
+		      while (c == ' ' && i < SCHARS (mode_string)
+			     && NILP (Fget_text_property (make_fixnum (i),
+							  Qdisplay,
+							  mode_string)))
+			{
+			  c = fetch_string_char_advance (mode_string,
+							 &i, &i_byte);
+			}
+		      start = i - 1;
+		    }
 		}
 	      prev = c;
 	    }

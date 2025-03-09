@@ -4040,7 +4040,7 @@ all pending output has been dealt with."))
                            '(term-line-wrap t rear-nonsticky t)))))
 
 (defun term-erase-in-line (kind)
-  (when (= kind 1) ;; erase left of point
+  (when (>= kind 1) ;; erase left of point
     (let ((cols (term-horizontal-column)) (saved-point (point)))
       (term-vertical-motion 0)
       (delete-region (point) saved-point)
@@ -4050,19 +4050,24 @@ all pending output has been dealt with."))
 	  (wrapped (and (zerop (term-horizontal-column))
 			(not (zerop (term-current-column))))))
       (term-vertical-motion 1)
-      (delete-region saved-point (point))
-      ;; wrapped is true if we're at the beginning of screen line,
-      ;; but not a buffer line.  If we delete the current screen line
-      ;; that will make the previous line no longer wrap, and (because
-      ;; of the way Emacs display works) point will be at the end of
-      ;; the previous screen line rather then the beginning of the
-      ;; current one.  To avoid that, we make sure that current line
-      ;; contain a space, to force the previous line to continue to wrap.
-      ;; We could do this always, but it seems preferable to not add the
-      ;; extra space when wrapped is false.
-      (when wrapped
-	(insert ? ))
-      (insert ?\n)
+      ;; Do nothing if we have nothing to delete
+      (unless (and (eq saved-point (1- (point)))
+                   (eq (char-before) ?\n)
+                   (not wrapped))
+        ;; Insert before deletion to preserve markers.
+        ;; wrapped is true if we're at the beginning of screen line,
+        ;; but not a buffer line.  If we delete the current screen line
+        ;; that will make the previous line no longer wrap, and (because
+        ;; of the way Emacs display works) point will be at the end of
+        ;; the previous screen line rather then the beginning of the
+        ;; current one.  To avoid that, we make sure that current line
+        ;; contain a space, to force the previous line to continue to wrap.
+        ;; We could do this always, but it seems preferable to not add the
+        ;; extra space when wrapped is false.
+        (when wrapped
+	  (insert-before-markers ? ))
+        (insert-before-markers ?\n)
+        (delete-region saved-point (point)))
       (put-text-property saved-point (point) 'font-lock-face 'default)
       (goto-char saved-point))))
 

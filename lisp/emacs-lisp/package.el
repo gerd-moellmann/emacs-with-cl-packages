@@ -2265,6 +2265,7 @@ NAME should be a symbol."
    (list (intern (completing-read
                   "Upgrade package: "
                   (package--upgradeable-packages t) nil t))))
+  (cl-check-type name symbol)
   (let* ((pkg-desc (cadr (assq name package-alist)))
          (package-install-upgrade-built-in (not pkg-desc)))
     ;; `pkg-desc' will be nil when the package is an "active built-in".
@@ -2823,7 +2824,8 @@ Helper function for `describe-package'."
          (status (if desc (package-desc-status desc) "orphan"))
          (incompatible-reason (package--incompatible-p desc))
          (signed (if desc (package-desc-signed desc)))
-         (maintainers (cdr (assoc :maintainer extras)))
+         (maintainers (or (cdr (assoc :maintainer extras))
+                          (cdr (assoc :maintainers extras))))
          (authors (cdr (assoc :authors extras)))
          (news (and-let* (pkg-dir
                           ((not built-in))

@@ -206,6 +206,14 @@ Several functions to modify the window layout have been added:
 'transpose-window-layout', 'rotate-windows', and 'rotate-windows-back'.
 
 +++
+*** Windmove commands now move to skipped windows if invoked twice in a row.
+The new user option 'windmove-allow-repeated-command-override' controls
+this behavior: if it's non-nil, invoking the same windmove command twice
+overrides the 'no-other-window' property, allowing navigation to windows
+that would normally be skipped.  The default is t; customize it to nil
+if you want the old behavior.
+
++++
 *** New hook 'window-deletable-functions'.
 This abnormal hook gives its client a way to save a window from getting
 deleted implicitly by functions like 'kill-buffer', 'bury-buffer' and
@@ -288,6 +296,12 @@ specified by external means.
 ---
 *** New abnormal hook 'tab-bar-auto-width-functions'.
 This hook allows you to control which tab-bar tabs are auto-resized.
+
+---
+*** 'mouse-face' properties are now supported on the 'tab-bar'.
+'tab-bar' tab "buttons" are now highlighted when the mouse pointer
+hovers over them.  You can customize the new face
+'tab-bar-tab-highlight'.
 
 ---
 *** New abnormal hook 'tab-bar-post-undo-close-tab-functions'.
@@ -689,6 +703,16 @@ It removes all the buttons in the specified region.
 *** Disabling 'button-mode' now removes all buttons in the current buffer.
 
 ** Shell
+
+---
+*** Shell buffers now support bookmarks.
+
+You can now bookmark local and remote shell buffers using the bookmark
+menu 'bookmark-bmenu-list', or by using the command 'bookmark-set'.
+Shell bookmarks can be loaded via the menu and by using the command
+'bookmark-jump', which open a bookmarked shell, restore its buffer name,
+its current directory, and create a remote connection, if necessary.
+You can customize 'shell-bookmark-name-function'.
 
 *** New command to complete the shell history.
 'comint-complete-input-ring' ('C-x <up>') is like 'minibuffer-complete-history'
@@ -1311,6 +1335,12 @@ the directory into which the repository was cloned.
 *** 'C-x v u' ('vc-revert') now works on directories listed in VC Directory.
 Reverting a directory means reverting changes to all files inside it.
 
+*** New function 'log-edit-done-strip-cvs-lines'.
+This function strips all lines beginning with "CVS:" from the buffer.
+It is intended to be added to the 'log-edit-done-hook' so that
+'vc-cvs-checkin' behaves like invoking "cvs commit [files...]" from the
+command line.
+
 ** Package
 
 +++
@@ -1416,6 +1446,13 @@ commands.  When nil, clicking on an inactive Emacs frame will only
 activate it.  When t (the default), the click will both activate the
 frame and be interpreted as a command.
 
+---
+*** New user option 'display-fill-column-indicator-warning'.
+Customize it to a non-nil value to have the fill-column indicators
+change their face if the current line exceeds the 'fill-column'.  The
+new face 'display-fill-column-indicator-warning-face' is used to
+highlight the fill-column indicators.  By default this is disabled.
+
 
 * New Modes and Packages in Emacs 31.1
 
@@ -1490,6 +1527,12 @@ Previously, its argument was always evaluated using dynamic binding.
 
 
 * Lisp Changes in Emacs 31.1
+
++++
+** New macros 'static-when' and 'static-unless' implement conditional
+compilation like 'static-if'.
+These macros evaluate their condition at macro-expansion time and are useful
+for writing code that can work across different Emacs versions.
 
 ---
 ** You can change the default value of 'lexical-binding'.
