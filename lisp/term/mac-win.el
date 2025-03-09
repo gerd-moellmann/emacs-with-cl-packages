@@ -1676,6 +1676,13 @@ modifiers, it changes the global tool-bar visibility setting."
   (let ((mac-frame-tabbing t))
     (make-frame)))
 
+(defun mac-handle-new-frame (_event)
+  "Create a new frame and activate."
+  (interactive "e")
+  (when-let ((frame (make-frame)))
+    (mac-send-action 'activate)
+    (raise-frame frame)))
+
 (define-key mac-apple-event-map [action about] 'mac-handle-about)
 (define-key mac-apple-event-map [action copy] 'mac-handle-copy)
 (define-key mac-apple-event-map [action preferences] 'mac-handle-preferences)
@@ -1687,6 +1694,7 @@ modifiers, it changes the global tool-bar visibility setting."
 (define-key mac-apple-event-map [action zoom] 'mac-handle-zoom)
 (define-key mac-apple-event-map [action newWindowForTab]
   'mac-handle-new-window-for-tab)
+(define-key mac-apple-event-map [action newFrame] 'mac-handle-new-frame)
 (define-key mac-apple-event-map [action synthetic-undo]
   'mac-handle-synthetic-undo)
 (define-key mac-apple-event-map [action synthetic-redo]

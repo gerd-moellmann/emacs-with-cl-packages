@@ -11038,6 +11038,14 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
 	[menu addItem:item];
 	MRC_RELEASE (item);
       }
+  [menu addItem:[NSMenuItem separatorItem]];
+  NSMenuItem *newFrameItem = [[NSMenuItem alloc]
+                                 initWithTitle:@"New Frame"
+					action:@selector(newFrame:)
+                                 keyEquivalent:@""];
+  [newFrameItem setTarget:self];
+  [menu addItem:newFrameItem];
+  MRC_RELEASE (newFrameItem);
 
   return MRC_AUTORELEASE (menu);
 }
