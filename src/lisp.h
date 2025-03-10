@@ -285,12 +285,14 @@ DEFINE_GDB_SYMBOL_BEGIN (bool, USE_LSB_TAG)
      && !defined __alignas_is_defined				\
      && __STDC_VERSION__ < 202311 && __cplusplus < 201103)
 #define USE_LSB_TAG 0
-#else /* EMACS_INT_WIDTH >= GCALIGNMENT || defined alignas ... */
+#else /* ALIGNOF_EMACS_INT >= IDEAL_GCALIGNMENT || defined alignas ... */
 #define USE_LSB_TAG (VAL_MAX / 2 < INTPTR_MAX)
-#endif /* EMACS_INT_WIDTH >= GCALIGNMENT || defined alignas ... */
-#else
-#define USE_LSB_TAG 1
-#endif
+#endif /* ALIGNOF_EMACS_INT >= IDEAL_GCALIGNMENT || defined alignas ... */
+
+# else
+# define USE_LSB_TAG 1
+# endif
+
 DEFINE_GDB_SYMBOL_END (USE_LSB_TAG)
 
 /* Mask for the value (as opposed to the type bits) of a Lisp object.  */

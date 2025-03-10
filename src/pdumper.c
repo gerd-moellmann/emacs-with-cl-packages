@@ -78,7 +78,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #define VM_POSIX 1
 #define VM_MS_WINDOWS 2
 
-#if !USE_LSB_TAG
+#if !USE_LSB_TAG && !defined WIDE_EMACS_INT
 # define VM_SUPPORTED 0
 #elif defined (HAVE_MMAP) && defined (MAP_FIXED)
 # define VM_SUPPORTED VM_POSIX
@@ -6098,7 +6098,7 @@ pdumper_load (const char *dump_filename, char *argv0)
   if ((dump_base + dump_size) & ~VALMASK)
     {
       fprintf (stderr,
-	       "Failed to load dump file: 0x%p+0x%p & 0x%p != 0\n",
+	       "Failed to load dump file: 0x%p+0x%p & ~0x%p != 0\n",
 	       (void *) dump_base, (void *) dump_size,
 	       (void *) (uintptr_t) VALMASK);
       goto out;
