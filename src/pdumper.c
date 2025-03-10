@@ -5016,22 +5016,29 @@ struct dump_memory_map
 void
 dump_discard_mem (void *mem, size_t size)
 {
+  int err = 0;
 #if VM_SUPPORTED == VM_MS_WINDOWS
   /* Discard COWed pages.  */
-  (void) VirtualFree (mem, size, MEM_DECOMMIT);
+  err = (VirtualFree (mem, size, MEM_DECOMMIT) == 0);
+  if (err)
+    emacs_abort ();
   /* Release the commit charge for the mapping.  */
   DWORD old_prot;
-  (void) VirtualProtect (mem, size, PAGE_NOACCESS, &old_prot);
+  err = (VirtualProtect (mem, size, PAGE_NOACCESS, &old_prot) == 0);
 #elif VM_SUPPORTED == VM_POSIX
 # ifdef HAVE_POSIX_MADVISE
   /* Discard COWed pages.  */
-  (void) posix_madvise (mem, size, POSIX_MADV_DONTNEED);
+  err = posix_madvise (mem, size, POSIX_MADV_DONTNEED);
 # elif defined HAVE_MADVISE
-  (void) madvise (mem, size, MADV_DONTNEED);
+  err = madvise (mem, size, MADV_DONTNEED);
 #endif
+  if (err)
+    emacs_abort ();
   /* Release the commit charge for the mapping.  */
-  (void) mprotect (mem, size, PROT_NONE);
+  err = mprotect (mem, size, PROT_NONE);
 #endif
+  if (err)
+    emacs_abort ();
 }
 
 static void
