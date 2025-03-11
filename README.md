@@ -1,6 +1,6 @@
 # emacs-mac
 
-This is an experimental build of the [emacs-mac](https://bitbucket.org/mituharu/emacs-mac) (aka Carbon Emacs, Emacs-mac) port of emacs, updated for Emacs v30.1.  
+This is an experimental build of the [emacs-mac](https://bitbucket.org/mituharu/emacs-mac) (aka Carbon[^1] Emacs, Emacs-mac) port of emacs, updated for Emacs v30.1.  
 
 > [!WARNING]
 > This is an experimental build of `emacs-mac`; there will certainly be bugs. Looking for feedback and testing from experienced users.  If you are familiar with running new builds of Emacs under a debugger, perfect.  If you are a Mac developer familiar with ObjC or Mac Window frameworks, even better!  
@@ -47,3 +47,5 @@ If you get crashes or just want to help with debugging, it would be useful to de
 ## Notes
 
 You can read about the issues encountered in the [debugging notes](https://github.com/jdtsmith/emacs-mac/blob/emacs-mac-30_1_exp/devel_update_notes.org).
+
+[^1]: Calling this the "Carbon" port is a vestigial nod to its origins and is what `M-x emacs-version` says, but is a misnomer now.  The ancient Carbon API never suppported 64bit applications, was deprecated and removed by Apple in MacOS 10.15 in 2019.  While a few conveniences remain (e.g. `Carbon.h`), these are used by the NS build as well.  **Both NS and emacs-mac** are Cocoa apps.
