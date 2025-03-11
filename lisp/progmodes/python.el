@@ -5,7 +5,7 @@
 ;; Author: Fabián E. Gallina <fgallina@gnu.org>
 ;; Maintainer: emacs-devel@gnu.org
 ;; URL: https://github.com/fgallina/python.el
-;; Version: 0.29
+;; Version: 0.30
 ;; Package-Requires: ((emacs "29.1") (compat "29.1.1.0") (seq "2.23") (project "0.1") (flymake "1.0"))
 ;; Created: Jul 2010
 ;; Keywords: languages
@@ -1108,11 +1108,14 @@ fontified."
                    'font-lock-doc-face
                  'font-lock-string-face))
 
-         (ignore-interpolation (not
-                                (seq-some
-                                 (lambda (feats) (memq 'string-interpolation feats))
-                                 (seq-take treesit-font-lock-feature-list
-                                           (treesit--compute-font-lock-level treesit-font-lock-level)))))
+         (ignore-interpolation
+          (not (seq-some
+                (lambda (feats) (memq 'string-interpolation feats))
+                (seq-take treesit-font-lock-feature-list
+                          (if (fboundp 'treesit--compute-font-lock-level)
+                              (treesit--compute-font-lock-level
+                               treesit-font-lock-level)
+                            treesit-font-lock-level)))))
          ;; If interpolation is enabled, highlight only
          ;; string_start/string_content/string_end children.  Do not
          ;; touch interpolation node that can occur inside of the
