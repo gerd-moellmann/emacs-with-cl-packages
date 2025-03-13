@@ -888,6 +888,7 @@ DEFAULT-DIRNAME specifies the default directory name to return if user
 exits with the same non-empty string that was inserted by this function.
  (If DEFAULT-DIRNAME is omitted, DIR combined with INITIAL is used,
   or just DIR if INITIAL is nil.)
+Return the directory as a string.
 
 If the user exits with an empty minibuffer, return an empty
 string.  (This can happen only if the user erased the pre-inserted
@@ -4205,10 +4206,12 @@ DIR-NAME is the name of the associated directory.  Otherwise it is nil."
 
 (defun hack-local-variables (&optional handle-mode inhibit-locals)
   "Parse and put into effect this buffer's local variables spec.
-For buffers visiting files, also puts into effect directory-local
-variables.
+Also puts into effect directory-local variables.
+For buffers not visiting files, apply the directory-local variables that
+would be applicable to files in `default-directory'.
 
-Uses `hack-local-variables-apply' to apply the variables.
+Uses `hack-local-variables-apply' and `hack-dir-local-variables'
+to apply the variables.
 
 If `enable-local-variables' or `local-enable-local-variables' is
 nil, or INHIBIT-LOCALS is non-nil, this function disregards all

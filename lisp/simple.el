@@ -2277,7 +2277,7 @@ This is used by the \\<minibuffer-local-must-match-map>\\[execute-extended-comma
   "Minor mode used for completion in `read-extended-command'.")
 
 (defun read-extended-command (&optional prompt)
-  "Read command name to invoke via `execute-extended-command'.
+  "Read and return name of command to invoke via `execute-extended-command'.
 Use `read-extended-command-predicate' to determine which commands
 to include among completion candidates.
 
@@ -3392,9 +3392,6 @@ the minibuffer contents."
                                minibuffer-prompt-properties))))
 
 
-;Put this on C-x u, so we can force that rather than C-_ into startup msg
-(define-obsolete-function-alias 'advertised-undo 'undo "23.2")
-
 (defconst undo-equiv-table (make-hash-table :test 'eq :weakness t)
   "Table mapping redo records to the corresponding undo one.
 A redo record for an undo in region maps to `undo-in-region'.
@@ -4327,7 +4324,7 @@ after the default value."
   "Keymap used for completing shell commands in minibuffer.")
 
 (defun read-shell-command (prompt &optional initial-contents hist &rest args)
-  "Read a shell command from the minibuffer.
+  "Read a shell command from the minibuffer, and return it as a string.
 The arguments are the same as the ones of `read-from-minibuffer',
 except READ and KEYMAP are missing and HIST defaults
 to `shell-command-history'."
@@ -6477,7 +6474,8 @@ variable to determine how strings should be escaped."
 (defvar read-from-kill-ring-history)
 (defun read-from-kill-ring (prompt)
   "Read a `kill-ring' entry using completion and minibuffer history.
-PROMPT is a string to prompt with."
+PROMPT is a string to prompt with.
+Return the entry as a string."
   ;; `current-kill' updates `kill-ring' with a possible interprogram-paste
   (current-kill 0)
   (let* ((history-add-new-input nil)
@@ -7472,22 +7470,31 @@ Does not set point.  Does nothing if mark ring is empty."
 (defcustom exchange-point-and-mark-highlight-region t
   "Activate region when exchanging point and mark.
 
-When set to nil, this modifies `exchange-point-and-mark' so that it doesn't
-activate mark when it is not already active."
+When set to nil, this modifies `exchange-point-and-mark' so that it
+doesn't activate the mark if it is not already active, except when there
+is a prefix argument.  Setting this variable to nil effectively swaps
+the meanings of the presence and absence of a prefix argument to
+`exchange-point-and-mark'.
+
+This variable has no effect when Transient Mark mode is off."
   :type 'boolean
   :group 'editing-basics
-  :version 31.1)
+  :version "31.1")
 
 (defun exchange-point-and-mark (&optional arg)
   "Put the mark where point is now, and point where the mark is now.
-This command works even when the mark is not active,
-and it reactivates the mark unless
-`exchange-point-and-mark-highlight-region' is nil.
+This command works even when the mark is not active, and it reactivates
+the mark unless `exchange-point-and-mark-highlight-region' is nil.
 
-If Transient Mark mode is on, a prefix ARG deactivates the mark
-if it is active, and otherwise avoids reactivating it.  If
-Transient Mark mode is off, a prefix ARG enables Transient Mark
-mode temporarily."
+If Transient Mark mode is on, a prefix ARG deactivates the mark if it is
+active, and otherwise avoids reactivating it.  However, if
+`exchange-point-and-mark-highlight-region' is nil, then using a prefix
+argument does reactivate the mark; effectively, when Transient Mark mode
+is on, setting `exchange-point-and-mark-highlight-region' to nil swaps
+the meanings of the presence and absence of a prefix argument.
+
+If Transient Mark mode is off, a prefix ARG enables Transient Mark mode
+temporarily."
   (interactive "P")
   (let ((omark (mark t))
         (region-was-active (region-active-p))
@@ -11314,7 +11321,9 @@ killed."
   (string= string ""))
 
 (defun read-signal-name ()
-  "Read a signal number or name."
+  "Read a signal number or name.
+Return the signal number, if the user entered a number, otherwise
+the signal symbol."
   (let ((value
          (completing-read "Signal code or name: "
                           (signal-names)

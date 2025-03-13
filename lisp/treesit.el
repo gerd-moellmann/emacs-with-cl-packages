@@ -3132,13 +3132,14 @@ ARG is described in the docstring of `up-list'."
                                          (treesit-node-start parent))))
           (setq parent (treesit-parent-until parent pred)))
 
-        (when-let* ((_ (null parent))
-                    (parser (treesit-node-parser (treesit-node-at (point))))
-                    (_ (not (eq parser treesit-primary-parser)))
-                    (guest-root-node (treesit-parser-root-node parser)))
-          ;; Continue from the host node that contains the guest parser.
-          (setq parent (treesit-thing-at
-                        (- (treesit-node-start guest-root-node) 2) pred)))
+        (unless parent
+          (let ((parsers (seq-keep (lambda (o)
+                                     (overlay-get o 'treesit-host-parser))
+                                   (overlays-at (point) t))))
+            (while (and (not parent) parsers)
+              (setq parent (treesit-parent-until
+                            (treesit-node-at (point) (car parsers)) pred)
+                    parsers (cdr parsers)))))
 
         (or (when (and default-pos
                        (or (null parent)
@@ -3417,9 +3418,16 @@ What constitutes as text and source code sentence is determined
 by `text' and `sentence' in `treesit-thing-settings'."
   (if (treesit-node-match-p (treesit-node-at (point)) 'text t)
       (funcall #'forward-sentence-default-function arg)
-    (funcall
-     (if (> arg 0) #'treesit-end-of-thing #'treesit-beginning-of-thing)
-     'sentence (abs arg))))
+    (or (funcall
+         (if (> arg 0) #'treesit-end-of-thing #'treesit-beginning-of-thing)
+         'sentence (abs arg))
+        ;; On failure jump to the buffer's end as `forward-sentence' does,
+        ;; but no further than the boundary of the current range.
+        (goto-char (if (> arg 0)
+                       (min (point-max) (next-single-char-property-change
+                                         (point) 'treesit-parser))
+                     (max (point-min) (previous-single-char-property-change
+                                       (point) 'treesit-parser)))))))
 
 (defun treesit-forward-comment (&optional count)
   "Tree-sitter `forward-comment-function' implementation.
@@ -3945,18 +3953,6 @@ this variable takes priority.")
     (or (and current-valid current)
         (and next-valid (treesit-thing-at next pred)))))
 
-(defun treesit-closest-parser-boundary (pos backward)
-  "Get the closest boundary of a local parser."
-  (when-let* ((ranges (mapcar #'treesit-parser-included-ranges
-                              (treesit-parser-list)))
-              (ranges (delq nil (delete '((1 . 1)) ranges)))
-              (bounds (seq-filter
-                       (lambda (p) (if backward (< p pos) (> p pos)))
-                       (flatten-list ranges)))
-              (closest (when bounds
-                         (if backward (seq-max bounds) (seq-min bounds)))))
-    closest))
-
 (defun treesit-outline-search (&optional bound move backward looking-at recursive)
   "Search for the next outline heading in the syntax tree.
 For BOUND, MOVE, BACKWARD, LOOKING-AT, see the descriptions in
@@ -3982,10 +3978,15 @@ For BOUND, MOVE, BACKWARD, LOOKING-AT, see the descriptions in
                    treesit-outline-predicate))
            (found (or bob-pos
                       (treesit-navigate-thing pos (if backward -1 1) 'beg pred)))
-           (closest (treesit-closest-parser-boundary pos backward)))
+           (closest (unless bob-pos
+                      (if backward
+                          (previous-single-char-property-change pos 'treesit-parser)
+                        (next-single-char-property-change pos 'treesit-parser)))))
 
       ;; Handle multi-language modes
-      (if (and closest (not recursive)
+      (if (and closest
+               (not (eq closest (if backward (point-min) (point-max))))
+               (not recursive)
                (or
                 ;; Possibly was inside the local parser, and when can't find
                 ;; more matches inside it then need to go over the closest
@@ -4018,22 +4019,23 @@ For BOUND, MOVE, BACKWARD, LOOKING-AT, see the descriptions in
   "Return the depth of the current outline heading."
   (let* ((node (treesit-outline--at-point))
          (level 1)
-         (parser (when (and treesit-aggregated-outline-predicate node)
-                   (treesit-node-parser node)))
          (pred (if treesit-aggregated-outline-predicate
                    (alist-get (treesit-language-at (point))
                               treesit-aggregated-outline-predicate)
                  treesit-outline-predicate)))
     (while (setq node (treesit-parent-until node pred))
       (setq level (1+ level)))
-    (when-let* ((_ (and parser (not (eq parser treesit-primary-parser))))
-                (guest-root-node (treesit-parser-root-node parser))
-                (host-lang (treesit-parser-language treesit-primary-parser))
-                (host-pred (alist-get host-lang treesit-aggregated-outline-predicate)))
-      ;; Continue from the host node that contains the guest parser.
-      (setq node (treesit-node-at (- (treesit-node-start guest-root-node) 2)))
-      (while (setq node (treesit-parent-until node host-pred))
-        (setq level (1+ level))))
+
+    ;; Continue counting the host nodes.
+    (dolist (parser (seq-keep (lambda (o)
+                                (overlay-get o 'treesit-host-parser))
+                              (overlays-at (point) t)))
+      (let* ((node (treesit-node-at (point) parser))
+             (lang (treesit-parser-language parser))
+             (pred (alist-get lang treesit-aggregated-outline-predicate)))
+        (while (setq node (treesit-parent-until node pred))
+          (setq level (1+ level)))))
+
     level))
 
 ;;; Hideshow mode

@@ -386,12 +386,21 @@ Setting this variable to a non-nil value reduces performance and leads
 to wrong results in some cases.  We believe that it is no longer useful;
 please contact us if you still need it for some reason.
 
+---
 ** 'byte-compile-cond-use-jump-table' is now obsolete.
+
 ---
 ** Modified settings for an enabled theme now apply immediately.
 Evaluating a custom-theme-set-faces or custom-theme-set-variables
 call for an enabled theme causes the settings to apply immediately,
 without a need to re-load the theme.
+
+---
+** 'describe-variable' now automatically says if 'setopt' is needed.
+If a user option has a defcustom :set function, users will normally need
+to set it with 'setopt' for it to take an effect.  If the docstring
+doesn't already mention 'setopt', the 'describe-variable' command will
+now add a note about this automatically.
 
 
 * Editing Changes in Emacs 31.1
@@ -475,8 +484,9 @@ modal editing packages.
 
 ** New user variable 'exchange-point-and-mark-highlight-region'.
 When set to nil, this modifies `exchange-point-and-mark' so that it doesn't
-activate mark when it is not already active.
-The default value is 't' which changes nothing to previous behavior.
+activate the mark if it is not already active.
+The default value is t, which retains the old behavior.
+This variable has no effect when Transient Mark mode is off.
 
 
 * Changes in Specialized Modes and Packages in Emacs 31.1
@@ -670,6 +680,14 @@ If you configured 'savehist-additional-variables' with variables that
 were also dynamically accumulated in minibuffer history during
 minibuffer use, they are now saved only once in the file specified by
 'savehist-file'.  Previously, they were saved twice.
+
+** Rectangle Mark
+---
+*** New user option to control whether empty rectangle selections are shown.
+The new user option 'rectangle-indicate-zero-width-rectangle' can be
+used to disable the default display of empty rectangular selections.
+The default is t; set it to nil to disable the indication (which causes
+a horizontal shift of text on display, and thus could be annoying).
 
 ** Message
 
@@ -1354,6 +1372,15 @@ It is intended to be added to the 'log-edit-done-hook' so that
 'vc-cvs-checkin' behaves like invoking "cvs commit [files...]" from the
 command line.
 
+** Diff mode
+
++++
+*** diff-apply-buffer now considers the region and can reverse-apply.
+If the region is active, this command now applies all hunks that the
+region overlaps; otherwise, it applies all hunks.
+With a prefix arguments, it now reverse-applies the hunks.
+This matches the existing prefix argument to 'diff-apply-hunk'.
+
 ** Package
 
 +++
@@ -1430,6 +1457,26 @@ Major-mode authors can customize the variables
 'yank-media-autoselect-function' and/or 'yank-media-preferred-types' to
 change the selection rules.
 
+** Remember
+
+---
+*** Remember mode is now a minor mode.
+The 'remember' command enables the major mode set in
+'remember-initial-major-mode' and then the 'remember-mode' minor mode in
+the 'remember-buffer'.  This allows users to customize the major mode
+used to write notes.
+
+---
+*** New handler that append remember data in directory.
+The 'remember-append-in-data-directory' handler appends remember data in
+a file, that file being choosen by the user through the minibuffer.
+
+---
+*** New prefix map for remember commands.
+Meant to be given a global binding convenient to the user.  Example:
+
+    (keymap-global-set "C-c M-r" 'remember-prefix-map)
+
 ** Miscellaneous
 
 ---
@@ -1437,6 +1484,12 @@ change the selection rules.
 Display of tooltips on text-only terminals now happens after
 'tooltip-delay' as it does on GUI terminals.  To get back the old
 behavior, customize the value of 'tooltip-delay' to zero.
+
+---
+*** New user option 'follow-mode-prefix-key'.
+This user option replaces 'follow-mode-prefix', which had to be set
+before loading Follow mode.  This new option allows you to change the
+prefix even after it was loaded, using 'customize-option' or 'setopt'.
 
 ---
 *** cdl.el is now obsolete.
@@ -1549,7 +1602,7 @@ for writing code that can work across different Emacs versions.
 
 ---
 ** You can change the default value of 'lexical-binding'.
-While the default is still the use dynamic binding dialect of ELisp
+While the default is still the use dynamic binding dialect of Elisp
 in those places that don't explicitly set 'lexical-binding' you can
 change it globally with:
 
@@ -1822,6 +1875,10 @@ This function inserts the special EVENT into the input event queue.
 *** New event type 'sleep-event'.
 This event is sent when the device running Emacs enters or leaves the
 sleep state.
+
+** Function aliases obsolete since Emacs 23.2 have been removed:
+'advertised-undo', 'advertised-widget-backward', and
+'dired-advertised-find-file'.
 
 
 * Changes in Emacs 31.1 on Non-Free Operating Systems
