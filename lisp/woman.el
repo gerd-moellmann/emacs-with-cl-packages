@@ -89,9 +89,8 @@
 ;; structure.
 
 ;; Or (3): Put this in your init file:
-;; (add-hook 'dired-mode-hook
-;;          (lambda ()
-;;            (define-key dired-mode-map "W" 'woman-dired-find-file)))
+;; (with-eval-after-load 'dired
+;;   (keymap-set dired-mode-map "W" 'woman-dired-find-file))
 ;; and open the directory containing the man page file using Dired,
 ;; put the cursor on the file, and press `W'.
 
@@ -124,12 +123,11 @@
 ;; The variable `woman-use-topic-at-point' can be rebound locally,
 ;; which may be useful to provide special private key bindings, e.g.
 
-;;  (global-set-key "\C-cw"
-;;  		  (lambda ()
-;;  		    (interactive)
-;;  		    (let ((woman-use-topic-at-point t))
-;;  		      (woman)))))
-
+;; (keymap-global-set "C-c w"
+;;                    (lambda ()
+;;                      (interactive)
+;;                      (let ((woman-use-topic-at-point t))
+;;                        (woman)))))
 
 ;; Customization, Hooks and Imenu
 ;; ==============================
