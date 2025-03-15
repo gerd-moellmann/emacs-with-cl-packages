@@ -34,7 +34,7 @@ A number of issues were encountered:
 - ~macfont.m~ has new font metrics for different weights.
 - Restore stipple support in =xfaces.c= (untested).
 
-** Further issues
+** Build issues
 
 After the merge, additional issues were uncovered that prevented compilation from completing:
 
