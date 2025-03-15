@@ -15,7 +15,7 @@ Compiling but crashing:
 
 - MacOS 12 on X86_64 (Intel)
 
-Please open an issue for other systems.
+Please open an issue to discuss experiences on other systems.
 
 ## Install
 
@@ -28,7 +28,7 @@ make
 sudo make-install  # optional, compresses EL files and installs some resources in /usr/local/share/emacs/30.1.50
 ```
 
-You'll find the app under `mac`
+You'll find the app under `mac`.
 
 Note that, as usual, you sometimes need to:
 
@@ -41,24 +41,24 @@ to associate the native lisp files.
 
 ## Debugging
 
-If you get crashes or just want to help with debugging, it would be useful to debug using `lldb`.  Here's how:
+If you get crashes or just want to help with debugging, it would be useful to run emacs under `lldb`.  Here's how:
 
 1. Build emacs-mac with debug flags:
    ```
     CFLAGS="-O0 -g3" ./configure --with-native-compilation --with-tree-sitter --with-rsvg --enable-mac-app=yes --without-imagemagick
     ```
 2.  In an `~/.lldbinit` file, add `settings set target.load-cwd-lldbinit true`, so Emacs can read the custom lldb commands it has defined.
-3.  Start the binary from the `src/` directory, like:
+3.  Start the emacs binary from the `src/` directory, like:
     ```bash
     %lldb ../mac/Emacs.app/Contents/MacOS/Emacs
     ```
-    Then `run` or better, `run -Q`
-1. Now you cause your crash to occur, go `up` to the frame of interest, and use `xprint` on the potentially problematic variables.
-2. You can also try `gui` which is a little curses-based terminal GUI for lldb (slow for me though).
+    Then `run` (or better, `run -Q`).
+1. Now cause your crash to occur, go `up` to the frame of interest, and use `xprint` on the potentially problematic variables.
+2. You can also try `gui` which is a little curses-based terminal GUI inside lldb (slow for me though).
 
 ## Additions
 
-Additional features on top of emacs-mac and Emacs proper:
+Additional features added on top of `emacs-mac` and Emacs proper:
 
 - `New Frame` Dock Menu Item
 
