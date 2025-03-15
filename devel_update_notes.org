@@ -2,7 +2,7 @@
 
 ~emacs-mac~ differs substantially from the main Emacs builds, including the official NS/NextStep build that supports Mac (see =README-mac= for more details).
 
-This document chronicles experiences merging upstream emacs into ~emacs-mac~, beginning with Emacs v30.1, which was released in Feb, 2025.  While most elisp changes typically merge smoothly, underlying Mac-specific C and ObjC code as well as build system details sometime need more significant updates as the main project continues to evolve.
+This document chronicles experiences merging upstream emacs into ~emacs-mac~, beginning with Emacs v30.1, which was released in Feb, 2025.  While most elisp changes typically merge smoothly, underlying Mac-specific C and ObjC code as well as build system details sometimes need more significant updates as the main project continues to evolve.
 
 * Merging 30.1
 
