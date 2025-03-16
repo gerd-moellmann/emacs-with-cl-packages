@@ -15,7 +15,8 @@ Compiling but crashing:
 
 - MacOS 12 on X86_64 (Intel)
 
-Please open an issue to discuss experiences on other systems.
+>[!IMPORTANT]
+> Please open an [issue](../../issues) to report your experiences, even if you encounter no problems.  Mention your OS version, CPU, and any other relevant details.
 
 ## Install
 
@@ -38,10 +39,6 @@ Note that, as usual, you sometimes need to:
 ```
 
 to associate the native lisp files.
-
->[!IMPORTANT]
-> Please open an issue to report your experiences, even if you encounter no problems.  Mention your OS version, CPU, and any other relevant details.
-
 
 ## Debugging
 
