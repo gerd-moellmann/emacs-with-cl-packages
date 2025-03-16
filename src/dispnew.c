@@ -504,9 +504,11 @@ adjust_glyph_matrix (struct window *w, struct glyph_matrix *matrix, int x, int y
 
 	  while (row < end)
 	    {
-	      row->glyphs[LEFT_MARGIN_AREA] =
-		xnrealloc (row->glyphs[LEFT_MARGIN_AREA],
-			   dim.width, sizeof (struct glyph));
+	      row->glyphs[LEFT_MARGIN_AREA]
+		= xnrealloc (row->glyphs[LEFT_MARGIN_AREA], dim.width,
+			     sizeof (struct glyph));
+	      memset (row->glyphs[LEFT_MARGIN_AREA], 0,
+		      dim.width * sizeof (struct glyph));
 	      /* The mode line, if displayed, never has marginal areas.  */
 	      if ((row == matrix->rows + dim.height - 1
 		   && !(w && window_wants_mode_line (w)))
