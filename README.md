@@ -39,6 +39,10 @@ Note that, as usual, you sometimes need to:
 
 to associate the native lisp files.
 
+>[!IMPORTANT]
+> Please open an issue to report your experiences, even if you encounter no problems.  Mention your OS version, CPU, and any other relevant details.
+
+
 ## Debugging
 
 If you get crashes or just want to help with debugging, it would be useful to run emacs under `lldb`.  Here's how:
