@@ -683,10 +683,21 @@ An alternative method could be chosen with `tramp-file-name-with-method'."
      (make-tramp-file-name
       :method tramp-file-name-with-method :localname filename))))
 
+;; FIXME: We would like to rename this for Emacs 31.1 to a name that
+;; does not encode the default method.  It is intended as a generic
+;; privilege-elevation command.  Some ideas from bug#76974:
+;; `tramp-revert-buffer-obtain-root',
+;; `tramp-revert-buffer-as-superuser'.
+
 ;;;###autoload
 (defun tramp-revert-buffer-with-sudo ()
-  "Revert current buffer to visit with \"sudo\" permissions.
-An alternative method could be chosen with `tramp-file-name-with-method'.
+  "Visit the current file again with superuser, or root, permissions.
+
+By default this is done using the \"sudo\" Tramp method.
+You can customize `tramp-file-name-with-method' to change this.
+
+Interactively, with a prefix argument, prompt for a different method.
+
 If the buffer visits a file, the file is replaced.
 If the buffer runs `dired', the buffer is reverted."
   (interactive)
@@ -708,13 +719,34 @@ If the buffer runs `dired', the buffer is reverted."
       (dired-advertise)
       (revert-buffer)))))
 
+;; This function takes action, when `read-extended-command-predicate'
+;; is set to `command-completion-default-include-p'.
+(defun tramp-dired-buffer-command-completion-p (_symbol buffer)
+  "A predicate for Tramp interactive commands.
+They are completed by `M-x TAB' only in Dired buffers."
+  (declare (tramp-suppress-trace t))
+  (with-current-buffer buffer
+    (tramp-dired-buffer-p)))
+
+;; FIXME: See FIXME above about renaming this before Emacs 31.1.
+
 ;;;###autoload
 (defun tramp-dired-find-file-with-sudo ()
-  "In Dired, visit the file or directory named on this line.
-This is performed with \"sudo\" permissions."
+  "Visit the file or directory named on this line as the superuser.
+
+By default this is done using the \"sudo\" Tramp method.
+YOu can customize `tramp-file-name-with-method' to change this.
+
+Interactively, with a prefix argument, prompt for a different method."
   (interactive)
   (with-tramp-file-name-with-method
     (find-file (tramp-file-name-with-sudo (dired-get-file-for-visit)))))
+
+;; `tramp-dired-buffer-command-completion-p' is not autoloaded, and this
+;; setting isn't either.
+(function-put
+ #'tramp-dired-find-file-with-sudo 'completion-predicate
+ #'tramp-dired-buffer-command-completion-p)
 
 ;;; Recompile on ELPA
 

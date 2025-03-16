@@ -101,6 +101,7 @@ For the developer:
 * GNU Free Documentation License:: The license for this documentation.
 * Function Index::              @value{tramp} functions.
 * Variable Index::              User options and variables.
+* Key Index::                   Key bindings for @value{tramp} commands.
 * Concept Index::               An item for each concept.
 
 @detailmenu
@@ -3934,9 +3935,8 @@ method.  The commands @code{tramp-revert-buffer-with-sudo} (@kbd{C-x x
 
 @kindex C-x x @@
 @deffn Command tramp-revert-buffer-with-sudo
-This command shows the current buffer with @option{sudo} permissions.
-The buffer must either visit a file, or a directory
-(@code{dired-mode}).
+This command visits the current buffer with @option{sudo} permissions.
+The buffer must either visit a file, or a directory in @code{dired-mode}.
 @end deffn
 
 @kindex @@ @r{(in dired})
@@ -6809,6 +6809,11 @@ maintainers, analyzing the remote commands for performance analysis.
 @node Variable Index
 @unnumbered Variable Index
 @printindex vr
+
+
+@node Key Index
+@unnumbered Key Index
+@printindex ky
 
 
 @node Concept Index
