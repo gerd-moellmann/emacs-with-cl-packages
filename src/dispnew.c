@@ -507,10 +507,14 @@ adjust_glyph_matrix (struct window *w, struct glyph_matrix *matrix, int x, int y
 	      row->glyphs[LEFT_MARGIN_AREA]
 		= xnrealloc (row->glyphs[LEFT_MARGIN_AREA],
 			     dim.width, sizeof (struct glyph));
+	      /* We actually need to clear only the 'frame' member, but
+                 it's easier to clear everything.  */
 	      memset (row->glyphs[LEFT_MARGIN_AREA], 0,
 		      dim.width * sizeof (struct glyph));
 
 	      if ((row == matrix->rows + dim.height - 1
+		   /* The mode line, if displayed, never has marginal
+                      areas.  */
 		   && !(w && window_wants_mode_line (w)))
 		  || (row == matrix->rows && matrix->tab_line_p)
 		  || (row == matrix->rows

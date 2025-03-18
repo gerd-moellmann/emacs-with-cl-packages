@@ -981,7 +981,7 @@ blocks are syntax-highlighted if the Doxygen grammar library is
 available.
 
 ---
-*** New user option 'java-ts-mode-method-chaining-indent-offset'
+*** New user option 'java-ts-mode-method-chaining-indent-offset'.
 Now method chaining is indented by 8 spaces rather than 4, and this
 variable controls how much is indented for method chaining.
 
@@ -1404,6 +1404,20 @@ This command strips all lines beginning with "CVS:" from the buffer.
 It is intended to be added to the 'log-edit-done-hook' so that
 'vc-cvs-checkin' behaves like invoking 'cvs commit [files...]' from the
 command line.
+
+---
+*** New user options 'vc-resolve-conflicts' and 'vc-*-resolve-conflicts'.
+Control whether to mark a conflicted file as resolved when saving.
+You can now control it globally, with 'vc-resolve-conflicts' or for
+specific backends with 'vc-bzr-resolve-conflicts',
+'vc-hg-resolve-conflicts' and 'vc-svn-resolve-conflicts'.
+
+---
+*** New value for 'vc-git-resolve-conflicts'.
+The option now accepts the symbol 'default' as a value, which is
+its default value.  Effectively, the default value hasn't changed,
+since 'vc-resolve-conflicts' defaults to t, the previous default value
+for 'vc-git-resolve-conflicts'.
 
 ** Diff mode
 
