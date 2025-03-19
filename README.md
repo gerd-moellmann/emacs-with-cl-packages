@@ -48,8 +48,7 @@ MPS.
 
 I ported this to mainline Emacs (branch feature/igc on
 `savannah.gnu.org`) and it was developed further there and here.  At the
-moment the future of this branch is unclear, to say the least. I won't
-maintain it, and it's not clear if someone volunteers to do so.
+moment the future of this branch is unclear.
 
 Works well for me on macOS. I'm using this daily.
 
