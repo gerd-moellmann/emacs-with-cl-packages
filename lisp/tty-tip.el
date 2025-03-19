@@ -1,4 +1,4 @@
-;;; tty-tip.el --- Display help in kind of tooltips on ttys  -*- lexical-binding: t -*-
+;;; tty-tip.el --- Display help in kind of tooltips on ttys  -*- lexical-binding: t; symbol-packages: t; -*-
 
 ;; Copyright (C) 2024-2025 Free Software Foundation, Inc.
 
