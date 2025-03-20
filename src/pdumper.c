@@ -5014,31 +5014,32 @@ struct dump_memory_map
 void
 dump_discard_mem (void *mem, size_t size)
 {
-#ifdef HAVE_MPS
-  /* MPS doesn't use mmap.  */
-  return;
-#elif VM_SUPPORTED == VM_MS_WINDOWS
+#if VM_SUPPORTED == VM_MS_WINDOWS
   /* Discard COWed pages.  */
-  err = (VirtualFree (mem, size, MEM_DECOMMIT) == 0);
-  if (err)
-    emacs_abort ();
+  (void) VirtualFree (mem, size, MEM_DECOMMIT);
   /* Release the commit charge for the mapping.  */
   DWORD old_prot;
-  err = (VirtualProtect (mem, size, PAGE_NOACCESS, &old_prot) == 0);
+  (void) VirtualProtect (mem, size, PAGE_NOACCESS, &old_prot);
 #elif VM_SUPPORTED == VM_POSIX
 # ifdef HAVE_POSIX_MADVISE
   /* Discard COWed pages.  */
-  err = posix_madvise (mem, size, POSIX_MADV_DONTNEED);
+  (void) posix_madvise (mem, size, POSIX_MADV_DONTNEED);
 # elif defined HAVE_MADVISE
-  err = madvise (mem, size, MADV_DONTNEED);
+  (void) madvise (mem, size, MADV_DONTNEED);
 #endif
-  if (err)
-    emacs_abort ();
   /* Release the commit charge for the mapping.  */
-  err = mprotect (mem, size, PROT_NONE);
+  (void) mprotect (mem, size, PROT_NONE);
 #endif
-  if (err)
-    emacs_abort ();
+}
+
+static void
+dump_mmap_discard_contents (struct dump_memory_map *map)
+{
+#ifndef HAVE_MPS
+  /* MPS doesn't use mmap.  */
+  if (map->mapping)
+    dump_discard_mem (map->mapping, map->spec.size);
+#endif
 }
 
 static void
@@ -5055,13 +5056,6 @@ dump_mmap_release (struct dump_memory_map *map)
   if (map->release)
     map->release (map);
   dump_mmap_reset (map);
-}
-
-static void
-dump_mmap_discard_contents (struct dump_memory_map *map)
-{
-  if (map->mapping)
-    dump_mmap_release (map);
 }
 
 /* Allows heap-allocated dump_mmap to "free" maps individually.  */
