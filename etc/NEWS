@@ -1588,6 +1588,12 @@ activate it.  When t (the default), the click will both activate the
 frame and be interpreted as a command.
 
 ---
+*** New user option 'global-hl-line-modes'.
+This specifies in which major modes should the 'global-hl-line-mode' be
+switched on.  The default is t, which means enable it in all major
+modes.
+
+---
 *** New user option 'display-fill-column-indicator-warning'.
 Customize it to a non-nil value to have the fill-column indicators
 change their face if the current line exceeds the 'fill-column'.  The
