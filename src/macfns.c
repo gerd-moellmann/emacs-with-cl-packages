@@ -2432,8 +2432,9 @@ DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame,
       /* Use the frame's title when getting resources for this frame.  */
       specbind (Qx_resource_name, name);
     }
-
+  block_input ();
   mac_register_font_driver (f);
+  unblock_input ();
 
   gui_default_parameter (f, parms, Qfont_backend, Qnil,
                          "fontBackend", "FontBackend", RES_TYPE_STRING);
@@ -3552,8 +3553,9 @@ mac_create_tip_frame (struct mac_display_info *dpyinfo, Lisp_Object parms)
       /* use the frame's title when getting resources for this frame.  */
       specbind (Qx_resource_name, name);
     }
-
+  block_input ();
   mac_register_font_driver (f);
+  unblock_input ();
 
   gui_default_parameter (f, parms, Qfont_backend, Qnil,
                          "fontBackend", "FontBackend", RES_TYPE_STRING);
