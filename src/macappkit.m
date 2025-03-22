@@ -10589,7 +10589,7 @@ mac_font_dialog (struct frame *f)
       id savedDelegate, delegate;
       NSModalResponse __block response;
 
-      savedSelectedFont = [fontManager selectedFont];
+      savedSelectedFont = MRC_RETAIN ([fontManager selectedFont]);
       savedIsMultiple = [fontManager isMultiple];
       selectedFont = (__bridge NSFont *) macfont_get_nsctfont (FRAME_FONT (f));
       [fontManager setSelectedFont:selectedFont isMultiple:NO];
@@ -10612,15 +10612,23 @@ mac_font_dialog (struct frame *f)
       if (response != NSModalResponseAbort)
 	{
 	  selectedFont = [fontManager convertFont:[fontManager selectedFont]];
-	  result = macfont_nsctfont_to_spec ((__bridge void *) selectedFont);
+	  if (selectedFont == nil) {
+	    NSLog(@"Font conversion failed");
+	  } else {
+	    result = macfont_nsctfont_to_spec ((__bridge void *) selectedFont);
+	  }
 	}
 
       [fontPanel setAccessoryView:savedAccessoryView];
       [fontPanel setDelegate:savedDelegate];
       MRC_RELEASE (delegate);
-      [fontManager setSelectedFont:savedSelectedFont
-			isMultiple:savedIsMultiple];
-
+      if (savedSelectedFont != nil) {
+	[fontManager setSelectedFont:savedSelectedFont
+			  isMultiple:savedIsMultiple];
+      } else {
+	NSLog(@"No saved font selection, skipping");
+      }
+      MRC_RELEASE (savedSelectedFont);
       [fontPanel close];
     });
   mac_menu_set_in_use (false);
