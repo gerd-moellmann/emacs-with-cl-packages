@@ -9,11 +9,13 @@ This is an experimental build of the [emacs-mac](https://bitbucket.org/mituharu/
 
 Working well:
 
-- MacOS 15 on ARM64 (M2)
+- MacOS 15 (Sequoia) on ARM64 (M1, M2, M4)
+- MacOS 14 (Sonoma) on ARM64 (M1, M3)
+- MacOS 12 (Monterey) on X86_64 (Intel)
 
-Compiling but crashing:
+Compiling, running, with crash:
 
-- MacOS 12 on X86_64 (Intel)
+- MacOS 12 (Monterey) on X86_64 (Intel)
 
 >[!IMPORTANT]
 > Please open an [issue](../../issues) to report your experiences, even if you encounter no problems.  Mention your OS version, CPU, and any other relevant details.
