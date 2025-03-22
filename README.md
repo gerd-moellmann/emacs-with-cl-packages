@@ -59,9 +59,10 @@ If you get crashes or just want to help with debugging, it would be useful to ru
 
 ## Additions
 
-Additional features added on top of `emacs-mac` and Emacs proper:
+Additional features/fixes added on top of `emacs-mac` and Emacs proper:
 
 - `New Frame` Dock Menu Item
+- Take care to avoid crashes when selecting fonts from the system font panel.
 
 ## Notes
 
