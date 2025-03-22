@@ -40,7 +40,6 @@ along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <sys/types.h>
 #include <sys/stat.h>
 
-static ptrdiff_t image_cache_refcount;
 #ifdef GLYPH_DEBUG
 static int dpyinfo_refcount;
 #endif
@@ -2208,29 +2207,8 @@ unwind_create_frame (Lisp_Object frame)
   /* If frame is ``official'', nothing to do.  */
   if (NILP (Fmemq (frame, Vframe_list)))
     {
-#if defined GLYPH_DEBUG && defined ENABLE_CHECKING
-      struct mac_display_info *dpyinfo = FRAME_DISPLAY_INFO (f);
-#endif
-
-      /* If the frame's image cache refcount is still the same as our
-	 private shadow variable, it means we are unwinding a frame
-	 for which we didn't yet call init_frame_faces, where the
-	 refcount is incremented.  Therefore, we increment it here, so
-	 that free_frame_faces, called in mac_free_frame_resources
-	 below, will not mistakenly decrement the counter that was not
-	 incremented yet to account for this new frame.  */
-      if (FRAME_IMAGE_CACHE (f) != NULL
-	  && FRAME_IMAGE_CACHE (f)->refcount == image_cache_refcount)
-	FRAME_IMAGE_CACHE (f)->refcount++;
-
       mac_free_frame_resources (f);
       free_glyphs (f);
-
-#if defined GLYPH_DEBUG && defined ENABLE_CHECKING
-      /* Check that reference counts are indeed correct.  */
-      eassert (dpyinfo->reference_count == dpyinfo_refcount);
-      eassert (dpyinfo->terminal->image_cache->refcount == image_cache_refcount);
-#endif
       return Qt;
     }
 
@@ -2456,12 +2434,6 @@ DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame,
     }
 
   mac_register_font_driver (f);
-
-  image_cache_refcount =
-    FRAME_IMAGE_CACHE (f) ? FRAME_IMAGE_CACHE (f)->refcount : 0;
-#ifdef GLYPH_DEBUG
-  dpyinfo_refcount = dpyinfo->reference_count;
-#endif /* GLYPH_DEBUG */
 
   gui_default_parameter (f, parms, Qfont_backend, Qnil,
                          "fontBackend", "FontBackend", RES_TYPE_STRING);
@@ -3582,12 +3554,6 @@ mac_create_tip_frame (struct mac_display_info *dpyinfo, Lisp_Object parms)
     }
 
   mac_register_font_driver (f);
-
-  image_cache_refcount =
-    FRAME_IMAGE_CACHE (f) ? FRAME_IMAGE_CACHE (f)->refcount : 0;
-#ifdef GLYPH_DEBUG
-  dpyinfo_refcount = dpyinfo->reference_count;
-#endif /* GLYPH_DEBUG */
 
   gui_default_parameter (f, parms, Qfont_backend, Qnil,
                          "fontBackend", "FontBackend", RES_TYPE_STRING);
