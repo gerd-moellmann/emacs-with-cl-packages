@@ -17359,6 +17359,10 @@ redisplay_internal (void)
       /* Point must be on the line that we have info recorded about.  */
       && PT >= CHARPOS (tlbufpos)
       && PT <= Z - CHARPOS (tlendpos)
+#if 0
+      /* Put in äif 0 because this leads to very unpleasant flickering
+	 on ttys when line-numbers are displayed, we have two vertically split windows.  */
+
       /* FIXME: The following condition is only needed when
 	 significant parts of the buffer are hidden (e.g., under
 	 hs-minor-mode), but there doesn't seem to be a simple way of
@@ -17367,6 +17371,7 @@ redisplay_internal (void)
 	 in the buffer.  */
       && (NILP (Vdisplay_line_numbers)
 	  || EQ (Vdisplay_line_numbers, Qvisual))
+#endif
       /* All text outside that line, including its final newline,
 	 must be unchanged.  */
       && text_outside_line_unchanged_p (w, CHARPOS (tlbufpos),
