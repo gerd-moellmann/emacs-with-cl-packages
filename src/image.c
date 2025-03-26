@@ -14816,7 +14816,7 @@ non-numeric, there is no explicit limit on the size of images.  */);
 	  || defined (HAVE_HAIKU) || defined (HAVE_MACGUI)))
   DEFSYM (Qwebp, "webp");
   DEFSYM (Qwebpdemux, "webpdemux");
-#if !defined (HAVE_WEBP) && defined (HAVE_MACGUI)
+#if !defined (HAVE_WEBP) && defined (HAVE_MACGUI) && defined (HAVE_NATIVE_IMAGE_API)
   if (image_can_use_native_api (Qwebp))
 #endif
   add_image_type (Qwebp);
@@ -14858,7 +14858,7 @@ non-numeric, there is no explicit limit on the size of images.  */);
 
 #if defined HAVE_MACGUI || defined HAVE_NS
   DEFSYM (Qheic, "heic");
-#ifdef HAVE_MACGUI
+#if defined HAVE_MACGUI && defined HAVE_NATIVE_IMAGE_API
   if (image_can_use_native_api (Qheic))
 #endif
   add_image_type (Qheic);
