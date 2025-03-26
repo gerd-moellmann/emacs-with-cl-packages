@@ -48,7 +48,7 @@ If you get crashes or just want to help with debugging, it would be useful to ru
 
 1. Build emacs-mac with debug flags:
    ```
-    CFLAGS="-O0 -g3" ./configure --with-native-compilation --with-tree-sitter --with-rsvg --enable-mac-app=yes --without-imagemagick
+    CFLAGS="-O0 -g3" ./configure --with-native-compilation --with-tree-sitter --enable-mac-app=yes
     ```
 2.  In an `~/.lldbinit` file, add `settings set target.load-cwd-lldbinit true`, so Emacs can read the custom lldb commands it has defined.
 3.  Start the emacs binary from the `src/` directory, like:
@@ -65,6 +65,7 @@ Additional features/fixes added on top of `emacs-mac` and Emacs proper:
 
 - `New Frame` Dock Menu Item
 - Take care to avoid crashes when selecting fonts from the system font panel.
+- Prevent zombie "Emacs Web Content" processes on SVG load, restoring normal WebView SVG rendering for MacOS v14+.
 
 ## Notes
 
