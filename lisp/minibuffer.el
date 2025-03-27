@@ -1692,6 +1692,7 @@ scroll the window of possible completions."
          ((eq completion-auto-select 'second-tab))
          ;; Reverse tab
          ((equal (this-command-keys) [backtab])
+          (completion--lazy-insert-strings)
           (if (pos-visible-in-window-p (point-min) window)
               ;; If beginning is in view, scroll up to the end.
               (set-window-point window (point-max))
@@ -1699,6 +1700,7 @@ scroll the window of possible completions."
             (with-selected-window window (scroll-down))))
          ;; Normal tab
          (t
+          (completion--lazy-insert-strings)
           (if (pos-visible-in-window-p (point-max) window)
               ;; If end is in view, scroll up to the end.
               (set-window-start window (point-min) nil)

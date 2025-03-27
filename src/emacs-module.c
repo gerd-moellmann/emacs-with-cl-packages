@@ -221,6 +221,14 @@ module_decode_utf_8 (const char *str, ptrdiff_t len)
   return s;
 }
 
+/* Signal an error of type `memory-buffer-too-small'.  */
+static void
+module_memory_buffer_too_small (ptrdiff_t actual, ptrdiff_t required)
+{
+  xsignal2 (Qmemory_buffer_too_small, INT_TO_INTEGER (actual),
+	    INT_TO_INTEGER (required));
+}
+
 
 /* Convenience macros for non-local exit handling.  */
 
@@ -802,9 +810,7 @@ module_copy_string_contents (emacs_env *env, emacs_value value, char *buf,
     {
       ptrdiff_t actual = *len;
       *len = required_buf_size;
-      args_out_of_range_3 (INT_TO_INTEGER (actual),
-                           INT_TO_INTEGER (required_buf_size),
-                           INT_TO_INTEGER (PTRDIFF_MAX));
+      module_memory_buffer_too_small (actual, required_buf_size);
     }
 
   *len = required_buf_size;
@@ -904,8 +910,7 @@ check_vec_index (Lisp_Object lvec, ptrdiff_t i)
 {
   CHECK_VECTOR (lvec);
   if (! (0 <= i && i < ASIZE (lvec)))
-    args_out_of_range_3 (INT_TO_INTEGER (i),
-			 make_fixnum (0), make_fixnum (ASIZE (lvec) - 1));
+    args_out_of_range (lvec, INT_TO_INTEGER (i));
 }
 
 static void
@@ -1093,10 +1098,8 @@ module_extract_big_integer (emacs_env *env, emacs_value arg, int *sign,
         {
           ptrdiff_t actual = *count;
           *count = required;
-          args_out_of_range_3 (INT_TO_INTEGER (actual),
-                               INT_TO_INTEGER (required),
-                               INT_TO_INTEGER (module_bignum_count_max));
-        }
+	  module_memory_buffer_too_small (actual, required);
+	}
       /* Set u = abs(x).  See https://stackoverflow.com/a/17313717. */
       if (0 < x)
         u = (EMACS_UINT) x;
@@ -1129,8 +1132,7 @@ module_extract_big_integer (emacs_env *env, emacs_value arg, int *sign,
     {
       ptrdiff_t actual = *count;
       *count = required;
-      args_out_of_range_3 (INT_TO_INTEGER (actual), INT_TO_INTEGER (required),
-                           INT_TO_INTEGER (module_bignum_count_max));
+      module_memory_buffer_too_small (actual, required);
     }
   size_t written;
   mpz_export (magnitude, &written, order, size, endian, nails, *x);
@@ -1767,6 +1769,12 @@ syms_of_module (void)
   Fput (Qinvalid_arity, Qerror_conditions, list (Qinvalid_arity, Qerror));
   Fput (Qinvalid_arity, Qerror_message,
         build_string ("Invalid function arity"));
+
+  DEFSYM (Qmemory_buffer_too_small, "memory-buffer-too-small");
+  Fput (Qmemory_buffer_too_small, Qerror_conditions,
+	list2 (Qmemory_buffer_too_small, Qerror));
+  Fput (Qmemory_buffer_too_small, Qerror_message,
+        build_unibyte_string ("Memory buffer too small"));
 
   DEFSYM (Qmodule_function_p, "module-function-p");
   DEFSYM (Qunicode_string_p, "unicode-string-p");
