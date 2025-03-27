@@ -4728,6 +4728,9 @@ impose the use of a shell (with its need to quote arguments)."
 	      (with-current-buffer buffer
                 (shell-command-save-pos-or-erase)
 		(setq default-directory directory)
+                ;; There could be left connection-local values.  (Bug#76888)
+                (kill-local-variable 'shell-file-name)
+                (kill-local-variable 'shell-command-switch)
                 (require 'shell)
                 (let ((process-environment
                        (append
