@@ -146,6 +146,9 @@ The new minor mode defines the keys at a higher precedence level than
 the old function, one more usual for a minor mode.  To restore the old
 behavior, customize 'find-function-mode-lower-precedence' to non-nil.
 
+---
+** 'find-function' can now find 'cl-defmethod' invocations inside macros.
+
 ** Minibuffer and Completions
 
 +++
