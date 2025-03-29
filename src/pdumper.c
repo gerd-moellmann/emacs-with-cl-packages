@@ -2471,6 +2471,14 @@ dump_remember_symbol_aux (struct dump_context *ctx,
   Fputhash (symbol, dump_off_to_lisp (offset), ctx->symbol_aux);
 }
 
+/* Dump auxiliary information attached to SYMBOL, a symbol that will be
+   copied into Emacs's core from the dump file.  If SYMBOL is localized,
+   generate a copy of its buffer local storage and arrange that the
+   symbol redirect to the same.  Otherwise, if SYMBOL is forwarded,
+   arrange to restore the contents of the forwarding structure and/or
+   dump its references as the case may be; the former is only necessary
+   in the case of buffer objfwds, which are initialized at runtime.  */
+
 static void
 dump_pre_dump_symbol (struct dump_context *ctx, struct Lisp_Symbol *symbol)
 {
@@ -2491,9 +2499,8 @@ dump_pre_dump_symbol (struct dump_context *ctx, struct Lisp_Symbol *symbol)
 }
 
 static dump_off
-dump_symbol (struct dump_context *ctx,
-             Lisp_Object object,
-             dump_off offset)
+dump_symbol (struct dump_context *ctx, Lisp_Object object,
+	     dump_off offset)
 {
 #if CHECK_STRUCTS && !defined HASH_Lisp_Symbol_44C8A8AB49
 # error "Lisp_Symbol changed. See CHECK_STRUCTS comment in config.h."
@@ -2501,6 +2508,7 @@ dump_symbol (struct dump_context *ctx,
 #if CHECK_STRUCTS && !defined (HASH_symbol_redirect_EA72E4BFF5)
 # error "symbol_redirect changed. See CHECK_STRUCTS comment in config.h."
 #endif
+  dump_off aux_offset;
 
   if (ctx->flags.defer_symbols)
     {
@@ -2551,6 +2559,7 @@ dump_symbol (struct dump_context *ctx,
     case SYMBOL_FORWARDED:
       dump_field_fwd (ctx, &out, symbol, &symbol->u.s.val.fwd);
       break;
+
     default:
       emacs_abort ();
     }
@@ -2559,18 +2568,15 @@ dump_symbol (struct dump_context *ctx,
   dump_field_lv (ctx, &out, symbol, &symbol->u.s.plist, WEIGHT_NORMAL);
 
   offset = dump_object_finish (ctx, &out, sizeof (out));
-  dump_off aux_offset;
-
   switch (symbol->u.s.redirect)
     {
     case SYMBOL_LOCALIZED:
       aux_offset = dump_recall_symbol_aux (ctx, make_lisp_symbol (symbol));
-      dump_remember_fixup_ptr_raw
-	(ctx,
-	 offset + dump_offsetof (struct Lisp_Symbol, u.s.val.blv),
-	 (aux_offset
-	  ? aux_offset
-	  : dump_blv (ctx, symbol->u.s.val.blv)));
+      dump_remember_fixup_ptr_raw (ctx, offset + dump_offsetof (struct Lisp_Symbol,
+								u.s.val.blv),
+				   (aux_offset
+				    ? aux_offset
+				    : dump_blv (ctx, symbol->u.s.val.blv)));
       break;
     default:
       break;
