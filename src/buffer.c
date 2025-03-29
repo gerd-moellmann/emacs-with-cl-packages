@@ -6187,78 +6187,116 @@ There is no reason to change that value except for debugging purposes.  */);
    that we have to scan longer byte distances forward. Up to 5 times
    longer.  */
 
+enum { TEXT_INDEX_DISTANCE = 512 };
 
 struct text_index
 {
   /* Value at index I is the character position of byte position
      (BYTEPOS / TEXT_INDEX_DISTANCE) * TEXT_INDEX_DISTANCE. Note that
      that byte position may be in the middle of a character. */
-  ptrdiff_t *char_start;
-  size_t used;
+  ptrdiff_t *charpos;
+
+  /* Number of valid entries in the above array. There is always at
+     least one because the first entry is for BEG_BYTE which maps to
+     BEG. */
+  size_t valid;
+
+  /* Number of entries allocated.  */
   size_t capacity;
 };
 
-enum { TEXT_INDEX_DISTANCE = 256 };
-
 static ptrdiff_t
-text_index_slot (ptrdiff_t bytepos)
+index_slot (ptrdiff_t bytepos)
 {
-  eassert (bytepos >= 0);
   return bytepos / TEXT_INDEX_DISTANCE;
 }
 
+/* Allocate and return a text index structure with enough room
+   for a text of length NBYTES bytes.  */
+
 static struct text_index *
-make_text_index (ptrdiff_t nbytes)
+make_text_index (size_t nbytes)
 {
-  eassert (nbytes >= 0);
-  struct text_index *index = xzalloc (sizeof *index);
-  index->capacity = 1 + text_index_slot (nbytes);
-  index->char_start = xzalloc (index->capacity * sizeof *index->char_start);
-  index->used = 1;
-  return index;
+  struct text_index *ti = xzalloc (sizeof *ti);
+  ti->capacity = 1 + index_slot (nbytes);
+  ti->charpos = xzalloc (ti->capacity * sizeof *ti->charpos);
+  ti->charpos[0] = BEG;
+  ti->valid = 1;
+  return ti;
 }
+
+static void
+maybe_enlarge_index (struct text_index *ti, ptrdiff_t bytepos)
+{
+  ptrdiff_t needed = index_slot (bytepos) + 1;
+  if (needed > ti->capacity)
+    {
+      ti->capacity *= 2;
+      ti->charpos = xnrealloc (ti->charpos, ti->capacity, sizeof *ti->charpos);
+    }
+}
+
+/* Free the text index of buffer B.  */
 
 static void
 free_text_index (struct buffer *b)
 {
-  struct text_index *index = b->text->text_index;
-  if (index == NULL)
-    return;
-  xfree (index->char_start);
-  xfree (index);
+  struct text_index *ti = b->own_text.text_index;
+  if (ti)
+    {
+      xfree (ti->charpos);
+      xfree (ti);
+      b->own_text.text_index = NULL;
+    }
 }
 
+/* Given a byte position BYTEPOS in buffer B, return the byte position
+   where the character starts that contains BYTEPOS: */
+
 static ptrdiff_t
-text_index_character_boundary (struct buffer_text *text, ptrdiff_t bytepos)
+char_start_bytepos (struct buffer *b, ptrdiff_t bytepos)
 {
-  while (!CHAR_HEAD_P (FETCH_BYTE (bytepos)))
+  while (!CHAR_HEAD_P (BUF_FETCH_BYTE (b, bytepos)))
     --bytepos;
   return bytepos;
 }
 
+/* Invalidate index entries for all positions >= BYTEPOS in buffer B.  */
+
 static void
-text_index_build (struct buffer_text *text, ptrdiff_t upto)
+invalidate_index (struct buffer *b, ptrdiff_t bytepos)
 {
-  struct text_index *index = text->text_index;
-
-  if (upto > index->capacity)
+  struct text_index *ti = b->own_text.text_index;
+  if (ti)
     {
-      index->capacity *= min (upto, 2 * index->capacity);;
-      index->char_start = xnrealloc (index->char_start, index->capacity,
-				     sizeof *index->char_start);
+      ptrdiff_t last_valid = index_slot (bytepos);
+      ti->valid = last_valid + 1;
     }
-
 }
 
 static void
-text_index_ensure_known (struct buffer *b, ptrdiff_t bytepos)
+build_index (struct buffer *b, ptrdiff_t bytepos)
 {
-  struct buffer_text *text = b->text;
-  if (text->text_index == NULL)
-    text->text_index = make_text_index (text->z_byte);
-  struct text_index *index = text->text_index;
+  if (b->own_text.text_index == NULL)
+    b->own_text.text_index = make_text_index (BUF_Z_BYTE (b));
 
-  ptrdiff_t slot = text_index_slot (bytepos);
-  if (slot >= index->used)
-    text_index_build (text, slot);
+  struct text_index *ti = b->own_text.text_index;
+  ptrdiff_t slot = index_slot (bytepos);
+  if (slot >= ti->valid)
+    {
+      maybe_enlarge_index (ti, bytepos);
+      ptrdiff_t charpos = ti->charpos[slot];
+      ptrdiff_t bpos = char_start_bytepos (b, slot * TEXT_INDEX_DISTANCE);
+      eassert (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bpos)));
+      for (++bpos; bpos <= bytepos; ++bpos)
+	{
+	  if (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bpos)))
+	    ++charpos;
+	  if (bpos % TEXT_INDEX_DISTANCE == 0)
+	    {
+	      ti->charpos[slot] = charpos;
+	      ++slot;
+	    }
+	}
+    }
 }
