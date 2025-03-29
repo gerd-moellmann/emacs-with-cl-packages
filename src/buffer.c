@@ -6274,6 +6274,22 @@ invalidate_index (struct buffer *b, ptrdiff_t bytepos)
     }
 }
 
+static ptrdiff_t
+max_known_charpos (struct text_index *ti)
+{
+  if (ti)
+    return ti->charpos[ti->valid - 1];
+  return 0;
+}
+
+static ptrdiff_t
+max_known_bytepos (struct text_index *ti)
+{
+  if (ti)
+    return (ti->valid - 1) * TEXT_INDEX_DISTANCE;
+  return 0;
+}
+
 static void
 build_index (struct buffer *b, ptrdiff_t bytepos)
 {
@@ -6310,4 +6326,55 @@ build_index (struct buffer *b, ptrdiff_t bytepos)
 	  next_stop += TEXT_INDEX_DISTANCE;
 	}
     }
+}
+
+static ptrdiff_t
+binary_search (const ptrdiff_t *charpos, size_t n, ptrdiff_t pos)
+{
+  size_t low = 0;
+  size_t high = n - 1;
+  ptrdiff_t result_index = -1;
+
+  while (low <= high)
+    {
+      size_t mid = low + (high - low) / 2;
+
+      if (charpos[mid] <= pos)
+	{
+	  result_index = mid;
+	  low = mid + 1;
+	}
+      else
+	high = mid - 1;
+    }
+
+    return result_index;
+}
+
+ptrdiff_t
+byte_to_charpos (struct buffer *b, ptrdiff_t bytepos)
+{
+  /* Char positions are always <= byte positions, so by ensuring
+     that byte position POS is known in the index, we make sure
+     that char position POS is known.  */
+  build_index (b, bytepos);
+  ptrdiff_t slot = index_slot (bytepos);
+  struct text_index *ti = b->own_text.text_index;
+  ptrdiff_t charpos = ti->charpos[slot];
+  ptrdiff_t bpos = slot * TEXT_INDEX_DISTANCE;
+  while (bpos < bytepos)
+    {
+      ++bpos;
+      if (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bpos)))
+	++charpos;
+    }
+  return charpos;
+}
+
+ptrdiff_t
+char_to_bytepos (struct buffer *b, ptrdiff_t charpos)
+{
+  struct text_index *ti = b->own_text.text_index;
+
+  build_index (b, charpos);
 }
