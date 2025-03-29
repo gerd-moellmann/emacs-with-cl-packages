@@ -123,6 +123,7 @@ static Lisp_Object QSFundamental;	/* A string "Fundamental".  */
 
 static void alloc_buffer_text (struct buffer *, ptrdiff_t);
 static void free_buffer_text (struct buffer *b);
+static void free_text_index (struct buffer *b);
 static void copy_overlays (struct buffer *, struct buffer *);
 static void modify_overlay (struct buffer *, ptrdiff_t, ptrdiff_t);
 static Lisp_Object buffer_lisp_local_variables (struct buffer *, bool);
@@ -2156,6 +2157,7 @@ cleaning up all windows currently displaying the buffer to be killed. */)
       eassert (b->window_count == 0);
       /* No one shares our buffer text, can free it.  */
       free_buffer_text (b);
+      free_text_index (b);
     }
 
   if (b->newline_cache)
@@ -4708,7 +4710,6 @@ free_buffer_text (struct buffer *b)
   unblock_input ();
 }
 
-
 
 /***********************************************************************
 			    Initialization
@@ -6152,4 +6153,112 @@ There is no reason to change that value except for debugging purposes.  */);
   DEFSYM (Qdelete_auto_save_file_if_necessary, "delete-auto-save-file-if-necessary");
   DEFSYM (Qinitial_major_mode, "initial-major-mode");
   DEFSYM (Qset_buffer_multibyte, "set-buffer-multibyte");
+}
+
+
+/************************************************************************
+				 Text Index
+ ************************************************************************/
+
+/* This index is used to map character positions in buffer text to byte
+   positions and vice versa. Every TEXT_INDEX_DISTANCE bytes, the index
+   contains an entry which at index I which gives the character position
+   at byte position I * TEXT_INDEX_DISTANCE. (Note that not all byte
+   positions are character starts; they can be in the middle of a
+   character.)
+
+   To find the character position CHARPOS corresponding to a given byte
+   position BYTEPOS, we look up the character position in the index at
+   BYTEPOS / TEXT_INDEX_DISTANCE. From there we have to scan forward
+   until we reach BYTEPOS, counting characters. Since the character
+   position C in the index is a character start, and the byte position
+   corresponding to the index entry can be in the middle of a character,
+   we must first skip over a partial character sequence while scanning
+   forward.
+
+   To find the byte position BYTEPOS corresponding to a given character
+   position CHARPOS, we do a binary search in the index for an entry <=
+   CHARPOS. From there, scan forward counting characters and adding up
+   byte counts. Again, take into account that we may start in the middle
+   of a character.
+
+   Why divide the text into chunks of bytes of size TEXT_INDEX_DISTANCE?
+   If we did divide it into chunks of characters, this in general means
+   that we have to scan longer byte distances forward. Up to 5 times
+   longer.  */
+
+
+struct text_index
+{
+  /* Value at index I is the character position of byte position
+     (BYTEPOS / TEXT_INDEX_DISTANCE) * TEXT_INDEX_DISTANCE. Note that
+     that byte position may be in the middle of a character. */
+  ptrdiff_t *char_start;
+  size_t used;
+  size_t capacity;
+};
+
+enum { TEXT_INDEX_DISTANCE = 256 };
+
+static ptrdiff_t
+text_index_slot (ptrdiff_t bytepos)
+{
+  eassert (bytepos >= 0);
+  return bytepos / TEXT_INDEX_DISTANCE;
+}
+
+static struct text_index *
+make_text_index (ptrdiff_t nbytes)
+{
+  eassert (nbytes >= 0);
+  struct text_index *index = xzalloc (sizeof *index);
+  index->capacity = 1 + text_index_slot (nbytes);
+  index->char_start = xzalloc (index->capacity * sizeof *index->char_start);
+  index->used = 1;
+  return index;
+}
+
+static void
+free_text_index (struct buffer *b)
+{
+  struct text_index *index = b->text->text_index;
+  if (index == NULL)
+    return;
+  xfree (index->char_start);
+  xfree (index);
+}
+
+static ptrdiff_t
+text_index_character_boundary (struct buffer_text *text, ptrdiff_t bytepos)
+{
+  while (!CHAR_HEAD_P (FETCH_BYTE (bytepos)))
+    --bytepos;
+  return bytepos;
+}
+
+static void
+text_index_build (struct buffer_text *text, ptrdiff_t upto)
+{
+  struct text_index *index = text->text_index;
+
+  if (upto > index->capacity)
+    {
+      index->capacity *= min (upto, 2 * index->capacity);;
+      index->char_start = xnrealloc (index->char_start, index->capacity,
+				     sizeof *index->char_start);
+    }
+
+}
+
+static void
+text_index_ensure_known (struct buffer *b, ptrdiff_t bytepos)
+{
+  struct buffer_text *text = b->text;
+  if (text->text_index == NULL)
+    text->text_index = make_text_index (text->z_byte);
+  struct text_index *index = text->text_index;
+
+  ptrdiff_t slot = text_index_slot (bytepos);
+  if (slot >= index->used)
+    text_index_build (text, slot);
 }
