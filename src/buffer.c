@@ -6277,26 +6277,37 @@ invalidate_index (struct buffer *b, ptrdiff_t bytepos)
 static void
 build_index (struct buffer *b, ptrdiff_t bytepos)
 {
+  /* If we don't have an index yet, make one.  */
   if (b->own_text.text_index == NULL)
     b->own_text.text_index = make_text_index (BUF_Z_BYTE (b));
 
+  /* Make sure the index has enough room.  */
   struct text_index *ti = b->own_text.text_index;
+  maybe_enlarge_index (ti, bytepos);
+
+  /* Start at the byte position of the index entry <= BYTEPOS.  if
+     BYTEPOS equals the byte position of that entry, this is okay,
+     because the character position at that byte position cannot have
+     changed.  */
   ptrdiff_t slot = index_slot (bytepos);
-  if (slot >= ti->valid)
+  ptrdiff_t charpos = ti->charpos[slot];
+  ptrdiff_t bpos = slot * TEXT_INDEX_DISTANCE;
+
+  /* Stop here to make a new index entry.  */
+  ptrdiff_t next_stop = bpos + TEXT_INDEX_DISTANCE;
+
+  /* Loop over bytes, starting one after the index entry we start from
+     because we are only interested in yet unknown entries, and the
+     one at SLOT is known to stay unchanged.  */
+  for (++bpos; bpos <= bytepos; ++bpos)
     {
-      maybe_enlarge_index (ti, bytepos);
-      ptrdiff_t charpos = ti->charpos[slot];
-      ptrdiff_t bpos = char_start_bytepos (b, slot * TEXT_INDEX_DISTANCE);
-      eassert (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bpos)));
-      for (++bpos; bpos <= bytepos; ++bpos)
+      if (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bpos)))
+	++charpos;
+
+      if (bpos == next_stop)
 	{
-	  if (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bpos)))
-	    ++charpos;
-	  if (bpos % TEXT_INDEX_DISTANCE == 0)
-	    {
-	      ti->charpos[slot] = charpos;
-	      ++slot;
-	    }
+	  ti->charpos[index_slot (bpos)] = charpos;
+	  next_stop += TEXT_INDEX_DISTANCE;
 	}
     }
 }
