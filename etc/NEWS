@@ -1591,6 +1591,26 @@ width of the 'speedbar-window' when it is closed and then restored.
 ---
 *** 'speedbar-easymenu-definition-trailer' is now a function.
 
+** Icomplete
+
+*** New user options for 'icomplete-vertical-mode'.
+New user options have been added to enhance 'icomplete-vertical-mode':
+- 'icomplete-vertical-in-buffer-adjust-list' aligns in-buffer
+  completion to the original cursor column.
+- 'icomplete-vertical-render-prefix-indicator' adds a prefix indicator
+  to completion candidates.
+- 'icomplete-vertical-selected-prefix-indicator' specifies the prefix
+  string for the selected candidate.
+- 'icomplete-vertical-unselected-prefix-indicator' specifies the prefix
+  string for unselected candidates.
+
+*** New faces for 'icomplete-vertical-mode'.
+New faces have been added to 'icomplete-vertical-mode':
+- 'icomplete-vertical-selected-prefix-indicator-face' controls the
+  appearance of the selected candidate prefix.
+- 'icomplete-vertical-unselected-prefix-indicator-face' controls the
+  appearance of unselected candidate prefixes.
+
 ** Miscellaneous
 
 ---
@@ -1668,6 +1688,14 @@ Visiting a file in such mode ask for confirmation before installing
 its tree-sitter grammar.  Then it highlights the visited file
 according to syntax defined by the grammar.
 
+** New minor mode 'electric-block-comment-mode'.
+This mode automatically close block comment, typing
+`block-comment-start' closes it inserting their corresponding
+`block-comment-end'.  Thus, allows closing block comments for major
+modes that support it, such as: c-mode, c++-mode, java-mode, js-mode,
+css-mode, and derived: html-mode, mhtml-mode, xml-mode and nxml-mode,
+pascal-mode, lua-ts-mode, lisp-mode and common-lisp-mode
+
 
 * Incompatible Lisp Changes in Emacs 31.1
 
@@ -1725,6 +1753,12 @@ Previously, its argument was always evaluated using dynamic binding.
 * Lisp Changes in Emacs 31.1
 
 +++
+** Improve 'replace-region-contents' to accept more forms of sources.
+It has been promoted from 'subr-x' to the C code.
+You can now directly pass it a string or a buffer rather than a function.
+Actually passing it a function is now deprecated.
+
++++
 ** New macros 'static-when' and 'static-unless'.
 Like 'static-if', these macros evaluate their condition at
 macro-expansion time and are useful for writing code that can work
@@ -1777,6 +1811,10 @@ See "(ert) Helper Functions" node in the ERT manual for more information.
 Optional arguments are provided to produce human-readable time-duration
 strings in a variety of formats, for example "6 months 3 weeks" or "5m
 52.5s".
+
++++
+** New function 'hash-table-contains-p'.
+This function returns non-nil if a given key is present in a hash table.
 
 +++
 ** The function 'purecopy' is now an obsolete alias for 'identity'.
