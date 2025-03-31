@@ -64,36 +64,30 @@ HANKAKU-KATAKANA belongs to `japanese-jisx0201-kana'.")
 
 ;; Put properties 'katakana, 'hiragana, and 'jix0201 to each Japanese
 ;; kana characters for conversion among them.
-(let ((l japanese-kana-table)
-      slot hiragana katakana jisx0201)
-  (while l
-    (setq slot (car l)
-	  hiragana (car slot) katakana (nth 1 slot) jisx0201 (nth 2 slot)
-	  l (cdr l))
-    (if hiragana
-	(if (stringp hiragana)
-	    (if (> (length hiragana) 1)
-		(let ((hira (aref hiragana 0)))
-		  (put-char-code-property
-		   hira 'kana-composition
-		   (cons (cons (aref hiragana 1) katakana)
-			 (get-char-code-property hira 'kana-composition)))))
-	  (put-char-code-property hiragana 'katakana katakana)
-	  (put-char-code-property hiragana 'jisx0201 jisx0201)))
-    (when (integerp katakana)
-      (put-char-code-property katakana 'hiragana hiragana)
-      (put-char-code-property katakana 'jisx0201 jisx0201))
-    (if jisx0201
-	(if (stringp jisx0201)
-	    (if (> (length jisx0201) 1)
-		(let ((kana (aref jisx0201 0)))
-		  (put-char-code-property
-		   kana 'kana-composition
-		   (cons (cons (aref jisx0201 1) katakana)
-			 (get-char-code-property kana 'kana-composition)))))
-	  (put-char-code-property jisx0201 'hiragana hiragana)
-	  (put-char-code-property jisx0201 'katakana katakana)
-	  (put-char-code-property jisx0201 'jisx0208 katakana)))))
+(pcase-dolist (`(,hiragana ,katakana ,jisx0201) japanese-kana-table)
+  (if hiragana
+      (if (stringp hiragana)
+	  (if (length> hiragana 1)
+	      (let ((hira (aref hiragana 0)))
+		(put-char-code-property
+		 hira 'kana-composition
+		 (cons (cons (aref hiragana 1) katakana)
+		       (get-char-code-property hira 'kana-composition)))))
+	(put-char-code-property hiragana 'katakana katakana)
+	(put-char-code-property hiragana 'jisx0201 jisx0201)))
+  (put-char-code-property katakana 'hiragana hiragana)
+  (put-char-code-property katakana 'jisx0201 jisx0201)
+  (if jisx0201
+      (if (stringp jisx0201)
+	  (if (length> jisx0201 1)
+	      (let ((kana (aref jisx0201 0)))
+		(put-char-code-property
+		 kana 'kana-composition
+		 (cons (cons (aref jisx0201 1) katakana)
+		       (get-char-code-property kana 'kana-composition)))))
+	(put-char-code-property jisx0201 'hiragana hiragana)
+	(put-char-code-property jisx0201 'katakana katakana)
+	(put-char-code-property jisx0201 'jisx0208 katakana))))
 
 (defconst japanese-symbol-table
   '((?\　 ?\ ) (?， ?,) (?． ?.) (?、 nil ?､) (?。 nil ?｡) (?・ nil ?･)
@@ -114,22 +108,15 @@ and HANKAKU belongs to `japanese-jisx0201-kana'.")
 
 ;; Put properties 'jisx0208, 'jisx0201, and 'ascii to each Japanese
 ;; symbol and ASCII characters for conversion among them.
-(let ((l japanese-symbol-table)
-      slot jisx0208 ascii jisx0201)
-  (while l
-    (setq slot (car l)
-	  jisx0208 (car slot) ascii (nth 1 slot) jisx0201 (nth 2 slot)
-	  l (cdr l))
-    (if ascii
-	(progn
-	  (put-char-code-property jisx0208 'ascii ascii)
-	  (if (encode-char jisx0208 'japanese-jisx0208)
-	      (put-char-code-property ascii 'jisx0208 jisx0208))))
-    (if jisx0201
-	(progn
-	  (put-char-code-property jisx0208 'jisx0201 jisx0201)
-	  (if (encode-char jisx0208 'japanese-jisx0208)
-	      (put-char-code-property jisx0201 'jisx0208 jisx0208))))))
+(pcase-dolist (`(,jisx0208 ,ascii ,jisx0201) japanese-symbol-table)
+  (when ascii
+    (put-char-code-property jisx0208 'ascii ascii)
+    (if (encode-char jisx0208 'japanese-jisx0208)
+	(put-char-code-property ascii 'jisx0208 jisx0208)))
+  (when jisx0201
+    (put-char-code-property jisx0208 'jisx0201 jisx0201)
+    (if (encode-char jisx0208 'japanese-jisx0208)
+        (put-char-code-property jisx0201 'jisx0208 jisx0208))))
 
 (defconst japanese-alpha-numeric-table
   '((?０ . ?0) (?１ . ?1) (?２ . ?2) (?３ . ?3) (?４ . ?4)
@@ -150,14 +137,9 @@ belongs to `japanese-jisx0208', ASCII belongs to `ascii'.")
 
 ;; Put properties 'jisx0208 and 'ascii to each Japanese alpha numeric
 ;; and ASCII characters for conversion between them.
-(let ((l japanese-alpha-numeric-table)
-      slot jisx0208 ascii)
-  (while l
-    (setq slot (car l)
-	  jisx0208 (car slot) ascii (cdr slot)
-	  l (cdr l))
-    (put-char-code-property jisx0208 'ascii ascii)
-    (put-char-code-property ascii 'jisx0208 jisx0208)))
+(pcase-dolist (`(,jisx0208 . ,ascii) japanese-alpha-numeric-table)
+  (put-char-code-property jisx0208 'ascii ascii)
+  (put-char-code-property ascii 'jisx0208 jisx0208))
 
 ;; Convert string STR by FUNC and return a resulting string.
 (defun japanese-string-conversion (str func &rest args)
@@ -165,7 +147,7 @@ belongs to `japanese-jisx0208', ASCII belongs to `ascii'.")
     (with-current-buffer buf
       (erase-buffer)
       (insert str)
-      (apply func 1 (point) args)
+      (apply func (point-min) (point) args)
       (buffer-string))))
 
 ;;;###autoload
@@ -217,9 +199,12 @@ The argument object is not altered--the value is a copy."
 
 (defun japanese-replace-region (from to string)
   "Replace the region specified by FROM and TO to STRING."
-  (declare (obsolete replace-region-contents "31.1"))
   (goto-char to)
-  (replace-region-contents from to string 0))
+  (replace-region-contents from to
+                           (if (stringp string)
+                               string
+                             (string string))
+                           0))
 
 ;;;###autoload
 (defun japanese-katakana-region (from to &optional hankaku)
@@ -238,15 +223,13 @@ of which charset is `japanese-jisx0201-kana'."
 		     (get-char-code-property kana 'kana-composition)))
 	       slot) ;; next
 	  (if (and composition (setq slot (assq (following-char) composition)))
-	      (progn
-	        (goto-char (1+ (point)))
-	        (replace-region-contents (match-beginning 0) (point)
-				         (cdr slot) 0))
+	      (japanese-replace-region (match-beginning 0) (1+ (point))
+				       (cdr slot))
 	    (let ((kata (get-char-code-property
 			 kana (if hankaku 'jisx0201 'katakana))))
 	      (if kata
-		  (replace-region-contents (match-beginning 0) (point)
-					   kata 0)))))))))
+		  (japanese-replace-region (match-beginning 0) (point)
+					   kata)))))))))
 
 
 ;;;###autoload
@@ -262,16 +245,13 @@ of which charset is `japanese-jisx0201-kana'."
 	       (composition (get-char-code-property kata 'kana-composition))
 	       slot) ;; next
 	  (if (and composition (setq slot (assq (following-char) composition)))
-	      (progn
-	        (goto-char (1+ (point)))
-	        (replace-region-contents (match-beginning 0) (point)
-					 (get-char-code-property
-					  (cdr slot) 'hiragana)
-					 0))
+	      (japanese-replace-region (match-beginning 0) (1+ (point))
+				       (get-char-code-property
+					(cdr slot) 'hiragana))
 	    (let ((hira (get-char-code-property kata 'hiragana)))
 	      (if hira
-		  (replace-region-contents (match-beginning 0) (point)
-					   hira 0)))))))))
+		  (japanese-replace-region (match-beginning 0) (point)
+					   hira)))))))))
 
 ;;;###autoload
 (defun japanese-hankaku-region (from to &optional ascii-only)
@@ -290,8 +270,8 @@ Optional argument ASCII-ONLY non-nil means to convert only to ASCII char."
 				 (get-char-code-property zenkaku 'jisx0201))
 			    (get-char-code-property zenkaku 'ascii))))
 	  (if hankaku
-	      (replace-region-contents (match-beginning 0) (match-end 0)
-				       hankaku 0)))))))
+	      (japanese-replace-region (match-beginning 0) (match-end 0)
+				       hankaku)))))))
 
 ;;;###autoload
 (defun japanese-zenkaku-region (from to &optional katakana-only)
@@ -312,14 +292,12 @@ Optional argument KATAKANA-ONLY non-nil means to convert only KATAKANA char."
 	       (composition (get-char-code-property hankaku 'kana-composition))
 	       slot) ;; next
 	  (if (and composition (setq slot (assq (following-char) composition)))
-	      (progn
-	        (goto-char (1+ (point)))
-	        (replace-region-contents (match-beginning 0) (point)
-				         (cdr slot) 0))
+	      (japanese-replace-region (match-beginning 0) (1+ (point))
+				       (cdr slot))
 	    (let ((zenkaku (japanese-zenkaku hankaku)))
 	      (if zenkaku
-		  (replace-region-contents (match-beginning 0) (match-end 0)
-					   zenkaku 0)))))))))
+		  (japanese-replace-region (match-beginning 0) (match-end 0)
+					   zenkaku)))))))))
 
 ;;;###autoload
 (defun read-hiragana-string (prompt &optional initial-input)
