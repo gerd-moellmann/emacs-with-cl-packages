@@ -10283,6 +10283,9 @@ mac_read_socket (struct terminal *terminal, struct input_event *hold_quit)
 - (void)showHourglass:(id)sender
 {
   if (hourglassWindow == nil
+      /* Adding a child window to an invisible one makes it
+	 appear.  */
+      && emacsWindow.isVisible
       /* Adding a child window to a window on an inactive space would
 	 cause space switching.  */
       && emacsWindow.isOnActiveSpace)
