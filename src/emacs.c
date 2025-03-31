@@ -3442,7 +3442,7 @@ decode_env_path (const char *evarname, const char *defalt, bool empty)
 
 #ifdef MAC_SELF_CONTAINED
       path = mac_relocate (defalt);
-#elif NS_SELF_CONTAINED
+#elif defined NS_SELF_CONTAINED
       path = ns_relocate (defalt);
 #else
       path = defalt;
