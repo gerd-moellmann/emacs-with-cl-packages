@@ -1,6 +1,6 @@
 ;;; isearch.el --- incremental search minor mode -*- lexical-binding: t -*-
 
-;; Copyright (C) 1992-1997, 1999-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1992-1997, 1999-2024 Free Software Foundation, Inc.
 
 ;; Author: Daniel LaLiberte <liberte@cs.uiuc.edu>
 ;; Maintainer: emacs-devel@gnu.org
@@ -2844,7 +2844,8 @@ The command accepts Unicode names like \"smiling face\" or
       (isearch-search)
       (when (and (memq isearch-wrap-pause '(no no-ding))
                  (not isearch-success))
-        (isearch-repeat (if isearch-forward 'forward 'backward)))))
+        (let ((isearch-cmds isearch-cmds))
+          (isearch-repeat (if isearch-forward 'forward 'backward))))))
   (isearch-push-state)
   (if isearch-op-fun (funcall isearch-op-fun))
   (isearch-update))

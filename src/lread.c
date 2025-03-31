@@ -1,6 +1,6 @@
 /* Lisp parsing and input streams.
 
-Copyright (C) 1985-1989, 1993-1995, 1997-2023 Free Software Foundation,
+Copyright (C) 1985-1989, 1993-1995, 1997-2024 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
@@ -1745,9 +1745,9 @@ maybe_swap_for_eln (bool no_native, Lisp_Object *filename, int *fd,
 		= Fcons (list2
 			 (Qcomp,
 			  CALLN (Fformat,
-				 build_string ("Cannot look up eln "
-					       "file as no source file "
-					       "was found for %s"),
+				 build_string ("Cannot look up .eln file "
+					       "for %s because no source "
+					       "file was found for it"),
 				 *filename)),
 			 Vdelayed_warnings_list);
 	      return;

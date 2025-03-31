@@ -1,6 +1,6 @@
 ;;; authors.el --- utility for maintaining Emacs's AUTHORS file  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2000-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2000-2024 Free Software Foundation, Inc.
 
 ;; Author: Gerd Moellmann <gerd@gnu.org>
 ;; Maintainer: emacs-devel@gnu.org
@@ -87,7 +87,7 @@ files.")
     ("David M. Koppelman" "David Koppelman")
     ("David M. Smith" "David Smith" "David M Smith")
     ("David O'Toole" "David T. O'Toole")
-    (nil "dalanicolai")
+    ("Daniel Laurens Nicolai" "dalanicolai")
     (nil "deech@deech")
     ("Deepak Goel" "D. Goel")
     ("Earl Hyatt" "Earl" "ej32u@protonmail\\.com")
@@ -100,6 +100,7 @@ files.")
     ("Fabián Ezequiel Gallina" "Fabian Ezequiel Gallina" "Fabi.n E\\. Gallina")
     (nil "felix.*EmacsWiki")
     (nil "felix\\.dick@web\\.de")
+    ("Felicián Németh" "Felician Nemeth")
     (nil "foudfou")
     ("Feraidoon Mehri"
      "NightMachinary"
@@ -114,6 +115,7 @@ files.")
     ("Garid Zorigoo" "garid3000" "garidzorigoo@gmail\\.com")
     ("Gerd Möllmann" "Gerd Moellmann")
     (nil "haqle314")
+    ("Grégoire Jadi" "Gregoire Jadi")
     ("Hallvard B. Furuseth" "Hallvard B Furuseth" "Hallvard Furuseth")
     (nil "hokomo@airmail\\.cc" "hokomo")
     ("Hrvoje Nikšić" "Hrvoje Niksic")
@@ -127,6 +129,7 @@ files.")
     ("J. Alexander Branham" "Alex Branham")
     ("Jaeyoun Chung" "Jae-youn Chung" "Jae-you Chung" "Chung Jae-youn")
     ("Jan Djärv" "Jan D\\>" "Jan Djarv")
+    ("Jan Synáček" "Jan Synacek")
     ("João Távora" "João Tãvora")
     ("Jay K. Adams" "Jay Adams")
     ("J.D. Smith" "Jd Smith")
@@ -139,6 +142,7 @@ files.")
     (nil "jgarte@" "jgart")
     (nil "jicksaw@pm\\.me" "jicksaw")
     ("Jimmy Aguilar Mena" "Ergus")
+    ("Jindřich Makovička" "Jindrich Makovicka")
     ("Johan Bockgård" "Johan Bockgard")
     ("John F. Carr" "John F Carr")
     ("John J Foerch" "John Foerch")
@@ -161,6 +165,7 @@ files.")
     ("Kenichi Handa" "Ken'ichi Handa" "Kenichi HANDA" "K\\. Handa")
     ("Kevin Greiner" "Kevin J. Greiner")
     ("Kim F. Storm" "Kim Storm")
+    ("Kjartan Óli Ágústsson" "Kjartan Oli Agustsson")
     ;; The dash is a kludge, so this contributor is not ignored.
     ("kobarity-" "kobarity@gmail\\.com")
     ("Koen van Greevenbroek" "realcomplex" "koenvg@posteo\\.net")
@@ -193,8 +198,12 @@ files.")
     ("Miha Rihtaršič" "Miha Rihtarsic" "miha@kamnitnik\\.top" "miha")
     ("Mikio Nakajima" "Nakajima Mikio")
     (nil "montag451@laposte\\.net")
+    ("Morgan Smith" "Morgan J\\. Smith")
+    ("Mou Tong" "mou\\.tong@outlook\\.com")
     (nil "na@aisrntairetnraoitn")
+    (nil "nibon7@163\\.com")
     ("Nelson Jose dos Santos Ferreira" "Nelson Ferreira")
+    ("Noah Peart" "noah\\.v\\.peart@gmail\\.com")
     ("Noorul Islam" "Noorul Islam K M")
 ;;;    ("Tetsurou Okazaki" "OKAZAKI Tetsurou") ; FIXME?
     (nil "odanoburu@")
@@ -244,6 +253,8 @@ files.")
     ("Simen Heggestøyl" "simenheg@gmail\\.com")
     (nil "prime.wizard")
     ("Shun-ichi Goto" "Shun-ichi GOTO")
+    ;; The trailing dash is a kludge, so this contributor is not ignored.
+    ("skykanin-" "skykanin@users\\.noreply\\.github\\.com")
     ;; There are other Stefans.
 ;;;    ("Stefan Monnier" "Stefan")
     (nil "ssnnoo")
@@ -569,6 +580,9 @@ Changes to files matching one of the regexps in this list are not listed.")
     "obsolete/options.el"
     "obsolete/old-whitespace.el"
     "obsolete/lucid.el"
+    "lisp/obsolete/fast-lock.el"
+    "lisp/obsolete/lazy-lock.el"
+    "lisp/obsolete/pc-mode.el"
     ;; ada-mode has been deleted, now in GNU ELPA
     "ada-mode.texi"
     "doc/misc/ada-mode.texi"
@@ -1584,6 +1598,22 @@ in the repository.")
     ("url-dired.el" . "url-dired.el")
     ("lisp/text-modes/tex-mode.el" . "tex-mode.el")
     ("editfns.c" . "editfns.c")
+    ("lisp/thumbs.el" . "thumbs.el")
+    ("lisp/linum.el" . "linum.el")
+    ("lisp/image-dired.el" . "image-dired.el")
+    ("lisp/url/url-about.el" . "url-about.el")
+    ("lisp/url/url-dired.el" . "url-dired.el")
+    ("lisp/ps-def.el" . "ps-def.el")
+    ("lisp/net/quickurl.el" . "quickurl.el")
+    ("lisp/vc/vc-mtn.el" . "vc-mtn.el")
+    ("lisp/mail/uce.el" . "uce.el")
+    ("test/lisp/progmodes/csharp-ts-mode-tests.el" . "csharp-mode.el")
+    ("lisp/makesum.el" . "makesum.el")
+    ("lisp/mh-e/mh-compat.el" . "mh-compat.el")
+    ("lisp/net/rlogin.el" . "rlogin.el")
+    ("lisp/emacs-lisp/autoload.el" . "autoload.el")
+    ("lisp/emacs-lisp/eieio-compat.el" . "eieio-compat.el")
+    ("autoarg.el" . "autoarg.el")
     )
   "Alist of files which have been renamed during their lifetime.
 Elements are (OLDNAME . NEWNAME).")

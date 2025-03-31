@@ -1,5 +1,5 @@
 @c This is part of the Emacs manual.
-@c Copyright (C) 1985--1987, 1993--1995, 1997, 1999--2023 Free Software
+@c Copyright (C) 1985--1987, 1993--1995, 1997, 1999--2024 Free Software
 @c Foundation, Inc.
 @c See file emacs.texi for copying conditions.
 @node Files
@@ -372,12 +372,12 @@ you could say:
       '(("src/emacs/[^/]+/\\(.*\\)\\'" "src/emacs/.*/\\1")))
 @end lisp
 
-As you can see, this is a list of @var{(MATCH EXPANSION...)} elements.
-The @var{match} is a regular expression that matches the visited file
-name, and each @var{expansion} may refer to match groups by using
-@samp{\\1} and so on.  The resulting expansion string is then applied
-to the file system to see if any files match this expansion
-(interpreted as a regexp).
+As you can see, this is a list of elements of the form
+@w{@code{(@var{MATCH} @var{expansion}@dots{})}}.  The @var{match} is a
+regular expression that matches the visited file name, and each
+@var{expansion} may refer to match groups by using @samp{\\1} and so
+on.  The resulting expansion string is then applied to the file system
+to see if any files match this expansion (interpreted as a regexp).
 
 @vindex find-file-hook
 @vindex find-file-not-found-functions
@@ -547,6 +547,10 @@ buffer name with the buffer's default directory (@pxref{File Names}).
 to that major mode, in most cases.  The command
 @code{set-visited-file-name} also does this.  @xref{Choosing Modes}.
 
+   If you wish to save the current buffer to a different file without
+visiting that file, use @code{mark-whole-buffer} (@kbd{C-x h}), then
+@w{@kbd{M-x write-region}} (@pxref{Misc File Ops}).
+
   If Emacs is about to save a file and sees that the date of the latest
 version on disk does not match what Emacs last read or wrote, Emacs
 notifies you of this fact, because it probably indicates a problem caused
@@ -565,9 +569,10 @@ Emacs carefully copies the old contents to another file, called the
 @dfn{backup} file, before actually saving.
 
   Emacs makes a backup for a file only the first time the file is
-saved from a buffer.  No matter how many times you subsequently save
-the file, its backup remains unchanged.  However, if you kill the
-buffer and then visit the file again, a new backup file will be made.
+saved from the buffer that visits it.  No matter how many times you
+subsequently save the file, its backup remains unchanged.  However, if
+you kill the buffer and then visit the file again, a new backup file
+will be made.
 
   For most files, the variable @code{make-backup-files} determines
 whether to make backup files.  On most operating systems, its default
@@ -774,6 +779,20 @@ to making backups.  One unfortunate similarity is that these
 operations typically break hard links, disconnecting the file name you
 visited from any alternate names for the same file.  This has nothing
 to do with Emacs---the version control system does it.
+
+  Some file storage services support @dfn{file versioning}: they
+record history of previous versions of files, and allow reverting to
+those previous versions.  If you want to be able to do that with files
+hosted by those services when editing them with Emacs, customize
+@code{backup-by-copying} to a non-@code{nil} value.
+
+@vindex file-precious-flag
+  Copying the old file for backup is also useful when editing precious
+files, because it makes sure the old file keeps its name if something
+fails between the backup and the saving of your edits.  Alternatively,
+you can customize @code{file-precious-flag} to a non-@code{nil} value,
+which implies backups by copying and also protects against I/O errors
+while saving your edits.
 
 @node Customize Save
 @subsection Customizing Saving of Files
@@ -1058,6 +1077,7 @@ revert it automatically if it has changed---provided the buffer itself
 is not modified.  (If you have edited the text, it would be wrong to
 discard your changes.)
 
+@kindex C-x x g
 @vindex revert-buffer-quick-short-answers
 @findex revert-buffer-quick
   The @kbd{C-x x g} keystroke is bound to the
@@ -2368,7 +2388,7 @@ multiply the size by the factor of @w{@code{1 + @var{n} / 10}}, so
 @findex image-decrease-size
 @kindex i - (Image mode)
 @item i -
-Decrease the image size (@code{image-increase-size}) by 20%.  Prefix
+Decrease the image size (@code{image-decrease-size}) by 20%.  Prefix
 numeric argument controls the decrement; the value of @var{n} means to
 multiply the size by the factor of @w{@code{1 - @var{n} / 10}}, so
 @w{@kbd{C-u 3 i -}} means to decrease the size by 30%.

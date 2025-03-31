@@ -1,6 +1,6 @@
 ;;; c-ts-mode.el --- tree-sitter support for C and C++  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2022-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
 
 ;; Author     : Theodor Thornhill <theo@thornhill.no>
 ;; Maintainer : Theodor Thornhill <theo@thornhill.no>
@@ -321,7 +321,8 @@ PARENT and BOL are like other anchor functions."
                                (treesit-node-parent prev-sibling) t)))
           ;; If the start of the previous sibling isn't at the
           ;; beginning of a line, something's probably not quite
-          ;; right, go a step further.
+          ;; right, go a step further. (E.g., comment after a
+          ;; statement.)
           (_ (goto-char (treesit-node-start prev-sibling))
              (if (looking-back (rx bol (* whitespace))
                                (line-beginning-position))
@@ -355,11 +356,40 @@ PARENT, BOL, ARGS are the same as other anchor functions."
   (apply (alist-get 'standalone-parent treesit-simple-indent-presets)
          parent (treesit-node-parent parent) bol args))
 
+(defun c-ts-mode--else-heuristic (node parent bol &rest _)
+  "Heuristic matcher for when \"else\" is followed by a closing bracket.
+NODE, PARENT, and BOL are the same as in other matchers."
+  (and (null node)
+       (save-excursion
+         (forward-line -1)
+         (looking-at (rx (* whitespace) "else" (* whitespace) eol)))
+       (let ((next-node (treesit-node-first-child-for-pos parent bol)))
+         (equal (treesit-node-type next-node) "}"))))
+
+(defun c-ts-mode--first-sibling (node parent &rest _)
+  "Matches when NODE is the \"first sibling\".
+\"First sibling\" is defined as: the first child node of PARENT
+such that it's on its own line.  NODE is the node to match and
+PARENT is its parent."
+  (let ((prev-sibling (treesit-node-prev-sibling node t)))
+    (or (null prev-sibling)
+        (save-excursion
+          (goto-char (treesit-node-start prev-sibling))
+          (<= (line-beginning-position)
+              (treesit-node-start parent)
+              (line-end-position))))))
+
 (defun c-ts-mode--indent-styles (mode)
   "Indent rules supported by `c-ts-mode'.
 MODE is either `c' or `cpp'."
   (let ((common
          `((c-ts-mode--for-each-tail-body-matcher prev-line c-ts-mode-indent-offset)
+           ;; If the user types "else" and hits RET, they expect point
+           ;; on the empty line to be indented; this rule does that.
+           ;; This heuristic is intentionally very specific because
+           ;; more general heuristic is very error-prone, see
+           ;; discussion in bug#67417.
+           (c-ts-mode--else-heuristic prev-line c-ts-mode-indent-offset)
 
            ((parent-is "translation_unit") column-0 0)
            ((query "(ERROR (ERROR)) @indent") column-0 0)
@@ -406,6 +436,8 @@ MODE is either `c' or `cpp'."
            ((parent-is "preproc") c-ts-mode--anchor-prev-sibling 0)
 
            ((parent-is "function_definition") parent-bol 0)
+           ((parent-is "pointer_declarator") parent-bol 0)
+           ((parent-is ,(rx bos "declaration" eos)) parent-bol 0)
            ((parent-is "conditional_expression") first-sibling 0)
            ((parent-is "assignment_expression") parent-bol c-ts-mode-indent-offset)
            ((parent-is "concatenated_string") first-sibling 0)
@@ -441,7 +473,11 @@ MODE is either `c' or `cpp'."
            ((parent-is "field_declaration_list") c-ts-mode--anchor-prev-sibling 0)
 
            ;; Statement in {} blocks.
-           ((or (match nil "compound_statement" nil 1 1)
+           ((or (and (parent-is "compound_statement")
+                     ;; If the previous sibling(s) are not on their
+                     ;; own line, indent as if this node is the first
+                     ;; sibling (Bug#67357)
+                     c-ts-mode--first-sibling)
                 (match null "compound_statement"))
             standalone-parent c-ts-mode-indent-offset)
            ((parent-is "compound_statement") c-ts-mode--anchor-prev-sibling 0)
@@ -452,7 +488,9 @@ MODE is either `c' or `cpp'."
            ;; These rules are for cases where the body is bracketless.
            ;; Tested by the "Bracketless Simple Statement" test.
            ((parent-is "if_statement") standalone-parent c-ts-mode-indent-offset)
+           ((parent-is "else_clause") standalone-parent c-ts-mode-indent-offset)
            ((parent-is "for_statement") standalone-parent c-ts-mode-indent-offset)
+           ((match "while" "do_statement") parent-bol 0) ; (do_statement "while")
            ((parent-is "while_statement") standalone-parent c-ts-mode-indent-offset)
            ((parent-is "do_statement") standalone-parent c-ts-mode-indent-offset)
 
@@ -477,12 +515,13 @@ MODE is either `c' or `cpp'."
        ((node-is "labeled_statement") parent-bol c-ts-mode-indent-offset)
        ((parent-is "labeled_statement") parent-bol c-ts-mode-indent-offset)
        ((parent-is "compound_statement") parent-bol c-ts-mode-indent-offset)
-       ((parent-is "if_statement") parent-bol 0)
-       ((parent-is "for_statement") parent-bol 0)
-       ((parent-is "while_statement") parent-bol 0)
-       ((parent-is "switch_statement") parent-bol 0)
-       ((parent-is "case_statement") parent-bol 0)
-       ((parent-is "do_statement") parent-bol 0)
+       ((match "compound_statement" "if_statement") standalone-parent 0)
+       ((match "compound_statement" "else_clause") standalone-parent 0)
+       ((match "compound_statement" "for_statement") standalone-parent 0)
+       ((match "compound_statement" "while_statement") standalone-parent 0)
+       ((match "compound_statement" "switch_statement") standalone-parent 0)
+       ((match "compound_statement" "case_statement") standalone-parent 0)
+       ((match "compound_statement" "do_statement") standalone-parent 0)
        ,@common))))
 
 (defun c-ts-mode--top-level-label-matcher (node parent &rest _)
@@ -880,29 +919,36 @@ Return nil if NODE is not a defun node or doesn't have a name."
 (defun c-ts-mode--defun-valid-p (node)
   "Return non-nil if NODE is a valid defun node.
 Ie, NODE is not nested."
-  (or (c-ts-mode--emacs-defun-p node)
-      (not (or (and (member (treesit-node-type node)
-                            '("struct_specifier"
-                              "enum_specifier"
-                              "union_specifier"
-                              "declaration"))
-                    ;; If NODE's type is one of the above, make sure it is
-                    ;; top-level.
-                    (treesit-node-top-level
-                     node (rx (or "function_definition"
-                                  "type_definition"
-                                  "struct_specifier"
-                                  "enum_specifier"
-                                  "union_specifier"
-                                  "declaration"))))
-
-               (and (equal (treesit-node-type node) "declaration")
-                    ;; If NODE is a declaration, make sure it is not a
-                    ;; function declaration.
-                    (equal (treesit-node-type
-                            (treesit-node-child-by-field-name
-                             node "declarator"))
-                           "function_declarator"))))))
+  (let ((top-level-p (lambda (node)
+                       (not (treesit-node-top-level
+                             node (rx (or "function_definition"
+                                          "type_definition"
+                                          "struct_specifier"
+                                          "enum_specifier"
+                                          "union_specifier"
+                                          "declaration")))))))
+    (pcase (treesit-node-type node)
+      ;; The declaration part of a DEFUN.
+      ("expression_statement" (c-ts-mode--emacs-defun-p node))
+      ;; The body of a DEFUN.
+      ("compound_statement" (c-ts-mode--emacs-defun-body-p node))
+      ;; If NODE's type is one of these three, make sure it is
+      ;; top-level.
+      ((or "struct_specifier"
+           "enum_specifier"
+           "union_specifier")
+       (funcall top-level-p node))
+      ;; If NODE is a declaration, make sure it's not a function
+      ;; declaration (we only want function_definition) and is a
+      ;; top-level declaration.
+      ("declaration"
+       (and (not (equal (treesit-node-type
+                         (treesit-node-child-by-field-name
+                          node "declarator"))
+                        "function_declarator"))
+            (funcall top-level-p node)))
+      ;; Other types don't need further verification.
+      (_ t))))
 
 (defun c-ts-mode--defun-for-class-in-imenu-p (node)
   "Check if NODE is a valid entry for the Class subindex.
@@ -955,6 +1001,11 @@ files using the DEFUN macro."
                t)
               "DEFUN")))
 
+(defun c-ts-mode--emacs-defun-body-p (node)
+  "Return non-nil if NODE is the function body of a DEFUN."
+  (and (equal (treesit-node-type node) "compound_statement")
+       (c-ts-mode--emacs-defun-p (treesit-node-prev-sibling node))))
+
 (defun c-ts-mode--emacs-defun-at-point (&optional range)
   "Return the defun node at point.
 
@@ -969,31 +1020,18 @@ function returns the declaration node.
 If RANGE is non-nil, return (BEG . END) where BEG end END
 encloses the whole defun.  This is for when the entire defun
 is required, not just the declaration part for DEFUN."
-  (or (when-let ((node (treesit-defun-at-point)))
-        (if range
-            (cons (treesit-node-start node)
-                (treesit-node-end node))
-            node))
-      (and c-ts-mode-emacs-sources-support
-           (let ((candidate-1 ; For when point is in the DEFUN statement.
-                  (treesit-node-prev-sibling
-                   (treesit-node-top-level
-                    (treesit-node-at (point))
-                    "compound_statement")))
-                 (candidate-2 ; For when point is in the body.
-                  (treesit-node-top-level
-                   (treesit-node-at (point))
-                   "expression_statement")))
-             (when-let
-                 ((node (or (and (c-ts-mode--emacs-defun-p candidate-1)
-                                 candidate-1)
-                            (and (c-ts-mode--emacs-defun-p candidate-2)
-                                 candidate-2))))
-               (if range
-                   (cons (treesit-node-start node)
-                       (treesit-node-end
-                        (treesit-node-next-sibling node)))
-                   node))))))
+  (when-let* ((node (treesit-defun-at-point))
+              (defun-range (cons (treesit-node-start node)
+                                 (treesit-node-end node))))
+    ;; Make some adjustment for DEFUN.
+    (when c-ts-mode-emacs-sources-support
+      (cond ((c-ts-mode--emacs-defun-body-p node)
+             (setq node (treesit-node-prev-sibling node))
+             (setcar defun-range (treesit-node-start node)))
+            ((c-ts-mode--emacs-defun-p node)
+             (setcdr defun-range (treesit-node-end
+                                  (treesit-node-next-sibling node))))))
+    (if range defun-range node)))
 
 (defun c-ts-mode-indent-defun ()
   "Indent the current top-level declaration syntactically.
@@ -1111,13 +1149,21 @@ BEG and END are described in `treesit-range-rules'."
 
   ;; Navigation.
   (setq-local treesit-defun-type-regexp
-              (cons (regexp-opt '("function_definition"
-                                  "type_definition"
-                                  "struct_specifier"
-                                  "enum_specifier"
-                                  "union_specifier"
-                                  "class_specifier"
-                                  "namespace_definition"))
+              (cons (regexp-opt (append
+                                 '("function_definition"
+                                   "type_definition"
+                                   "struct_specifier"
+                                   "enum_specifier"
+                                   "union_specifier"
+                                   ;; Make sure this doesn't match
+                                   ;; storage_class_specifier.
+                                   "^class_specifier$"
+                                   "namespace_definition")
+                                 (and c-ts-mode-emacs-sources-support
+                                      '(;; DEFUN.
+                                        "expression_statement"
+                                        ;; DEFUN body.
+                                        "compound_statement"))))
                     #'c-ts-mode--defun-valid-p))
   (setq-local treesit-defun-skipper #'c-ts-mode--defun-skipper)
   (setq-local treesit-defun-name-function #'c-ts-mode--defun-name)
@@ -1298,7 +1344,7 @@ recommended to enable `electric-pair-mode' with this mode."
                                                 c-ts-mode-indent-style)
       :help "Show the name of the C/C++ indentation style for current buffer"]
      ["Set Comment Style" c-ts-mode-toggle-comment-style
-      :help "Toglle C/C++ comment style between block and line comments"])
+      :help "Toggle C/C++ comment style between block and line comments"])
     "--"
     ("Toggle..."
      ["SubWord Mode" subword-mode
@@ -1371,5 +1417,6 @@ the code is C or C++ and based on that chooses whether to enable
     (add-to-list 'auto-mode-alist '("\\.h\\'" . c-or-c++-ts-mode)))
 
 (provide 'c-ts-mode)
+(provide 'c++-ts-mode)
 
 ;;; c-ts-mode.el ends here

@@ -1,6 +1,6 @@
 ;;; make-mode.el --- makefile editing commands for Emacs -*- lexical-binding:t -*-
 
-;; Copyright (C) 1992-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1992-2024 Free Software Foundation, Inc.
 
 ;; Author: Thomas Neumann <tom@smart.bo.open.de>
 ;;	Eric S. Raymond <esr@snark.thyrsus.com>
@@ -695,7 +695,7 @@ The function must satisfy this calling convention:
   "Table of all macro names known for this buffer.")
 (put 'makefile-macro-table 'risky-local-variable t)
 
-(defvar makefile-browser-client
+(defvar makefile-browser-client nil
   "A buffer in Makefile mode that is currently using the browser.")
 
 (defvar makefile-browser-selection-vector nil)

@@ -1,6 +1,6 @@
 ;;; regex-emacs-tests.el --- tests for regex-emacs.c -*- lexical-binding: t -*-
 
-;; Copyright (C) 2015-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2024 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -873,6 +873,7 @@ This evaluates the TESTS test cases from glibc."
   (should (equal (string-match "\\`a\\{2\\}*\\'" "a") nil)))
 
 (ert-deftest regexp-tests-backtrack-optimization () ;bug#61514
+  :expected-result :failed
   ;; Make sure we don't use up the regexp stack needlessly.
   (with-current-buffer (get-buffer-create "*bug*")
     (erase-buffer)
@@ -882,5 +883,9 @@ This evaluates the TESTS test cases from glibc."
     (should (looking-at "x*\\(=\\|:\\)"))
     (should (looking-at "x*\\(=\\|:\\)*"))
     (should (looking-at "x*=*?"))))
+
+(ert-deftest regex-tests-mutual-exclusive-inf-rec ()
+  ;; Regression test for bug#65726, where this crashed Emacs.
+  (should (equal (string-match "a*\\(?:c\\|b*\\)*" "a") 0)))
 
 ;;; regex-emacs-tests.el ends here

@@ -1,6 +1,6 @@
 ;;; shortdoc.el --- Short function summaries  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2020-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2024 Free Software Foundation, Inc.
 
 ;; Keywords: lisp, help
 ;; Package: emacs
@@ -1384,7 +1384,7 @@ A FUNC form can have any number of `:no-eval' (or `:no-value'),
   (set-text-properties
    :no-eval (set-text-properties (point) (1+ (point)) '(face error)))
   (add-face-text-property
-   (add-face-text-property START END '(:foreground "green")))
+   :no-eval (add-face-text-property START END '(:foreground "green")))
   (propertize
    :eval (propertize "foo" 'face 'italic 'mouse-face 'bold-italic))
   "Searching for Text Properties"
@@ -1675,7 +1675,7 @@ With prefix numeric argument ARG, do it that many times."
   (interactive)
   (save-excursion
     (goto-char (pos-bol))
-    (when-let* ((re (rx bol "(" (group (+ (not (in " "))))))
+    (when-let* ((re (rx bol "(" (group (+ (not (in " )"))))))
                 (string
                  (and (or (looking-at re)
                           (re-search-backward re nil t))

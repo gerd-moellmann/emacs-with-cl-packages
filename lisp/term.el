@@ -1,6 +1,6 @@
 ;;; term.el --- general command interpreter in a window stuff -*- lexical-binding: t -*-
 
-;; Copyright (C) 1988, 1990, 1992, 1994-1995, 2001-2023 Free Software
+;; Copyright (C) 1988, 1990, 1992, 1994-1995, 2001-2024 Free Software
 ;; Foundation, Inc.
 
 ;; Author: Per Bothner <per@bothner.com>
@@ -486,7 +486,7 @@ Customize this option to nil if you want the previous behavior."
 
 (defcustom term-scroll-to-bottom-on-output nil
   "Controls whether interpreter output causes window to scroll.
-If nil, then do not scroll.  If t or `all', scroll all windows showing buffer.
+If nil, then do not scroll.  If t, scroll all windows showing buffer.
 If `this', scroll only the selected window.
 If `others', scroll only those that are not the selected window.
 
@@ -494,7 +494,12 @@ The default is nil.
 
 See variable `term-scroll-show-maximum-output'.
 This variable is buffer-local."
-  :type 'boolean
+  :type '(choice (const :tag "Don't scroll" nil)
+                 (const :tag "Scroll selected window only" this)
+                 (const :tag "Scroll unselected windows" others)
+                 ;; We also recognize `all', but we don't advertise it
+                 ;; anymore.  (Bug#66071)
+                 (other :tag "Scroll all windows" t))
   :group 'term)
 
 (defcustom term-scroll-snap-to-bottom t
@@ -653,7 +658,8 @@ executed once, when the buffer is created."
         ["Forward Output Group" term-next-prompt t]
         ["Kill Current Output Group" term-kill-output t]))
     map)
-  "Keymap for Term mode.")
+  "Keymap for \"line mode\" in Term mode.  For custom keybindings purposes
+please note there is also `term-raw-map'")
 
 (defvar term-escape-char nil
   "Escape character for char sub-mode of term mode.
@@ -953,7 +959,9 @@ underlying shell."
       (dotimes (key 21)
         (keymap-set map (format "<f%d>" key) #'term-send-function-key)))
     map)
-  "Keyboard map for sending characters directly to the inferior process.")
+  "Keyboard map for sending characters directly to the inferior process.
+For custom keybindings purposes please note there is also
+`term-mode-map'")
 
 (easy-menu-define term-terminal-menu
   (list term-mode-map term-raw-map term-pager-break-map)
@@ -1104,7 +1112,7 @@ variable `term-input-autoexpand', and addition is controlled by the
 variable `term-input-ignoredups'.
 
 Input to, and output from, the subprocess can cause the window to scroll to
-the end of the buffer.  See variables `term-scroll-to-bottom-on-input',
+the end of the buffer.  See variables `term-scroll-snap-to-bottom',
 and `term-scroll-to-bottom-on-output'.
 
 If you accidentally suspend your process, use \\[term-continue-subjob]
@@ -1116,6 +1124,10 @@ particular subprocesses.  This can be done by setting the hooks
 `term-input-sender' and `term-get-old-input' to appropriate functions,
 and the variable `term-prompt-regexp' to the appropriate regular
 expression.
+
+If you define custom keybindings, make sure to assign them to the
+correct keymap (or to both): use `term-raw-map' in raw mode and
+`term-mode-map' in line mode.
 
 Commands in raw mode:
 
@@ -1385,10 +1397,15 @@ Entry to this mode runs the hooks on `term-mode-hook'."
   (interactive)
    (term-send-raw-string (current-kill 0)))
 
-(defun term--xterm-paste ()
+(defun term--xterm-paste (event)
   "Insert the text pasted in an XTerm bracketed paste operation."
-  (interactive)
-  (term-send-raw-string (xterm--pasted-text)))
+  (interactive "e")
+  (unless (eq (car-safe event) 'xterm-paste)
+    (error "term--xterm-paste must be found to xterm-paste event"))
+  (let ((str (nth 1 event)))
+    (unless (stringp str)
+      (error "term--xterm-paste provided event does not contain paste text"))
+    (term-send-raw-string str)))
 
 (declare-function xterm--pasted-text "term/xterm" ())
 

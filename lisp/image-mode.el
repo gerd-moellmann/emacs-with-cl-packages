@@ -1,6 +1,6 @@
 ;;; image-mode.el --- support for visiting image files  -*- lexical-binding: t -*-
 ;;
-;; Copyright (C) 2005-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2024 Free Software Foundation, Inc.
 ;;
 ;; Author: Richard Stallman <rms@gnu.org>
 ;; Keywords: multimedia
@@ -89,7 +89,7 @@ This will always keep the image fit to the window.
 When non-nil, the value should be a number of seconds to wait before
 resizing according to the value specified in `image-auto-resize'."
   :type '(choice (const :tag "No auto-resize on window size change" nil)
-                 (integer :tag "Wait for number of seconds before resize" 1))
+                 (number :tag "Wait for number of seconds before resize" 1))
   :version "27.1"
   :group 'image)
 
@@ -248,8 +248,9 @@ Stop if the right edge of the image is reached."
 	 (image-set-window-hscroll (max 0 (+ (window-hscroll) n))))
 	(t
 	 (let* ((image (image-get-display-property))
-		(edges (window-inside-edges))
-		(win-width (- (nth 2 edges) (nth 0 edges)))
+		(edges (window-edges nil t nil t))
+		(win-width (- (/ (nth 2 edges) (frame-char-width))
+                              (/ (nth 0 edges) (frame-char-width))))
 		(img-width (ceiling (car (image-display-size image)))))
 	   (image-set-window-hscroll (min (max 0 (- img-width win-width))
 					  (+ n (window-hscroll))))))))
@@ -771,9 +772,8 @@ to switch back to
 
 ;;;###autoload
 (defun image-mode-to-text ()
-  "Set a non-image mode as major mode in combination with image minor mode.
-A non-mage major mode found from `auto-mode-alist' or fundamental mode
-displays an image file as text."
+  "Set current buffer's modes be a non-image major mode, plus `image-minor-mode'.
+A non-image major mode displays an image file as text."
   ;; image-mode-as-text = normal-mode + image-minor-mode
   (let ((previous-image-type image-type)) ; preserve `image-type'
     (major-mode-restore '(image-mode image-mode-as-text))
@@ -784,15 +784,14 @@ displays an image file as text."
       (image-toggle-display-text))))
 
 (defun image-mode-as-hex ()
-  "Set `hexl-mode' as major mode in combination with image minor mode.
-A non-mage major mode found from `auto-mode-alist' or fundamental mode
-displays an image file as hex.  `image-minor-mode' provides the key
-\\<image-mode-map>\\[image-toggle-hex-display] to switch back to `image-mode' \
-to display an image file as
-the actual image.
+  "Set current buffer's modes be `hexl-mode' major mode, plus `image-minor-mode'.
+This will by default display an image file as hex.  `image-minor-mode'
+provides the key sequence \\<image-mode-map>\\[image-toggle-hex-display] to \
+switch back to `image-mode' to display
+an image file's buffer as an image.
 
 You can use `image-mode-as-hex' in `auto-mode-alist' when you want to
-display an image file as hex initially.
+display image files as hex by default.
 
 See commands `image-mode' and `image-minor-mode' for more information
 on these modes."

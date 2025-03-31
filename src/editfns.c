@@ -1,6 +1,6 @@
 /* Lisp functions pertaining to editing.                 -*- coding: utf-8 -*-
 
-Copyright (C) 1985-2023 Free Software Foundation, Inc.
+Copyright (C) 1985-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -723,6 +723,7 @@ This function does not move point.  Also see `line-beginning-position'.  */)
 DEFUN ("line-beginning-position",
        Fline_beginning_position, Sline_beginning_position, 0, 1, 0,
        doc: /* Return the position of the first character in the current line/field.
+With optional argument N non-nil, move forward N - 1 lines first.
 This function is like `pos-bol' (which see), but respects fields.
 
 This function constrains the returned position to the current field
@@ -2683,7 +2684,7 @@ DEFUN ("delete-and-extract-region", Fdelete_and_extract_region,
    labeled restriction was entered (which may be a narrowing that was
    set by the user and is visible on display).  This alist is used
    internally by narrow-to-region, internal--labeled-narrow-to-region,
-   widen, internal--unlabel-restriction and save-restriction.  For
+   widen, internal--labeled-widen and save-restriction.  For
    efficiency reasons, an alist is used instead of a buffer-local
    variable: otherwise reset_outermost_restrictions, which is called
    during each redisplay cycle, would have to loop through all live
@@ -2859,8 +2860,7 @@ labeled_restrictions_restore (Lisp_Object buf_and_restrictions)
 static void
 unwind_labeled_narrow_to_region (Lisp_Object label)
 {
-  Finternal__unlabel_restriction (label);
-  Fwiden ();
+  Finternal__labeled_widen (label);
 }
 
 /* Narrow current_buffer to BEGV-ZV with a restriction labeled with
@@ -2869,9 +2869,9 @@ void
 labeled_narrow_to_region (Lisp_Object begv, Lisp_Object zv,
 			  Lisp_Object label)
 {
-  Finternal__labeled_narrow_to_region (begv, zv, label);
   record_unwind_protect (restore_point_unwind, Fpoint_marker ());
   record_unwind_protect (unwind_labeled_narrow_to_region, label);
+  Finternal__labeled_narrow_to_region (begv, zv, label);
 }
 
 DEFUN ("widen", Fwiden, Swiden, 0, 0, "",
@@ -2983,7 +2983,7 @@ argument.  To gain access to other portions of the buffer, use
 
 DEFUN ("internal--labeled-narrow-to-region", Finternal__labeled_narrow_to_region,
        Sinternal__labeled_narrow_to_region, 3, 3, 0,
-       doc: /* Restrict editing in this buffer to START-END, and label the restriction with LABEL.
+       doc: /* Restrict this buffer to START-END, and label the restriction with LABEL.
 
 This is an internal function used by `with-restriction'.  */)
   (Lisp_Object start, Lisp_Object end, Lisp_Object label)
@@ -3001,9 +3001,9 @@ This is an internal function used by `with-restriction'.  */)
   return Qnil;
 }
 
-DEFUN ("internal--unlabel-restriction", Finternal__unlabel_restriction,
-       Sinternal__unlabel_restriction, 1, 1, 0,
-       doc: /* If the current restriction is labeled with LABEL, remove its label.
+DEFUN ("internal--labeled-widen", Finternal__labeled_widen,
+       Sinternal__labeled_widen, 1, 1, 0,
+       doc: /* Remove the current restriction if it is labeled with LABEL, and widen.
 
 This is an internal function used by `without-restriction'.  */)
   (Lisp_Object label)
@@ -3011,6 +3011,7 @@ This is an internal function used by `without-restriction'.  */)
   Lisp_Object buf = Fcurrent_buffer ();
   if (EQ (labeled_restrictions_peek_label (buf), label))
     labeled_restrictions_pop (buf);
+  Fwiden ();
   return Qnil;
 }
 
@@ -4950,7 +4951,7 @@ it to be non-nil.  */);
   defsubr (&Swiden);
   defsubr (&Snarrow_to_region);
   defsubr (&Sinternal__labeled_narrow_to_region);
-  defsubr (&Sinternal__unlabel_restriction);
+  defsubr (&Sinternal__labeled_widen);
   defsubr (&Ssave_restriction);
   defsubr (&Stranspose_regions);
 }

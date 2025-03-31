@@ -1,6 +1,6 @@
 ;;; esh-proc-tests.el --- esh-proc test suite  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2022-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -258,5 +258,20 @@ write the exit status to the pipe.  See bug#54136."
      (should (equal (buffer-substring-no-properties
                      output-start (eshell-end-of-output))
                     "")))))
+
+
+;; Remote processes
+
+(ert-deftest esh-var-test/remote/remote-path ()
+  "Ensure that setting the remote PATH in Eshell doesn't interfere with Tramp.
+See bug#65551."
+  (skip-unless (and (eshell-tests-remote-accessible-p)
+                    (executable-find "echo")))
+  (let ((default-directory ert-remote-temporary-file-directory))
+    (with-temp-eshell
+     (eshell-insert-command "set PATH ''")
+     (eshell-match-command-output
+      (format "%s hello" (executable-find "echo" t))
+      "\\`hello\n"))))
 
 ;;; esh-proc-tests.el ends here

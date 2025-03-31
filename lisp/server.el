@@ -1,6 +1,6 @@
 ;;; server.el --- Lisp code for GNU Emacs running as server process -*- lexical-binding: t -*-
 
-;; Copyright (C) 1986-1987, 1992, 1994-2023 Free Software Foundation,
+;; Copyright (C) 1986-1987, 1992, 1994-2024 Free Software Foundation,
 ;; Inc.
 
 ;; Author: William Sommerfeld <wesommer@athena.mit.edu>
@@ -182,8 +182,10 @@ space (this means characters from ! to ~; or from code 33 to
   :type 'hook)
 
 (defcustom server-after-make-frame-hook nil
-  "Hook run when the Emacs server creates a client frame.
-The created frame is selected when the hook is called."
+  "Hook run when the Emacs server starts using a client frame.
+The client frame is selected when the hook is called.
+The client frame could be a newly-created frame, or an
+existing frame reused for this purpose."
   :type 'hook
   :version "27.1")
 
@@ -1266,7 +1268,10 @@ The following commands are accepted by the client:
                  (when (or (and (eq system-type 'windows-nt)
                                 (or (daemonp)
                                     (eq window-system 'w32)))
-                           (eq window-system 'mac))
+                           (eq window-system 'mac)
+                           ;; Client runs on Windows, but the server
+                           ;; runs on a Posix host.
+                           (equal tty-name "CONOUT$"))
                    (push "-window-system" args-left)))
 
                 ;; -position +LINE[:COLUMN]:  Set point to the given

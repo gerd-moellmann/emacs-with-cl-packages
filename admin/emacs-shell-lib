@@ -1,7 +1,7 @@
 #!/bin/bash
 ### emacs-shell-lib - shared code for Emacs shell scripts
 
-## Copyright (C) 2022-2023 Free Software Foundation, Inc.
+## Copyright (C) 2022-2024 Free Software Foundation, Inc.
 
 ## Author: Stefan Kangas <stefankangas@gmail.com>
 
@@ -49,6 +49,9 @@ emacs_tempfiles=()
 
 emacs_tempfiles_cleanup ()
 {
+    # This is needed on Bash 4.4 or older.
+    [ ${#emacs_tempfiles[@]} -eq 0 ] && return
+
     for file in ${emacs_tempfiles[@]}; do
         rm -f "${file}" 2> /dev/null
     done

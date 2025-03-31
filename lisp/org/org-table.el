@@ -1,6 +1,6 @@
 ;;; org-table.el --- The Table Editor for Org        -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2004-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2024 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten.dominik@gmail.com>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -477,6 +477,7 @@ This may be useful when columns have been shrunk."
       (format "|%s" (mapconcat #'identity (reverse str) "")))))
 
 (defvar-local org-table-header-overlay nil)
+(put 'org-table-header-overlay 'permanent-local t)
 (defun org-table-header-set-header ()
   "Display the header of the table at point."
   (let ((gcol temporary-goal-column))
@@ -3812,6 +3813,7 @@ FACE, when non-nil, for the highlight."
 
 (defvar-local org-table-coordinate-overlays nil
   "Collects the coordinate grid overlays, so that they can be removed.")
+(put 'org-table-coordinate-overlays 'permanent-local t)
 
 (defun org-table-overlay-coordinates ()
   "Add overlays to the table at point, to show row/column coordinates."
@@ -4892,7 +4894,7 @@ This function sets up the following dynamically scoped variables:
 			(push (cons field v) org-table-local-parameters)
 			(push (list field line col)
 			      org-table-named-field-locations))))))))))
-      ;; Re-use existing markers when possible.
+      ;; Reuse existing markers when possible.
       (if (markerp org-table-current-begin-pos)
 	  (move-marker org-table-current-begin-pos (point))
 	(setq org-table-current-begin-pos (point-marker)))

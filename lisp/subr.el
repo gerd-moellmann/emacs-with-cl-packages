@@ -1,6 +1,6 @@
 ;;; subr.el --- basic lisp subroutines for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1992, 1994-1995, 1999-2023 Free Software
+;; Copyright (C) 1985-1986, 1992, 1994-1995, 1999-2024 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -418,6 +418,10 @@ Also see `ignore'."
 Errors cause entry to the debugger when `debug-on-error' is non-nil.
 This can be overridden by `debug-ignored-errors'.
 
+When `noninteractive' is non-nil (in particular, in batch mode), an
+unhandled error calls `kill-emacs', which terminates the Emacs
+session with a non-zero exit code.
+
 To signal with MESSAGE without interpreting format characters
 like `%', `\\=`' and `\\='', use (error \"%s\" MESSAGE).
 In Emacs, the convention is that error messages start with a capital
@@ -507,8 +511,10 @@ If COUNT is negative, shifting is actually to the right.
 In this case, if VALUE is a negative fixnum treat it as unsigned,
 i.e., subtract 2 * `most-negative-fixnum' from VALUE before shifting it.
 
-This function is provided for compatibility.  In new code, use `ash'
-instead."
+Most uses of this function turn out to be mistakes.  We recommend
+to use `ash' instead, unless COUNT could ever be negative, and
+if, when COUNT is negative, your program really needs the special
+treatment of negative COUNT provided by this function."
   (declare (compiler-macro
             (lambda (form)
               (macroexp-warn-and-return "avoid `lsh'; use `ash' instead"
@@ -1901,9 +1907,13 @@ instead; it will indirectly limit the specpdl stack size as well.")
                         'native-comp-enable-subr-trampolines
                         "29.1")
 
+(defvaralias 'comp-enable-subr-trampolines 'native-comp-enable-subr-trampolines)
+
 (make-obsolete-variable 'native-comp-deferred-compilation
                         'native-comp-jit-compilation
                         "29.1")
+
+(defvaralias 'native-comp-deferred-compilation 'native-comp-jit-compilation)
 
 
 ;;;; Alternate names for functions - these are not being phased out.
@@ -4003,8 +4013,9 @@ by `with-restriction' with the same LABEL argument are lifted.
 (defun internal--without-restriction (body &optional label)
   "Helper function for `without-restriction', which see."
   (save-restriction
-    (if label (internal--unlabel-restriction label))
-    (widen)
+    (if label
+        (internal--labeled-widen label)
+      (widen))
     (funcall body)))
 
 (defun find-tag-default-bounds ()
@@ -4998,8 +5009,8 @@ the function `undo--wrap-and-run-primitive-undo'."
 			;; Don't include a timestamp entry.
 			(setcdr ptr (cddr ptr))
 		      (setq ptr (cdr ptr))))
-		  (unless (cdr ptr)
-		    (message "combine-change-calls: buffer-undo-list broken"))
+		  (unless (or (cdr ptr) (null old-bul))
+		    (message "combine-change-calls: buffer-undo-list presumably truncated by GC"))
 		  (setcdr ptr nil)
 		  (push ap-elt buffer-undo-list)
 		  (setcdr buffer-undo-list old-bul)))))
@@ -5490,9 +5501,11 @@ See also `string-equal'."
   (eq t (compare-strings string1 0 nil string2 0 nil t)))
 
 (defun string-prefix-p (prefix string &optional ignore-case)
-  "Return non-nil if PREFIX is a prefix of STRING.
+  "Return non-nil if STRING begins with PREFIX.
+PREFIX should be a string; the function returns non-nil if the
+characters at the beginning of STRING compare equal with PREFIX.
 If IGNORE-CASE is non-nil, the comparison is done without paying attention
-to case differences."
+to letter-case differences."
   (declare (pure t) (side-effect-free t))
   (let ((prefix-length (length prefix)))
     (if (> prefix-length (length string)) nil
@@ -5500,9 +5513,11 @@ to case differences."
 			     0 prefix-length ignore-case)))))
 
 (defun string-suffix-p (suffix string  &optional ignore-case)
-  "Return non-nil if SUFFIX is a suffix of STRING.
+  "Return non-nil if STRING ends with SUFFIX.
+SUFFIX should be a string; the function returns non-nil if the
+characters at end of STRING compare equal with SUFFIX.
 If IGNORE-CASE is non-nil, the comparison is done without paying
-attention to case differences."
+attention to letter-case differences."
   (declare (pure t) (side-effect-free t))
   (let ((start-pos (- (length string) (length suffix))))
     (and (>= start-pos 0)
@@ -5841,7 +5856,7 @@ by `find-word-boundary-function-table'.  It is also not interactive."
 With argument ARG, do this that many times.
 If ARG is omitted or nil, move point backward one word.
 
-This function is like `forward-word', but it is not affected
+This function is like `backward-word', but it is not affected
 by `find-word-boundary-function-table'.  It is also not interactive."
   (let ((find-word-boundary-function-table
          (if (char-table-p word-move-empty-char-table)

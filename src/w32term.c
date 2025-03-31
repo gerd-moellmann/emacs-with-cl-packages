@@ -1,6 +1,6 @@
 /* Implementation of GUI terminal on the Microsoft Windows API.
 
-Copyright (C) 1989, 1993-2023 Free Software Foundation, Inc.
+Copyright (C) 1989, 1993-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -776,12 +776,13 @@ w32_buffer_flipping_unblocked_hook (struct frame *f)
 
 /* Flip buffers on F if drawing has happened.  This function is not
    called to flush the display connection of a frame (which doesn't
-   exist on MS Windows), but also called in some situations in
+   exist on MS Windows), but is called in some situations in
    minibuf.c to make the contents of the back buffer visible.  */
 void
 w32_flip_buffers_if_dirty (struct frame *f)
 {
-  if (FRAME_OUTPUT_DATA (f)->paint_buffer
+  if (FRAME_W32_P (f)	/* do nothing in TTY frames */
+      && FRAME_OUTPUT_DATA (f)->paint_buffer
       && FRAME_OUTPUT_DATA (f)->paint_buffer_dirty
       && !f->garbaged && !buffer_flipping_blocked_p ())
     w32_show_back_buffer (f);
@@ -3412,7 +3413,7 @@ w32_construct_mouse_wheel (struct input_event *result, W32Msg *msg,
 	    ((double)FRAME_LINE_HEIGHT (f) * scroll_unit)
 	    / ((double)WHEEL_DELTA / delta);
       nlines = value_to_report / FRAME_LINE_HEIGHT (f) + 0.5;
-      result->arg = list3 (make_fixnum (nlines),
+      result->arg = list3 (make_fixnum (eabs (nlines)),
 			   make_float (0.0),
 			   make_float (value_to_report));
     }

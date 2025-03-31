@@ -1,9 +1,10 @@
 ;;; shorthands.el --- Read code considering Elisp shorthands  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2021-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2024 Free Software Foundation, Inc.
 
 ;; Author: João Távora <joaotavora@gmail.com>
 ;; Keywords: lisp
+;; Package: emacs
 
 ;; This file is part of GNU Emacs.
 

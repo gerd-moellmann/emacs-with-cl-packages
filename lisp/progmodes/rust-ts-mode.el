@@ -1,6 +1,6 @@
 ;;; rust-ts-mode.el --- tree-sitter support for Rust  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2022-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
 
 ;; Author     : Randy Taylor <dev@rjt.dev>
 ;; Maintainer : Randy Taylor <dev@rjt.dev>
@@ -143,11 +143,11 @@
                               eol))
                       @font-lock-builtin-face)))
      ((identifier) @font-lock-type-face
-      (:match "\\`\\(:?Err\\|Ok\\|None\\|Some\\)\\'" @font-lock-type-face)))
+      (:match "\\`\\(?:Err\\|Ok\\|None\\|Some\\)\\'" @font-lock-type-face)))
 
    :language 'rust
    :feature 'comment
-   '(([(block_comment) (line_comment)]) @font-lock-comment-face)
+   '(([(block_comment) (line_comment)]) @rust-ts-mode--comment-docstring)
 
    :language 'rust
    :feature 'delimiter
@@ -232,9 +232,12 @@
      (type_identifier) @font-lock-type-face
      ((scoped_identifier name: (identifier) @rust-ts-mode--fontify-tail))
      ((scoped_identifier path: (identifier) @font-lock-type-face)
-      (:match
-       "\\`\\(u8\\|u16\\|u32\\|u64\\|u128\\|usize\\|i8\\|i16\\|i32\\|i64\\|i128\\|isize\\|char\\|str\\)\\'"
-       @font-lock-type-face))
+      (:match ,(rx bos
+                   (or "u8" "u16" "u32" "u64" "u128" "usize"
+                       "i8" "i16" "i32" "i64" "i128" "isize"
+                       "char" "str")
+                   eos)
+              @font-lock-type-face))
      ((scoped_identifier path: (identifier) @rust-ts-mode--fontify-scope))
      ((scoped_type_identifier path: (identifier) @rust-ts-mode--fontify-scope))
      (type_identifier) @font-lock-type-face)
@@ -249,7 +252,7 @@
    :feature 'constant
    `((boolean_literal) @font-lock-constant-face
      ((identifier) @font-lock-constant-face
-      (:match "\\`[A-Z][A-Z\\d_]*\\'" @font-lock-constant-face)))
+      (:match "\\`[A-Z][0-9A-Z_]*\\'" @font-lock-constant-face)))
 
    :language 'rust
    :feature 'variable
@@ -283,6 +286,17 @@
    :override t
    '((ERROR) @font-lock-warning-face))
   "Tree-sitter font-lock settings for `rust-ts-mode'.")
+
+(defun rust-ts-mode--comment-docstring (node override start end &rest _args)
+  "Use the comment or documentation face appropriately for comments."
+  (let* ((beg (treesit-node-start node))
+         (face (save-excursion
+                 (goto-char beg)
+                 (if (looking-at "/\\(?:/\\(?:/[^/]\\|!\\)\\|*\\(?:*[^*/]\\|!\\)\\)" t)
+                     'font-lock-doc-face
+                   'font-lock-comment-face))))
+    (treesit-fontify-with-override beg (treesit-node-end node)
+                                   face override start end)))
 
 (defun rust-ts-mode--fontify-scope (node override start end &optional tail-p)
   (let* ((case-fold-search nil)
@@ -420,6 +434,10 @@ delimiters < and >'s."
     ;; Indent.
     (setq-local indent-tabs-mode nil
                 treesit-simple-indent-rules rust-ts-mode--indent-rules)
+
+    ;; Electric
+    (setq-local electric-indent-chars
+                (append "{}():;,#" electric-indent-chars))
 
     ;; Navigation.
     (setq-local treesit-defun-type-regexp

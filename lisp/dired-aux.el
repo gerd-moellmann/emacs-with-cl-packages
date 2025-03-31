@@ -1,6 +1,6 @@
 ;;; dired-aux.el --- less commonly used parts of dired -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1985-2024 Free Software Foundation, Inc.
 
 ;; Author: Sebastian Kremer <sk@thp.uni-koeln.de>.
 ;; Maintainer: emacs-devel@gnu.org
@@ -1172,7 +1172,7 @@ Return the result of `process-file' - zero for success."
          "unxz")
 
    ;; zstandard archives
-   `(,(rx (or ".tar.zst" ".tzst") eos) "unzstd -c %i | tar -xf -")
+   `(,(rx (or ".tar.zst" ".tzst") eos) "unzstd -c ? | tar -xf -")
    `(,(rx ".zst" eos)                  "unzstd --rm")
 
    '("\\.shar\\.Z\\'" "zcat * | unshar")

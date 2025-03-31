@@ -1,6 +1,6 @@
 ;;; vc.el --- drive a version-control system from within Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1992-1998, 2000-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1992-1998, 2000-2024 Free Software Foundation, Inc.
 
 ;; Author: FSF (see below for full credits)
 ;; Maintainer: emacs-devel@gnu.org
@@ -668,7 +668,7 @@
 ;;;; New Primitives:
 ;;
 ;; - uncommit: undo last checkin, leave changes in place in the workfile,
-;;   stash the commit comment for re-use.
+;;   stash the commit comment for reuse.
 ;;
 ;; - deal with push operations.
 ;;
@@ -1222,18 +1222,23 @@ BEWARE: this function may change the current buffer."
 (defun vc-next-action (verbose)
   "Do the next logical version control operation on the current fileset.
 This requires that all files in the current VC fileset be in the
-same state.  If not, signal an error.
+same state.  If they are not, signal an error.  Also signal an error if
+files in the fileset are missing (removed, but tracked by version control),
+or are ignored by the version control system.
 
-For merging-based version control systems:
-  If every file in the VC fileset is not registered for version
-   control, register the fileset (but don't commit).
-  If every work file in the VC fileset is added or changed, pop
-   up a *vc-log* buffer to commit the fileset.
+For modern merging-based version control systems:
+  If every file in the fileset is not registered for version
+   control, register the fileset (but don't commit).  If VERBOSE is
+   non-nil (interactively, the prefix argument), ask for the VC
+   backend with which to register the fileset.
+  If every work file in the VC fileset is either added or modified,
+   pop up a *vc-log* buffer to commit the fileset changes.
   For a centralized version control system, if any work file in
    the VC fileset is out of date, offer to update the fileset.
 
 For old-style locking-based version control systems, like RCS:
-  If every file is not registered, register the file(s).
+  If every file is not registered, register the file(s); with a prefix
+   argument, allow to specify the VC backend for registration.
   If every file is registered and unlocked, check out (lock)
    the file(s) for editing.
   If every file is locked by you and has changes, pop up a
@@ -1241,14 +1246,21 @@ For old-style locking-based version control systems, like RCS:
    read-only copy of each changed file after checking in.
   If every file is locked by you and unchanged, unlock them.
   If every file is locked by someone else, offer to steal the lock.
+  If files are unlocked, but have changes, offer to either claim the
+   lock or revert to the last checked-in version.
+
+If this command is invoked from a patch buffer under `diff-mode', it
+will apply the diffs from the patch and pop up a *vc-log* buffer to
+check-in the resulting changes.
 
 When using this command to register a new file (or files), it
 will automatically deduce which VC repository to register it
 with, using the most specific one.
 
 If VERBOSE is non-nil (interactively, the prefix argument),
-you can specify a VC backend or (for centralized VCS only)
-the revision ID or branch ID."
+you can specify another VC backend for the file(s),
+or (for centralized VCS only) the revision ID or branch ID
+from which to check out the file(s)."
   (interactive "P")
   (let* ((vc-fileset (vc-deduce-fileset nil t 'state-model-only-files))
          (backend (car vc-fileset))
@@ -1275,6 +1287,8 @@ the revision ID or branch ID."
       (error "Fileset files are missing, so cannot be operated on"))
      ((eq state 'ignored)
       (error "Fileset files are ignored by the version-control system"))
+     ;; Fileset comes from a diff-mode buffer, see
+     ;; 'diff-vc-deduce-fileset', and the buffer is the patch to apply.
      ((eq model 'patch)
       (vc-checkin files backend nil nil nil (buffer-string)))
      ((or (null state) (eq state 'unregistered))
@@ -1894,7 +1908,9 @@ in the output buffer."
     (vc-run-delayed (vc-diff-finish (current-buffer) nil))))
 
 (defun vc-diff-internal (async vc-fileset rev1 rev2 &optional verbose buffer)
-  "Report diffs between two revisions of a fileset.
+  "Report diffs between revisions REV1 and REV2 of a fileset in VC-FILESET.
+ASYNC non-nil means run the backend's commands asynchronously if possible.
+VC-FILESET should have the format described in `vc-deduce-fileset'.
 Output goes to the buffer BUFFER, which defaults to *vc-diff*.
 BUFFER, if non-nil, should be a buffer or a buffer name.
 Return t if the buffer had changes, nil otherwise."
@@ -1910,15 +1926,26 @@ Return t if the buffer had changes, nil otherwise."
 	 ;; but the only way to set it for each file included would
 	 ;; be to call the back end separately for each file.
 	 (coding-system-for-read
-	  (if files (vc-coding-system-for-diff (car files)) 'undecided))
+          ;; Force the EOL conversion to be -unix, in case the files
+          ;; to be compared have DOS EOLs.  In that case, EOL
+          ;; conversion will produce a patch file that will either
+          ;; fail to apply, or will change the EOL format of some of
+          ;; the lines in the patched file.
+          (coding-system-change-eol-conversion
+	   (if files (vc-coding-system-for-diff (car files)) 'undecided)
+           'unix))
          (orig-diff-buffer-clone
           (if revert-buffer-in-progress-p
               (clone-buffer
                (generate-new-buffer-name " *vc-diff-clone*") nil))))
     ;; On MS-Windows and MS-DOS, Diff is likely to produce DOS-style
     ;; EOLs, which will look ugly if (car files) happens to have Unix
-    ;; EOLs.
-    (if (memq system-type '(windows-nt ms-dos))
+    ;; EOLs.  But for Git, we must force Unix EOLs in the diffs, since
+    ;; Git always produces Unix EOLs in the parts that didn't come
+    ;; from the file, and wants to see any CR characters when applying
+    ;; patches.
+    (if (and (memq system-type '(windows-nt ms-dos))
+             (not (eq (car vc-fileset) 'Git)))
 	(setq coding-system-for-read
 	      (coding-system-change-eol-conversion coding-system-for-read
 						   'dos)))
@@ -3649,11 +3676,16 @@ to provide the `find-revision' operation instead."
   (vc-call-backend (vc-backend buffer-file-name) 'check-headers))
 
 (defun vc-clone (remote &optional backend directory rev)
-  "Use BACKEND to clone REMOTE into DIRECTORY.
-If successful, returns the string with the directory of the
-checkout.  If BACKEND is nil, iterate through every known backend
-in `vc-handled-backends' until one succeeds.  If REV is non-nil,
-it indicates a specific revision to check out."
+  "Clone repository REMOTE using version-control BACKEND, into DIRECTORY.
+If successful, return the string with the directory of the checkout;
+otherwise return nil.
+REMOTE should be a string, the URL of the remote repository or the name
+of a directory (if the repository is local).
+If DIRECTORY is nil or omitted, it defaults to `default-directory'.
+If BACKEND is nil or omitted, the function iterates through every known
+backend in `vc-handled-backends' until one succeeds to clone REMOTE.
+If REV is non-nil, it indicates a specific revision to check out after
+cloning; the syntax of REV depends on what BACKEND accepts."
   (unless directory
     (setq directory default-directory))
   (if backend

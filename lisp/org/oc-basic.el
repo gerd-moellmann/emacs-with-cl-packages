@@ -1,6 +1,6 @@
 ;;; oc-basic.el --- basic back-end for citations  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2021-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2024 Free Software Foundation, Inc.
 
 ;; Author: Nicolas Goaziou <mail@nicolasgoaziou.fr>
 
@@ -162,7 +162,7 @@ Return a hash table with citation references as keys and fields alist as values.
         (puthash (cdr (assq 'id item))
                  (mapcar (pcase-lambda (`(,field . ,value))
                            (pcase field
-                             ((or 'author 'editors)
+                             ((or 'author 'editor)
                               ;; Author and editors are arrays of
                               ;; objects, each of them designing a
                               ;; person.  These objects may contain

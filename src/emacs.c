@@ -1,6 +1,6 @@
 /* Fully extensible Emacs, running on Unix, intended for GNU.
 
-Copyright (C) 1985-1987, 1993-1995, 1997-1999, 2001-2023 Free Software
+Copyright (C) 1985-1987, 1993-1995, 1997-1999, 2001-2024 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -2043,14 +2043,15 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
     }
 #endif
 
-#ifdef HAVE_X_WINDOWS
   /* Stupid kludge to catch command-line display spec.  We can't
      handle this argument entirely in window system dependent code
      because we don't even know which window system dependent code
      to run until we've recognized this argument.  */
   {
-    char *displayname = 0;
     int count_before = skip_args;
+
+#ifdef HAVE_X_WINDOWS
+    char *displayname = 0;
 
     /* Skip any number of -d options, but only use the last one.  */
     while (!only_version)
@@ -2081,12 +2082,15 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
 	  }
 	argv[count_before + 1] = (char *) "-d";
       }
+#endif	/* HAVE_X_WINDOWS */
 
     if (! no_site_lisp)
       {
-        if (argmatch (argv, argc, "-Q", "--quick", 3, NULL, &skip_args)
+
+	if (argmatch (argv, argc, "-Q", "--quick", 3, NULL, &skip_args)
             || argmatch (argv, argc, "-quick", 0, 2, NULL, &skip_args))
-          no_site_lisp = 1;
+	  no_site_lisp = 1;
+
       }
 
     if (argmatch (argv, argc, "-x", 0, 1, &junk, &skip_args))
@@ -2102,18 +2106,6 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
     /* Don't actually discard this arg.  */
     skip_args = count_before;
   }
-#else  /* !HAVE_X_WINDOWS */
-  if (! no_site_lisp)
-  {
-    int count_before = skip_args;
-
-    if (argmatch (argv, argc, "-Q", "--quick", 3, NULL, &skip_args)
-        || argmatch (argv, argc, "-quick", 0, 2, NULL, &skip_args))
-      no_site_lisp = 1;
-
-    skip_args = count_before;
-  }
-#endif
 
   /* argmatch must not be used after here,
      except when building temacs
@@ -3295,7 +3287,7 @@ decode_env_path (const char *evarname, const char *defalt, bool empty)
     {
 #ifdef MAC_SELF_CONTAINED
       path = mac_relocate (defalt);
-#elif NS_SELF_CONTAINED
+#elif defined NS_SELF_CONTAINED
       /* ns_relocate needs a valid autorelease pool around it.  */
       autorelease = ns_alloc_autorelease_pool ();
       path = ns_relocate (defalt);

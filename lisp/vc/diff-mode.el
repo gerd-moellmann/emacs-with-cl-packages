@@ -1,6 +1,6 @@
 ;;; diff-mode.el --- a mode for viewing/editing context diffs -*- lexical-binding: t -*-
 
-;; Copyright (C) 1998-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2024 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Keywords: convenience patch diff vc
@@ -2640,7 +2640,7 @@ fixed, visit it in a buffer."
                 (?- . (left-fringe diff-fringe-del diff-indicator-removed))
                 (?! . (left-fringe diff-fringe-rep diff-indicator-changed))
                 (?\s . (left-fringe diff-fringe-nul fringe)))))))))
-    ;; Mimicks the output of Magit's diff.
+    ;; Mimics the output of Magit's diff.
     ;; FIXME: This has only been tested with Git's diff output.
     ;; FIXME: Add support for Git's "rename from/to"?
     (while (re-search-forward "^diff " limit t)
@@ -2955,7 +2955,7 @@ hunk text is not found in the source file."
       (goto-char (point-min))
       (while (progn (diff-file-next) (not (eobp)))
         (push (diff-find-file-name nil t) files)))
-    (list backend (nreverse files) nil nil 'patch)))
+    (list backend (delete nil (nreverse files)) nil nil 'patch)))
 
 (defun diff--filter-substring (str)
   (when diff-font-lock-prettify

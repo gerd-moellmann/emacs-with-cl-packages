@@ -1,6 +1,6 @@
 /* File IO for GNU Emacs.
 
-Copyright (C) 1985-1988, 1993-2023 Free Software Foundation, Inc.
+Copyright (C) 1985-1988, 1993-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -758,8 +758,8 @@ DEFUN ("file-name-concat", Ffile_name_concat, Sfile_name_concat, 1, MANY, 0,
 Elements in COMPONENTS must be a string or nil.
 DIRECTORY or the non-final elements in COMPONENTS may or may not end
 with a slash -- if they don't end with a slash, a slash will be
-inserted before contatenating.
-usage: (record DIRECTORY &rest COMPONENTS) */)
+inserted before concatenating.
+usage: (file-name-concat DIRECTORY &rest COMPONENTS)  */)
   (ptrdiff_t nargs, Lisp_Object *args)
 {
   ptrdiff_t chars = 0, bytes = 0, multibytes = 0, eargs = 0;
@@ -4023,7 +4023,7 @@ by calling `format-decode', which see.  */)
   if (!S_ISREG (st.st_mode))
     {
       regular = false;
-      seekable = lseek (fd, 0, SEEK_CUR) < 0;
+      seekable = lseek (fd, 0, SEEK_CUR) != (off_t) -1;
 
       if (! NILP (visit))
         {

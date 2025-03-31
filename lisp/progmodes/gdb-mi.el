@@ -1,6 +1,6 @@
 ;;; gdb-mi.el --- User Interface for running GDB  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2007-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2024 Free Software Foundation, Inc.
 
 ;; Author: Nick Roberts <nickrob@gnu.org>
 ;; Maintainer: emacs-devel@gnu.org
@@ -1849,7 +1849,8 @@ this trigger is subscribed to `gdb-buf-publisher' and called with
 
 (defun gdb-clear-inferior-io ()
   (with-current-buffer (gdb-get-buffer-create 'gdb-inferior-io)
-    (erase-buffer)))
+    (let ((inhibit-read-only t))
+      (erase-buffer))))
 
 
 (defconst breakpoint-xpm-data
@@ -2819,7 +2820,8 @@ current thread and update GDB buffers."
 
 (defun gdb-clear-partial-output ()
   (with-current-buffer (gdb-get-buffer-create 'gdb-partial-output-buffer)
-    (erase-buffer)))
+    (let ((inhibit-read-only t))
+      (erase-buffer))))
 
 ;; Parse GDB/MI result records: this process converts
 ;;  list      [...]      ->  list

@@ -1,6 +1,6 @@
 ;;; ielm.el --- interaction mode for Emacs Lisp  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1994, 2001-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1994, 2001-2024 Free Software Foundation, Inc.
 
 ;; Author: David Smith <maa036@lancaster.ac.uk>
 ;; Maintainer: emacs-devel@gnu.org
@@ -148,9 +148,8 @@ such as `edebug-defun' to work with such inputs."
 This variable is buffer-local.")
 
 (defvar ielm-header
-  (substitute-command-keys
    "*** Welcome to IELM ***  Type (describe-mode) or press \
-\\[describe-mode] for help.\n")
+\\[describe-mode] for help.\n"
   "Message to display when IELM is started.")
 
 (defvaralias 'inferior-emacs-lisp-mode-map 'ielm-map)
@@ -492,8 +491,7 @@ addition to `comint-indirect-setup-hook', run this hook with the
 indirect buffer as the current buffer after its setup is done.
 This can be used to further customize fontification and other
 behavior of the indirect buffer."
-  :type 'boolean
-  :safe 'booleanp
+  :type 'hook
   :version "29.1")
 
 (defun ielm-indirect-setup-hook ()
@@ -615,7 +613,7 @@ Customized bindings may be defined in `ielm-map', which currently contains:
     (setq-local comint-inhibit-carriage-motion t)
 
     ;; Add a silly header
-    (insert ielm-header)
+    (insert (substitute-command-keys ielm-header))
     (ielm-set-pm (point-max))
     (unless comint-use-prompt-regexp
       (let ((inhibit-read-only t))

@@ -1,6 +1,6 @@
 /* Header file for the tree-sitter integration.
 
-Copyright (C) 2021-2023 Free Software Foundation, Inc.
+Copyright (C) 2021-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -53,7 +53,9 @@ struct Lisp_TS_Parser
   /* Re-parsing an unchanged buffer is not free for tree-sitter, so we
      only make it re-parse when need_reparse == true.  That usually
      means some change is made in the buffer.  But others could set
-     this field to true to force tree-sitter to re-parse.  */
+     this field to true to force tree-sitter to re-parse.  When you
+     set this to true, you should _always_ also increment
+     timestamp.  */
   bool need_reparse;
   /* These two positions record the buffer byte position (1-based) of
      the "visible region" that tree-sitter sees.  Before re-parse, we
@@ -187,6 +189,7 @@ extern Lisp_Object make_treesit_parser (Lisp_Object, TSParser *, TSTree *,
 extern Lisp_Object make_treesit_node (Lisp_Object, TSNode);
 
 extern bool treesit_node_uptodate_p (Lisp_Object);
+extern bool treesit_node_buffer_live_p (Lisp_Object);
 
 extern void treesit_delete_parser (struct Lisp_TS_Parser *);
 extern void treesit_delete_query (struct Lisp_TS_Query *);

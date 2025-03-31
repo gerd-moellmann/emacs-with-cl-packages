@@ -1,5 +1,5 @@
 /* Functions for GUI implemented with Cocoa AppKit on macOS.
-   Copyright (C) 2008-2023  YAMAMOTO Mitsuharu
+   Copyright (C) 2008-2025  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -1087,6 +1087,17 @@ mac_uti_copy_filename_extension (CFStringRef uti)
 #endif
 }
 
+CFStringRef
+mac_uti_copy_mime_type (CFStringRef uti)
+{
+#if HAVE_UNIFORM_TYPE_IDENTIFIERS
+  return CFBridgingRetain ([UTType typeWithIdentifier:((__bridge NSString *)
+						       uti)].preferredMIMEType);
+#else
+  return UTTypeCopyPreferredTagWithClass (uti, kUTTagClassMIMEType);
+#endif
+}
+
 
 /************************************************************************
 			     Application
@@ -1214,6 +1225,10 @@ static bool handling_queued_nsevents_p;
   [NSApp registerUserInterfaceItemSearchHandler:self];
   Vmac_help_topics = Qnil;
 
+  /* Initialize spell checker for ispell and jinx enchant-2 using
+     AppleSpell.  See https://github.com/minad/jinx/pull/91 */
+  (void) [NSSpellChecker sharedSpellChecker];
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 101500
   /* Work around animation effect glitches for executables linked on
      macOS 10.15.  */
@@ -1259,6 +1274,11 @@ static bool handling_queued_nsevents_p;
   /* Exit from the main event loop.  */
   [NSApp stop:nil];
   [NSApp postDummyEvent];
+}
+
+- (BOOL)applicationSupportsSecureRestorableState:(NSApplication *)app
+{
+  return YES;
 }
 
 - (void)applicationDidBecomeActive:(NSNotification *)notification
@@ -9161,9 +9181,11 @@ mac_get_default_scroll_bar_height (struct frame *f)
   toolbar.allowsUserCustomization = YES;
   toolbar.autosavesConfiguration = NO;
   toolbar.delegate = self;
-  toolbar.visible = visible;
 
   emacsWindow.toolbar = toolbar;
+  /* If we set toolbar.visible to NO before setting window's toolbar,
+     the title bar becomes taller on macOS 14.  */
+  toolbar.visible = visible;
   MRC_RELEASE (toolbar);
 
   [self updateToolbarDisplayMode];
@@ -10261,6 +10283,9 @@ mac_read_socket (struct terminal *terminal, struct input_event *hold_quit)
 - (void)showHourglass:(id)sender
 {
   if (hourglassWindow == nil
+      /* Adding a child window to an invisible one makes it
+	 appear.  */
+      && emacsWindow.isVisible
       /* Adding a child window to a window on an inactive space would
 	 cause space switching.  */
       && emacsWindow.isOnActiveSpace)
@@ -10640,8 +10665,6 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
     {
       NSString *itemName = [NSString stringWithUTF8String:wv->name
 				     fallback:YES];
-      NSData *data;
-
       if (wv->key != NULL)
 	itemName = [NSString stringWithFormat:@"%@\t%@", itemName,
 			     [NSString stringWithUTF8String:wv->key
@@ -10658,8 +10681,10 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
 	 objCType:@encode(Lisp_Object)] when USE_LISP_UNION_TYPE
 	 defined, because NSGetSizeAndAlignment does not support bit
 	 fields (at least as of Mac OS X 10.5).  */
-      data = [NSData dataWithBytes:&wv->help length:(sizeof (Lisp_Object))];
-      [item setRepresentedObject:data];
+      EmacsWeakLispObject *weakLispObject =
+	[[EmacsWeakLispObject alloc] initWithLispObject:wv->help];
+      item.representedObject = weakLispObject;
+      MRC_RELEASE (weakLispObject);
 
       /* Draw radio buttons and tickboxes. */
       if (wv->selected && (wv->button_type == BUTTON_TYPE_TOGGLE
@@ -10899,6 +10924,26 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
 
 @end				// EmacsMenu
 
+@implementation EmacsWeakLispObject
+
+- (instancetype)initWithLispObject:(Lisp_Object)anObject
+{
+  self = [self init];
+  if (self == nil)
+    return nil;
+
+  object = anObject;
+
+  return self;
+}
+
+- (Lisp_Object)lispObject
+{
+  return object;
+}
+
+@end				// EmacsWeakLispObject
+
 @implementation EmacsController (Menu)
 
 - (void)menu:(NSMenu *)menu willHighlightItem:(NSMenuItem *)item
@@ -10906,11 +10951,11 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
   if (!popup_activated ())
     return;
 
-  NSData *object = [item representedObject];
+  id object = item.representedObject;
   Lisp_Object help;
 
-  if (object)
-    [object getBytes:&help length:(sizeof (Lisp_Object))];
+  if ([object isKindOfClass:EmacsWeakLispObject.class])
+    help = ((EmacsWeakLispObject *) object).lispObject;
   else
     help = Qnil;
 
@@ -11318,7 +11363,7 @@ mac_fake_menu_bar_click (EventPriority priority)
       point.v += - NSMaxY (mainScreenFrame) + NSMaxY (baseScreenFrame);
     }
 
-  [emacsController showMenuBar];
+  mac_within_gui (^{[emacsController showMenuBar];});
 
   /* CopyEventAs is not available on Mac OS X 10.2.  */
   for (i = 0; i < 2; i++)
@@ -12145,7 +12190,10 @@ get_pasteboard_data_type_from_symbol (Lisp_Object sym, Selection sel)
   if (STRINGP (str))
     dataType = [NSString stringWithUTF8LispString:str];
   else
-    dataType = nil;
+    dataType =
+      CFBridgingRelease (mac_uti_create_with_mime_type
+			 ((__bridge CFStringRef)
+			  [NSString stringWithLispString:(SYMBOL_NAME (sym))]));
 
   if (dataType && sel)
     {
@@ -12249,33 +12297,33 @@ mac_get_selection_value (Selection sel, Lisp_Object target)
 }
 
 /* Get the list of target types in SEL.  The return value is a list of
-   target type symbols possibly followed by pasteboard data type
-   strings.  */
+   target type symbols including MIME type ones.  */
 
 Lisp_Object
 mac_get_selection_target_list (Selection sel)
 {
-  Lisp_Object result = Qnil, rest, target, strings = Qnil;
-  NSArrayOf (NSPasteboardType) *types = [(__bridge NSPasteboard *)sel types];
-  NSMutableSetOf (NSPasteboardType) *typeSet;
-  NSPasteboardType dataType;
+  Lisp_Object result = Qnil, rest, target;
+  NSArrayOf (NSPasteboardType) *types = ((__bridge NSPasteboard *) sel).types;
 
-  typeSet = [NSMutableSet setWithCapacity:[types count]];
-  [typeSet addObjectsFromArray:types];
+  for (NSPasteboardType type in types)
+    {
+      NSString *mimeType = CFBridgingRelease (mac_uti_copy_mime_type
+					      ((__bridge CFStringRef) type));
+      if (mimeType)
+	{
+	  target = Fintern (mimeType.lispString, Qnil);
+	  if (NILP (Fmemq (target, result)))
+	    result = Fcons (target, result);
+	}
+    }
 
   for (rest = Vselection_converter_alist; CONSP (rest); rest = XCDR (rest))
     if (CONSP (XCAR (rest))
 	&& (target = XCAR (XCAR (rest)),
 	    SYMBOLP (target))
-	&& (dataType = get_pasteboard_data_type_from_symbol (target, sel)))
-      {
-	result = Fcons (target, result);
-	[typeSet removeObject:dataType];
-      }
-
-  for (NSPasteboardType dataType in typeSet)
-    strings = Fcons ([dataType UTF8LispString], strings);
-  result = nconc2 (result, strings);
+	&& mac_selection_has_target_p (sel, target)
+	&& NILP (Fmemq (target, result)))
+      result = Fcons (target, result);
 
   return result;
 }
@@ -12591,7 +12639,8 @@ sourceOperationMaskForDraggingContext:(NSDraggingContext)context
 	[window convertRectFromScreen:(NSMakeRect (screenPoint.x, screenPoint.y,
 						   0, 0))].origin;
 #endif
-      NSEvent *event = [NSEvent keyEventWithType:NSKeyDown location:location
+      NSEvent *event = [NSEvent keyEventWithType:NSEventTypeKeyDown
+					location:location
 				   modifierFlags:0 timestamp:0
 				    windowNumber:windowNumber context:nil
 				      characters:@"\e"
@@ -16676,6 +16725,18 @@ mac_within_lisp_deferred_unless_popup (void (^block) (void))
     mac_within_lisp (block);
   else
     mac_within_lisp_deferred (block);
+}
+
+/* If called from the GUI thread, ask deferred execution of BLOCK to
+   the Lisp thread.  Otherwise, execute BLOCK directly.  */
+
+void
+mac_within_lisp_deferred_if_gui_thread (void (^block) (void))
+{
+  if (mac_gui_thread_p ())
+    mac_within_lisp_deferred (block);
+  else
+    block ();
 }
 
 

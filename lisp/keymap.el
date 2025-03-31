@@ -1,6 +1,10 @@
 ;;; keymap.el --- Keymap functions  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2021-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2024 Free Software Foundation, Inc.
+
+;; Maintainer: emacs-devel@gnu.org
+;; Keywords: internal
+;; Package: emacs
 
 ;; This file is part of GNU Emacs.
 
@@ -78,7 +82,7 @@ called from Lisp, COMMAND can be anything that `keymap-set' accepts
 as its DEFINITION argument.
 
 If COMMAND is a string (which can only happen when this function is
-callled from Lisp), it must satisfy `key-valid-p'.
+called from Lisp), it must satisfy `key-valid-p'.
 
 Note that if KEY has a local binding in the current buffer,
 that local binding will continue to shadow any global binding
@@ -102,7 +106,7 @@ called from Lisp, COMMAND can be anything that `keymap-set' accepts
 as its DEFINITION argument.
 
 If COMMAND is a string (which can only happen when this function is
-callled from Lisp), it must satisfy `key-valid-p'.
+called from Lisp), it must satisfy `key-valid-p'.
 
 The binding goes in the current buffer's local keymap, which in most
 cases is shared with all other buffers in the same major mode."
@@ -256,7 +260,7 @@ returned by \\[describe-key] (`describe-key')."
                         (setq word (concat (match-string 1 word)
                                            (match-string 3 word)))
                         (not (string-match
-                              "\\<\\(NUL\\|RET\\|LFD\\|ESC\\|SPC\\|DEL\\)$"
+                              "\\<\\(NUL\\|RET\\|LFD\\|TAB\\|ESC\\|SPC\\|DEL\\)$"
                               word))))
                  (setq key (list (intern word))))
                 ((or (equal word "REM") (string-match "^;;" word))
@@ -378,15 +382,17 @@ which is
 This function creates a `keyboard-translate-table' if necessary
 and then modifies one entry in it.
 
-Both KEY and TO should be specified by strings that satisfy `key-valid-p'."
+Both FROM and TO should be specified by strings that satisfy `key-valid-p'."
   (declare (compiler-macro
             (lambda (form) (keymap--compile-check from to) form)))
   (keymap--check from)
   (keymap--check to)
   (or (char-table-p keyboard-translate-table)
       (setq keyboard-translate-table
-	    (make-char-table 'keyboard-translate-table nil)))
-  (aset keyboard-translate-table (key-parse from) (key-parse to)))
+            (make-char-table 'keyboard-translate-table nil)))
+  (aset keyboard-translate-table
+        (aref (key-parse from) 0)
+        (aref (key-parse to) 0)))
 
 (defun keymap-lookup (keymap key &optional accept-default no-remap position)
   "Return the binding for command KEY in KEYMAP.

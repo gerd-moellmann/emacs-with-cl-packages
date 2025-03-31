@@ -1,6 +1,6 @@
 ;;; org-colview.el --- Column View in Org            -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2004-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2024 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten.dominik@gmail.com>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -116,6 +116,7 @@ in `org-columns-summary-types-default', which see."
 
 (defvar-local org-columns-overlays nil
   "Holds the list of current column overlays.")
+(put 'org-columns-overlays 'permanent-local t)
 
 (defvar-local org-columns-current-fmt nil
   "Local variable, holds the currently active column format.")
@@ -524,7 +525,8 @@ for the duration of the command.")
       (setq header-line-format org-previous-header-line-format)
       (kill-local-variable 'org-previous-header-line-format)
       (remove-hook 'post-command-hook #'org-columns-hscroll-title 'local))
-    (set-marker org-columns-begin-marker nil)
+    (when (markerp org-columns-begin-marker)
+      (set-marker org-columns-begin-marker nil))
     (when (markerp org-columns-top-level-marker)
       (set-marker org-columns-top-level-marker nil))
     (with-silent-modifications

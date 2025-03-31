@@ -1,6 +1,6 @@
 ;;; minibuffer.el --- Minibuffer and completion functions -*- lexical-binding: t -*-
 
-;; Copyright (C) 2008-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2024 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Package: emacs
@@ -1847,10 +1847,13 @@ appear to be a match."
    ;; Allow user to specify null string
    ((= beg end) (funcall exit-function))
    ;; The CONFIRM argument is a predicate.
-   ((and (functionp minibuffer-completion-confirm)
-         (funcall minibuffer-completion-confirm
-                  (buffer-substring beg end)))
-    (funcall exit-function))
+   ((functionp minibuffer-completion-confirm)
+    (if (funcall minibuffer-completion-confirm
+                 (buffer-substring beg end))
+        (funcall exit-function)
+      (unless completion-fail-discreetly
+	(ding)
+	(completion--message "No match"))))
    ;; See if we have a completion from the table.
    ((test-completion (buffer-substring beg end)
                      minibuffer-completion-table
@@ -3259,9 +3262,10 @@ Fourth arg MUSTMATCH can take the following values:
   input, but she needs to confirm her choice if she called
   `minibuffer-complete' right before `minibuffer-complete-and-exit'
   and the input is not an existing file.
-- a function, which will be called with the input as the
-  argument.  If the function returns a non-nil value, the
-  minibuffer is exited with that argument as the value.
+- a function, which will be called with a single argument, the
+  input unquoted by `substitute-in-file-name', which see.  If the
+  function returns a non-nil value, the minibuffer is exited with
+  that argument as the value.
 - anything else behaves like t except that typing RET does not exit if it
   does non-null completion.
 
@@ -3350,7 +3354,13 @@ See `read-file-name' for the meaning of the arguments."
     (let ((ignore-case read-file-name-completion-ignore-case)
           (minibuffer-completing-file-name t)
           (pred (or predicate 'file-exists-p))
-          (add-to-history nil))
+          (add-to-history nil)
+          (require-match (if (functionp mustmatch)
+                             (lambda (input)
+                               (funcall mustmatch
+                                        ;; User-supplied MUSTMATCH expects an unquoted filename
+                                        (substitute-in-file-name input)))
+                           mustmatch)))
 
       (let* ((val
               (if (or (not (next-read-file-uses-dialog-p))
@@ -3386,7 +3396,7 @@ See `read-file-name' for the meaning of the arguments."
 				   (read-file-name--defaults dir initial))))
 			  (set-syntax-table minibuffer-local-filename-syntax))
                       (completing-read prompt 'read-file-name-internal
-                                       pred mustmatch insdef
+                                       pred require-match insdef
                                        'file-name-history default-filename)))
                 ;; If DEFAULT-FILENAME not supplied and DIR contains
                 ;; a file name, split it.

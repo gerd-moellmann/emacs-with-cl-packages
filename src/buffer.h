@@ -1,6 +1,6 @@
 /* Header file for the buffer manipulation primitives.
 
-Copyright (C) 1985-2023 Free Software Foundation, Inc.
+Copyright (C) 1985-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -651,9 +651,9 @@ struct buffer
   ptrdiff_t last_window_start;
 
   /* If the long line scan cache is enabled (i.e. the buffer-local
-     variable cache-long-line-scans is non-nil), newline_cache
-     points to the newline cache, and width_run_cache points to the
-     width run cache.
+     variable cache-long-scans is non-nil), newline_cache points to
+     the newline cache, and width_run_cache points to the width run
+     cache.
 
      The newline cache records which stretches of the buffer are
      known *not* to contain newlines, so that they can be skipped

@@ -1,6 +1,6 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990--1995, 1998--2023 Free Software Foundation, Inc.
+@c Copyright (C) 1990--1995, 1998--2024 Free Software Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Text
 @chapter Text
@@ -2808,22 +2808,21 @@ indentation in the text.
 @deffn Command back-to-indentation
 @comment !!SourceFile simple.el
 This command moves point to the first non-whitespace character in the
-current line (which is the line in which point is located).  It returns
-@code{nil}.
+current line (which is the line in which point is located).
 @end deffn
 
 @deffn Command backward-to-indentation &optional arg
 @comment !!SourceFile simple.el
 This command moves point backward @var{arg} lines and then to the
-first nonblank character on that line.  It returns @code{nil}.
-If @var{arg} is omitted or @code{nil}, it defaults to 1.
+first nonblank character on that line.  If @var{arg} is omitted or
+@code{nil}, it defaults to 1.
 @end deffn
 
 @deffn Command forward-to-indentation &optional arg
 @comment !!SourceFile simple.el
 This command moves point forward @var{arg} lines and then to the first
-nonblank character on that line.  It returns @code{nil}.
-If @var{arg} is omitted or @code{nil}, it defaults to 1.
+nonblank character on that line.  If @var{arg} is omitted or
+@code{nil}, it defaults to 1.
 @end deffn
 
 @node Case Changes
@@ -2946,7 +2945,10 @@ character.
 
   Copying text between strings and buffers preserves the properties
 along with the characters; this includes such diverse functions as
-@code{substring}, @code{insert}, and @code{buffer-substring}.
+@code{substring}, @code{insert}, and @code{buffer-substring}.  Killing
+and then yanking text (@pxref{The Kill Ring}) also preserves the
+properties, except that some properties are handled specially and
+might be removed when text is yanked; @pxref{Yanking}.
 
 @menu
 * Examining Properties::   Looking at the properties of one character.
@@ -5487,7 +5489,11 @@ made by the transaction.
 
 @defmac with-sqlite-transaction db body@dots{}
 Like @code{progn} (@pxref{Sequencing}), but executes @var{body} with a
-transaction held, and commits the transaction at the end.
+transaction held, and commits the transaction at the end if @var{body}
+completes normally.  If @var{body} signals an error, or committing the
+transaction fails, the changes in @var{db} performed by @var{body} are
+rolled back.  The macro returns the value of @var{body} if it
+completes normally and commit succeeds.
 @end defmac
 
 @defun sqlite-pragma db pragma

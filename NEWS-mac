@@ -1,9 +1,33 @@
+* emacs-29.4-mac-10.1 (2025-03-31)
+Based on Emacs 29.4.
+Sorry for the late release.  I've been busy and couldn't clear
+the backlog...
+
+** Fixed bugs
+
+*** Showing hourglass animation makes invisible frames visible.
+Reported by xristos.
+
+*** Creating a frame after turning off tool bars leads to a taller
+title bar on macOS 14.
+Reported by Martin Otte.
+
+*** Crash when highlighting a system context menu item.
+Reported by Charles Choi.
+
+*** Hang when the Jinx spell-checker loads the libenchant module.
+Contributed by Jeff Phillips.
+
+*** Hang when iconifying a frame if frame-title-format contains :eval.
+
+
 * emacs-29.1-mac-10.0 (2023-08-05)
 Based on Emacs 29.1.
 Currently, pixel-based mouse wheel smooth scrolling and pinch gesture
 are supported via traditional Mac port code rather than newly-added
 upstream one.  This may change in a future version.
 WebP image support does not require libwebp on macOS 11 and later.
+https://lists.gnu.org/r/emacs-devel/2023-08/msg00076.html
 
 ** Fixed bugs
 
@@ -12,6 +36,7 @@ WebP image support does not require libwebp on macOS 11 and later.
 
 * emacs-28.3-rc1-mac-9.2 (2023-08-02)
 Based on Emacs 28.3 Release Candidate.
+https://lists.gnu.org/r/emacs-devel/2023-08/msg00076.html
 
 ** Fixed bugs
 

@@ -1,6 +1,6 @@
 ;;; message.el --- composing mail and news messages -*- lexical-binding: t -*-
 
-;; Copyright (C) 1996-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2024 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: mail, news
@@ -911,8 +911,10 @@ installations, which are rare these days."
 (defcustom message-sendmail-envelope-from
   'obey-mail-envelope-from
   "Envelope-from when sending mail with sendmail.
-If this is nil, use `user-mail-address'.  If it is the symbol
-`header', use the From: header of the message."
+If this is `obey-mail-envelope-from', then use
+`mail-envelope-from' to decide what to do.  If it is nil, use
+`user-mail-address'.  If it is the symbol `header', use the
+\"From:\" header of the message."
   :version "27.1"
   :type '(choice (string :tag "From name")
 		 (const :tag "Use From: header from message" header)
@@ -1145,7 +1147,8 @@ Note that these functions use `mail-citation-hook' if that is non-nil."
 This can also be a list of functions.  Each function can find the
 citation between (point) and (mark t).  And each function should leave
 point and mark around the citation text as modified."
-  :type 'function
+  :type '(choice function
+                 (repeat function))
   :link '(custom-manual "(message)Insertion Variables")
   :group 'message-insertion)
 
@@ -1406,8 +1409,9 @@ This can also be a list of values."
   :group 'message
   :link '(custom-manual "(message)Mail Aliases")
   :type '(choice (const :tag "Use Mailabbrev" abbrev)
-		 (const :tag "Use ecomplete" ecomplete)
-		 (const :tag "No expansion" nil)))
+                 (const :tag "Use ecomplete" ecomplete)
+                 (set (const :tag "Use Mailabbrev" abbrev)
+                      (const :tag "Use ecomplete" ecomplete))))
 
 (defcustom message-self-insert-commands '(self-insert-command)
   "List of `self-insert-command's used to trigger ecomplete.
@@ -1451,8 +1455,9 @@ If a function email is passed as the argument."
   :group 'message
   :link '(custom-manual "(message)Wide Reply")
   :type '(choice (const :tag "Yourself" nil)
-		 regexp
-		 (repeat :tag "Regexp List" regexp)))
+                 regexp
+                 (repeat :tag "Regexp List" regexp)
+                 function))
 
 (defsubst message-dont-reply-to-names ()
   (if (functionp message-dont-reply-to-names)
@@ -1873,9 +1878,13 @@ downcased."
   :type '(repeat (repeat string)))
 
 (defcustom message-mail-user-agent nil
-  "Like `mail-user-agent'.
-Except if it is nil, use Gnus native MUA; if it is t, use
-`mail-user-agent'."
+  "Your preferred package for composing and sending email when using message.el.
+Like `mail-user-agent' (which see), this specifies the package you prefer
+to use for composing and sending email messages.
+The value can be anything accepted by `mail-user-agent', and in addition
+it can be nil or t.  If the value is nil, use the Gnus native Mail User
+Agent (MUA); if it is t, use the value of `mail-user-agent'.
+For more about mail user agents, see Info node `(emacs)Mail Methods'"
   :version "22.1"
   :type '(radio (const :tag "Gnus native"
 		       :format "%t\n"

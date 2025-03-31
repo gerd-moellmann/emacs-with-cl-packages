@@ -1,6 +1,6 @@
 -*- coding: utf-8; mode: text; -*-
 
-Copyright (C) 2007-2023 Free Software Foundation, Inc.
+Copyright (C) 2007-2024 Free Software Foundation, Inc.
 See the end of the file for license conditions.
 
 From README.multi-tty in the multi-tty branch.
@@ -479,8 +479,6 @@ THINGS TO DO
 ** Have a look at fatal_error_hook.
 
 ** Have a look at set_frame_matrix_frame.
-
-** Check if we got term-setup-hook right.
 
 ** I think tip_frame should be display-local.
 

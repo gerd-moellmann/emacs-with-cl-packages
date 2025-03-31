@@ -1,6 +1,6 @@
 ;;; warnings.el --- log and display warnings  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2002-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2024 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: internal
@@ -224,10 +224,14 @@ SUPPRESS-LIST is the list of kinds of warnings to suppress."
              (?q "quit and do nothing"))))
     (?y
      (customize-save-variable 'warning-suppress-log-types
-                              (cons (list type) warning-suppress-log-types)))
+                              (if (consp type)
+                                  (cons type warning-suppress-log-types)
+                                (cons (list type) warning-suppress-log-types))))
     (?n
      (customize-save-variable 'warning-suppress-types
-                              (cons (list type) warning-suppress-types)))
+                              (if (consp type)
+                                  (cons type warning-suppress-types)
+                                (cons (list type) warning-suppress-types))))
     (_ (message "Exiting"))))
 
 ;;;###autoload

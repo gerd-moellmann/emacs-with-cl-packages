@@ -1,8 +1,9 @@
 ;;; c-ts-common.el --- Utilities for C like Languages  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2023 Free Software Foundation, Inc.
+;; Copyright (C) 2023-2024 Free Software Foundation, Inc.
 
 ;; Maintainer : 付禹安 (Yuan Fu) <casouri@gmail.com>
+;; Package    : emacs
 ;; Keywords   : c c++ java javascript rust languages tree-sitter
 
 ;; This file is part of GNU Emacs.
@@ -115,7 +116,7 @@ non-whitespace characters of the current line."
   "Regexp pattern that matches a comment in C-like languages.")
 
 (defun c-ts-common--fill-paragraph (&optional arg)
-  "Fillling function for `c-ts-common'.
+  "Filling function for `c-ts-common'.
 ARG is passed to `fill-paragraph'."
   (interactive "*P")
   (save-restriction
@@ -133,7 +134,7 @@ ARG is passed to `fill-paragraph'."
       t)))
 
 (defun c-ts-common--fill-block-comment (&optional arg)
-  "Fillling function for block comments.
+  "Filling function for block comments.
 ARG is passed to `fill-paragraph'.  Assume point is in a block
 comment."
   (let* ((node (treesit-node-at (point)))

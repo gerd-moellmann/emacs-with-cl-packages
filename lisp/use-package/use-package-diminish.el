@@ -1,9 +1,10 @@
 ;;; use-package-diminish.el --- Support for the :diminish keyword  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2012-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2024 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@newartisans.com>
 ;; Maintainer: John Wiegley <johnw@newartisans.com>
+;; Package: use-package
 
 ;; This file is part of GNU Emacs.
 

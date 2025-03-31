@@ -1,6 +1,6 @@
 ;;; bindings.el --- define standard key bindings and some variables  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1985-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1985-2024 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: internal
@@ -226,9 +226,9 @@ mnemonics of the following coding systems:
 (put 'mode-line-mule-info 'risky-local-variable t)
 
 (defvar mode-line-client
-  `(""
-    (:propertize ("" (:eval (if (frame-parameter nil 'client) "@" "")))
-		 help-echo ,(purecopy "emacsclient frame")))
+  `(:eval
+    (if (frame-parameter nil 'client)
+	,(propertize "@" 'help-echo (purecopy "emacsclient frame"))))
   "Mode line construct for identifying emacsclient frames.")
 ;; Autoload if this file no longer dumped.
 ;;;###autoload
@@ -382,7 +382,7 @@ Keymap to display on minor modes.")
 
 (defvar mode-line-modes
   (let ((recursive-edit-help-echo
-         "Recursive edit, type M-C-c to get out"))
+         "Recursive edit, type C-M-c to get out"))
     (list (propertize "%[" 'help-echo recursive-edit-help-echo)
 	  "("
 	  `(:propertize ("" mode-name)
@@ -942,6 +942,14 @@ or backward in the buffer.  This is in contrast with \\[forward-word]
 and \\[backward-word], which see.
 
 Value is normally t.
+
+The word boundaries are normally determined by the buffer's syntax
+table and character script (according to `char-script-table'), but
+`find-word-boundary-function-table', such as set up by `subword-mode',
+can change that.  If a Lisp program needs to move by words determined
+strictly by the syntax table, it should use `forward-word-strictly'
+instead.  See Info node `(elisp) Word Motion' for details.
+
 If an edge of the buffer or a field boundary is reached, point is left there
 and the function returns nil.  Field boundaries are not noticed
 if `inhibit-field-text-motion' is non-nil."
@@ -958,6 +966,14 @@ or forward in the buffer.  This is in contrast with \\[backward-word]
 and \\[forward-word], which see.
 
 Value is normally t.
+
+The word boundaries are normally determined by the buffer's syntax
+table and character script (according to `char-script-table'), but
+`find-word-boundary-function-table', such as set up by `subword-mode',
+can change that.  If a Lisp program needs to move by words determined
+strictly by the syntax table, it should use `forward-word-strictly'
+instead.  See Info node `(elisp) Word Motion' for details.
+
 If an edge of the buffer or a field boundary is reached, point is left there
 and the function returns nil.  Field boundaries are not noticed
 if `inhibit-field-text-motion' is non-nil."

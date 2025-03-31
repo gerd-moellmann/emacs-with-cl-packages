@@ -1,6 +1,6 @@
 ;;; package.el --- Simple package system for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2007-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2024 Free Software Foundation, Inc.
 
 ;; Author: Tom Tromey <tromey@redhat.com>
 ;;         Daniel Hackney <dan@haxney.org>
@@ -3083,18 +3083,36 @@ either a full name or nil, and EMAIL is a valid email address."
 
     "--"
     ("Filter Packages"
-     ["Filter by Archive" package-menu-filter-by-archive :help "Filter packages by archive"]
-     ["Filter by Description" package-menu-filter-by-description :help "Filter packages by description"]
-     ["Filter by Keyword" package-menu-filter-by-keyword :help "Filter packages by keyword"]
-     ["Filter by Name" package-menu-filter-by-name :help "Filter packages by name"]
+     ["Filter by Archive" package-menu-filter-by-archive
+      :help
+      "Prompt for archive(s), display only packages from those archives"]
+     ["Filter by Description" package-menu-filter-by-description
+      :help
+      "Prompt for regexp, display only packages with matching description"]
+     ["Filter by Keyword" package-menu-filter-by-keyword
+      :help
+      "Prompt for keyword(s), display only packages with matching keywords"]
+     ["Filter by Name" package-menu-filter-by-name
+      :help
+      "Prompt for regexp, display only packages whose names match the regexp"]
      ["Filter by Name or Description" package-menu-filter-by-name-or-description
-      :help "Filter packages by name or description"]
-     ["Filter by Status" package-menu-filter-by-status :help "Filter packages by status"]
-     ["Filter by Version" package-menu-filter-by-version :help "Filter packages by version"]
-     ["Filter Marked" package-menu-filter-marked :help "Filter packages marked for upgrade"]
-     ["Clear Filter" package-menu-clear-filter :help "Clear package list filter"])
+      :help
+      "Prompt for regexp, display only packages whose name or description matches"]
+     ["Filter by Status" package-menu-filter-by-status
+      :help
+      "Prompt for status(es), display only packages with those statuses"]
+     ["Filter by Upgrades available" package-menu-filter-upgradable
+      :help "Display only installed packages for which upgrades are available"]
+     ["Filter by Version" package-menu-filter-by-version
+      :help
+      "Prompt for version and comparison operator, display only packages of matching versions"]
+     ["Filter Marked" package-menu-filter-marked
+      :help "Display only packages marked for installation or deletion"]
+     ["Clear Filter" package-menu-clear-filter
+      :help "Clear package list filtering, display the entire list again"])
 
-    ["Hide by Regexp" package-menu-hide-package :help "Hide all packages matching a regexp"]
+    ["Hide by Regexp" package-menu-hide-package
+     :help "Toggle visibility of obsolete and unwanted packages"]
     ["Display Older Versions" package-menu-toggle-hiding
      :style toggle :selected (not package-menu--hide-packages)
      :help "Display package even if a newer version is already installed"]
@@ -3985,8 +4003,8 @@ invocations."
 (defun package-menu--version-predicate (A B)
   "Predicate to sort \"*Packages*\" buffer by the version column.
 This is used for `tabulated-list-format' in `package-menu-mode'."
-  (let ((vA (or (version-to-list (aref (cadr A) 1)) '(0)))
-        (vB (or (version-to-list (aref (cadr B) 1)) '(0))))
+  (let ((vA (or (ignore-error error (version-to-list (aref (cadr A) 1))) '(0)))
+        (vB (or (ignore-error error (version-to-list (aref (cadr B) 1))) '(0))))
     (if (version-list-= vA vB)
         (package-menu--name-predicate A B)
       (version-list-< vA vB))))
@@ -4292,7 +4310,7 @@ STATUS can be a single status, a string, or a list of strings.
 If STATUS is nil or the empty string, show all packages.
 
 When called interactively, prompt for STATUS.  To specify
-several possible status values, type them seperated by commas."
+several possible status values, type them separated by commas."
   (interactive (list (completing-read "Filter by status: "
                                       '("avail-obso"
                                         "available"

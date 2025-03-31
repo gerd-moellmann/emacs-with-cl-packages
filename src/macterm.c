@@ -1,6 +1,6 @@
 /* Implementation of GUI terminal on macOS.
    Copyright (C) 2000-2008  Free Software Foundation, Inc.
-   Copyright (C) 2009-2023  YAMAMOTO Mitsuharu
+   Copyright (C) 2009-2025  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -4517,7 +4517,7 @@ bool mac_screen_config_changed = 0;
    except `clear' (-> <clear>) on the KeyPad, `enter' (-> <kp-enter>)
    on the right of the Cmd key on laptops, and fn + `enter' (->
    <linefeed>). */
-const unsigned char keycode_to_xkeysym_table[] = {
+static const unsigned char keycode_to_xkeysym_table[] = {
   /*0x00*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   /*0x10*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   /*0x20*/ 0, 0, 0, 0, 0x0d /*return*/, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,

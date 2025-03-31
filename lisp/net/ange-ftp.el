@@ -1,6 +1,6 @@
 ;;; ange-ftp.el --- transparent FTP support for GNU Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1989-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1989-2024 Free Software Foundation, Inc.
 
 ;; Author: Andy Norman <ange@hplb.hpl.hp.com>
 ;; Maintainer: emacs-devel@gnu.org
@@ -2164,7 +2164,7 @@ Create a new process if needed."
       proc)))
 
 (defun ange-ftp-passive-mode (proc on-or-off)
-  (if (string-match (concat "Passive mode " on-or-off)
+  (if (string-match (concat "Passive mode:? " on-or-off)
                     (cdr (ange-ftp-raw-send-cmd
                           proc (concat "passive " on-or-off)
                           "Trying passive mode..." nil)))

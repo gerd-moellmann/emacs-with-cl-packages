@@ -1,6 +1,6 @@
 ;;; auth-source.el --- authentication sources for Gnus and Emacs -*- lexical-binding: t -*-
 
-;; Copyright (C) 2008-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2024 Free Software Foundation, Inc.
 
 ;; Author: Ted Zlatanov <tzz@lifelogs.com>
 ;; Keywords: news
@@ -330,7 +330,6 @@ If the value is not a list, symmetric encryption will be used."
 
 (defun auth-source-read-char-choice (prompt choices)
   "Read one of CHOICES by `read-char-choice', or `read-char'.
-`dropdown-list' support is disabled because it doesn't work reliably.
 Only one of CHOICES will be returned.  The PROMPT is augmented
 with \"[a/b/c] \" if CHOICES is \(?a ?b ?c)."
   (when choices
@@ -1699,7 +1698,7 @@ authentication tokens:
     items))
 
 (cl-defun auth-source-secrets-create (&rest spec
-                                      &key backend host port create
+                                      &key backend host port create user
                                       &allow-other-keys)
   (let* ((base-required '(host user port secret label))
          ;; we know (because of an assertion in auth-source-search) that the
@@ -1707,6 +1706,7 @@ authentication tokens:
          (create-extra (if (eq t create) nil create))
          (current-data (car (auth-source-search :max 1
                                                 :host host
+                                                :user user
                                                 :port port)))
          (required (append base-required create-extra))
          (collection (oref backend source))
@@ -2161,7 +2161,7 @@ entries for git.gnus.org:
     items))
 
 (cl-defun auth-source-plstore-create (&rest spec
-                                      &key backend host port create
+                                      &key backend host port create user
                                       &allow-other-keys)
   (let* ((base-required '(host user port secret))
          (base-secret '(secret))
@@ -2171,9 +2171,11 @@ entries for git.gnus.org:
          (create-extra-secret (plist-get create :encrypted))
          (create-extra (if (eq t create) nil
                          (or (append (plist-get create :unencrypted)
-                                     create-extra-secret) create)))
+                                     create-extra-secret)
+                             create)))
          (current-data (car (auth-source-search :max 1
                                                 :host host
+                                                :user user
                                                 :port port)))
          (required (append base-required create-extra))
          (required-secret (append base-secret create-extra-secret))

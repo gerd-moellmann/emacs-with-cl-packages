@@ -1,5 +1,5 @@
 /* Definitions and headers for AppKit framework on macOS.
-   Copyright (C) 2008-2023  YAMAMOTO Mitsuharu
+   Copyright (C) 2008-2025  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -1084,6 +1084,16 @@ typedef NSInteger NSGlyphProperty;
 @end
 
 @interface EmacsMenu : NSMenu
+@end
+
+/* Lisp_Object wrapper that does not protect the contents from GC.  */
+
+@interface EmacsWeakLispObject : NSObject
+{
+  Lisp_Object object;
+}
+- (instancetype)initWithLispObject:(Lisp_Object)anObject;
+- (Lisp_Object)lispObject;
 @end
 
 @interface EmacsController (Menu) <NSMenuDelegate, NSUserInterfaceItemSearching>

@@ -10,7 +10,7 @@
 @copying
 This manual is for Eglot, the Emacs LSP client.
 
-Copyright @copyright{} 2022--2023 Free Software Foundation, Inc.
+Copyright @copyright{} 2022--2024 Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -406,9 +406,10 @@ provides:
 At-point documentation: when point is at or near a symbol or an
 identifier, the information about the symbol/identifier, such as the
 signature of a function or class method and server-generated
-diagnostics, is made available via the ElDoc package (@pxref{Lisp
-Doc,,, emacs, GNU Emacs Manual}).  This allows major modes to provide
-extensive help and documentation about the program identifiers.
+diagnostics, is made available via the ElDoc package
+(@pxref{Programming Language Doc,,, emacs, GNU Emacs Manual}).  This
+allows major modes to provide extensive help and documentation about
+the program identifiers.
 
 @item
 On-the-fly diagnostic annotations with server-suggested fixes, via the
@@ -681,12 +682,12 @@ This command reformats the current buffer, in the same manner as
 These commands allow you to invoke the so-called @dfn{code actions}:
 requests for the language server to provide editing commands for
 correcting, refactoring or beautifying your code.  These commands may
-affect more than one visited file belong to the project.
+affect more than one visited file belonging to the project.
 
 The command @code{eglot-code-actions} asks the server if there any
 code actions for any point in the buffer or contained in the active
-region.  If there are, you the choice to execute one of them via the
-minibuffer.
+region.  If there are, you have the choice to execute one of them via
+the minibuffer.
 
 A common use of code actions is fixing the Flymake error diagnostics
 issued by Eglot (@pxref{Top,,, flymake, GNU Flymake manual}).
@@ -1084,8 +1085,8 @@ To apply this to Eglot, and assuming you chose the
                                              :fuzzy t)
                            :pylint (:enabled :json-false)))
          :gopls (:usePlaceholders t)))))
- (python-mode . ((indent-tabs-mode . nil)))
- (go-mode     . ((indent-tabs-mode . t))))
+ (python-base-mode . ((indent-tabs-mode . nil)))
+ (go-mode          . ((indent-tabs-mode . t))))
 @end lisp
 
 @noindent
@@ -1100,7 +1101,7 @@ plists are used inside the value of
 This following form may also be used:
 
 @lisp
-((python-mode
+((python-base-mode
   . ((eglot-workspace-configuration
       . (:pylsp (:plugins (:jedi_completion (:include_params t
                                              :fuzzy t)
@@ -1115,7 +1116,7 @@ This following form may also be used:
 @noindent
 This sets up the value of @code{eglot-workspace-configuration}
 separately depending on the major mode of each of that project's
-buffers.  @code{python-mode} buffers will have the variable set to
+buffers.  @code{python-base-mode} buffers will have the variable set to
 @code{(:pylsp (:plugins ...))}.  @code{go-mode} buffers will have the
 variable set to @code{(:gopls (:usePlaceholders t))}.
 
@@ -1126,7 +1127,7 @@ want to set a different option for @code{gopls.usePlaceholders} , you
 may use something like:
 
 @lisp
-((python-mode
+((python-base-mode
   . ((eglot-workspace-configuration
       . (:pylsp (:plugins (:jedi_completion (:include_params t
                                              :fuzzy t)
@@ -1209,7 +1210,7 @@ in @ref{Project-specific configuration}.  Here is an example:
 @end lisp
 
 Note that the global value of @code{eglot-workspace-configuration} is
-always overriden if a directory-local value is detected.
+always overridden if a directory-local value is detected.
 
 @node JSONRPC objects in Elisp
 @section JSONRPC objects in Elisp
@@ -1233,8 +1234,8 @@ For example, the plist
 @lisp
 (:pylsp (:plugins (:jedi_completion (:include_params t
                                      :fuzzy t
-                                     :cache_for ["pandas" "numpy"]
-                   :pylint (:enabled :json-false))))
+                                     :cache_for ["pandas" "numpy"])
+                   :pylint (:enabled :json-false)))
  :gopls (:usePlaceholders t))
 @end lisp
 
@@ -1248,7 +1249,7 @@ is serialized by Eglot to the following JSON text:
       "jedi_completion": @{
         "include_params": true,
         "fuzzy": true,
-        "cache_for": [ "pandas", "numpy" ],
+        "cache_for": [ "pandas", "numpy" ]
       @},
       "pylint": @{
         "enabled": false
@@ -1256,8 +1257,8 @@ is serialized by Eglot to the following JSON text:
     @}
   @},
   "gopls": @{
-    "usePlaceholders":true
-  @},
+    "usePlaceholders": true
+  @}
 @}
 @end example
 

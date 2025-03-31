@@ -1,6 +1,6 @@
 ;;; files-tests.el --- tests for files.el.  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2012-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2024 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -661,6 +661,24 @@ unquoted file names."
     (should (equal (expand-file-name nospecial) nospecial)))
   (files-tests--with-temp-non-special-and-file-name-handler (tmpfile nospecial)
     (should (equal (expand-file-name nospecial) nospecial))))
+
+(ert-deftest files-tests-file-name-non-special-expand-file-name-tilde ()
+  (let ((process-environment
+         (cons (format "HOME=%s" (file-truename temporary-file-directory))
+               process-environment))
+        abbreviated-home-dir)
+    (files-tests--with-temp-non-special (tmpfile nospecial)
+      (let (file-name-handler-alist)
+        (setq nospecial (file-name-quote (abbreviate-file-name tmpfile))))
+      (should (equal (expand-file-name nospecial)
+                     (expand-file-name (file-name-unquote nospecial t)))))
+    (files-tests--with-temp-non-special-and-file-name-handler (tmpfile nospecial)
+      (let (file-name-handler-alist)
+        (setq nospecial (file-name-quote (abbreviate-file-name tmpfile))))
+      (should-not
+       (equal (expand-file-name nospecial)
+              ;; The file name handler deletes the ".special" extension.
+              (expand-file-name (file-name-unquote nospecial t)))))))
 
 (ert-deftest files-tests-file-name-non-special-file-accessible-directory-p ()
   (files-tests--with-temp-non-special (tmpdir nospecial-dir t)

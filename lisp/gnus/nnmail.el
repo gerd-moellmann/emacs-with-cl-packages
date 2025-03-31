@@ -1,6 +1,6 @@
 ;;; nnmail.el --- mail support functions for the Gnus mail backends  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1995-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1995-2024 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: news, mail
@@ -667,7 +667,9 @@ nn*-request-list should have been called before calling this function."
 		  (cond ((symbolp group)
 			 (symbol-name group))
 			((numberp group)
-			 (number-to-string group))))
+			 (number-to-string group))
+                        ((stringp group)
+			 group)))
 	    (if (and (numberp (setq max (read buffer)))
 		     (numberp (setq min (read buffer))))
 		(push (list group (cons min max))

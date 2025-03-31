@@ -1,6 +1,6 @@
 ;;; browse-url.el --- pass a URL to a web browser  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1995-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1995-2024 Free Software Foundation, Inc.
 
 ;; Author: Denis Howe <dbh@doc.ic.ac.uk>
 ;; Maintainer: emacs-devel@gnu.org
@@ -240,7 +240,7 @@ be used instead."
      (concat
       "\\(?:"
       ;; Match paired parentheses, e.g. in Wikipedia URLs:
-      ;; http://thread.gmane.org/47B4E3B2.3050402@gmail.com
+      ;; http://thread.gmane.org/47B4E3B2.3050402@gmail.com [dead link]
       "[" chars punct "]+" "(" "[" chars punct "]+" ")"
       "\\(?:" "[" chars punct "]+" "[" chars "]" "\\)?"
       "\\|"

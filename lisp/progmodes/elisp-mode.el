@@ -1,6 +1,6 @@
 ;;; elisp-mode.el --- Emacs Lisp mode  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1986, 1999-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1985-1986, 1999-2024 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: lisp, languages
@@ -84,6 +84,12 @@ All commands in `lisp-mode-shared-map' are inherited by this map."
      :help "Byte-compile the current file (if it has changed), then load compiled code"]
     ["Byte-recompile Directory..." byte-recompile-directory
      :help "Recompile every `.el' file in DIRECTORY that needs recompilation"]
+    ["Native-compile This File" emacs-lisp-native-compile
+     :help "Compile this buffer's file to native code"
+     :active (native-comp-available-p)]
+    ["Native-compile and Load" emacs-lisp-native-compile-and-load
+     :help "Compile this buffer's file to native code, then load compiled native code"
+     :active (native-comp-available-p)]
     ["Disassemble Byte Compiled Object..." disassemble
      :help "Print disassembled code for OBJECT in a buffer"]
     "---"
@@ -217,19 +223,30 @@ All commands in `lisp-mode-shared-map' are inherited by this map."
 (declare-function native-compile "comp")
 (declare-function comp-write-bytecode-file "comp")
 
+(defun emacs-lisp-native-compile ()
+  "Native-compile the current buffer's file (if it has changed).
+This invokes a synchronous native-compilation of the file that is
+visited by the current buffer."
+  (interactive nil emacs-lisp-mode)
+  (emacs-lisp--before-compile-buffer)
+  (let* ((byte+native-compile t)
+         (byte-to-native-output-buffer-file nil)
+         (eln (native-compile buffer-file-name)))
+    (when eln
+      (comp-write-bytecode-file eln))))
+
 (defun emacs-lisp-native-compile-and-load ()
-  "Native-compile synchronously the current file (if it has changed).
-Load the compiled code when finished.
+  "Native-compile the current buffer's file (if it has changed), then load it.
+This invokes a synchronous native-compilation of the file that is
+visited by the current buffer, then loads the compiled native code
+when the compilation is finished.
 
 Use `emacs-lisp-byte-compile-and-load' in combination with
 `native-comp-jit-compilation' set to t to achieve asynchronous
-native compilation."
+native compilation of the current buffer's file."
   (interactive nil emacs-lisp-mode)
-  (emacs-lisp--before-compile-buffer)
-  (let ((byte+native-compile t)
-        (byte-to-native-output-buffer-file nil))
-    (when-let ((eln (native-compile buffer-file-name)))
-      (load (file-name-sans-extension (comp-write-bytecode-file eln))))))
+  (when-let ((byte-file (emacs-lisp-native-compile)))
+    (load (file-name-sans-extension byte-file))))
 
 (defun emacs-lisp-macroexpand ()
   "Macroexpand the form after point.
@@ -434,9 +451,14 @@ be used instead.
                                      (error form))))
              (sexp
               (unwind-protect
-                  (let ((warning-minimum-log-level :emergency))
+                  ;; Silence any macro expansion errors when
+                  ;; attempting completion at point (bug#58148).
+                  (let ((inhibit-message t)
+                        (warning-minimum-log-level :emergency))
                     (advice-add 'macroexpand :around macroexpand-advice)
-                    (macroexpand-all sexp))
+                    (condition-case nil
+                        (macroexpand-all sexp)
+                      (error sexp)))
                 (advice-remove 'macroexpand macroexpand-advice)))
              (vars (elisp--local-variables-1 nil sexp)))
         (delq nil

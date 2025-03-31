@@ -1,6 +1,6 @@
 ;;; ob-C.el --- Babel Functions for C and Similar Languages -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2010-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2024 Free Software Foundation, Inc.
 
 ;; Author: Eric Schulte
 ;;      Thierry Banel
@@ -339,7 +339,7 @@ FORMAT can be either a format string or a function which is called with VAL."
 	 (type
 	  (pcase basetype
 	    (`integerp '("int" "%d"))
-	    (`floatp '("double" "%f"))
+	    (`floatp '("double" "%s")) ;; %f rounds, use %s to print the float literally
 	    (`stringp
 	     (list
 	      (if (eq org-babel-c-variant 'd) "string" "const char*")

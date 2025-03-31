@@ -1,6 +1,6 @@
 ;;; vc-tests.el --- Tests of different backends of vc.el  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2014-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2014-2024 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 
@@ -596,8 +596,9 @@ This checks also `vc-backend' and `vc-responsible-backend'."
     (let ((vc-handled-backends `(,backend))
           (default-directory
            (file-name-as-directory
-            (expand-file-name
-             (make-temp-name "vc-test") temporary-file-directory)))
+            (file-truename
+             (expand-file-name
+              (make-temp-name "vc-test") temporary-file-directory))))
           (process-environment process-environment)
           vc-test--cleanup-hook)
       (when (eq backend 'Bzr)

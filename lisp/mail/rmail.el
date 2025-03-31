@@ -1,6 +1,6 @@
 ;;; rmail.el --- main code of "RMAIL" mail reader for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-1988, 1993-1998, 2000-2023 Free Software
+;; Copyright (C) 1985-1988, 1993-1998, 2000-2024 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -462,7 +462,9 @@ as argument, to ask the user that question."
   "List of functions to call when Rmail is invoked.")
 
 (defvar rmail-get-new-mail-hook nil
-  "List of functions to call when Rmail has retrieved new mail.")
+  "List of functions to call when Rmail has retrieved new mail.
+The functions are called in `rmail-buffer' narrowed to include
+only the new email messages, with point at the first new mail.")
 
 ;;;###autoload
 (defcustom rmail-show-message-hook nil
@@ -2684,7 +2686,9 @@ N defaults to the current message."
 	  (and (string-match text-regexp content-type-header) t)))))
 
 (defcustom rmail-show-message-verbose-min 200000
-  "Message size at which to show progress messages for displaying it."
+  "Message size at which to show progress messages for displaying it.
+Messages longer than this (in characters) will produce echo-area
+messages when Rmail processes such a message for display."
   :type 'integer
   :group 'rmail
   :version "23.1")

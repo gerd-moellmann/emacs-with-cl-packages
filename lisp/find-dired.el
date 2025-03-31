@@ -1,6 +1,6 @@
 ;;; find-dired.el --- run a `find' command and dired the output  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1992-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1992-2024 Free Software Foundation, Inc.
 
 ;; Author: Roland McGrath <roland@gnu.org>,
 ;;	   Sebastian Kremer <sk@thp.uni-koeln.de>
@@ -244,8 +244,8 @@ it finishes, type \\[kill-find]."
     (erase-buffer)
     (setq default-directory dir)
     ;; Start the find process.
-    (shell-command (concat command "&") (current-buffer))
-    (let ((proc (get-buffer-process (current-buffer))))
+    (let ((proc (start-file-process-shell-command
+                 (buffer-name) (current-buffer) command)))
       ;; Initialize the process marker; it is used by the filter.
       (move-marker (process-mark proc) (point) (current-buffer))
       (set-process-filter proc #'find-dired-filter)

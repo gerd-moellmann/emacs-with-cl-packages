@@ -1,11 +1,12 @@
 ;;; bind-key.el --- A simple way to manage personal keybindings  -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2012-2023 Free Software Foundation, Inc.
+;; Copyright (c) 2012-2024 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@newartisans.com>
 ;; Maintainer: John Wiegley <johnw@newartisans.com>
 ;; Created: 16 Jun 2012
 ;; Version: 2.4.1
+;; Package: bind-key
 ;; Package-Requires: ((emacs "24.3"))
 ;; Keywords: keys keybinding config dotemacs extensions
 ;; URL: https://github.com/jwiegley/use-package
@@ -196,6 +197,7 @@ can safely be called at any time."
                                (key-description ,namevar))
                              (if (symbolp ,keymap) ,keymap (quote ,keymap))))
             (,bindingvar (lookup-key ,kmapvar ,keyvar)))
+       (require 'bind-key)      ; ensure `personal-keybindings' is in scope
        (let ((entry (assoc ,kdescvar personal-keybindings))
              (details (list ,command
                             (unless (numberp ,bindingvar)

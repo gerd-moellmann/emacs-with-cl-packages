@@ -1,6 +1,6 @@
 /* Fundamental definitions for GNU Emacs Lisp interpreter. -*- coding: utf-8 -*-
 
-Copyright (C) 1985-2023 Free Software Foundation, Inc.
+Copyright (C) 1985-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -5213,6 +5213,7 @@ extern void mac_release_autorelease_pool (void *);
 /* Defined in macappkit.m */
 extern bool mac_gui_thread_p (void);
 extern void mac_handle_alarm_signal (void);
+extern void mac_within_lisp_deferred_if_gui_thread (void (^) (void));
 
 /* Defined in emacs.c */
 extern int emacs_main (int, char **);

@@ -1,6 +1,6 @@
 ;;; simple.el --- basic editing commands for Emacs  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1987, 1993-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1985-1987, 1993-2024 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: internal
@@ -4505,7 +4505,7 @@ a shell (with its need to quote arguments)."
 				 (dired-get-filename nil t)))))
 			  (and filename (file-relative-name filename))))
     nil
-    ;; FIXME: the following argument is always ignored by 'shell-commnd',
+    ;; FIXME: the following argument is always ignored by 'shell-command',
     ;; when the command is invoked asynchronously, except, perhaps, when
     ;; 'default-directory' is remote.
     shell-command-default-error-buffer))
@@ -5060,7 +5060,16 @@ characters."
     exit-status))
 
 (defun shell-command-to-string (command)
-  "Execute shell command COMMAND and return its output as a string."
+  "Execute shell command COMMAND and return its output as a string.
+Use `shell-quote-argument' to quote dangerous characters in
+COMMAND before passing it as an argument to this function.
+
+Use this function only when a shell interpreter is needed.  In
+other cases, consider alternatives such as `call-process' or
+`process-lines', which do not invoke the shell.  Consider using
+built-in functions like `rename-file' instead of the external
+command \"mv\".  For more information, see Info node
+`(elisp)Security Considerations'."
   (with-output-to-string
     (with-current-buffer standard-output
       (shell-command command t))))
@@ -8228,7 +8237,11 @@ rests."
       (let ((newpos
 	     (save-excursion
 	       (let ((goal-column 0)
-		     (line-move-visual nil))
+		     (line-move-visual nil)
+                     ;; Always move to eol when invoking `C-e' from
+                     ;; within the minibuffer's prompt string (see
+                     ;; bug#65980).
+                     (inhibit-field-text-motion (minibufferp)))
 		 (and (line-move arg t)
 		      ;; With bidi reordering, we may not be at bol,
 		      ;; so make sure we are.
@@ -8692,7 +8705,7 @@ node `(elisp) Word Motion' for details."
 
 (defun mark-word (&optional arg allow-extend)
   "Set mark ARG words from point or move mark one word.
-When called from Lisp with ALLOW-EXTEND ommitted or nil, mark is
+When called from Lisp with ALLOW-EXTEND omitted or nil, mark is
 set ARG words from point.
 With ARG and ALLOW-EXTEND both non-nil (interactively, with prefix
 argument), the place to which mark goes is the same place \\[forward-word]
@@ -10664,10 +10677,13 @@ warning using STRING as the message.")
 
 ;;; Generic dispatcher commands
 
-;; Macro `define-alternatives' is used to create generic commands.
-;; Generic commands are these (like web, mail, news, encrypt, irc, etc.)
-;; that can have different alternative implementations where choosing
-;; among them is exclusively a matter of user preference.
+;; Macro `define-alternatives' can be used to create generic commands.
+;; Generic commands are commands that can have different alternative
+;; implementations, and choosing among them is the matter of user
+;; preference in each case.  For example, you could have a generic
+;; command `open' capable of "opening" a text file, a URL, a
+;; directory, or a binary file, and each of these alternatives would
+;; invoke a different Emacs function.
 
 ;; (define-alternatives COMMAND) creates a new interactive command
 ;; M-x COMMAND and a customizable variable COMMAND-alternatives.
@@ -10677,26 +10693,38 @@ warning using STRING as the message.")
 ;; ;;;###autoload (push '("My impl name" . my-impl-symbol) COMMAND-alternatives
 
 (defmacro define-alternatives (command &rest customizations)
-  "Define the new command `COMMAND'.
+  "Define a new generic COMMAND which can have several implementations.
 
-The argument `COMMAND' should be a symbol.
+The argument `COMMAND' should be an unquoted symbol.
 
 Running `\\[execute-extended-command] COMMAND RET' for \
-the first time prompts for which
-alternative to use and records the selected command as a custom
-variable.
+the first time prompts for the
+alternative implementation to use and records the selected alternative.
+Thereafter, `\\[execute-extended-command] COMMAND RET' will \
+automatically invoke the recorded selection.
 
 Running `\\[universal-argument] \\[execute-extended-command] COMMAND RET' \
-prompts again for an alternative
-and overwrites the previous choice.
+again prompts for an alternative
+and overwrites the previous selection.
 
-The variable `COMMAND-alternatives' contains an alist with
-alternative implementations of COMMAND.  `define-alternatives'
-does not have any effect until this variable is set.
+The macro creates a `defcustom' named `COMMAND-alternatives'.
+CUSTOMIZATIONS, if non-nil, should be pairs of `defcustom'
+keywords and values to add to the definition of that `defcustom';
+typically, these keywords will be :group and :version with the
+appropriate values.
 
-CUSTOMIZATIONS, if non-nil, should be composed of alternating
-`defcustom' keywords and values to add to the declaration of
-`COMMAND-alternatives' (typically :group and :version)."
+To be useful, the value of `COMMAND-alternatives' should be an
+alist describing the alternative implementations of COMMAND.
+The elements of this alist should be of the form
+  (ALTERNATIVE-NAME . FUNCTION)
+where ALTERNATIVE-NAME is the name of the alternative to be shown
+to the user as a selectable alternative, and FUNCTION is the
+interactive function to call which implements that alternative.
+The variable could be populated with associations describing the
+alternatives either before or after invoking `define-alternatives';
+if the variable is not defined when `define-alternatives' is invoked,
+the macro will create it with a nil value, and your Lisp program
+should then populate it."
   (declare (indent defun))
   (let* ((command-name (symbol-name command))
          (varalt-name (concat command-name "-alternatives"))
@@ -10835,6 +10863,10 @@ If the buffer doesn't exist, create it first."
   (pop-to-buffer-same-window (get-scratch-buffer-create)))
 
 (defun kill-buffer--possibly-save (buffer)
+  "Ask the user to confirm killing of a modified BUFFER.
+
+If the user confirms, optionally save BUFFER that is about to be
+killed."
   (let ((response
          (cadr
           (read-multiple-choice

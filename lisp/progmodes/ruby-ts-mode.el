@@ -1,6 +1,6 @@
 ;;; ruby-ts-mode.el --- Major mode for editing Ruby files using tree-sitter -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2022-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
 
 ;; Author: Perry Smith <pedz@easesoftware.com>
 ;; Created: December 2022
@@ -197,8 +197,8 @@
 (defun ruby-ts--comment-font-lock (node override start end &rest _)
   "Apply font lock to comment NODE within START and END.
 Applies `font-lock-comment-delimiter-face' and
-`font-lock-comment-face' See `treesit-fontify-with-override' for
-values of OVERRIDE"
+`font-lock-comment-face'.  See `treesit-fontify-with-override' for
+values of OVERRIDE."
   ;; Empirically it appears as if (treesit-node-start node) will be
   ;; where the # character is at and (treesit-node-end node) will be
   ;; the end of the line
@@ -601,7 +601,7 @@ a statement container is a node that matches
 
            ;; case expression: when, in_clause, and else are all
            ;; children of case.  when and in_clause have pattern and
-           ;; body as fields.  body has "then" and then the statemets.
+           ;; body as fields.  body has "then" and then the statements.
            ;; i.e. the statements are not children of when but then.
            ;; But for the statements are children of else.
            ((match "when" "case")
@@ -753,8 +753,9 @@ a statement container is a node that matches
 
            ((match "}" "hash")  ruby-ts--parent-call-or-bol 0)
            ((parent-is "hash")  ruby-ts--parent-call-or-bol ruby-indent-level)
-           ((match "]" "array") ruby-ts--parent-call-or-bol 0)
-           ((parent-is "array") ruby-ts--parent-call-or-bol ruby-indent-level)
+           ((match "]" "^array") ruby-ts--parent-call-or-bol 0)
+           ((parent-is "^array") ruby-ts--parent-call-or-bol ruby-indent-level)
+           ((match ")" "string_array") ruby-ts--parent-call-or-bol 0)
 
            ((parent-is "pair") ruby-ts--parent-call-or-bol 0)
 
@@ -1021,7 +1022,7 @@ leading double colon is not added."
                               (:match "\\`\\$[#\"'`:?]" @global_var))
                              ;; ?' ?" ?` are character literals.
                              ((character) @char
-                              (:match "\\`?[#\"'`:?]" @char))
+                              (:match "\\`\\?[#\"'`:?]" @char))
                              ;; Symbols like :+, :<=> or :foo=.
                              ((simple_symbol) @symbol
                               (:match "\\s." @symbol))
@@ -1063,8 +1064,9 @@ leading double colon is not added."
         ('heredoc
          (put-text-property (treesit-node-start node) (1+ (treesit-node-start node))
                             'syntax-table (string-to-syntax "\""))
-         (put-text-property (treesit-node-end node) (1+ (treesit-node-end node))
-                            'syntax-table (string-to-syntax "\"")))
+         (when (< (treesit-node-end node) (point-max))
+           (put-text-property (treesit-node-end node) (1+ (treesit-node-end node))
+                              'syntax-table (string-to-syntax "\""))))
         ('percent
          ;; FIXME: Put the first one on the first paren in both %Q{} and %().
          ;; That would stop electric-pair-mode from pairing, though.  Hmm.
@@ -1135,19 +1137,7 @@ leading double colon is not added."
 
   (treesit-major-mode-setup)
 
-  (treesit-parser-add-notifier (car (treesit-parser-list))
-                               #'ruby-ts--parser-after-change)
-
   (setq-local syntax-propertize-function #'ruby-ts--syntax-propertize))
-
-(defun ruby-ts--parser-after-change (ranges parser)
-  ;; Make sure we re-syntax-propertize the full node that is being
-  ;; edited.  This is most pertinent to multi-line complex nodes such
-  ;; as heredocs.
-  (when ranges
-    (with-current-buffer (treesit-parser-buffer parser)
-      (syntax-ppss-flush-cache (cl-loop for r in ranges
-                                        minimize (car r))))))
 
 (if (treesit-ready-p 'ruby)
     ;; Copied from ruby-mode.el.

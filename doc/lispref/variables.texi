@@ -1,6 +1,6 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990--1995, 1998--2023 Free Software Foundation, Inc.
+@c Copyright (C) 1990--1995, 1998--2024 Free Software Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Variables
 @chapter Variables
@@ -678,15 +678,15 @@ which are being phased out.)
 it as safe or risky; see @ref{File Local Variables}.
 
   When defining and initializing a variable that holds a complicated
-value (such as a keymap with bindings in it), it's best to put the
+value (such as a syntax table for a major mode), it's best to put the
 entire computation of the value into the @code{defvar}, like this:
 
 @example
-(defvar my-mode-map
-  (let ((map (make-sparse-keymap)))
-    (keymap-set map "C-c C-a" 'my-command)
+(defvar my-major-mode-syntax-table
+  (let ((table (make-syntax-table)))
+    (modify-syntax-entry ?# "<" table)
     @dots{}
-    map)
+    table)
   @var{docstring})
 @end example
 
@@ -696,9 +696,9 @@ loading the file, the variable is either still uninitialized or
 initialized properly, never in-between.  If it is still uninitialized,
 reloading the file will initialize it properly.  Second, reloading the
 file once the variable is initialized will not alter it; that is
-important if the user has run hooks to alter part of the contents
-(such as, to rebind keys).  Third, evaluating the @code{defvar} form
-with @kbd{C-M-x} will reinitialize the map completely.
+important if the user has changed its value.  Third, evaluating the
+@code{defvar} form with @kbd{C-M-x} will reinitialize the variable
+completely.
 
 @node Accessing Variables
 @section Accessing Variable Values
@@ -2971,7 +2971,7 @@ meant to be used, here's a small example:
 
 @lisp
 @group
-(define-multisession-variable foo-var 0)
+(define-multisession-variable foo 0)
 (defun my-adder (num)
   (interactive "nAdd number: ")
   (setf (multisession-value foo)
@@ -2981,7 +2981,7 @@ meant to be used, here's a small example:
 @end lisp
 
 @noindent
-This defines the variable @code{foo-var} and binds it to a special
+This defines the variable @code{foo} and binds it to a special
 multisession object which is initialized with the value @samp{0} (if
 the variable doesn't already exist from a previous session).  The
 @code{my-adder} command queries the user for a number, adds this to
@@ -3004,7 +3004,7 @@ specified by @var{package-symbol}.  The combination of
 @var{package-symbol} isn't given, this will default to the first
 ``segment'' of the @var{name} symbol's name, which is the part of its
 name up to and excluding the first @samp{-}.  For instance, if
-@var{name} is @code{foo-var} and @var{package-symbol} isn't given,
+@var{name} is @code{foo} and @var{package-symbol} isn't given,
 @var{package-symbol} will default to @code{foo}.
 
 @cindex synchronized multisession variables
@@ -3012,7 +3012,7 @@ name up to and excluding the first @samp{-}.  For instance, if
 Multisession variables can be @dfn{synchronized} if @var{bool} is
 non-@code{nil}.  This means that if there're two concurrent Emacs
 instances running, and the other Emacs changes the multisession
-variable @code{foo-var}, the current Emacs instance will retrieve that
+variable @code{foo}, the current Emacs instance will retrieve that
 modified data when accessing the value.  If @var{synchronized} is
 @code{nil} or missing, this won't happen, and the values in all
 Emacs sessions using the variable will be independent of each other.

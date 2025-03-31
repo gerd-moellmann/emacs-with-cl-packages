@@ -1,6 +1,6 @@
 ;;; replace.el --- replace commands for Emacs -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1987, 1992, 1994, 1996-1997, 2000-2023 Free
+;; Copyright (C) 1985-1987, 1992, 1994, 1996-1997, 2000-2024 Free
 ;; Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -417,8 +417,9 @@ Replacement transfers the case pattern of the old text to the
 new text, if both `case-fold-search' and `case-replace' are
 non-nil and FROM-STRING has no uppercase letters.
 \(Transferring the case pattern means that if the old text
-matched is all caps, or capitalized, then its replacement is
-respectively upcased or capitalized.)
+matched is all caps, or all of its words are capitalized, then its
+replacement is respectively upcased or capitalized.  For more
+details about this, see `replace-match'.)
 
 Ignore read-only matches if `query-replace-skip-read-only' is non-nil,
 ignore hidden matches if `search-invisible' is nil, and ignore more
@@ -492,8 +493,9 @@ there are uppercase letters in REGEXP.
 Replacement transfers the case pattern of the old text to the new
 text, if both `case-fold-search' and `case-replace' are non-nil
 and REGEXP has no uppercase letters.  (Transferring the case pattern
-means that if the old text matched is all caps, or capitalized,
-then its replacement is respectively upcased or capitalized.)
+means that if the old text matched is all caps, or all of its words
+are capitalized, then its replacement is respectively upcased or
+capitalized.  For more details about this, see `replace-match'.)
 
 Ignore read-only matches if `query-replace-skip-read-only' is non-nil,
 ignore hidden matches if `search-invisible' is nil, and ignore more

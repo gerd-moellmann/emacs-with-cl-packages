@@ -1,6 +1,6 @@
 ### @configure_input@
 
-# Copyright (C) 1992-2023 Free Software Foundation, Inc.
+# Copyright (C) 1992-2024 Free Software Foundation, Inc.
 
 # This file is part of GNU Emacs.
 
@@ -863,6 +863,9 @@ EMACS_ICON=emacs
 ifeq (${USE_STARTUP_NOTIFICATION},no)
 USE_STARTUP_NOTIFICATION_SED_CMD=-e "/^StartupNotify=true$$/d"
 endif
+ifeq ($(HAVE_PGTK),yes)
+USE_WAYLAND_DISPLAY_SED_CMD=-e "s/display=[^ ]*/reuse-frame/"
+endif
 install-etc:
 	umask 022; ${MKDIR_P} "$(DESTDIR)${desktopdir}"
 	tmp=etc/emacs.tmpdesktop; rm -f $${tmp}; \
@@ -877,6 +880,7 @@ install-etc:
 	sed -e "/^Exec=/ s|emacsclient|${bindir}/$${client_name}|" \
 	  -e "/^Icon=emacs/ s/emacs/${EMACS_NAME}/" \
 	  $(USE_STARTUP_NOTIFICATION_SED_CMD) \
+	  $(USE_WAYLAND_DISPLAY_SED_CMD) \
 	  ${srcdir}/etc/emacsclient.desktop > $${tmp}; \
 	${INSTALL_DATA} $${tmp} "$(DESTDIR)${desktopdir}/$${client_name}.desktop"; \
 	rm -f $${tmp}
@@ -890,6 +894,7 @@ install-etc:
 	client_name=`echo emacsclient | sed '$(TRANSFORM)'`${EXEEXT}; \
 	sed -e "/^Exec=/ s|emacsclient|${bindir}/$${client_name}|" \
 	  -e "/^Icon=emacs/ s/emacs/${EMACS_NAME}/" \
+	  $(USE_WAYLAND_DISPLAY_SED_CMD) \
 	  ${srcdir}/etc/emacsclient-mail.desktop > $${tmp}; \
 	${INSTALL_DATA} $${tmp} "$(DESTDIR)${desktopdir}/$${client_name}-mail.desktop"; \
 	rm -f $${tmp}

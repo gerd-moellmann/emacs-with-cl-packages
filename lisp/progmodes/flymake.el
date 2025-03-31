@@ -1,6 +1,6 @@
 ;;; flymake.el --- A universal on-the-fly syntax checker  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2003-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2024 Free Software Foundation, Inc.
 
 ;; Author: Pavel Kobyakov <pk_at_work@yahoo.com>
 ;; Maintainer: João Távora <joaotavora@gmail.com>
@@ -1187,9 +1187,9 @@ special *Flymake log* buffer."  :group 'flymake :lighter
     (when flymake--state
       (maphash (lambda (_backend state)
                  (flymake--clear-foreign-diags state))
-               flymake--state)))
+               flymake--state))))
    ;; turning Flymake on or off has consequences for listings
-   (flymake--update-diagnostics-listings (current-buffer))))
+   (flymake--update-diagnostics-listings (current-buffer)))
 
 (defun flymake--schedule-timer-maybe ()
   "(Re)schedule an idle timer for checking the buffer.

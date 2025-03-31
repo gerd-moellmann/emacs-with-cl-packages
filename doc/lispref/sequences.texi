@@ -1,6 +1,6 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990--1995, 1998--1999, 2001--2023 Free Software
+@c Copyright (C) 1990--1995, 1998--1999, 2001--2024 Free Software
 @c Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Sequences Arrays Vectors
@@ -1645,7 +1645,8 @@ Refers to the element for character @var{char}
 
 @item @code{(@var{from} . @var{to})}
 A cons cell refers to all the characters in the inclusive range
-@samp{[@var{from}..@var{to}]}.
+@samp{[@var{from}..@var{to}]}.  In this case, the function returns the
+value for the character specified by @var{from}.
 @end table
 @end defun
 

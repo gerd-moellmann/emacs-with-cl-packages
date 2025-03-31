@@ -1,6 +1,6 @@
 ;;; paragraphs.el --- paragraph and sentence parsing  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1985-1987, 1991, 1994-1997, 1999-2023 Free Software
+;; Copyright (C) 1985-1987, 1991, 1994-1997, 1999-2024 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -201,7 +201,6 @@ This is desirable in modes where blank lines are the paragraph delimiters."
   :type 'boolean
   :safe #'booleanp)
 
-;; Silence the compiler.
 (defun forward-paragraph (&optional arg)
   "Move forward to end of paragraph.
 With argument ARG, do it ARG times;

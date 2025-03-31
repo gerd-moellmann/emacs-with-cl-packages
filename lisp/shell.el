@@ -1,6 +1,6 @@
 ;;; shell.el --- specialized comint.el for running the shell -*- lexical-binding: t -*-
 
-;; Copyright (C) 1988, 1993-1997, 2000-2023 Free Software Foundation,
+;; Copyright (C) 1988, 1993-1997, 2000-2024 Free Software Foundation,
 ;; Inc.
 
 ;; Author: Olin Shivers <shivers@cs.cmu.edu>
@@ -37,7 +37,7 @@
 ;; the hooks available for customizing it, see the file comint.el.
 ;; For further information on shell mode, see the comments below.
 
-;; Needs fixin:
+;; Needs fixing:
 ;; When sending text from a source file to a subprocess, the process-mark can
 ;; move off the window, so you can lose sight of the process interactions.
 ;; Maybe I should ensure the process mark is in the window when I send
@@ -327,9 +327,8 @@ and syntax highlighting is set up with `sh-mode'.  In addition to
 buffer as the current buffer after its setup is done.  This can
 be used to further customize fontification and other behavior of
 the indirect buffer."
-  :type 'boolean
+  :type 'hook
   :group 'shell
-  :safe 'booleanp
   :version "29.1")
 
 (defcustom shell-highlight-undef-enable nil
@@ -1588,15 +1587,15 @@ Returns t if successful."
   "Whether to inhibit cache for fontifying shell commands in remote buffers.
 When fontification of non-existent commands is enabled in a
 remote shell buffer, use a cache to speed up searching for
-executable files on the remote machine.  This options is used to
-control expiry of this cache.  See `remote-file-name-inhibit-cache'
-for description."
+executable files on the remote machine.  This option controls
+expiry of the cache.  See `remote-file-name-inhibit-cache' for
+a description of the possible options."
   :group 'faces
   :type '(choice
-          (const :tag "Do not inhibit file name cache" nil)
-          (const :tag "Do not use file name cache" t)
-          (integer :tag "Do not use file name cache"
-                   :format "Do not use file name cache older than %v seconds"
+          (const :tag "Do not cache remote executables" t)
+          (const :tag "Cache remote executables" nil)
+          (integer :tag "Cache remote executables with expiration"
+                   :format "Cache expiry in seconds: %v"
                    :value 10))
   :version "29.1")
 
@@ -1609,7 +1608,7 @@ EXECUTABLES is a hash table with keys being the base-names of
 executable files.
 
 Cache expiry is controlled by the user option
-`remote-file-name-inhibit-cache'.")
+`shell-highlight-undef-remote-file-name-inhibit-cache'.")
 
 (defvar shell--highlight-undef-face 'shell-highlight-undef-defined-face)
 

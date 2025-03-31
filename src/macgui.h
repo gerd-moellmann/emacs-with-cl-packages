@@ -1,6 +1,6 @@
 /* Definitions and headers for communication on macOS.
    Copyright (C) 2000-2008 Free Software Foundation, Inc.
-   Copyright (C) 2009-2023  YAMAMOTO Mitsuharu
+   Copyright (C) 2009-2025  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 

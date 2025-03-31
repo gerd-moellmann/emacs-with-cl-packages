@@ -1,6 +1,6 @@
 ;;; srecode/map.el --- Manage a template file map  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2008-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2024 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 
@@ -49,7 +49,8 @@
   "The save location for SRecode's map file.
 If the save file is nil, then the MAP is not saved between sessions."
   :group 'srecode
-  :type 'file)
+  :type '(choice (const :tag "Don't save" nil)
+                 file))
 
 (defclass srecode-map (eieio-persistent)
   ((fileheaderline :initform ";; SRECODE TEMPLATE MAP")

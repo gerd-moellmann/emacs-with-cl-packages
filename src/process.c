@@ -1,6 +1,6 @@
 /* Asynchronous subprocess control for GNU Emacs.
 
-Copyright (C) 1985-1988, 1993-1996, 1998-1999, 2001-2023 Free Software
+Copyright (C) 1985-1988, 1993-1996, 1998-1999, 2001-2024 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -1273,7 +1273,8 @@ static void
 update_process_mark (struct Lisp_Process *p)
 {
   Lisp_Object buffer = p->buffer;
-  if (BUFFERP (buffer))
+  if (BUFFERP (buffer)
+      && XMARKER (p->mark)->buffer != XBUFFER (buffer))
     set_marker_both (p->mark, buffer,
 		     BUF_ZV (XBUFFER (buffer)),
 		     BUF_ZV_BYTE (XBUFFER (buffer)));
@@ -2189,8 +2190,14 @@ create_process (Lisp_Object process, char **new_argv, Lisp_Object current_dir)
       inchannel = p->open_fd[READ_FROM_SUBPROCESS];
       forkout = p->open_fd[SUBPROCESS_STDOUT];
 
-#if defined(GNU_LINUX) && defined(F_SETPIPE_SZ)
-      fcntl (inchannel, F_SETPIPE_SZ, read_process_output_max);
+#if defined(F_SETPIPE_SZ) && defined(F_GETPIPE_SZ)
+      /* If they requested larger reads than the default system pipe
+         capacity, try enlarging the capacity to match the request.  */
+      if (read_process_output_max > fcntl (inchannel, F_GETPIPE_SZ))
+	{
+	  int readmax = clip_to_bounds (1, read_process_output_max, INT_MAX);
+	  fcntl (inchannel, F_SETPIPE_SZ, readmax);
+	}
 #endif
     }
 
@@ -7217,6 +7224,8 @@ If PROCESS is a process object which contains the property
 `remote-pid', or PROCESS is a number and REMOTE is a remote file name,
 PROCESS is interpreted as process on the respective remote host, which
 will be the process to signal.
+If PROCESS is a string, it is interpreted as process object with the
+respective process name, or as a number.
 SIGCODE may be an integer, or a symbol whose name is a signal name.  */)
   (Lisp_Object process, Lisp_Object sigcode, Lisp_Object remote)
 {

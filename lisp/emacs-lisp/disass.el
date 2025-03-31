@@ -1,6 +1,6 @@
 ;;; disass.el --- disassembler for compiled Emacs Lisp code  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1986, 1991, 2002-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1986, 1991, 2002-2024 Free Software Foundation, Inc.
 
 ;; Author: Doug Cutting <doug@csli.stanford.edu>
 ;;	Jamie Zawinski <jwz@lucid.com>
@@ -89,17 +89,16 @@ redefine OBJECT if it is a symbol."
                  (subr-native-elisp-p obj))
             (progn
               (require 'comp)
-              (call-process "objdump" nil (current-buffer) t "-S"
-                            (native-comp-unit-file (subr-native-comp-unit obj)))
+              (let ((eln (native-comp-unit-file (subr-native-comp-unit obj))))
+                (if (file-exists-p eln)
+                    (call-process "objdump" nil (current-buffer) t "-S" eln)
+                  (error "Missing eln file for #<subr %s>" name)))
               (goto-char (point-min))
-              (re-search-forward (concat "^.*"
+              (re-search-forward (concat "^.*<_?"
                                          (regexp-quote
-                                          (concat "<"
-                                                  (when (eq system-type 'darwin)
-                                                    "_")
-                                                  (comp-c-func-name
-                                                   (subr-name obj) "F" t)
-                                                  ">:"))))
+                                          (comp-c-func-name
+                                           (subr-name obj) "F" t))
+                                         ">:"))
               (beginning-of-line)
               (delete-region (point-min) (point))
               (when (re-search-forward "^.*<.*>:" nil t 2)

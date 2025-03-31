@@ -1,6 +1,6 @@
 @c -*- mode: texinfo; coding: utf-8 -*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990--1995, 1998--1999, 2001--2023 Free Software
+@c Copyright (C) 1990--1995, 1998--1999, 2001--2024 Free Software
 @c Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
 @node Strings and Characters
@@ -43,7 +43,7 @@ integer is a character or not is determined only by how it is used.
 Emacs.
 
   A string is a fixed sequence of characters.  It is a type of
-sequence called a @dfn{array}, meaning that its length is fixed and
+sequence called an @dfn{array}, meaning that its length is fixed and
 cannot be altered once it is created (@pxref{Sequences Arrays
 Vectors}).  Unlike in C, Emacs Lisp strings are @emph{not} terminated
 by a distinguished character code.
@@ -754,7 +754,7 @@ ignores case differences.
 @defun string-search needle haystack &optional start-pos
 Return the position of the first instance of @var{needle} in
 @var{haystack}, both of which are strings.  If @var{start-pos} is
-non-@code{nil}, start searching from that position in @var{needle}.
+non-@code{nil}, start searching from that position in @var{haystack}.
 Return @code{nil} if no match was found.
 This function only considers the characters in the strings when doing
 the comparison; text properties are ignored.  Matching is always
@@ -1369,7 +1369,7 @@ given width and precision, if specified.
 
 @item >
 This flag causes the substitution to be truncated on the right to the
-given width, if specified.
+given width and precision, if specified.
 
 @item ^
 This flag converts the substituted text to upper case (@pxref{Case

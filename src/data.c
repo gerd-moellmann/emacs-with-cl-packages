@@ -1,5 +1,5 @@
 /* Primitive operations on Lisp data types for GNU Emacs Lisp interpreter.
-   Copyright (C) 1985-1986, 1988, 1993-1995, 1997-2023 Free Software
+   Copyright (C) 1985-1986, 1988, 1993-1995, 1997-2024 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -877,7 +877,7 @@ add_to_function_history (Lisp_Object symbol, Lisp_Object olddef)
   Lisp_Object past = Fget (symbol, Qfunction_history);
   Lisp_Object file = Qnil;
   /* FIXME: Sadly, `Vload_file_name` gives less precise information
-     (it's sometimes non-nil when it shoujld be nil).  */
+     (it's sometimes non-nil when it should be nil).  */
   Lisp_Object tail = Vcurrent_load_list;
   FOR_EACH_TAIL_SAFE (tail)
     if (NILP (XCDR (tail)) && STRINGP (XCAR (tail)))

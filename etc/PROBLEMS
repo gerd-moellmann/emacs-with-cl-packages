@@ -1,6 +1,6 @@
 Known Problems with GNU Emacs
 
-Copyright (C) 1987-1989, 1993-1999, 2001-2023 Free Software Foundation,
+Copyright (C) 1987-1989, 1993-1999, 2001-2024 Free Software Foundation,
 Inc.
 See the end of the file for license conditions.
 
@@ -178,6 +178,32 @@ The relevant bug report is here:
 A workaround is to set XLIB_SKIP_ARGB_VISUALS=1 in the environment
 before starting Emacs, or run Emacs as root.
 
+** Emacs built with xwidgets aborts when displaying WebKit xwidgets
+
+This happens, for example, when 'M-x xwidget-webkit-browse-url'
+prompts for a URL and you type the URL at the prompt.
+
+The error message might look like this:
+
+  X protocol error: GLXBadWindow on protocol request 151
+  Serial no: 4286
+  Failing resource ID (if any): 0x3c001c5
+  Minor code: 32
+
+This happens because starting from version 2.42.1, the WebKitGTK
+developers discontinued support for off-screen windows, by presuming
+that every window holding a WebView widget is an X server window
+eligible for an OpenGL context.  Emacs requires placing these widgets
+within offscreen windows managed by GTK, for each xwidget might be
+displayed in multiple distinct windows, and its contents must be
+captured and reproduced within all of them if that be the case.
+
+To put this another way, WebKitGTK doesn't support displaying a single
+widget more than once anymore.
+
+A possible workaround is to make sure xwidgets are not shown in more
+than one window.
+
 ** Emacs crashes with SIGTRAP when trying to start a WebKit xwidget.
 
 This could happen if the version of WebKitGTK installed on your system
@@ -189,6 +215,28 @@ invoke Emacs like this (where "..." stands for the other command-line
 arguments you intend to pass to Emacs):
 
   $ SNAP=1 SNAP_NAME=1 SNAP_REVISION=1 emacs ...
+
+** Emacs built with tree-sitter crashes when some *-ts-mode is turned on.
+
+The crash is in many cases an abort due to run-time detection of stack
+smashing, and it happens when one of the *-ts-mode modes is turned on
+in a buffer.
+
+The reason is that the tree-sitter library changed its Application
+Binary Interface (ABI) between version 0.22.2 and 0.22.4, but did not
+increment the ABI version number.  Therefore, Emacs compiled with
+tree-sitter versions before the change will try to use the shared
+library after the change, and crash due to incompatibilities in the
+ABI.
+
+Until and unless the tree-sitter developers release a library with an
+updated ABI version, the solution is to rebuild Emacs with the actual
+library with which it will be used.  If you cannot rebuild Emacs,
+downgrade your tree-sitter library to version 0.22.2 or older.
+
+The relevant tree-sitter issue is here:
+
+  https://github.com/tree-sitter/tree-sitter/issues/3296
 
 ** Emacs crashes when you try to view a file with complex characters.
 
@@ -432,7 +480,7 @@ than the corresponding .el file.
 Alternatively, if you set the option 'load-prefer-newer' non-nil,
 Emacs will load whichever version of a file is the newest.
 
-*** Watch out for the EMACSLOADPATH environment variable
+*** Watch out for the EMACSLOADPATH environment variable.
 
 EMACSLOADPATH overrides which directories the function "load" will search.
 
@@ -440,6 +488,28 @@ If you observe strange problems, check for this variable in your
 environment.
 
 ** Keyboard problems
+
+*** PGTK build of Emacs running on Wayland doesn't recognize Hyper modifier.
+
+If you arrange for the Wayland compositor to send the Hyper key
+modifier (e.g., via XKB customizations), the Hyper modifier will still
+not be reported to Emacs.
+
+The reason is that GDK 3.x doesn't recognize the Hyper key modifier.
+Since GDK 3.x is no longer developed, this bug in GDK will probably
+never be solved.  And the Emacs PGTK build cannot yet support GTK4,
+where this problem is reportedly solved.
+
+*** Emacs built with GTK lags in its response to keyboard input.
+This can happen when input methods are used.  It happens because Emacs
+behaves in an unconventional way with respect to GTK input methods: it
+registers to receive keyboard input as unprocessed key events with
+metadata (as opposed to receiving them as text strings).  Most GTK
+programs use the latter approach, so some modern input methods have
+bugs and misbehave when faced with the way Emacs does it.
+
+A workaround is to set GTK_IM_MODULE=none in the environment, or maybe
+find a different input method without these problems.
 
 *** Unable to enter the M-| key on some German keyboards.
 Some users have reported that M-| suffers from "keyboard ghosting".
@@ -464,6 +534,29 @@ them to two different keys.
 You are probably using a shell that doesn't support job control, even
 though the system itself is capable of it.  Either use a different shell,
 or set the variable 'cannot-suspend' to a non-nil value.
+
+*** Emacs running on WSL receives stray characters as input.
+
+For example, you could see Emacs inserting 'z' characters even though
+nothing is typed on the keyboard, and even if you unplug the keyboard.
+
+The reason is a bug in the WSL X server's handling of key-press and
+key-repeat events.  A workaround is to use the Cygwin or native
+MS-Windows build of Emacs instead.
+
+*** On MS-Windows, the Windows key gets "stuck".
+When this problem happens, Windows behaves as if the Windows key were
+permanently pressed down.  This could be a side effect of Emacs on
+MS-Windows hooking keyboard input on a low level, in order to support
+registering the Windows keys as hot keys.  If that hook takes too much
+time for some reason, Windows can decide to remove the hook, which
+then has this effect.
+
+This is arguably a bug in Emacs, for which we don't yet have a
+solution.  To work around, set the 'LowLevelHooksTimeout' value in the
+registry key "HKEY_CURRENT_USER\Control Panel\Desktop" to a number
+higher than 200 msec; the maximum allowed value is 1000 msec (create
+the value if it doesn't exist under that key).
 
 ** Mailers and other helper programs
 
@@ -516,12 +609,23 @@ directory copy is ineffective.
 This is due to an arbitrary limit in certain versions of awk.
 The solution is to use gawk (GNU awk).
 
-*** Saving, via EasyPG, a file encrypted with GnuPG hangs
+*** Saving a file encrypted with GnuPG via EasyPG hangs.
 
 This is known to happen with GnuPG v2.4.1.  The only known workaround
-is to downgrade to a version of GnuPG older than 2.4.1 (or, in the
-future, upgrade to a newer version which solves the problem, when such
-a fixed version becomes available).
+is to downgrade to a version of GnuPG older than 2.4.1, or upgrade to
+version 2.4.4 and newer, which reportedly solves the problem.  Note
+that GnuPG v2.2.42 and later also has this problem, so you should also
+avoid those later 2.2.4x versions; v2.2.41 is reported to work fine.
+
+*** EasyPG loopback pinentry does not work with gpgsm.
+
+This happens with the 'gpgsm' command from all versions of GnuPG.
+EasyPG relies on the machine-parseable interface that is provided by
+'gpg2' with option '--status-fd', but gpgsm does not support this.
+
+As a workaround, input the passphrase with a GUI-capable pinentry
+program like 'pinentry-gnome' or 'pinentry-qt5'.  Alternatively, you
+can use the 'pinentry' package from Emacs 25.
 
 ** Problems with hostname resolution
 
@@ -574,6 +678,20 @@ This can happen with CVS versions 1.12.8 and 1.12.9.  Upgrade to CVS
 1.12.10 or newer to fix this problem.
 
 ** Miscellaneous problems
+
+*** 'set-mouse-color' and the '-ms' command line argument do not work.
+
+Systems where the default cursors are not simple 1 bit-per-pixel
+bitmaps usually forbid recoloring the cursor, since it is unclear
+which colors should replace those already present within each cursor
+image.  For example, 'set-mouse-color' and '-ms' have no function on X
+systems with GNOME, KDE, and other recent desktop environments
+employing cursor images containing colors and partial transparency.
+
+Changing the cursor color is also impossible on MS-Windows and PGTK
+systems.  In the former case, it is because the prerequisite code has
+yet to be written.  In the latter, it is because GTK does not provide
+for changing the color of cursor images.
 
 *** Display artifacts on GUI frames on X-based systems.
 
@@ -1163,43 +1281,6 @@ do anything about it.
 
 ** International characters aren't displayed under X.
 
-*** Missing X fonts
-
-XFree86 4 contains many fonts in iso10646-1 encoding which have
-minimal character repertoires (whereas the encoding part of the font
-name is meant to be a reasonable indication of the repertoire
-according to the XLFD spec).  Emacs may choose one of these to display
-characters from the mule-unicode charsets and then typically won't be
-able to find the glyphs to display many characters.  (Check with C-u
-C-x = .)  To avoid this, you may need to use a fontset which sets the
-font for the mule-unicode sets explicitly.  E.g. to use GNU unifont,
-include in the fontset spec:
-
-mule-unicode-2500-33ff:-gnu-unifont-*-iso10646-1,\
-mule-unicode-e000-ffff:-gnu-unifont-*-iso10646-1,\
-mule-unicode-0100-24ff:-gnu-unifont-*-iso10646-1
-
-** The UTF-8/16/7 coding systems don't encode CJK (Far Eastern) characters.
-
-Emacs directly supports the Unicode BMP whose code points are in the
-ranges 0000-33ff and e000-ffff, and indirectly supports the parts of
-CJK characters belonging to these legacy charsets:
-
-    GB2312, Big5, JISX0208, JISX0212, JISX0213-1, JISX0213-2, KSC5601
-
-The latter support is done in Utf-Translate-Cjk mode (turned on by
-default).   Which Unicode CJK characters are decoded into which Emacs
-charset is decided by the current language environment.  For instance,
-in Chinese-GB, most of them are decoded into chinese-gb2312.
-
-If you read UTF-8 data with code points outside these ranges, the
-characters appear in the buffer as raw bytes of the original UTF-8
-(composed into a single quasi-character) and they will be written back
-correctly as UTF-8, assuming you don't break the composed sequences.
-If you read such characters from UTF-16 or UTF-7 data, they are
-substituted with the Unicode 'replacement character', and you lose
-information.
-
 ** Accented ISO-8859-1 characters are displayed as | or _.
 
 Try other font set sizes (S-mouse-1).  If the problem persists with
@@ -1236,6 +1317,16 @@ In your ~/.Xresources file, then run
   $ xrdb ~/.Xresources
 
 And restart Emacs.
+
+** Emacs hangs when using XIM
+
+This is due to an old bug in the implementation of the X protocol's
+XIM transport: when an input method crashes for some reason, Xlib
+cannot recover.  Emacs cannot do anything about this except wait for
+input method developers to fix their crashes.  You can work around
+these problems by disabling XIM in your X resources:
+
+  Emacs.useXIM: false
 
 ** On Haiku, BeCJK doesn't work properly with Emacs
 
@@ -1546,6 +1637,18 @@ underlying functionality in plasmashell gets fully disabled as well.
 At least a restart of plasmashell is required for the clipboard
 history to be cleared.
 
+*** XFCE: Selected frame loses focus
+
+This can happen, e.g., in Ediff: when you move between the differences
+by typing 'n' or 'p' into the control frame, input focus unexpectedly
+switches to the buffers where Emacs shows the differences, instead of
+being left in the Ediff control frame.
+
+The reason is a bug in the window manager: it shifts input focus when
+raising a frame.  A workaround is to activate the "focus stealing
+prevention" option of the window manager (in XFCE settings, under
+"window manager tweaks", in the "focus" tab).
+
 *** CDE: Frames may cover dialogs they created when using CDE.
 
 This can happen if you have "Allow Primary Windows On Top" enabled which
@@ -1636,6 +1739,18 @@ try that and see how much difference it makes.  To set things back
 to normal, do
 
   (set-scroll-bar-mode 'left)
+
+*** Redisplay with scaled images is slow in Emacs built with Cairo.
+
+Cairo expends a noticeable amount of CPU time displaying large images
+with applied transforms.  These images most frequently appear within
+EWW buffers or in Image Mode buffers after executing the image scaling
+commands `i +' or `i -', and their presence incurs a performance
+penalty of hundereds of milliseconds to seconds upon redisplay.  The
+remedy is to build Emacs without Cairo after verifying the XRender
+extension is present on your X server and its headers are present on
+your system, in which case Emacs will use XRender to efficiently
+perform image transforms within the X server.
 
 *** Error messages about undefined colors on X.
 
@@ -1965,7 +2080,7 @@ remote X server, try this:
 
 *** Dropping text on xterm doesn't work.
 
-Emacs sends sythetic button events to legacy clients such as xterm
+Emacs sends synthetic button events to legacy clients such as xterm
 that do not support either the XDND or Motif drag-and-drop protocols
 in order to "paste" the text that was dropped.  Unfortunately, xterm
 is configured to ignore these events by default.  Add the following to
@@ -1977,6 +2092,26 @@ Note that this can in theory pose a security risk, but in practice
 modern X servers have so many other ways to send input to clients
 without signifying that the event is synthesized that it does not
 matter.
+
+*** Programs which use XSendEvent cannot send input events to Emacs.
+
+Emacs built to use the X Input Extension cannot receive core input
+events sent through the SendEvent server request, since these events
+intercepted by the X server when sent to input extension clients.
+
+For such programs to function again, Emacs must be run on an X server
+where the input extension is disabled, or alternatively be configured
+with the "--without-xinput2" option.
+
+*** Scrolling with mouse-wheel lags in GTK3 builds.
+
+We don't know why this happens, but one workaround is to build Emacs
+with a different toolkit.  For example:
+
+  ./configure --without-toolkit-scroll-bars --with-x-toolkit=athena
+
+This produces a build which uses Athena toolkit, and disables toolkit
+scroll bars which could sometimes be slow.
 
 * Runtime problems on character terminals
 
@@ -3247,7 +3382,7 @@ for further discussion.
 
 * Runtime problems specific to macOS
 
-** Error message when opening Emacs on macOS
+** Error message about malicious software when opening Emacs on macOS
 
 When opening Emacs, you may see an error message saying something like
 this:
@@ -3263,6 +3398,22 @@ To avoid this alert, open Finder, go to Applications, control-click
 the Emacs app icon, and then choose Open.  This adds a security
 exception for Emacs and from now on you should be able to open it by
 double-clicking on its icon, like any other app.
+
+** Error message about color list unarchiver when starting Emacs on macOS
+
+The error message looks like this:
+
+  Failed to initialize color list unarchiver:
+  Error Domain=NSCocoaErrorDomain Code=4864 "*** -[NSKeyedUnarchiver
+  _initForReadingFromData:error:throwLegacyExceptions:]: non-keyed archive cannot be decoded by NSKeyedUnarchiver"
+  UserInfo={NSDebugDescription=*** -[NSKeyedUnarchiver
+  _initForReadingFromData:error:throwLegacyExceptions:]: non-keyed archive cannot be decoded by NSKeyedUnarchiver}
+
+After showing this message, Emacs usually works normally.
+
+The usual reason for this is that the color file,
+~/Library/Colors/Emacs.clr, is stale or corrupted.  The solution is to
+delete that file and restart Emacs.
 
 ** macOS doesn't come with libxpm, so only XPM3 is supported.
 

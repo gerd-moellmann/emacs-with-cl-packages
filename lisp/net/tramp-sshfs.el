@@ -1,6 +1,6 @@
 ;;; tramp-sshfs.el --- Tramp access functions via sshfs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2021-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2024 Free Software Foundation, Inc.
 
 ;; Author: Michael Albinus <michael.albinus@gmx.de>
 ;; Keywords: comm, processes
@@ -60,7 +60,7 @@
 		;; These are for remote processes.
                 (tramp-login-program        "ssh")
                 (tramp-login-args           (("-q") ("-l" "%u") ("-p" "%p")
-				             ("-e" "none") ("-t" "-t")
+				             ("-e" "none") ("%a" "%a")
 					     ("%h") ("%l")))
                 (tramp-direct-async         t)
                 (tramp-remote-shell         ,tramp-default-remote-shell)
@@ -100,7 +100,7 @@
     (file-directory-p . tramp-handle-file-directory-p)
     (file-equal-p . tramp-handle-file-equal-p)
     (file-executable-p . tramp-fuse-handle-file-executable-p)
-    (file-exists-p . tramp-handle-file-exists-p)
+    (file-exists-p . tramp-fuse-handle-file-exists-p)
     (file-in-directory-p . tramp-handle-file-in-directory-p)
     (file-local-copy . tramp-handle-file-local-copy)
     (file-locked-p . tramp-handle-file-locked-p)
@@ -244,8 +244,8 @@ arguments to pass to the OPERATION."
         (setq result
 	      (insert-file-contents
 	       (tramp-fuse-local-file-name filename) visit beg end replace))
-      (when visit (setq buffer-file-name filename))
-      (cons filename (cdr result)))))
+      (when visit (setq buffer-file-name filename)))
+    (cons filename (cdr result))))
 
 (defun tramp-sshfs-handle-process-file
   (program &optional infile destination display &rest args)
@@ -323,7 +323,7 @@ arguments to pass to the OPERATION."
 	    ?h (or (tramp-file-name-host v) "")
 	    ?u (or (tramp-file-name-user v) "")
 	    ?p (or (tramp-file-name-port v) "")
-	    ?l command))
+            ?a "-t" ?l command))
 
 	;; Synchronize stderr.
 	(when tmpstderr
@@ -379,7 +379,9 @@ arguments to pass to the OPERATION."
   (tramp-skeleton-write-region start end filename append visit lockname mustbenew
     (let (create-lockfiles)
       (write-region
-       start end (tramp-fuse-local-file-name filename) append 'nomessage))))
+       start end (tramp-fuse-local-file-name filename) append 'nomessage))
+    ;; Now, `last-coding-system-used' has the right value.  Remember it.
+    (setq coding-system-used last-coding-system-used)))
 
 
 ;; File name conversions.
@@ -399,7 +401,7 @@ connection if a previous connection has died for some reason."
 	      :name (tramp-get-connection-name vec)
 	      :buffer (tramp-get-connection-buffer vec)
 	      :server t :host 'local :service t :noquery t)))
-      (process-put p 'vector vec)
+      (process-put p 'tramp-vector vec)
       (set-process-query-on-exit-flag p nil)
 
       ;; Set connection-local variables.

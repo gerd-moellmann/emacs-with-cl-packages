@@ -1,6 +1,6 @@
 ;;; ob-python.el --- Babel Functions for Python      -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2009-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2024 Free Software Foundation, Inc.
 
 ;; Authors: Eric Schulte
 ;;	 Dan Davison
@@ -235,7 +235,7 @@ then create.  Return the initialized session."
           ;; multiple prompts during initialization.
           (with-current-buffer py-buffer
             (while (not org-babel-python--initialized)
-              (org-babel-comint-wait-for-output py-buffer)))
+              (sleep-for 0 10)))
         (org-babel-comint-wait-for-output py-buffer))
       (setq org-babel-python-buffers
 	    (cons (cons session py-buffer)

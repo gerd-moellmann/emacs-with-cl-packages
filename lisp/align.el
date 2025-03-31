@@ -1,6 +1,6 @@
 ;;; align.el --- align text to a specific column, by regexp -*- lexical-binding:t -*-
 
-;; Copyright (C) 1999-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2024 Free Software Foundation, Inc.
 
 ;; Author: John Wiegley <johnw@gnu.org>
 ;; Maintainer: emacs-devel@gnu.org
@@ -1585,7 +1585,7 @@ aligner would have dealt with are."
                         (if (= (point) search-start)
                             (forward-char)))))
 
-                  ;; when they are no more matches for this rule,
+                  ;; when there are no more matches for this rule,
                   ;; align whatever was left over
                   (if regions
                       (align-regions regions align-props rule func))))))))

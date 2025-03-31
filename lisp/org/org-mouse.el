@@ -1,6 +1,6 @@
 ;;; org-mouse.el --- Better mouse support for Org -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2006-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2024 Free Software Foundation, Inc.
 
 ;; Author: Piotr Zielinski <piotr dot zielinski at gmail dot com>
 ;; Maintainer: Carsten Dominik <carsten.dominik@gmail.com>
@@ -975,7 +975,7 @@ This means, between the beginning of line and the point."
   (interactive)
   (org-back-to-heading)
   (let ((minlevel 1000)
-	(replace-text (concat (match-string 0) "* ")))
+	(replace-text (concat (make-string (org-current-level) ?*) "* ")))
     (beginning-of-line 2)
     (save-excursion
       (while (not (or (eobp) (looking-at org-outline-regexp)))

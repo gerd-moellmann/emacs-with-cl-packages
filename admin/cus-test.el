@@ -1,6 +1,6 @@
 ;;; cus-test.el --- tests for custom types and load problems  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 1998, 2000, 2002-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1998, 2000, 2002-2024 Free Software Foundation, Inc.
 
 ;; Author: Markus Rost <rost@math.uni-bielefeld.de>
 ;; Created: 13 Sep 1998
@@ -146,7 +146,7 @@ Names should be as they appear in loaddefs.el.")
 
 (defvar cus-test-errors nil
   "List of problematic variables found by `cus-test-apropos'.
-Each element is (VARIABLE . PROBLEM); see `cus-test--format-problem'.")
+Each element is (VARIABLE . PROBLEM); see `cus-test--format-errors'.")
 
 (defvar cus-test-tested-variables nil
   "List of options tested by last call of `cus-test-apropos'.")

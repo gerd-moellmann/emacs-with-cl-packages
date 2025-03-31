@@ -1,6 +1,6 @@
 /* Graphical user interface functions for macOS.
    Copyright (C) 2000-2008  Free Software Foundation, Inc.
-   Copyright (C) 2009-2023  YAMAMOTO Mitsuharu
+   Copyright (C) 2009-2025  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
@@ -3481,10 +3481,10 @@ static void compute_tip_xy (struct frame *, Lisp_Object, Lisp_Object,
 			    Lisp_Object, int, int, int *, int *);
 
 /* The frame of the currently visible tooltip, or nil if none.  */
-Lisp_Object tip_frame;
+static Lisp_Object tip_frame;
 
 /* The X and Y deltas of the last call to `x-show-tip'.  */
-Lisp_Object tip_dx, tip_dy;
+static Lisp_Object tip_dx, tip_dy;
 
 /* A timer that hides or deletes the currently visible tooltip when it
    fires.  */

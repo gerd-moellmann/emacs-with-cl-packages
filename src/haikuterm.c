@@ -1,5 +1,5 @@
 /* Haiku window system support
-   Copyright (C) 2021-2023 Free Software Foundation, Inc.
+   Copyright (C) 2021-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -1399,7 +1399,7 @@ haiku_draw_stretch_glyph_string (struct glyph_string *s)
 	}
 
       if (background_width > 0)
-	haiku_draw_background_rect (s, s->face, s->x, s->y,
+	haiku_draw_background_rect (s, s->face, x, s->y,
 				    background_width, s->height);
     }
   s->background_filled_p = 1;

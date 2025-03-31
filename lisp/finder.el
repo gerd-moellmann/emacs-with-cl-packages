@@ -1,6 +1,6 @@
 ;;; finder.el --- topic & keyword-based code finder  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1992-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1992-2024 Free Software Foundation, Inc.
 
 ;; Author: Eric S. Raymond <esr@snark.thyrsus.com>
 ;; Created: 16 Jun 1992
@@ -147,7 +147,11 @@ would otherwise be.")
     ("gnus" . gnus)
     ("international" . emacs)
     ("language" . emacs)
+    ("leim" . emacs)
+    ("ja-dic" . emacs)
+    ("quail" . emacs)
     ("mh-e" . mh-e)
+    ("obsolete" . emacs)
     ("semantic" . semantic)
     ("analyze" . semantic)
     ("bovine" . semantic)

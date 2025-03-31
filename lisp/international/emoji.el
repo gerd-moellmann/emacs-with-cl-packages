@@ -1,6 +1,6 @@
 ;;; emoji.el --- Inserting emojis  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2021-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2024 Free Software Foundation, Inc.
 
 ;; Author: Lars Ingebrigtsen <larsi@gnus.org>
 ;; Keywords: fun
@@ -103,11 +103,11 @@ and also consults the `emoji-alternate-names' alist."
 
 ;;;###autoload
 (defun emoji-list ()
-  "List emojis and insert the one that's selected.
+  "List emojis and allow selecting and inserting one of them.
 Select the emoji by typing \\<emoji-list-mode-map>\\[emoji-list-select] on its picture.
 The glyph will be inserted into the buffer that was current
 when the command was invoked."
-  (interactive "*")
+  (interactive)
   (let ((buf (current-buffer)))
     (emoji--init)
     (switch-to-buffer (get-buffer-create "*Emoji*"))
@@ -219,7 +219,9 @@ the name is not known."
              (let ((buf emoji--insert-buffer))
                (quit-window)
                (if (buffer-live-p buf)
-                   (switch-to-buffer buf)
+                   (progn
+                     (switch-to-buffer buf)
+                     (barf-if-buffer-read-only))
                  (error "Buffer disappeared"))))))
       (if (not derived)
           ;; Glyph without derivations.
@@ -678,11 +680,12 @@ We prefer the earliest unique letter."
                            strings))))
 	       (complete-with-action action table string pred)))
            nil t)))
-    (when (cl-plusp (length name))
-      (let ((glyph (if emoji-alternate-names
-                       (cadr (split-string name "\t"))
-                     (gethash name emoji--all-bases))))
-        (cons glyph (gethash glyph emoji--derived))))))
+    (if (cl-plusp (length name))
+        (let ((glyph (if emoji-alternate-names
+                         (cadr (split-string name "\t"))
+                       (gethash name emoji--all-bases))))
+          (cons glyph (gethash glyph emoji--derived)))
+      (user-error "You didn't specify an emoji"))))
 
 (defun emoji--choose-emoji ()
   (pcase-let ((`(,glyph . ,derived) (emoji--read-emoji)))
@@ -726,10 +729,14 @@ FACTOR is the multiplication factor for the size."
             (add-text-properties
              (point) (1+ (point))
              (list 'face
-                   (if (eq (car old) :height)
-                       (plist-put (copy-sequence old) :height newheight)
+                   (cond
+                    ((eq (car old) :height)
+                     (plist-put (copy-sequence old) :height newheight))
+                    ((plistp (car old))
                      (cons (plist-put (car old) :height newheight)
                            (cdr old)))
+                    (t
+                     (append (list (list :height newheight)) old)))
                    'rear-nonsticky t))
           (add-face-text-property (point) (1+ (point))
                                   (list :height newheight))

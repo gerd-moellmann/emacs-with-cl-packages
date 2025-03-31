@@ -1,6 +1,6 @@
 ;;; org-element.el --- Parser for Org Syntax         -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2012-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2024 Free Software Foundation, Inc.
 
 ;; Author: Nicolas Goaziou <n.goaziou at gmail dot com>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -5484,7 +5484,7 @@ This variable is used to determine when re-parsing buffer is not going
 to slow down the command.
 
 If the commands end up modifying the cache, the worst case scenario is
-performance drop.  So, advicing these commands is safe.  Yet, it is
+performance drop.  So, advising these commands is safe.  Yet, it is
 better to remove the commands advised in such a way from this list.")
 
 (defmacro org-element--request-key (request)
@@ -5906,7 +5906,7 @@ If this warning appears regularly, please report the warning text to Org mode ma
        (org-element-property :begin element)
        (org-element-property :org-element--cache-sync-key element))
       (org-element-cache-reset)
-      (throw 'quit nil))
+      (throw 'org-element--cache-quit nil))
     (or (avl-tree-delete org-element--cache element)
         (progn
           ;; This should not happen, but if it is, would be better to know
@@ -5919,7 +5919,7 @@ If this warning appears regularly, please report the warning text to Org mode ma
            (org-element-property :begin element)
            (org-element-property :org-element--cache-sync-key element))
           (org-element-cache-reset)
-          (throw 'quit nil)))))
+          (throw 'org-element--cache-quit nil)))))
 
 ;;;; Synchronization
 
@@ -6382,6 +6382,10 @@ completing the request."
                          ;; We altered the tree structure.  The tree
                          ;; traversal needs to be restarted.
                          (setf (org-element--request-key request) key)
+                         ;; Make sure that we restart tree traversal
+                         ;; past already shifted elements (before the
+                         ;; removed DATA).
+                         (setq start key)
                          (setf (org-element--request-parent request) parent)
                          ;; Restart tree traversal.
                          (setq node (org-element--cache-root)
@@ -6552,7 +6556,7 @@ the expected result."
                    (error "org-element: Parsing aborted by user.  Cache has been cleared.
 If you observe Emacs hangs frequently, please report this to Org mode mailing list (M-x org-submit-bug-report)."))
                  (message (substitute-command-keys
-                           "`org-element--parse-buffer': Suppressed `\\[keyboard-quit]'.  Press `\\[keyboard-quit]' %d more times to force interruption.")
+                           "`org-element--parse-to': Suppressed `\\[keyboard-quit]'.  Press `\\[keyboard-quit]' %d more times to force interruption.")
                           (- org-element--cache-interrupt-C-g-max-count
                              org-element--cache-interrupt-C-g-count)))
 	       (unless element
@@ -6567,7 +6571,9 @@ If you observe Emacs hangs frequently, please report this to Org mode mailing li
                  ;; Make sure that we return referenced element in cache
                  ;; that can be altered directly.
                  (if element
-                     (setq element (or (org-element--cache-put element) element))
+                     (progn
+                       (org-element-put-property element :granularity 'element)
+                       (setq element (or (org-element--cache-put element) element)))
                    ;; Nothing to parse (i.e. empty file).
                    (throw 'exit parent))
                  (unless (or (not (org-element--cache-active-p)) parent)
@@ -6703,20 +6709,8 @@ The function returns the new value of `org-element--cache-change-warning'."
        (setq org-element--cache-change-tic (buffer-chars-modified-tick))
        (setq org-element--cache-last-buffer-size (buffer-size))
        (goto-char beg)
-       (beginning-of-line)
-       (let ((bottom (save-excursion
-                       (goto-char end)
-                       (if (and (bolp)
-                                ;; When beg == end, still extent to eol.
-                                (> (point) beg))
-                           ;; FIXME: Potential pitfall.
-                           ;; We are appending to an element end.
-                           ;; Unless the last inserted char is not
-                           ;; newline, the next element is not broken
-                           ;; and does not need to be purged from the
-                           ;; cache.
-                           end
-                         (line-end-position)))))
+       (forward-line 0)
+       (let ((bottom (save-excursion (goto-char end) (line-end-position))))
          (prog1
              ;; Use the worst change warning to not miss important edits.
              ;; This function is called before edit and after edit by
@@ -6942,12 +6936,13 @@ known element in cache (it may start after END)."
                           (let ((current (org-with-point-at (org-element-property :begin up)
                                            (org-element-with-disabled-cache
                                              (and (looking-at-p org-element-headline-re)
-                                                  (org-element-headline-parser))))))
+                                                  (org-element-headline-parser nil 'fast))))))
                             (when (eq 'headline (org-element-type current))
                               (org-element--cache-log-message
                                "Found non-robust headline that can be updated individually: %S"
                                (org-element--format-element current))
                               (org-element-set-element up current)
+                              (org-element-put-property up :granularity 'element)
                               t)))
                      ;; If UP is org-data, the situation is similar to
                      ;; headline case.  We just need to re-parse the
@@ -7734,7 +7729,8 @@ the cache."
                               ;; it to real beginning then despite
                               ;; START being larger.
                               (setq start nil)
-                              (move-start-to-next-match nil)
+                              (let ((data nil)) ; data may not be valid. ignore it.
+                                (move-start-to-next-match nil))
                               ;; The new element may now start before
                               ;; or at already processed position.
                               ;; Make sure that we continue from an
@@ -7855,7 +7851,7 @@ element ending there."
     (setq cached-only nil))
   (let (element)
     (when (org-element--cache-active-p)
-      (if (not org-element--cache) (org-element-cache-reset)
+      (if (not (org-with-base-buffer nil org-element--cache)) (org-element-cache-reset)
         (unless cached-only (org-element--cache-sync (current-buffer) pom))))
     (setq element (if cached-only
                       (when (and (org-element--cache-active-p)

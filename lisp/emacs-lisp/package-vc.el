@@ -1,6 +1,6 @@
 ;;; package-vc.el --- Manage packages from VC checkouts     -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2022-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2024 Free Software Foundation, Inc.
 
 ;; Author: Philip Kaludercic <philipk@posteo.net>
 ;; Keywords: tools
@@ -29,7 +29,7 @@
 ;; To install a package from source use `package-vc-install'.  If you
 ;; aren't interested in activating a package, you can use
 ;; `package-vc-checkout' instead, which will prompt you for a target
-;; directory.  If you wish to re-use an existing checkout, the command
+;; directory.  If you wish to reuse an existing checkout, the command
 ;; `package-vc-install-from-checkout' will create a symbolic link and
 ;; prepare the package.
 ;;
@@ -356,7 +356,8 @@ otherwise it's assumed to be an Info file."
       (with-temp-buffer
         (insert-file-contents file)
         (setq file (make-temp-file "ox-texinfo-"))
-        (org-export-to-file 'texinfo file)
+        (let ((default-directory docs-directory))
+          (org-export-to-file 'texinfo file))
         (setq clean-up t)))
     (with-current-buffer (get-buffer-create " *package-vc doc*")
       (erase-buffer)
@@ -412,13 +413,11 @@ version of that package."
                              (desc (cadr (assoc package pac))))
                         (and desc (seq-some
                                    (apply-partially #'depends-on-p target)
-                                   (package-desc-reqs desc))))))
+                                   (mapcar #'car (package-desc-reqs desc)))))))
                 (dependent-order (a b)
                   (let ((desc-a (package-desc-name a))
                         (desc-b (package-desc-name b)))
-                    (or (not desc-a) (not desc-b)
-                        (not (depends-on-p desc-b desc-a))
-                        (depends-on-p desc-a desc-b)))))
+                    (depends-on-p desc-a desc-b))))
       (mapc #'search requirements)
       (cl-callf sort to-install #'version-order)
       (cl-callf seq-uniq to-install #'duplicate-p)
@@ -826,10 +825,11 @@ for the last released version of the package."
   (interactive
    (let* ((name (package-vc--read-package-name "Fetch package source: ")))
      (list (cadr (assoc name package-archive-contents #'string=))
-           (read-file-name "Clone into new or empty directory: " nil nil t nil
-                           (lambda (dir) (or (not (file-exists-p dir))
+           (read-directory-name "Clone into new or empty directory: " nil nil
+                                (lambda (dir) (or (not (file-exists-p dir))
                                              (directory-empty-p dir))))
            (and current-prefix-arg :last-release))))
+  (setf directory (expand-file-name directory))
   (package-vc--archives-initialize)
   (let ((pkg-spec (or (package-vc--desc->spec pkg-desc)
                       (and-let* ((extras (package-desc-extras pkg-desc))

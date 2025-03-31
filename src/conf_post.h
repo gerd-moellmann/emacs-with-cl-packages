@@ -1,6 +1,6 @@
 /* conf_post.h --- configure.ac includes this via AH_BOTTOM
 
-Copyright (C) 1988, 1993-1994, 1999-2002, 2004-2023 Free Software
+Copyright (C) 1988, 1993-1994, 1999-2002, 2004-2024 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -96,7 +96,7 @@ typedef bool bool_bf;
 #ifdef emacs
 /* We include stdlib.h here, because Gnulib's stdlib.h might redirect
    'free' to its replacement, and we want to avoid that in unexec
-   builds.  Inclduing it here will render its inclusion after config.h
+   builds.  Including it here will render its inclusion after config.h
    a no-op.  */
 # if (defined DARWIN_OS && defined HAVE_UNEXEC) || defined HYBRID_MALLOC
 #  include <stdlib.h>

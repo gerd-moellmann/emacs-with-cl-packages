@@ -1,6 +1,6 @@
 /* Functions for image support on window system.
 
-Copyright (C) 1989-2023 Free Software Foundation, Inc.
+Copyright (C) 1989-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -13191,6 +13191,18 @@ svg_load_image (struct frame *f, struct image *img, char *contents,
         img->background = background;
         img->background_valid = 1;
       }
+
+#if HAVE_NTGUI
+    /* Windows stores the image colors in BGR format, and SVG expects
+       them in RGB.  */
+    foreground = (foreground & 0x0000FF) << 16
+      | (foreground & 0xFF0000) >> 16
+      | (foreground & 0x00FF00);
+
+    background = (background & 0x0000FF) << 16
+      | (background & 0xFF0000) >> 16
+      | (background & 0x00FF00);
+#endif
 
     wrapped_contents = xmalloc (buffer_size);
 

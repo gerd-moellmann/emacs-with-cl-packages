@@ -1,7 +1,7 @@
 ;;; eieio.el --- Enhanced Implementation of Emacs Interpreted Objects  -*- lexical-binding:t -*-
 ;;;              or maybe Eric's Implementation of Emacs Interpreted Objects
 
-;; Copyright (C) 1995-1996, 1998-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1995-1996, 1998-2024 Free Software Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Version: 1.4
@@ -448,16 +448,13 @@ If EXTRA, include that in the string returned to represent the symbol."
 
 (defun eieio-class-parents (class)
   ;; FIXME: What does "(overload of variable)" mean here?
-  "Return parent classes to CLASS.  (overload of variable).
-
-The CLOS function `class-direct-superclasses' is aliased to this function."
+  "Return parent classes to CLASS.  (overload of variable)."
   (eieio--class-parents (eieio--full-class-object class)))
 
 (define-obsolete-function-alias 'class-parents #'eieio-class-parents "24.4")
 
 (defun eieio-class-children (class)
-  "Return child classes to CLASS.
-The CLOS function `class-direct-subclasses' is aliased to this function."
+  "Return child classes to CLASS."
   (cl-check-type class class)
   (eieio--class-children (cl--find-class class)))
 (define-obsolete-function-alias

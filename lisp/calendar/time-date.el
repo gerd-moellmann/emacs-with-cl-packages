@@ -1,6 +1,6 @@
 ;;; time-date.el --- Date and time handling functions  -*- lexical-binding: t -*-
 
-;; Copyright (C) 1998-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2024 Free Software Foundation, Inc.
 
 ;; Author: Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;;	Masanobu Umeda <umerin@mse.kyutech.ac.jp>
@@ -181,7 +181,10 @@ If DATE lacks timezone information, GMT is assumed."
 
 ;;;###autoload
 (defun days-to-time (days)
-  "Convert DAYS into a time value."
+  "Convert Emacs-epoch DAYS into a time value.
+Note that this does not use the same epoch as `time-to-days'; you
+must subtract (time-to-days 0) first to convert, and may get nil
+if the result is before the start."
   ;; FIXME: We should likely just pass `t' to `time-convert'.
   ;; All uses I could find in Emacs, GNU ELPA, and NonGNU ELPA can handle
   ;; any valid time representation as return value.
@@ -243,7 +246,7 @@ DATE1 and DATE2 should be date-time strings."
 
 ;;;###autoload
 (defun time-to-days (time)
-  "The absolute date corresponding to TIME, a time value.
+  "The absolute pseudo-Gregorian date for TIME, a time value.
 The absolute date is the number of days elapsed since the imaginary
 Gregorian date Sunday, December 31, 1 BC."
   (let* ((tim (decode-time time))

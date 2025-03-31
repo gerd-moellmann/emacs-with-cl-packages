@@ -1,6 +1,6 @@
 ;;; rcirc.el --- default, simple IRC client          -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2005-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2024 Free Software Foundation, Inc.
 
 ;; Author: Ryan Yeske <rcyeske@gmail.com>
 ;; Maintainers: Ryan Yeske <rcyeske@gmail.com>,
@@ -859,6 +859,7 @@ If QUIET is non-nil, no not emit a message."
       (if (rcirc--connection-open-p process)
           (throw 'exit (or quiet (message "Server process is alive")))
         (delete-process process))
+      (setq rcirc-user-authenticated nil)
       (let ((conn-info rcirc-connection-info))
         (setf (nth 5 conn-info)
               (cl-remove-if-not #'rcirc-channel-p

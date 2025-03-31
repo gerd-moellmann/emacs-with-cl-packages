@@ -1,6 +1,6 @@
 ;;; eldoc.el --- Show function arglist or variable docstring in echo area  -*- lexical-binding:t; -*-
 
-;; Copyright (C) 1996-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2024 Free Software Foundation, Inc.
 
 ;; Author: Noah Friedman <friedman@splode.com>
 ;; Keywords: extensions
@@ -65,7 +65,8 @@ If this variable is set to 0, display the documentation without any delay."
 (defcustom eldoc-print-after-edit nil
   "If non-nil, eldoc info is only shown after editing commands.
 Changing the value requires toggling `eldoc-mode'."
-  :type 'boolean)
+  :type 'boolean
+  :version "24.4")
 
 (defcustom eldoc-echo-area-display-truncation-message t
   "If non-nil, provide verbose help when a message has been truncated.
@@ -132,7 +133,10 @@ documentation in the echo area if the dedicated documentation
 buffer (displayed by `eldoc-doc-buffer') is already displayed in
 some window.  If the value is the symbol `maybe', then the echo area
 is only skipped if the documentation needs to be truncated there."
-  :type 'boolean)
+  :type '(choice (const :tag "Prefer ElDoc's documentation buffer" t)
+                 (const :tag "Prefer echo area" nil)
+                 (const :tag "Skip echo area if truncating" maybe))
+  :version "28.1")
 
 (defface eldoc-highlight-function-argument
   '((t (:inherit bold)))

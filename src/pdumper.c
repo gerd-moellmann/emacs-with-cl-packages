@@ -1,4 +1,4 @@
-/* Copyright (C) 2018-2023 Free Software Foundation, Inc.
+/* Copyright (C) 2018-2024 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -2748,7 +2748,7 @@ dump_hash_table (struct dump_context *ctx,
 static dump_off
 dump_buffer (struct dump_context *ctx, const struct buffer *in_buffer)
 {
-#if CHECK_STRUCTS && !defined HASH_buffer_85D317CE74
+#if CHECK_STRUCTS && !defined HASH_buffer_9E96D7C4B4
 # error "buffer changed. See CHECK_STRUCTS comment in config.h."
 #endif
   struct buffer munged_buffer = *in_buffer;

@@ -1,6 +1,6 @@
 ;;; subr-x.el --- extra Lisp functions  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2013-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2024 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: convenience
@@ -322,12 +322,14 @@ as the new values of the bound variables in the recursive invocation."
     ;; Keeping a work buffer around is more efficient than creating a
     ;; new temporary buffer.
     (with-current-buffer (get-buffer-create " *string-pixel-width*")
-      ;; `display-line-numbers-mode' is enabled in internal buffers
-      ;; that breaks width calculation, so need to disable (bug#59311)
-      (when (bound-and-true-p display-line-numbers-mode)
-        (display-line-numbers-mode -1))
+      ;; If `display-line-numbers' is enabled in internal buffers
+      ;; (e.g. globally), it breaks width calculation (bug#59311)
+      (setq-local display-line-numbers nil)
       (delete-region (point-min) (point-max))
-      (insert string)
+      ;; Disable line-prefix and wrap-prefix, for the same reason.
+      (setq line-prefix nil
+	    wrap-prefix nil)
+      (insert (propertize string 'line-prefix nil 'wrap-prefix nil))
       (car (buffer-text-pixel-size nil nil t)))))
 
 ;;;###autoload

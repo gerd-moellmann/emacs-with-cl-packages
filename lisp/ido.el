@@ -1,6 +1,6 @@
 ;;; ido.el --- interactively do things with buffers and files -*- lexical-binding: t -*-
 
-;; Copyright (C) 1996-2023 Free Software Foundation, Inc.
+;; Copyright (C) 1996-2024 Free Software Foundation, Inc.
 
 ;; Author: Kim F. Storm <storm@cua.dk>
 ;; Based on: iswitchb by Stephen Eglen <stephen@cns.ed.ac.uk>
@@ -863,7 +863,8 @@ also modify the dynamic variables described for the variable
 (defcustom ido-completion-buffer "*Ido Completions*"
   "Name of completion buffer used by Ido.
 Set to nil to disable completion buffers popping up."
-  :type 'string)
+  :type '(choice (const :tag "Disable popping up completion buffer" nil)
+                 string))
 
 (defcustom ido-completion-buffer-all-completions nil
   "Non-nil means to show all completions in completion buffer.
@@ -1507,8 +1508,8 @@ Removes badly formatted data and ignored directories."
   (add-hook 'minibuffer-setup-hook #'ido-minibuffer-setup)
   (add-hook 'choose-completion-string-functions #'ido-choose-completion-string))
 
-(defun ido--ffap-find-file (file)
-  (find-file file))
+(defun ido--ffap-find-file (file &optional wildcard)
+  (find-file file wildcard))
 
 (define-minor-mode ido-everywhere
   "Toggle use of Ido for all buffer/file reading."
