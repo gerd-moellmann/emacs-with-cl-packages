@@ -1,5 +1,5 @@
 /* Functions for GUI implemented with Cocoa AppKit on macOS.
-   Copyright (C) 2008-2024  YAMAMOTO Mitsuharu
+   Copyright (C) 2008-2025  YAMAMOTO Mitsuharu
 
 This file is part of GNU Emacs Mac port.
 
