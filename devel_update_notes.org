@@ -63,7 +63,7 @@ After the merge, additional issues were uncovered that prevented compilation fro
 
 ~CoreGraphics~ does not (as yet) support SVG natively (despite the existence of =PrivateFrameworks/CoreSVG.framework=).  Right now, SVG display is fairly convoluted, and works as follows:
 
-- Image-IO (which drives core graphics) is mapped to an ~image-io~ type in emacs-mac.  The ~imagemagick~ type is aliased ot it as well, unless imagemagick is explicitly compiled in.  This allows direct image manipulation (scaling, etc.).
+- Image-IO (which drives core graphics) is mapped to an ~image-io~ type in emacs-mac.  The ~imagemagick~ type is aliased to it as well, unless imagemagick is explicitly compiled in.  This allows direct image manipulation (scaling, etc.).
 - ~image_io_load~ is used to load either type of svg file.
 - For images of type ~svg~, ~svg_load~ is registered if =RSVG= support is compiled in.
 - There is also a ~native-image~ type, which also just displays via ~image-io~.
