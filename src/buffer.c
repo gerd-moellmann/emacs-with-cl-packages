@@ -6189,6 +6189,8 @@ There is no reason to change that value except for debugging purposes.  */);
    scanning overhead less uniform, since characters can be of different
    lengths (1 to 5 bytes.  */
 
+// clang-format off
+
 struct text_index
 {
   /* Value at index IDX is the character position of byte position IDX *
@@ -6225,38 +6227,30 @@ index_bytepos (ptrdiff_t slot)
 }
 
 static ptrdiff_t
-index_charpos (struct text_index *ti, ptrdiff_t slot)
+index_charpos (const struct text_index *ti, ptrdiff_t slot)
 {
   return ti->charpos[slot];
 }
 
+/* Return the slot of index TI for the largest character position <=
+   CHARPOS.  */
 
 static ptrdiff_t
-binary_search (const ptrdiff_t *charpos, size_t n, ptrdiff_t pos)
+index_charpos_slot (const struct text_index *ti, ptrdiff_t charpos)
 {
-  size_t low = 0;
-  size_t high = n - 1;
-  ptrdiff_t result_index = -1;
-
-  while (low <= high)
+  ptrdiff_t slot = -1;
+  for (ptrdiff_t low = 0, high = ti->nentries - 1; low <= high;)
     {
-      size_t mid = low + (high - low) / 2;
-      if (charpos[mid] <= pos)
+      ptrdiff_t mid = low + (high - low) / 2;
+      if (ti->charpos[mid] <= charpos)
 	{
-	  result_index = mid;
+	  slot = mid;
 	  low = mid + 1;
 	}
       else
 	high = mid - 1;
     }
 
-  return result_index;
-}
-
-static ptrdiff_t
-index_charpos_slot (struct text_index *ti, ptrdiff_t charpos)
-{
-  ptrdiff_t slot = binary_search (ti->charpos, ti->nentries, charpos);
   eassert (slot >= 0 && slot < ti->nentries);
   return slot;
 }
@@ -6302,15 +6296,16 @@ free_text_index (struct text_index *ti)
 static void
 enlarge_index (struct text_index *ti, ptrdiff_t bytepos)
 {
-  ptrdiff_t needed = index_slot (bytepos) + 1;
-  if (needed > ti->capacity)
+  ptrdiff_t needed_slots = index_slot (bytepos) + 1;
+  if (needed_slots > ti->capacity)
     {
-      ti->capacity = max (needed, 2 * ti->capacity);
-      ti->charpos = xnrealloc (ti->charpos, ti->capacity, sizeof *ti->charpos);
+      ti->capacity = max (needed_slots, 2 * ti->capacity);
+      ti->charpos = xnrealloc (ti->charpos, ti->capacity,
+			       sizeof *ti->charpos);
     }
 }
 
-/* Invalidate index entries for all positions >= BYTEPOS in buffer B.
+/* Invalidate index entries for all positions > BYTEPOS in buffer B.
    Note that the entry for BYTEPOS itself, if it is at a chunk boundary,
    remains unchanged.  */
 
@@ -6327,7 +6322,7 @@ text_index_invalidate (struct buffer *b, ptrdiff_t bytepos)
 /* Return index TI's maximum indexed character position.  */
 
 static ptrdiff_t
-max_indexed_charpos (struct text_index *ti)
+max_indexed_charpos (const struct text_index *ti)
 {
   if (ti)
     return ti->charpos[ti->nentries - 1];
@@ -6337,7 +6332,7 @@ max_indexed_charpos (struct text_index *ti)
 /* Return index TI's maximum indexed byte position.  */
 
 static ptrdiff_t
-max_indexed_bytepos (struct text_index *ti)
+max_indexed_bytepos (const struct text_index *ti)
 {
   if (ti == NULL)
     return 0;
@@ -6383,6 +6378,8 @@ build_index_to_bytepos (struct buffer *b, ptrdiff_t to_bytepos)
     }
 }
 
+/* Build text index of buffer B up to and including TO_CHARPOS.  */
+
 static void
 build_index_to_charpos (struct buffer *b, ptrdiff_t to_charpos)
 {
@@ -6419,14 +6416,16 @@ build_index_to_charpos (struct buffer *b, ptrdiff_t to_charpos)
     }
 }
 
-// clang-format off
+/* Make sure tht buffer B has a text index.  */
 
 static void
-ensure_has_index (struct buffer * b)
+ensure_has_index (struct buffer *b)
 {
   if (b->text->index == NULL)
     b->text->index = make_text_index (BUF_Z_BYTE (b));
 }
+
+/* Make sure that buffer B's text index contains BYTEPOS.  */
 
 static void
 ensure_bytepos_indexed (struct buffer *b, ptrdiff_t bytepos)
@@ -6436,6 +6435,8 @@ ensure_bytepos_indexed (struct buffer *b, ptrdiff_t bytepos)
     build_index_to_bytepos (b, bytepos);
 }
 
+/* Make sure that buffer B's text index contains CHARPOS.  */
+
 static void
 ensure_charpos_indexed (struct buffer *b, ptrdiff_t charpos)
 {
@@ -6443,6 +6444,10 @@ ensure_charpos_indexed (struct buffer *b, ptrdiff_t charpos)
   if (charpos > max_indexed_charpos (b->text->index))
     build_index_to_charpos (b, charpos);
 }
+
+/* In buffer B, starting from index entry SLOT, scan forward in B's
+   text to TO_BYTEPOS, and return the corresponding character
+   position.  */
 
 static ptrdiff_t
 charpos_scanning_forward_to_bytepos (struct buffer *b, ptrdiff_t slot,
@@ -6460,6 +6465,10 @@ charpos_scanning_forward_to_bytepos (struct buffer *b, ptrdiff_t slot,
   return charpos;
 }
 
+/* In buffer B, starting from index entry SLOT, scan backwards in B's
+   text to TO_BYTEPOS, and return the corresponding character
+   position.  */
+
 static ptrdiff_t
 charpos_scanning_backward_to_bytepos (struct buffer *b, ptrdiff_t slot,
 				      ptrdiff_t to_bytepos)
@@ -6475,6 +6484,9 @@ charpos_scanning_backward_to_bytepos (struct buffer *b, ptrdiff_t slot,
     }
   return charpos;
 }
+
+/* Return true if we can backward scanning to find the character
+   position of BYTEPOS in buffer B, */
 
 static bool
 can_scan_backward (struct buffer *b, ptrdiff_t bytepos)
@@ -6535,6 +6547,8 @@ text_index_charpos_to_bytepos (struct buffer *b, ptrdiff_t charpos)
   ensure_charpos_indexed (b, charpos);
   struct text_index *ti = b->text->index;
   ptrdiff_t slot = index_charpos_slot (ti, charpos);
+  /* One could also try to employ (Z, Z_BYTE) as a known position to
+     scan backwards from, but I'm not sure it's worth it.  */
   if (slot + 1 < ti->nentries
       && (index_charpos (ti, slot + 1) - charpos
 	  < charpos - index_charpos (ti, slot)))
