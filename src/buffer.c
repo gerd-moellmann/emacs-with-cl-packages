@@ -6381,20 +6381,20 @@ build_index_to_bytepos (struct buffer *b, ptrdiff_t to_bytepos)
 /* Build text index of buffer B up to and including TO_CHARPOS.  */
 
 static void
-build_index_to_charpos (struct buffer *b, ptrdiff_t to_charpos)
+build_index_to_charpos (struct buffer *b, const ptrdiff_t to_charpos)
 {
   struct text_index *ti = b->text->index;
   eassert (to_charpos >= BEG && to_charpos <= BUF_Z (b));
   eassert (to_charpos > max_indexed_charpos (ti));
 
   /* Start at the last index entry.  */
-  ptrdiff_t slot = ti->nentries - 1;
+  const ptrdiff_t slot = ti->nentries - 1;
   ptrdiff_t charpos = index_charpos (ti, slot);
   ptrdiff_t bytepos = index_bytepos (slot);
   ptrdiff_t next_stop = bytepos + CHUNK_BYTES;
 
   /* Not enough bytes left to make a new index entry?  */
-  ptrdiff_t z_byte = BUF_Z_BYTE (b);
+  const ptrdiff_t z_byte = BUF_Z_BYTE (b);
   if (next_stop > z_byte)
     return;
 
@@ -6451,34 +6451,34 @@ ensure_charpos_indexed (struct buffer *b, ptrdiff_t charpos)
 
 static ptrdiff_t
 charpos_scanning_forward_to_bytepos (struct buffer *b, ptrdiff_t slot,
-				     ptrdiff_t to_bytepos)
+				     const ptrdiff_t to_bytepos)
 {
-  struct text_index *ti = b->text->index;
+  const struct text_index *ti = b->text->index;
   ptrdiff_t bytepos = index_bytepos (slot);
   ptrdiff_t charpos = index_charpos (ti, slot);
   for (++bytepos; bytepos <= to_bytepos; ++bytepos)
     {
-      unsigned char byte = BUF_FETCH_BYTE (b, bytepos);
+      const unsigned char byte = BUF_FETCH_BYTE (b, bytepos);
       if (CHAR_HEAD_P (byte))
 	++charpos;
     }
   return charpos;
 }
 
-/* In buffer B, starting from index entry SLOT, scan backwards in B's
+/* In buffer B, starting from index entry SLOT, scan backward in B's
    text to TO_BYTEPOS, and return the corresponding character
    position.  */
 
 static ptrdiff_t
 charpos_scanning_backward_to_bytepos (struct buffer *b, ptrdiff_t slot,
-				      ptrdiff_t to_bytepos)
+				      const ptrdiff_t to_bytepos)
 {
-  struct text_index *ti = b->text->index;
+  const struct text_index *ti = b->text->index;
   ptrdiff_t bytepos = char_start_bytepos (b, index_bytepos (slot));
   ptrdiff_t charpos = index_charpos (ti, slot);
   for (--bytepos; bytepos >= to_bytepos; --bytepos)
     {
-      unsigned char byte = BUF_FETCH_BYTE (b, bytepos);
+      const unsigned char byte = BUF_FETCH_BYTE (b, bytepos);
       if (CHAR_HEAD_P (byte))
 	--charpos;
     }
@@ -6489,20 +6489,20 @@ charpos_scanning_backward_to_bytepos (struct buffer *b, ptrdiff_t slot,
    position of BYTEPOS in buffer B, */
 
 static bool
-can_scan_backward (struct buffer *b, ptrdiff_t bytepos)
+can_scan_backward (const struct buffer *b, const ptrdiff_t bytepos)
 {
-  struct text_index *ti = b->text->index;
-  ptrdiff_t slot = index_slot (bytepos);
+  const struct text_index *ti = b->text->index;
+  const ptrdiff_t slot = index_slot (bytepos);
   return slot + 1 < ti->nentries;
 }
 
 ptrdiff_t
-text_index_bytepos_to_charpos (struct buffer *b, ptrdiff_t bytepos)
+text_index_bytepos_to_charpos (struct buffer *b, const ptrdiff_t bytepos)
 {
   ensure_bytepos_indexed (b, bytepos);
 
-  ptrdiff_t slot = index_slot (bytepos);
-  ptrdiff_t indexed_bytepos = index_bytepos (slot);
+  const ptrdiff_t slot = index_slot (bytepos);
+  const ptrdiff_t indexed_bytepos = index_bytepos (slot);
   if (bytepos - indexed_bytepos < CHUNK_BYTES / 2
       || !can_scan_backward (b, bytepos))
     return charpos_scanning_forward_to_bytepos (b, slot, bytepos);
@@ -6513,12 +6513,12 @@ static ptrdiff_t
 bytepos_scanning_forward_to_charpos (struct buffer *b, ptrdiff_t slot,
 				     ptrdiff_t to_charpos)
 {
-  struct text_index *ti = b->text->index;
+  const struct text_index *ti = b->text->index;
   ptrdiff_t bytepos = index_bytepos (slot);
   ptrdiff_t charpos = index_charpos (ti, slot);
   for (++bytepos; charpos < to_charpos; ++bytepos)
     {
-      unsigned char byte = BUF_FETCH_BYTE (b, bytepos);
+      const unsigned char byte = BUF_FETCH_BYTE (b, bytepos);
       if (CHAR_HEAD_P (byte))
 	++charpos;
     }
@@ -6526,15 +6526,16 @@ bytepos_scanning_forward_to_charpos (struct buffer *b, ptrdiff_t slot,
 }
 
 static ptrdiff_t
-bytepos_scanning_backward_to_charpos (struct buffer *b, ptrdiff_t slot,
-				     ptrdiff_t to_charpos)
+bytepos_scanning_backward_to_charpos (struct buffer *b,
+				      const ptrdiff_t slot,
+				      const ptrdiff_t to_charpos)
 {
-  struct text_index *ti = b->text->index;
+  const struct text_index *ti = b->text->index;
   ptrdiff_t bytepos = char_start_bytepos (b, index_bytepos (slot));
   ptrdiff_t charpos = index_charpos (ti, slot);
   for (--bytepos; charpos > to_charpos; --bytepos)
     {
-      unsigned char byte = BUF_FETCH_BYTE (b, bytepos);
+      const unsigned char byte = BUF_FETCH_BYTE (b, bytepos);
       if (CHAR_HEAD_P (byte))
 	--charpos;
     }
