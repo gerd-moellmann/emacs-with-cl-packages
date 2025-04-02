@@ -123,7 +123,7 @@ static Lisp_Object QSFundamental;	/* A string "Fundamental".  */
 
 static void alloc_buffer_text (struct buffer *, ptrdiff_t);
 static void free_buffer_text (struct buffer *b);
-static void free_text_index (struct buffer *b);
+static void free_text_index (struct text_index *ti);
 static void copy_overlays (struct buffer *, struct buffer *);
 static void modify_overlay (struct buffer *, ptrdiff_t, ptrdiff_t);
 static Lisp_Object buffer_lisp_local_variables (struct buffer *, bool);
@@ -2157,7 +2157,6 @@ cleaning up all windows currently displaying the buffer to be killed. */)
       eassert (b->window_count == 0);
       /* No one shares our buffer text, can free it.  */
       free_buffer_text (b);
-      free_text_index (b);
     }
 
   if (b->newline_cache)
@@ -2175,6 +2174,7 @@ cleaning up all windows currently displaying the buffer to be killed. */)
       free_region_cache (b->bidi_paragraph_cache);
       b->bidi_paragraph_cache = 0;
     }
+  free_text_index (b->own_text.index);
   bset_width_table (b, Qnil);
   unblock_input ();
 
@@ -6160,94 +6160,105 @@ There is no reason to change that value except for debugging purposes.  */);
 				 Text Index
  ************************************************************************/
 
-/* This index is used to map character positions in buffer text to byte
-   positions and vice versa. Every TEXT_INDEX_DISTANCE bytes, the index
-   contains an entry which at index I which gives the character position
-   at byte position I * TEXT_INDEX_DISTANCE. (Note that not all byte
-   positions are character starts; they can be in the middle of a
-   character.)
+/* A text index is used to map character positions in buffer text to byte
+   positions and vice versa.
 
-   To find the character position CHARPOS corresponding to a given byte
-   position BYTEPOS, we look up the character position in the index at
-   BYTEPOS / TEXT_INDEX_DISTANCE. From there we have to scan forward
-   until we reach BYTEPOS, counting characters. Since the character
-   position C in the index is a character start, and the byte position
-   corresponding to the index entry can be in the middle of a character,
-   we must first skip over a partial character sequence while scanning
-   forward.
+   The index divides (buffer) text into chunks of equal size
+   TEXT_INDEX_CHUNK_BYTES number of bytes.  Every TEXT_INDEX_CHUNK_BYTES
+   bytes of a buffer's text, the index contains an entry which is the
+   character position of the character containing the the given byte
+   position.
+
+   Note that a given byte position at a chunk boundary can be in the
+   middle of a multi-byte character.
+
+   To find the character position corresponding to a given byte position
+   BYTEPOS, we look up the character position in the index at BYTEPOS /
+   TEXT_INDEX_CHUNK_BYTES.  From there we scan forward in the text until
+   we reach BYTEPOS, counting characters.
 
    To find the byte position BYTEPOS corresponding to a given character
-   position CHARPOS, we do a binary search in the index for an entry <=
-   CHARPOS. From there, scan forward counting characters and adding up
-   byte counts. Again, take into account that we may start in the middle
-   of a character.
+   position CHARPOS, we search in the index for the last entry SLOT
+   whose character position is <= CHARPOS.  That entry corresponds to
+   a byte position SLOT * TEXT_INDEX_CHUNK_BYTES.  From that byte position
+   we scan the text until we reach BYTEPOS, counting characters until we
+   reach CHARPOS.  The byte position reached at the end is BYTEPOS.
 
-   Why divide the text into chunks of bytes of size TEXT_INDEX_DISTANCE?
-   If we did divide it into chunks of characters, this in general means
-   that we have to scan longer byte distances forward. Up to 5 times
-   longer.  */
-
-enum { TEXT_INDEX_DISTANCE = 512 };
+   Why divide the text into chunks of bytes instead of chunks of
+   characters?  Dividing the text into chunks of characters makes
+   scanning overhead less uniform, since characters can be of different
+   lengths (1 to 5 bytes.  */
 
 struct text_index
 {
-  /* Value at index I is the character position of byte position
-     (BYTEPOS / TEXT_INDEX_DISTANCE) * TEXT_INDEX_DISTANCE. Note that
-     that byte position may be in the middle of a character. */
+  /* Value at index IDX is the character position of byte position IDX *
+     TEXT_INDEX_CHUNK_BYTES.  Note that that byte position may be in the
+     middle of a character.  The value at index 0 is BEG.  */
   ptrdiff_t *charpos;
 
-  /* Number of valid entries in the above array. There is always at
-     least one because the first entry is for BEG_BYTE which maps to
-     BEG. */
-  size_t valid;
+  /* Number of valid entries in the above array.  This is always at least 1
+     because the first entry is BEG.  */
+  size_t nentries;
 
   /* Number of entries allocated.  */
   size_t capacity;
 };
 
+enum
+{
+  /* 5% of the text size overhead, with 64-bit positions.  */
+  CHUNK_BYTES = 160
+};
+
+/* Return the index slot for BYTEPOS.  */
+
 static ptrdiff_t
 index_slot (ptrdiff_t bytepos)
 {
-  return bytepos / TEXT_INDEX_DISTANCE;
+  return bytepos / CHUNK_BYTES;
 }
 
-/* Allocate and return a text index structure with enough room
-   for a text of length NBYTES bytes.  */
-
-static struct text_index *
-make_text_index (size_t nbytes)
+static ptrdiff_t
+index_bytepos (ptrdiff_t slot)
 {
-  struct text_index *ti = xzalloc (sizeof *ti);
-  ti->capacity = 1 + index_slot (nbytes);
-  ti->charpos = xzalloc (ti->capacity * sizeof *ti->charpos);
-  ti->charpos[0] = BEG;
-  ti->valid = 1;
-  return ti;
+  return slot * CHUNK_BYTES;
 }
 
-static void
-maybe_enlarge_index (struct text_index *ti, ptrdiff_t bytepos)
+static ptrdiff_t
+index_charpos (struct text_index *ti, ptrdiff_t slot)
 {
-  ptrdiff_t needed = index_slot (bytepos) + 1;
-  if (needed > ti->capacity)
+  return ti->charpos[slot];
+}
+
+
+static ptrdiff_t
+binary_search (const ptrdiff_t *charpos, size_t n, ptrdiff_t pos)
+{
+  size_t low = 0;
+  size_t high = n - 1;
+  ptrdiff_t result_index = -1;
+
+  while (low <= high)
     {
-      ti->capacity *= 2;
-      ti->charpos = xnrealloc (ti->charpos, ti->capacity, sizeof *ti->charpos);
+      size_t mid = low + (high - low) / 2;
+      if (charpos[mid] <= pos)
+	{
+	  result_index = mid;
+	  low = mid + 1;
+	}
+      else
+	high = mid - 1;
     }
+
+  return result_index;
 }
 
-/* Free the text index of buffer B.  */
-
-static void
-free_text_index (struct buffer *b)
+static ptrdiff_t
+index_charpos_slot (struct text_index *ti, ptrdiff_t charpos)
 {
-  struct text_index *ti = b->own_text.text_index;
-  if (ti)
-    {
-      xfree (ti->charpos);
-      xfree (ti);
-      b->own_text.text_index = NULL;
-    }
+  ptrdiff_t slot = binary_search (ti->charpos, ti->nentries, charpos);
+  eassert (slot >= 0 && slot < ti->nentries);
+  return slot;
 }
 
 /* Given a byte position BYTEPOS in buffer B, return the byte position
@@ -6261,120 +6272,272 @@ char_start_bytepos (struct buffer *b, ptrdiff_t bytepos)
   return bytepos;
 }
 
-/* Invalidate index entries for all positions >= BYTEPOS in buffer B.  */
+/* Allocate and return a text index structure with enough room for a
+   text of length NBYTES bytes.  */
+
+static struct text_index *
+make_text_index (size_t nbytes)
+{
+  struct text_index *ti = xzalloc (sizeof *ti);
+  ti->capacity = 1 + index_slot (nbytes);
+  ti->charpos = xnmalloc (ti->capacity, sizeof *ti->charpos);
+  ti->charpos[0] = BEG;
+  ti->nentries = 1;
+  return ti;
+}
+
+/* Free the text index TI if not NULL.  */
 
 static void
-invalidate_index (struct buffer *b, ptrdiff_t bytepos)
+free_text_index (struct text_index *ti)
 {
-  struct text_index *ti = b->own_text.text_index;
-  if (ti)
+  if (ti == NULL)
+    return;
+  xfree (ti->charpos);
+  xfree (ti);
+}
+
+/* Make text index TI large enough to contain BYTEPOS.  */
+
+static void
+enlarge_index (struct text_index *ti, ptrdiff_t bytepos)
+{
+  ptrdiff_t needed = index_slot (bytepos) + 1;
+  if (needed > ti->capacity)
     {
-      ptrdiff_t last_valid = index_slot (bytepos);
-      ti->valid = last_valid + 1;
+      ti->capacity = max (needed, 2 * ti->capacity);
+      ti->charpos = xnrealloc (ti->charpos, ti->capacity, sizeof *ti->charpos);
     }
 }
 
+/* Invalidate index entries for all positions >= BYTEPOS in buffer B.
+   Note that the entry for BYTEPOS itself, if it is at a chunk boundary,
+   remains unchanged.  */
+
+void
+text_index_invalidate (struct buffer *b, ptrdiff_t bytepos)
+{
+  struct text_index *ti = b->text->index;
+  if (ti == NULL)
+    return;
+  ptrdiff_t last_valid = index_slot (bytepos);
+  ti->nentries = min (ti->nentries, last_valid + 1);
+}
+
+/* Return index TI's maximum indexed character position.  */
+
 static ptrdiff_t
-max_known_charpos (struct text_index *ti)
+max_indexed_charpos (struct text_index *ti)
 {
   if (ti)
-    return ti->charpos[ti->valid - 1];
+    return ti->charpos[ti->nentries - 1];
   return 0;
 }
 
+/* Return index TI's maximum indexed byte position.  */
+
 static ptrdiff_t
-max_known_bytepos (struct text_index *ti)
+max_indexed_bytepos (struct text_index *ti)
 {
-  if (ti)
-    return (ti->valid - 1) * TEXT_INDEX_DISTANCE;
-  return 0;
+  if (ti == NULL)
+    return 0;
+  if (ti->nentries == 1)
+    return BEG_BYTE;
+  return (ti->nentries - 1) * CHUNK_BYTES;
 }
+
+/* Build text index of buffer B up to and including TO_BYTEPOS.  */
 
 static void
-build_index (struct buffer *b, ptrdiff_t bytepos)
+build_index_to_bytepos (struct buffer *b, ptrdiff_t to_bytepos)
 {
-  /* If we don't have an index yet, make one.  */
-  if (b->own_text.text_index == NULL)
-    b->own_text.text_index = make_text_index (BUF_Z_BYTE (b));
+  struct text_index *ti = b->text->index;
+  enlarge_index (ti, to_bytepos);
 
-  /* Make sure the index has enough room.  */
-  struct text_index *ti = b->own_text.text_index;
-  maybe_enlarge_index (ti, bytepos);
+  eassert (to_bytepos >= BEG_BYTE && to_bytepos <= BUF_Z_BYTE (b));
+  eassert (to_bytepos > max_indexed_bytepos (ti));
 
-  /* Start at the byte position of the index entry <= BYTEPOS.  if
-     BYTEPOS equals the byte position of that entry, this is okay,
+  /* Start at the byte position of the index entry <= TO_BYTEPOS.  if
+     TO_BYTEPOS equals the byte position of that entry, this is okay,
      because the character position at that byte position cannot have
      changed.  */
-  ptrdiff_t slot = index_slot (bytepos);
-  ptrdiff_t charpos = ti->charpos[slot];
-  ptrdiff_t bpos = slot * TEXT_INDEX_DISTANCE;
-
-  /* Stop here to make a new index entry.  */
-  ptrdiff_t next_stop = bpos + TEXT_INDEX_DISTANCE;
+  ptrdiff_t slot = index_slot (to_bytepos);
+  ptrdiff_t charpos = index_charpos (ti, slot);
+  ptrdiff_t bytepos = index_bytepos (slot);
+  ptrdiff_t next_stop = index_bytepos (slot + 1);
 
   /* Loop over bytes, starting one after the index entry we start from
      because we are only interested in yet unknown entries, and the
-     one at SLOT is known to stay unchanged.  */
-  for (++bpos; bpos <= bytepos; ++bpos)
+     one at SLOT is assumed to stay unchanged.  */
+  for (++bytepos; bytepos <= to_bytepos; ++bytepos)
     {
-      if (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bpos)))
+      unsigned char byte = BUF_FETCH_BYTE (b, bytepos);
+      if (CHAR_HEAD_P (byte))
 	++charpos;
 
-      if (bpos == next_stop)
+      if (bytepos == next_stop)
 	{
-	  ti->charpos[index_slot (bpos)] = charpos;
-	  next_stop += TEXT_INDEX_DISTANCE;
+	  ti->charpos[index_slot (bytepos)] = charpos;
+	  next_stop += CHUNK_BYTES;
 	}
     }
+}
+
+static void
+build_index_to_charpos (struct buffer *b, ptrdiff_t to_charpos)
+{
+  struct text_index *ti = b->text->index;
+  eassert (to_charpos >= BEG && to_charpos <= BUF_Z (b));
+  eassert (to_charpos > max_indexed_charpos (ti));
+
+  /* Start at the last index entry.  */
+  ptrdiff_t slot = ti->nentries - 1;
+  ptrdiff_t charpos = index_charpos (ti, slot);
+  ptrdiff_t bytepos = index_bytepos (slot);
+  ptrdiff_t next_stop = bytepos + CHUNK_BYTES;
+
+  /* Not enough bytes left to make a new index entry?  */
+  ptrdiff_t z_byte = BUF_Z_BYTE (b);
+  if (next_stop > z_byte)
+    return;
+
+  /* Loop over bytes, starting one after the index entry, until we
+     reach the interesting character position.  */
+  for (++bytepos; bytepos < z_byte; ++bytepos)
+    {
+      unsigned char byte = BUF_FETCH_BYTE (b, bytepos);
+      if (CHAR_HEAD_P (byte))
+	++charpos;
+
+      if (bytepos == next_stop)
+	{
+	  ti->charpos[index_slot (bytepos)] = charpos;
+	  if (charpos >= to_charpos)
+	    break;
+	  next_stop += CHUNK_BYTES;
+	}
+    }
+}
+
+// clang-format off
+
+static void
+ensure_has_index (struct buffer * b)
+{
+  if (b->text->index == NULL)
+    b->text->index = make_text_index (BUF_Z_BYTE (b));
+}
+
+static void
+ensure_bytepos_indexed (struct buffer *b, ptrdiff_t bytepos)
+{
+  ensure_has_index (b);
+  if (bytepos > max_indexed_bytepos (b->text->index))
+    build_index_to_bytepos (b, bytepos);
+}
+
+static void
+ensure_charpos_indexed (struct buffer *b, ptrdiff_t charpos)
+{
+  ensure_has_index (b);
+  if (charpos > max_indexed_charpos (b->text->index))
+    build_index_to_charpos (b, charpos);
 }
 
 static ptrdiff_t
-binary_search (const ptrdiff_t *charpos, size_t n, ptrdiff_t pos)
+charpos_scanning_forward_to_bytepos (struct buffer *b, ptrdiff_t slot,
+				     ptrdiff_t to_bytepos)
 {
-  size_t low = 0;
-  size_t high = n - 1;
-  ptrdiff_t result_index = -1;
-
-  while (low <= high)
+  struct text_index *ti = b->text->index;
+  ptrdiff_t bytepos = index_bytepos (slot);
+  ptrdiff_t charpos = index_charpos (ti, slot);
+  for (++bytepos; bytepos <= to_bytepos; ++bytepos)
     {
-      size_t mid = low + (high - low) / 2;
-
-      if (charpos[mid] <= pos)
-	{
-	  result_index = mid;
-	  low = mid + 1;
-	}
-      else
-	high = mid - 1;
-    }
-
-    return result_index;
-}
-
-ptrdiff_t
-byte_to_charpos (struct buffer *b, ptrdiff_t bytepos)
-{
-  /* Char positions are always <= byte positions, so by ensuring
-     that byte position POS is known in the index, we make sure
-     that char position POS is known.  */
-  build_index (b, bytepos);
-  ptrdiff_t slot = index_slot (bytepos);
-  struct text_index *ti = b->own_text.text_index;
-  ptrdiff_t charpos = ti->charpos[slot];
-  ptrdiff_t bpos = slot * TEXT_INDEX_DISTANCE;
-  while (bpos < bytepos)
-    {
-      ++bpos;
-      if (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bpos)))
+      unsigned char byte = BUF_FETCH_BYTE (b, bytepos);
+      if (CHAR_HEAD_P (byte))
 	++charpos;
     }
   return charpos;
 }
 
-ptrdiff_t
-char_to_bytepos (struct buffer *b, ptrdiff_t charpos)
+static ptrdiff_t
+charpos_scanning_backward_to_bytepos (struct buffer *b, ptrdiff_t slot,
+				      ptrdiff_t to_bytepos)
 {
-  struct text_index *ti = b->own_text.text_index;
+  struct text_index *ti = b->text->index;
+  ptrdiff_t bytepos = char_start_bytepos (b, index_bytepos (slot));
+  ptrdiff_t charpos = index_charpos (ti, slot);
+  for (--bytepos; bytepos >= to_bytepos; --bytepos)
+    {
+      unsigned char byte = BUF_FETCH_BYTE (b, bytepos);
+      if (CHAR_HEAD_P (byte))
+	--charpos;
+    }
+  return charpos;
+}
 
-  build_index (b, charpos);
+static bool
+can_scan_backward (struct buffer *b, ptrdiff_t bytepos)
+{
+  struct text_index *ti = b->text->index;
+  ptrdiff_t slot = index_slot (bytepos);
+  return slot + 1 < ti->nentries;
+}
+
+ptrdiff_t
+text_index_bytepos_to_charpos (struct buffer *b, ptrdiff_t bytepos)
+{
+  ensure_bytepos_indexed (b, bytepos);
+
+  ptrdiff_t slot = index_slot (bytepos);
+  ptrdiff_t indexed_bytepos = index_bytepos (slot);
+  if (bytepos - indexed_bytepos < CHUNK_BYTES / 2
+      || !can_scan_backward (b, bytepos))
+    return charpos_scanning_forward_to_bytepos (b, slot, bytepos);
+  return charpos_scanning_backward_to_bytepos (b, slot + 1, bytepos);
+}
+
+static ptrdiff_t
+bytepos_scanning_forward_to_charpos (struct buffer *b, ptrdiff_t slot,
+				     ptrdiff_t to_charpos)
+{
+  struct text_index *ti = b->text->index;
+  ptrdiff_t bytepos = index_bytepos (slot);
+  ptrdiff_t charpos = index_charpos (ti, slot);
+  for (++bytepos; charpos < to_charpos; ++bytepos)
+    {
+      unsigned char byte = BUF_FETCH_BYTE (b, bytepos);
+      if (CHAR_HEAD_P (byte))
+	++charpos;
+    }
+  return bytepos;
+}
+
+static ptrdiff_t
+bytepos_scanning_backward_to_charpos (struct buffer *b, ptrdiff_t slot,
+				     ptrdiff_t to_charpos)
+{
+  struct text_index *ti = b->text->index;
+  ptrdiff_t bytepos = char_start_bytepos (b, index_bytepos (slot));
+  ptrdiff_t charpos = index_charpos (ti, slot);
+  for (--bytepos; charpos > to_charpos; --bytepos)
+    {
+      unsigned char byte = BUF_FETCH_BYTE (b, bytepos);
+      if (CHAR_HEAD_P (byte))
+	--charpos;
+    }
+  return bytepos;
+}
+
+ptrdiff_t
+text_index_charpos_to_bytepos (struct buffer *b, ptrdiff_t charpos)
+{
+  ensure_charpos_indexed (b, charpos);
+  struct text_index *ti = b->text->index;
+  ptrdiff_t slot = index_charpos_slot (ti, charpos);
+  if (slot + 1 < ti->nentries
+      && (index_charpos (ti, slot + 1) - charpos
+	  < charpos - index_charpos (ti, slot)))
+    return bytepos_scanning_backward_to_charpos (b, slot + 1, charpos);
+  return bytepos_scanning_forward_to_charpos (b, slot, charpos);
 }

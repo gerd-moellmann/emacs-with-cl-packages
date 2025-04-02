@@ -295,7 +295,7 @@ struct buffer_text
     bool_bf redisplay : 1;
 
     /* Index supporting char <-> byte position mapping.  */
-    struct text_index *text_index;
+    struct text_index *index;
   };
 
 /* Most code should use this macro to access Lisp fields in struct buffer.  */
@@ -1860,5 +1860,8 @@ INLINE_HEADER_END
 
 int compare_overlays (const void *v1, const void *v2);
 void make_sortvec_item (struct sortvec *item, Lisp_Object overlay);
+ptrdiff_t text_index_bytepos_to_charpos (struct buffer *b, ptrdiff_t bytepos);
+ptrdiff_t text_index_charpos_to_bytepos (struct buffer *b, ptrdiff_t charpos);
+void text_index_invalidate (struct buffer *b, ptrdiff_t bytepos);
 
 #endif /* EMACS_BUFFER_H */
