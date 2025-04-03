@@ -450,4 +450,6 @@ syms_of_text_index (void)
   /* FIXME: For test purposes.  Should become a constant.  */
   DEFVAR_INT ("text-index--chunk-bytes", text_index_chunk_bytes, doc: /* */);
   text_index_chunk_bytes = 160;
+
+  Fprovide (intern_c_string ("text-index"), Qnil);
 }
