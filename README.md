@@ -38,9 +38,23 @@ If you choose not to `make install`, you may need to:
 
 to associate the native lisp files.
 
+## Additions
+
+Additional features/fixes added on top of `emacs-mac` and Emacs proper:
+
+### Features
+
+- `New Frame` Dock Menu Item
+
+### Bug fixes
+
+- Take care to avoid crashes when selecting fonts from the system font panel.
+- Prevent zombie "Emacs Web Content" processes on SVG load, restoring normal WebView SVG rendering for MacOS v14+.
+- For non-RSVG display of SVG images (e.g. the default for `image-mode` you get when `C-x C-f` an SVG image), revert to the non-JS version of WebKit SVG rendering for OS >=14.  This is faster and prevents "rogue" processes.  It's recommended to build with RSVG (it is enabled by default if the `librsvg2` library is found during build).
+
 ## Debugging
 
-If you get crashes or just want to help with debugging, it would be useful to run emacs under `lldb`.  Here's how:
+If you get crashes or just want to help with debugging, it would be very useful to run emacs under `lldb`, the clang debugger.  Here's how:
 
 1. Build emacs-mac with debug flags:
    ```
@@ -55,14 +69,6 @@ If you get crashes or just want to help with debugging, it would be useful to ru
 1. Now cause your crash to occur, go `up` to the frame of interest, and use `xprint` on the potentially problematic variables.
 2. You can also try `gui` which is a little curses-based terminal GUI inside lldb (slow for me though).
 
-## Additions
-
-Additional features/fixes added on top of `emacs-mac` and Emacs proper:
-
-- `New Frame` Dock Menu Item
-- Take care to avoid crashes when selecting fonts from the system font panel.
-- Prevent zombie "Emacs Web Content" processes on SVG load, restoring normal WebView SVG rendering for MacOS v14+.
-- For non-RSVG display of SVG images (e.g. the default for `image-mode` you get when `C-x C-f` an SVG image), revert to the non-JS version of WebKit SVG rendering for OS >=14.  This is faster and prevents "rogue" processes.  It's recommended to build with RSVG (it is enabled by default if the `librsvg2` library is found during build).
 
 ## Notes
 
