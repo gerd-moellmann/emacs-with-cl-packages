@@ -20,7 +20,9 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # define EMACS_TEXT_INDEX_H
 
 #include "config.h"
-#include "lisp.h"
+# include "lisp.h"
+
+struct text_index;
 
 void init_text_index (void);
 void syms_of_text_index (void);
