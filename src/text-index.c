@@ -436,6 +436,25 @@ If BYTEPOS is out of range, the value is nil.  */)
   return Qnil;
 }
 
+DEFUN ("text-index--set-chunk-bytes", Ftext_index__set_chunk_bytes,
+       Stext_index__set_chunk_bytes, 1, 1, 0,
+       doc: /* Set chunk size.  */)
+  (Lisp_Object nbytes)
+{
+  CHECK_FIXNUM (nbytes);
+
+  Lisp_Object buffers = Fbuffer_list (Qnil);
+  FOR_EACH_TAIL (buffers)
+    {
+      struct buffer *b = XBUFFER (XCAR (buffers));
+      text_index_free (b->own_text.index);
+      b->own_text.index = NULL;
+    }
+
+  text_index_chunk_bytes = XFIXNUM (nbytes);
+  return Qnil;
+}
+
 void
 init_text_index (void)
 {
@@ -446,6 +465,7 @@ syms_of_text_index (void)
 {
   defsubr (&Stext_index__position_bytes);
   defsubr (&Stext_index__byte_to_position);
+  defsubr (&Stext_index__set_chunk_bytes);
 
   /* FIXME: For test purposes.  Should become a constant.  */
   DEFVAR_INT ("text-index--chunk-bytes", text_index_chunk_bytes, doc: /* */);
