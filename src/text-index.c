@@ -69,12 +69,8 @@ struct text_index
   size_t capacity;
 };
 
-enum
-{
-  /* This many percent of text size in bytes for the index.  */
-  INDEX_OVERHEAD_PERCENT = 5,
-  CHUNK_BYTES = sizeof (ptrdiff_t) * 100 / INDEX_OVERHEAD_PERCENT
-};
+/* FIXME: For test purposes.  Should become a constant.  */
+#define CHUNK_BYTES text_index_chunk_bytes
 
 /* Return the index slot for BYTEPOS.  */
 
@@ -421,6 +417,25 @@ text_index_charpos_to_bytepos (struct buffer *b, ptrdiff_t charpos)
   return bytepos_scanning_forward_to_charpos (b, slot, charpos);
 }
 
+DEFUN ("text-index--position-bytes", Ftext_index__position_bytes,
+       Stext_index__position_bytes, 1, 1, 0,
+       doc: /* Return the byte position for character position CHARPOS.
+If POSITION is out of range, the value is nil.  */)
+  (Lisp_Object charpos)
+{
+  return Qnil;
+}
+
+DEFUN ("text-index--byte-to-position", Ftext_index__byte_to_position,
+       Stext_index__byte_to_position, 1, 1, 0,
+       doc: /* Return the character position for byte position BYTEPOS.
+If BYTEPOS is out of range, the value is nil.  */)
+  (Lisp_Object bytepos)
+{
+  CHECK_FIXNUM (bytepos);
+  return Qnil;
+}
+
 void
 init_text_index (void)
 {
@@ -429,4 +444,10 @@ init_text_index (void)
 void
 syms_of_text_index (void)
 {
+  defsubr (&Stext_index__position_bytes);
+  defsubr (&Stext_index__byte_to_position);
+
+  /* FIXME: For test purposes.  Should become a constant.  */
+  DEFVAR_INT ("text-index--chunk-bytes", text_index_chunk_bytes, doc: /* */);
+  text_index_chunk_bytes = 160;
 }
