@@ -71,8 +71,9 @@ struct text_index
 
 enum
 {
-  /* 5% of the text size overhead, with 64-bit positions.  */
-  CHUNK_BYTES = 160
+  /* This many percent of text size in bytes for the index.  */
+  INDEX_OVERHEAD_PERCENT = 5,
+  CHUNK_BYTES = sizeof (ptrdiff_t) * 100 / INDEX_OVERHEAD_PERCENT
 };
 
 /* Return the index slot for BYTEPOS.  */
