@@ -14122,6 +14122,7 @@ static WebView *EmacsSVGDocumentLastWebView;
 			    forURLScheme:URL_FAKE_FILE_SCHEME];
       webView = [[WKWebView alloc] initWithFrame:frameRect
 				   configuration:configuration];
+      EmacsSVGDocumentLastWebView = webView;
       MRC_RELEASE (configuration);
 #else  /* !USE_WK_API */
       webView = [[WebView alloc] initWithFrame:frameRect frameName:nil
@@ -14131,7 +14132,6 @@ static WebView *EmacsSVGDocumentLastWebView;
   else
     {
       webView = EmacsSVGDocumentLastWebView;
-      EmacsSVGDocumentLastWebView = nil;
       webView.frame = frameRect;
     }
 
@@ -14302,22 +14302,6 @@ static WebView *EmacsSVGDocumentLastWebView;
   viewRect = frameRect;
 
   return self;
-}
-
-- (void)dealloc
-{
-  /* Deallocating WKWebView from a non-main thread causes crash on
-     macOS High Sierra and Mojave.  */
-  CFTypeRef lastWebView = CFBridgingRetain (EmacsSVGDocumentLastWebView);
-
-  MRC_RELEASE (EmacsSVGDocumentLastWebView);
-  EmacsSVGDocumentLastWebView = webView;
-  dispatch_async (dispatch_get_main_queue (), ^{
-      CFBridgingRelease (lastWebView);
-    });
-#if !USE_ARC
-  [super dealloc];
-#endif
 }
 
 + (BOOL)shouldInitializeInMainThread
