@@ -20,29 +20,29 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
    byte positions and vice versa.  (One could also think of using it for
    other things like line numbers, but that is currently not done.)
 
-   The index divides buffer text into chunks of bytes of equal size, say
-   CHUNK_BYTES.  The index consists of an array of character positions
-   where the entry at index SLOT is the character position of the
-   character containing the byte position SLOT * CHUNK_BYTES.  (Note
-   that a byte position at a chunk boundary can be in the middle of a
-   multi-byte character.)
+   The index divides buffer text into intervals of constant size =
+   number of bytes.  The index consists of an array of character
+   positions where the entry at index SLOT is the character position of
+   the character containing the byte position SLOT * interval-size.  Note
+   that the byte position at interval boundaries can be in the middle of a
+   multi-byte character.
 
    To find the character position corresponding to a byte position
    BYTEPOS, we look up the character position in the index at BYTEPOS /
-   CHUNK_BYTES.  From there, we can scan forward in the text until we
+   interval size.  From there, we can scan forward in the text until we
    reach BYTEPOS, counting characters.  We also scan backward from the
-   next chunk boundary, if that is closer.
+   interval end, if that is closer.
 
    To find the byte position BYTEPOS corresponding to a given character
-   position CHARPOS, we search in the index for the last entry SLOT
-   whose character position is <= CHARPOS.  That entry corresponds to a
-   byte position SLOT * CHUNK_BYTES.  From there, we scan the text until
-   we reach BYTEPOS, counting characters until we reach CHARPOS.  The
-   byte position reached at the end is BYTEPOS.  We also scan backward
-   from the next index entry, if that looks advantageous.
+   position CHARPOS, we search the index for the last entry SLOT whose
+   character position is <= CHARPOS.  That entry corresponds to a byte
+   position SLOT * interval size.  From there, we scan the text until we
+   reach BYTEPOS, counting characters until we reach CHARPOS.  The byte
+   position reached at the end is BYTEPOS.  We also scan backward from
+   the interval end, if that looks advantageous.
 
-   Why divide the text into chunks of bytes instead of chunks of
-   characters?  Dividing the text into chunks of characters makes
+   Why divide the text into intervals of bytes instead of[C
+   characters?  Dividing the text into intervals of characters makes
    scanning overhead less uniform, since characters can be of different
    lengths (1 to 5 bytes).  */
 
@@ -58,8 +58,8 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 struct text_index
 {
   /* Value at index IDX is the character position of byte position IDX *
-     CHUNK_BYTES.  Note that that byte position may be in the
-     middle of a character.  The value at index 0 is BEG.  */
+     INTERVAL.  Note that that byte position may be in the middle of a
+     character.  The value at index 0 is BEG.  */
   ptrdiff_t *charpos;
 
   /* Number of valid entries in the above array.  This is always at least 1
@@ -69,11 +69,11 @@ struct text_index
   /* Number of entries allocated.  */
   size_t capacity;
 
-  /* Number of bytes in a chunk.  Keeping it here instead of using a
-     constant makes things more flexible for experimentation, and the
-     overhead is probably not worth worrying about in the grander scheme
-     of things.  */
-  size_t chunk_bytes;
+  /* Number of bytes in an interval. This is here instead of using a
+     constant mainly because it makes things more flexible for
+     experimentation.  The overhead is probably not worth worrying about
+     in the grander scheme of things anyway.  */
+  size_t interval;
 };
 
 /* Return the index slot for BYTEPOS in index TI.  */
@@ -81,7 +81,7 @@ struct text_index
 static ptrdiff_t
 index_slot (const struct text_index *ti, ptrdiff_t bytepos)
 {
-  return bytepos / ti->chunk_bytes;
+  return bytepos / ti->interval;
 }
 
 /* Return the byte position in index TI corresponding index entry SLOT.
@@ -91,7 +91,7 @@ index_slot (const struct text_index *ti, ptrdiff_t bytepos)
 static ptrdiff_t
 index_bytepos (const struct text_index *ti, ptrdiff_t slot)
 {
-  return slot * ti->chunk_bytes;
+  return slot * ti->interval;
 }
 
 /* Return the character position in index TI corresponding index entry
@@ -144,7 +144,7 @@ static struct text_index *
 make_text_index (size_t nbytes)
 {
   struct text_index *ti = xzalloc (sizeof *ti);
-  ti->chunk_bytes = text_index_chunk_bytes;
+  ti->interval = text_index_interval;
   ti->capacity = 1 + index_slot (ti, nbytes);
   ti->charpos = xnmalloc (ti->capacity, sizeof *ti->charpos);
   ti->charpos[0] = BEG;
@@ -178,8 +178,8 @@ enlarge_index (struct text_index *ti, ptrdiff_t bytepos)
 }
 
 /* Invalidate index entries for all positions > BYTEPOS in buffer B.
-   Note that the entry for BYTEPOS itself, if it is at a chunk boundary,
-   remains unchanged.  */
+   Note that the entry for BYTEPOS itself, if it is at an interval
+   boundary, remains unchanged.  */
 
 void
 text_index_invalidate (struct buffer *b, ptrdiff_t bytepos)
@@ -210,7 +210,7 @@ max_indexed_bytepos (const struct text_index *ti)
     return 0;
   if (ti->nentries == 1)
     return BEG_BYTE;
-  return (ti->nentries - 1) * ti->chunk_bytes;
+  return (ti->nentries - 1) * ti->interval;
 }
 
 /* Build text index of buffer B up to and including TO_BYTEPOS.  */
@@ -245,7 +245,7 @@ build_index_to_bytepos (struct buffer *b, ptrdiff_t to_bytepos)
       if (bytepos == next_stop)
 	{
 	  ti->charpos[index_slot (ti, bytepos)] = charpos;
-	  next_stop += ti->chunk_bytes;
+	  next_stop += ti->interval;
 	}
     }
 }
@@ -263,7 +263,7 @@ build_index_to_charpos (struct buffer *b, const ptrdiff_t to_charpos)
   const ptrdiff_t slot = ti->nentries - 1;
   ptrdiff_t charpos = index_charpos (ti, slot);
   ptrdiff_t bytepos = index_bytepos (ti, slot);
-  ptrdiff_t next_stop = bytepos + ti->chunk_bytes;
+  ptrdiff_t next_stop = bytepos + ti->interval;
 
   /* Not enough bytes left to make a new index entry?  */
   const ptrdiff_t z_byte = BUF_Z_BYTE (b);
@@ -283,7 +283,7 @@ build_index_to_charpos (struct buffer *b, const ptrdiff_t to_charpos)
 	  ti->charpos[index_slot (ti, bytepos)] = charpos;
 	  if (charpos >= to_charpos)
 	    break;
-	  next_stop += ti->chunk_bytes;
+	  next_stop += ti->interval;
 	}
     }
 }
@@ -376,7 +376,7 @@ text_index_bytepos_to_charpos (struct buffer *b, const ptrdiff_t bytepos)
   struct text_index *ti = b->text->index;
   const ptrdiff_t slot = index_slot (ti, bytepos);
   const ptrdiff_t indexed_bytepos = index_bytepos (ti, slot);
-  if (bytepos - indexed_bytepos < ti->chunk_bytes / 2
+  if (bytepos - indexed_bytepos < ti->interval / 2
       || !can_scan_backward (b, bytepos))
     return charpos_scanning_forward_to_bytepos (b, slot, bytepos);
   return charpos_scanning_backward_to_bytepos (b, slot + 1, bytepos);
@@ -455,12 +455,12 @@ If BYTEPOS is out of range, the value is nil.  */)
   return Qnil;
 }
 
-DEFUN ("text-index--set-chunk-bytes", Ftext_index__set_chunk_bytes,
-       Stext_index__set_chunk_bytes, 1, 1, 0,
-       doc: /* Set chunk size to NBYTES, a positive integer.  */)
+DEFUN ("text-index--set-interval-bytes", Ftext_index__set_interval,
+       Stext_index__set_interval, 1, 1, 0,
+       doc: /* Set interval size to NBYTES, a positive, non-zero integer.  */)
   (Lisp_Object nbytes)
 {
-  text_index_chunk_bytes = check_integer_range (nbytes, 1, 1000000);
+  text_index_interval = check_integer_range (nbytes, 1, 1000000);
   Lisp_Object buffers = Fbuffer_list (Qnil);
   FOR_EACH_TAIL (buffers)
     {
@@ -481,11 +481,11 @@ syms_of_text_index (void)
 {
   defsubr (&Stext_index__position_bytes);
   defsubr (&Stext_index__byte_to_position);
-  defsubr (&Stext_index__set_chunk_bytes);
+  defsubr (&Stext_index__set_interval);
 
   /* FIXME: For experimenting only.  */
-  DEFVAR_INT ("text-index--chunk-bytes", text_index_chunk_bytes, doc: /* */);
-  text_index_chunk_bytes = 160;
+  DEFVAR_INT ("text-index-interval", text_index_interval, doc: /* */);
+  text_index_interval = 160;
 
   Fprovide (intern_c_string ("text-index"), Qnil);
 }
