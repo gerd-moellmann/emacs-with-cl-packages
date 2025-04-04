@@ -19,31 +19,29 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 /* A text index is used to map character positions in buffer text to byte
    positions and vice versa.
 
-   The index divides (buffer) text into chunks of equal size
-   TEXT_INDEX_CHUNK_BYTES number of bytes.  Every TEXT_INDEX_CHUNK_BYTES
-   bytes of a buffer's text, the index contains an entry which is the
-   character position of the character containing the the given byte
-   position.
-
-   Note that a given byte position at a chunk boundary can be in the
-   middle of a multi-byte character.
+   The index divides (buffer) text into chunks of equal size CHUNK_BYTES
+   number of bytes.  The index consists of an array of character
+   positions where the entry at index SLOT is the character position of
+   the character containing the the byte position SLOT * CHUNK_BYTES.
+   (Note that a given byte position at a chunk boundary can be in the
+   middle of a multi-byte character.)
 
    To find the character position corresponding to a given byte position
    BYTEPOS, we look up the character position in the index at BYTEPOS /
-   TEXT_INDEX_CHUNK_BYTES.  From there we scan forward in the text until
-   we reach BYTEPOS, counting characters.
+   CHUNK_BYTES.  From there, we scan forward in the text until we reach
+   BYTEPOS, counting characters.
 
    To find the byte position BYTEPOS corresponding to a given character
    position CHARPOS, we search in the index for the last entry SLOT
-   whose character position is <= CHARPOS.  That entry corresponds to
-   a byte position SLOT * TEXT_INDEX_CHUNK_BYTES.  From that byte position
-   we scan the text until we reach BYTEPOS, counting characters until we
-   reach CHARPOS.  The byte position reached at the end is BYTEPOS.
+   whose character position is <= CHARPOS.  That entry corresponds to a
+   byte position SLOT * CHUNK_BYTES.  From there, we scan the text until
+   we reach BYTEPOS, counting characters until we reach CHARPOS.  The
+   byte position reached at the end is BYTEPOS.
 
    Why divide the text into chunks of bytes instead of chunks of
    characters?  Dividing the text into chunks of characters makes
    scanning overhead less uniform, since characters can be of different
-   lengths (1 to 5 bytes.  */
+   lengths (1 to 5 bytes).  */
 
 #include <config.h>
 #include <stdio.h>
@@ -69,7 +67,7 @@ struct text_index
   size_t capacity;
 };
 
-/* FIXME: For test purposes.  Should become a constant.  */
+/* FIXME: For experimenting.  Should become a constant.  */
 #define CHUNK_BYTES text_index_chunk_bytes
 
 /* Return the index slot for BYTEPOS.  */
@@ -402,6 +400,13 @@ bytepos_scanning_backward_to_charpos (struct buffer *b,
   return bytepos;
 }
 
+static bool
+is_multibyte_buffer (const struct buffer *b)
+{
+  return BUF_Z (b) != BUF_Z_BYTE (b);
+}
+
+
 ptrdiff_t
 text_index_charpos_to_bytepos (struct buffer *b, ptrdiff_t charpos)
 {
@@ -438,11 +443,10 @@ If BYTEPOS is out of range, the value is nil.  */)
 
 DEFUN ("text-index--set-chunk-bytes", Ftext_index__set_chunk_bytes,
        Stext_index__set_chunk_bytes, 1, 1, 0,
-       doc: /* Set chunk size.  */)
+       doc: /* Set chunk size to NBYTES, a positive integer.  */)
   (Lisp_Object nbytes)
 {
-  CHECK_FIXNUM (nbytes);
-
+  text_index_chunk_bytes = check_integer_range (nbytes, 1, 1000000);
   Lisp_Object buffers = Fbuffer_list (Qnil);
   FOR_EACH_TAIL (buffers)
     {
@@ -450,8 +454,6 @@ DEFUN ("text-index--set-chunk-bytes", Ftext_index__set_chunk_bytes,
       text_index_free (b->own_text.index);
       b->own_text.index = NULL;
     }
-
-  text_index_chunk_bytes = XFIXNUM (nbytes);
   return Qnil;
 }
 
