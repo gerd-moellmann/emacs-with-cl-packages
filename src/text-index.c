@@ -429,20 +429,12 @@ text_index_charpos_to_bytepos (struct buffer *b, ptrdiff_t charpos)
   return bytepos_scanning_forward_to_charpos (b, slot, charpos);
 }
 
-static void
-check_text_index_used (void)
-{
-  if (!use_text_index)
-    error ("text index is not in use");
-}
-
 DEFUN ("text-index--position-bytes", Ftext_index__position_bytes,
        Stext_index__position_bytes, 1, 1, 0,
        doc: /* Return the byte position for character position CHARPOS.
 If POSITION is out of range, the value is nil.  */)
   (Lisp_Object charpos)
 {
-  check_text_index_used ();
   EMACS_INT pos = fix_position (charpos);
   if (pos < BEG || pos > Z)
     return Qnil;
@@ -456,7 +448,6 @@ DEFUN ("text-index--byte-to-position", Ftext_index__byte_to_position,
 If BYTEPOS is out of range, the value is nil.  */)
   (Lisp_Object bytepos)
 {
-  check_text_index_used ();
   CHECK_FIXNUM (bytepos);
   ptrdiff_t pos_byte = XFIXNUM (bytepos);
   if (pos_byte < BEG_BYTE || pos_byte > Z_BYTE)
