@@ -9,9 +9,11 @@ This is an experimental build of the [emacs-mac](https://bitbucket.org/mituharu/
 
 Known working systems:
 
-- MacOS 15 (Sequoia) on ARM64 (M1, M2, M4)
+- MacOS 15 (Sequoia) on ARM64 (M1, M2, M4), X86_64 (Intel)
 - MacOS 14 (Sonoma) on ARM64 (M1, M3)
 - MacOS 12 (Monterey) on X86_64 (Intel)
+
+Please see the [issues](../../issues) for advice on build configurations for your system.
 
 >[!IMPORTANT]
 > Please open an [issue](../../issues) to report your experiences, even if you encounter no problems.  Mention your OS version, CPU, and any other relevant details.
