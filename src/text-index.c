@@ -357,7 +357,7 @@ charpos_scanning_backward_to_bytepos (struct buffer *b, ptrdiff_t slot,
   return charpos;
 }
 
-/* Return true if we can backward scanning to find the character
+/* Return true if we can use backward scanning to find the character
    position of BYTEPOS in buffer B, */
 
 static bool
@@ -420,7 +420,7 @@ text_index_charpos_to_bytepos (struct buffer *b, ptrdiff_t charpos)
   ensure_charpos_indexed (b, charpos);
   struct text_index *ti = b->text->index;
   ptrdiff_t slot = index_charpos_slot (ti, charpos);
-  /* One could also try to employ (Z, Z_BYTE) as a known position to
+  /* One could also try to use (Z, Z_BYTE) as a known position to
      scan backwards from, but I'm not sure it's worth it.  */
   if (slot + 1 < ti->nentries
       && (index_charpos (ti, slot + 1) - charpos
@@ -488,7 +488,7 @@ syms_of_text_index (void)
   DEFVAR_INT ("text-index-interval", text_index_interval, doc: /* */);
   text_index_interval = 160;
   DEFVAR_BOOL ("use-text-index", use_text_index, doc: /* */);
-  use_text_index = true;
+  use_text_index = false;
 
   Fprovide (intern_c_string ("text-index"), Qnil);
 }
