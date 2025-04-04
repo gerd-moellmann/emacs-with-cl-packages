@@ -16,27 +16,30 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
-/* A text index is used to map character positions in buffer text to byte
-   positions and vice versa.
+/* A text index is used to map character positions in buffer text to
+   byte positions and vice versa.  (One could also think of using it for
+   other things like line numbers, but that is currently not done.)
 
-   The index divides (buffer) text into chunks of equal size CHUNK_BYTES
-   number of bytes.  The index consists of an array of character
-   positions where the entry at index SLOT is the character position of
-   the character containing the the byte position SLOT * CHUNK_BYTES.
-   (Note that a given byte position at a chunk boundary can be in the
-   middle of a multi-byte character.)
+   The index divides buffer text into chunks of bytes of equal size, say
+   CHUNK_BYTES.  The index consists of an array of character positions
+   where the entry at index SLOT is the character position of the
+   character containing the byte position SLOT * CHUNK_BYTES.  (Note
+   that a byte position at a chunk boundary can be in the middle of a
+   multi-byte character.)
 
-   To find the character position corresponding to a given byte position
+   To find the character position corresponding to a byte position
    BYTEPOS, we look up the character position in the index at BYTEPOS /
-   CHUNK_BYTES.  From there, we scan forward in the text until we reach
-   BYTEPOS, counting characters.
+   CHUNK_BYTES.  From there, we can scan forward in the text until we
+   reach BYTEPOS, counting characters.  We also scan backward from the
+   next chunk boundary, if that is closer.
 
    To find the byte position BYTEPOS corresponding to a given character
    position CHARPOS, we search in the index for the last entry SLOT
    whose character position is <= CHARPOS.  That entry corresponds to a
    byte position SLOT * CHUNK_BYTES.  From there, we scan the text until
    we reach BYTEPOS, counting characters until we reach CHARPOS.  The
-   byte position reached at the end is BYTEPOS.
+   byte position reached at the end is BYTEPOS.  We also scan backward
+   from the next index entry, if that looks advantageous.
 
    Why divide the text into chunks of bytes instead of chunks of
    characters?  Dividing the text into chunks of characters makes
@@ -55,7 +58,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 struct text_index
 {
   /* Value at index IDX is the character position of byte position IDX *
-     TEXT_INDEX_CHUNK_BYTES.  Note that that byte position may be in the
+     CHUNK_BYTES.  Note that that byte position may be in the
      middle of a character.  The value at index 0 is BEG.  */
   ptrdiff_t *charpos;
 
@@ -65,24 +68,34 @@ struct text_index
 
   /* Number of entries allocated.  */
   size_t capacity;
+
+  /* Number of bytes in a chunk.  Keeping it here instead of using a
+     constant makes things more flexible for experimentation, and the
+     overhead is probably not worth worrying about in the grander scheme
+     of things.  */
+  size_t chunk_bytes;
 };
 
-/* FIXME: For experimenting.  Should become a constant.  */
-#define CHUNK_BYTES text_index_chunk_bytes
-
-/* Return the index slot for BYTEPOS.  */
+/* Return the index slot for BYTEPOS in index TI.  */
 
 static ptrdiff_t
-index_slot (ptrdiff_t bytepos)
+index_slot (const struct text_index *ti, ptrdiff_t bytepos)
 {
-  return bytepos / CHUNK_BYTES;
+  return bytepos / ti->chunk_bytes;
 }
 
+/* Return the byte position in index TI corresponding index entry SLOT.
+   Note that this position cab be in the middle of a multi-byte
+   character.  */
+
 static ptrdiff_t
-index_bytepos (ptrdiff_t slot)
+index_bytepos (const struct text_index *ti, ptrdiff_t slot)
 {
-  return slot * CHUNK_BYTES;
+  return slot * ti->chunk_bytes;
 }
+
+/* Return the character position in index TI corresponding index entry
+   SLOT.  */
 
 static ptrdiff_t
 index_charpos (const struct text_index *ti, ptrdiff_t slot)
@@ -131,14 +144,15 @@ static struct text_index *
 make_text_index (size_t nbytes)
 {
   struct text_index *ti = xzalloc (sizeof *ti);
-  ti->capacity = 1 + index_slot (nbytes);
+  ti->chunk_bytes = text_index_chunk_bytes;
+  ti->capacity = 1 + index_slot (ti, nbytes);
   ti->charpos = xnmalloc (ti->capacity, sizeof *ti->charpos);
   ti->charpos[0] = BEG;
   ti->nentries = 1;
   return ti;
 }
 
-/* Free the text index TI if not NULL.  */
+/* Free the text index TI.  TI may be NULL.  */
 
 void
 text_index_free (struct text_index *ti)
@@ -154,7 +168,7 @@ text_index_free (struct text_index *ti)
 static void
 enlarge_index (struct text_index *ti, ptrdiff_t bytepos)
 {
-  ptrdiff_t needed_slots = index_slot (bytepos) + 1;
+  ptrdiff_t needed_slots = index_slot (ti, bytepos) + 1;
   if (needed_slots > ti->capacity)
     {
       ti->capacity = max (needed_slots, 2 * ti->capacity);
@@ -173,7 +187,7 @@ text_index_invalidate (struct buffer *b, ptrdiff_t bytepos)
   struct text_index *ti = b->text->index;
   if (ti == NULL)
     return;
-  ptrdiff_t last_valid = index_slot (bytepos);
+  ptrdiff_t last_valid = index_slot (ti, bytepos);
   ti->nentries = min (ti->nentries, last_valid + 1);
 }
 
@@ -196,7 +210,7 @@ max_indexed_bytepos (const struct text_index *ti)
     return 0;
   if (ti->nentries == 1)
     return BEG_BYTE;
-  return (ti->nentries - 1) * CHUNK_BYTES;
+  return (ti->nentries - 1) * ti->chunk_bytes;
 }
 
 /* Build text index of buffer B up to and including TO_BYTEPOS.  */
@@ -214,10 +228,10 @@ build_index_to_bytepos (struct buffer *b, ptrdiff_t to_bytepos)
      TO_BYTEPOS equals the byte position of that entry, this is okay,
      because the character position at that byte position cannot have
      changed.  */
-  ptrdiff_t slot = index_slot (to_bytepos);
+  ptrdiff_t slot = index_slot (ti,  to_bytepos);
   ptrdiff_t charpos = index_charpos (ti, slot);
-  ptrdiff_t bytepos = index_bytepos (slot);
-  ptrdiff_t next_stop = index_bytepos (slot + 1);
+  ptrdiff_t bytepos = index_bytepos (ti, slot);
+  ptrdiff_t next_stop = index_bytepos (ti, slot + 1);
 
   /* Loop over bytes, starting one after the index entry we start from
      because we are only interested in yet unknown entries, and the
@@ -230,8 +244,8 @@ build_index_to_bytepos (struct buffer *b, ptrdiff_t to_bytepos)
 
       if (bytepos == next_stop)
 	{
-	  ti->charpos[index_slot (bytepos)] = charpos;
-	  next_stop += CHUNK_BYTES;
+	  ti->charpos[index_slot (ti, bytepos)] = charpos;
+	  next_stop += ti->chunk_bytes;
 	}
     }
 }
@@ -248,8 +262,8 @@ build_index_to_charpos (struct buffer *b, const ptrdiff_t to_charpos)
   /* Start at the last index entry.  */
   const ptrdiff_t slot = ti->nentries - 1;
   ptrdiff_t charpos = index_charpos (ti, slot);
-  ptrdiff_t bytepos = index_bytepos (slot);
-  ptrdiff_t next_stop = bytepos + CHUNK_BYTES;
+  ptrdiff_t bytepos = index_bytepos (ti, slot);
+  ptrdiff_t next_stop = bytepos + ti->chunk_bytes;
 
   /* Not enough bytes left to make a new index entry?  */
   const ptrdiff_t z_byte = BUF_Z_BYTE (b);
@@ -266,10 +280,10 @@ build_index_to_charpos (struct buffer *b, const ptrdiff_t to_charpos)
 
       if (bytepos == next_stop)
 	{
-	  ti->charpos[index_slot (bytepos)] = charpos;
+	  ti->charpos[index_slot (ti, bytepos)] = charpos;
 	  if (charpos >= to_charpos)
 	    break;
-	  next_stop += CHUNK_BYTES;
+	  next_stop += ti->chunk_bytes;
 	}
     }
 }
@@ -312,7 +326,7 @@ charpos_scanning_forward_to_bytepos (struct buffer *b, ptrdiff_t slot,
 				     const ptrdiff_t to_bytepos)
 {
   const struct text_index *ti = b->text->index;
-  ptrdiff_t bytepos = index_bytepos (slot);
+  ptrdiff_t bytepos = index_bytepos (ti, slot);
   ptrdiff_t charpos = index_charpos (ti, slot);
   for (++bytepos; bytepos <= to_bytepos; ++bytepos)
     {
@@ -332,7 +346,7 @@ charpos_scanning_backward_to_bytepos (struct buffer *b, ptrdiff_t slot,
 				      const ptrdiff_t to_bytepos)
 {
   const struct text_index *ti = b->text->index;
-  ptrdiff_t bytepos = char_start_bytepos (b, index_bytepos (slot));
+  ptrdiff_t bytepos = char_start_bytepos (b, index_bytepos (ti, slot));
   ptrdiff_t charpos = index_charpos (ti, slot);
   for (--bytepos; bytepos >= to_bytepos; --bytepos)
     {
@@ -350,7 +364,7 @@ static bool
 can_scan_backward (const struct buffer *b, const ptrdiff_t bytepos)
 {
   const struct text_index *ti = b->text->index;
-  const ptrdiff_t slot = index_slot (bytepos);
+  const ptrdiff_t slot = index_slot (ti, bytepos);
   return slot + 1 < ti->nentries;
 }
 
@@ -359,9 +373,10 @@ text_index_bytepos_to_charpos (struct buffer *b, const ptrdiff_t bytepos)
 {
   ensure_bytepos_indexed (b, bytepos);
 
-  const ptrdiff_t slot = index_slot (bytepos);
-  const ptrdiff_t indexed_bytepos = index_bytepos (slot);
-  if (bytepos - indexed_bytepos < CHUNK_BYTES / 2
+  struct text_index *ti = b->text->index;
+  const ptrdiff_t slot = index_slot (ti, bytepos);
+  const ptrdiff_t indexed_bytepos = index_bytepos (ti, slot);
+  if (bytepos - indexed_bytepos < ti->chunk_bytes / 2
       || !can_scan_backward (b, bytepos))
     return charpos_scanning_forward_to_bytepos (b, slot, bytepos);
   return charpos_scanning_backward_to_bytepos (b, slot + 1, bytepos);
@@ -372,7 +387,7 @@ bytepos_scanning_forward_to_charpos (struct buffer *b, ptrdiff_t slot,
 				     ptrdiff_t to_charpos)
 {
   const struct text_index *ti = b->text->index;
-  ptrdiff_t bytepos = index_bytepos (slot);
+  ptrdiff_t bytepos = index_bytepos (ti, slot);
   ptrdiff_t charpos = index_charpos (ti, slot);
   for (++bytepos; charpos < to_charpos; ++bytepos)
     {
@@ -389,7 +404,7 @@ bytepos_scanning_backward_to_charpos (struct buffer *b,
 				      const ptrdiff_t to_charpos)
 {
   const struct text_index *ti = b->text->index;
-  ptrdiff_t bytepos = char_start_bytepos (b, index_bytepos (slot));
+  ptrdiff_t bytepos = char_start_bytepos (b, index_bytepos (ti, slot));
   ptrdiff_t charpos = index_charpos (ti, slot);
   for (--bytepos; charpos > to_charpos; --bytepos)
     {
@@ -405,7 +420,6 @@ is_multibyte_buffer (const struct buffer *b)
 {
   return BUF_Z (b) != BUF_Z_BYTE (b);
 }
-
 
 ptrdiff_t
 text_index_charpos_to_bytepos (struct buffer *b, ptrdiff_t charpos)
@@ -469,7 +483,7 @@ syms_of_text_index (void)
   defsubr (&Stext_index__byte_to_position);
   defsubr (&Stext_index__set_chunk_bytes);
 
-  /* FIXME: For test purposes.  Should become a constant.  */
+  /* FIXME: For experimenting only.  */
   DEFVAR_INT ("text-index--chunk-bytes", text_index_chunk_bytes, doc: /* */);
   text_index_chunk_bytes = 160;
 
