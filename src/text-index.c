@@ -372,7 +372,6 @@ ptrdiff_t
 text_index_bytepos_to_charpos (struct buffer *b, const ptrdiff_t bytepos)
 {
   ensure_bytepos_indexed (b, bytepos);
-
   struct text_index *ti = b->text->index;
   const ptrdiff_t slot = index_slot (ti, bytepos);
   const ptrdiff_t indexed_bytepos = index_bytepos (ti, slot);
@@ -415,12 +414,6 @@ bytepos_scanning_backward_to_charpos (struct buffer *b,
   return bytepos;
 }
 
-static bool
-is_multibyte_buffer (const struct buffer *b)
-{
-  return BUF_Z (b) != BUF_Z_BYTE (b);
-}
-
 ptrdiff_t
 text_index_charpos_to_bytepos (struct buffer *b, ptrdiff_t charpos)
 {
@@ -436,13 +429,25 @@ text_index_charpos_to_bytepos (struct buffer *b, ptrdiff_t charpos)
   return bytepos_scanning_forward_to_charpos (b, slot, charpos);
 }
 
+static void
+check_text_index_used (void)
+{
+  if (!use_text_index)
+    error ("text index is not in use");
+}
+
 DEFUN ("text-index--position-bytes", Ftext_index__position_bytes,
        Stext_index__position_bytes, 1, 1, 0,
        doc: /* Return the byte position for character position CHARPOS.
 If POSITION is out of range, the value is nil.  */)
   (Lisp_Object charpos)
 {
-  return Qnil;
+  check_text_index_used ();
+  EMACS_INT pos = fix_position (charpos);
+  if (pos < BEG || pos > Z)
+    return Qnil;
+  ptrdiff_t bytepos = text_index_charpos_to_bytepos (current_buffer, pos);
+  return make_fixnum (bytepos);
 }
 
 DEFUN ("text-index--byte-to-position", Ftext_index__byte_to_position,
@@ -451,8 +456,13 @@ DEFUN ("text-index--byte-to-position", Ftext_index__byte_to_position,
 If BYTEPOS is out of range, the value is nil.  */)
   (Lisp_Object bytepos)
 {
+  check_text_index_used ();
   CHECK_FIXNUM (bytepos);
-  return Qnil;
+  ptrdiff_t pos_byte = XFIXNUM (bytepos);
+  if (pos_byte < BEG_BYTE || pos_byte > Z_BYTE)
+    return Qnil;
+  ptrdiff_t charpos = text_index_bytepos_to_charpos (current_buffer, pos_byte);
+  return make_fixnum (charpos);
 }
 
 DEFUN ("text-index--set-interval-bytes", Ftext_index__set_interval,
@@ -486,6 +496,8 @@ syms_of_text_index (void)
   /* FIXME: For experimenting only.  */
   DEFVAR_INT ("text-index-interval", text_index_interval, doc: /* */);
   text_index_interval = 160;
+  DEFVAR_BOOL ("use-text-index", use_text_index, doc: /* */);
+  use_text_index = true;
 
   Fprovide (intern_c_string ("text-index"), Qnil);
 }
