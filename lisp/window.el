@@ -4149,7 +4149,7 @@ and no others."
 
 ;;; Deleting windows.
 (defcustom window-deletable-functions nil
-   "Abnormal hook to decide whether a window may be implicitly deleted.
+  "Abnormal hook to decide whether a window may be implicitly deleted.
 The value should be a list of functions that take two arguments.  The
 first argument is the window about to be deleted.  The second argument
 if non-nil, means that the window is the only window on its frame and
@@ -4174,6 +4174,9 @@ WINDOW must be a valid window and defaults to the selected one.
 Return `frame' if WINDOW is the root window of its frame and that
 frame can be safely deleted.
 
+Return `tab' if WINDOW's tab can be safely closed that will
+effectively delete the window.
+
 Unless the optional argument NO-RUN is non-nil, run the abnormal hook
 `window-deletable-functions' and return nil if any function on that hook
 returns nil."
@@ -4187,6 +4190,20 @@ returns nil."
 
   (let ((frame (window-frame window)))
     (cond
+     ((and (> (frame-parameter frame 'tab-bar-lines) 0)
+           ;; Fall back to frame handling in case of less than 2 tabs.
+           (> (length (funcall tab-bar-tabs-function frame)) 1)
+           ;; Close the tab with the initial window (bug#59862).
+           (or (eq (nth 1 (window-parameter window 'quit-restore)) 'tab)
+               ;; Or with the only window on the frame (bug#71386).
+               (frame-root-window-p window))
+           ;; Don't close the tab if more windows were created explicitly.
+           (< (seq-count (lambda (w)
+                           (memq (car (window-parameter w 'quit-restore))
+                                 '(window tab frame same)))
+                         (window-list-1 nil 'nomini frame))
+              2))
+      'tab)
      ((frame-root-window-p window)
       ;; WINDOW's frame can be deleted only if there are other frames
       ;; on the same terminal, and it does not contain the active
@@ -5022,6 +5039,10 @@ if WINDOW gets deleted or its frame is auto-hidden."
   (unless (and dedicated-only (not (window-dedicated-p window)))
     (let ((deletable (window-deletable-p window)))
       (cond
+       ((eq deletable 'tab)
+        (tab-bar-close-tab)
+        (message "Tab closed after deleting the last window")
+        'tab)
        ((eq deletable 'frame)
 	(let ((frame (window-frame window)))
 	  (cond
@@ -5388,13 +5409,7 @@ elsewhere.  This value is used by `quit-windows-on'."
       ;; If the previously selected window is still alive, select it.
       (window--quit-restore-select-window quit-restore-2))
      ((and (not prev-buffer)
-	   (eq (nth 1 quit-restore) 'tab)
-	   (eq (nth 3 quit-restore) buffer))
-      (tab-bar-close-tab)
-      ;; If the previously selected window is still alive, select it.
-      (window--quit-restore-select-window quit-restore-2))
-     ((and (not prev-buffer)
-	   (or (eq (nth 1 quit-restore) 'frame)
+	   (or (memq (nth 1 quit-restore) '(frame tab))
 	       (and (eq (nth 1 quit-restore) 'window)
 		    ;; If the window has been created on an existing
 		    ;; frame and ended up as the sole window on that

@@ -363,6 +363,11 @@ docstring for arguments passed to a help-text function.
 It is equivalent to running ‘project-any-command’ with ‘find-file’.
 
 ---
+*** New command 'project-customize-dirlocals'.
+It is equivalent to running ‘project-any-command’ with
+‘customize-dirlocals’.
+
+---
 *** Improved prompt for 'project-switch-project'.
 The prompt now displays the chosen project on which to invoke a command.
 
@@ -1610,6 +1615,16 @@ New faces have been added to 'icomplete-vertical-mode':
   appearance of the selected candidate prefix.
 - 'icomplete-vertical-unselected-prefix-indicator-face' controls the
   appearance of unselected candidate prefixes.
+
+** CL-Lib
+
++++
+*** New macro 'cl-with-accessors'.
+This macro is similar to 'with-slots', but uses accessor functions
+instead of slot names.  It is useful when slots' accessor functions are
+used repeatedly, such as reading from a slot and then writing to that
+slot.  Symbol macros are created for the accessor functions using
+'cl-symbol-macrolet', so that they can be used with 'setq' and 'setf'.
 
 ** Miscellaneous
 
