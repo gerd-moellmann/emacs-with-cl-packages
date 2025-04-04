@@ -13676,7 +13676,7 @@ mac_osa_compile (Lisp_Object code_or_file, Lisp_Object compiled_p_or_language,
   if (script)
     {
       NSDictionaryOf (NSString *, id) *errorInfo;
-      NSData *compiledData = [script compiledDataForType:nil
+      NSData *compiledData = [script compiledDataForType:@""
 				     usingStorageOptions:OSANull
 						   error:&errorInfo];
 
@@ -14358,9 +14358,9 @@ static WebView *EmacsSVGDocumentLastWebView;
 	    {
 	      NSString *colorInHex =
 		[NSString stringWithFormat:@"#%02x%02x%02x",
-			  (int) (components[0] * 255 + .5),
-			  (int) (components[1] * 255 + .5),
-			  (int) (components[2] * 255 + .5)];
+			  (unsigned int) (components[0] * 255 + .5),
+			  (unsigned int) (components[1] * 255 + .5),
+			  (unsigned int) (components[2] * 255 + .5)];
 
 	      if (colorInHex)
 		colorsInHex[key] = colorInHex;
