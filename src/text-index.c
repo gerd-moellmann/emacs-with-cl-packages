@@ -100,7 +100,7 @@ index_charpos (const struct text_index *ti, ptrdiff_t entry)
 static ptrdiff_t
 index_bytepos_entry (const struct text_index *ti, ptrdiff_t bytepos)
 {
-  return bytepos / ti->interval;
+  return (bytepos - BEG_BYTE) / ti->interval;
 }
 
 /* Return the entry of index TI for the largest character position <=
