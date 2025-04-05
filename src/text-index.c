@@ -63,7 +63,7 @@ struct text_index
   ptrdiff_t *charpos;
 
   /* Number of valid entries in the above array.  This is always at least 1
-     because the first entry is BEG.  */
+     because the first entry is for BEG.  */
   size_t nentries;
 
   /* Number of entries allocated.  */
@@ -75,14 +75,6 @@ struct text_index
      in the grander scheme of things anyway.  */
   size_t interval;
 };
-
-/* Return the index entry for BYTEPOS in index TI.  */
-
-static ptrdiff_t
-index_entry (const struct text_index *ti, ptrdiff_t bytepos)
-{
-  return bytepos / ti->interval;
-}
 
 /* Return the byte position in index TI corresponding to index entry
    ENTRY.  Note that this position cab be in the middle of a multi-byte
@@ -103,6 +95,14 @@ index_charpos (const struct text_index *ti, ptrdiff_t entry)
   return ti->charpos[entry];
 }
 
+/* Return the index entry for BYTEPOS in index TI.  */
+
+static ptrdiff_t
+index_bytepos_entry (const struct text_index *ti, ptrdiff_t bytepos)
+{
+  return bytepos / ti->interval;
+}
+
 /* Return the entry of index TI for the largest character position <=
    CHARPOS.  */
 
@@ -121,9 +121,24 @@ index_charpos_entry (const struct text_index *ti, ptrdiff_t charpos)
       else
 	high = mid - 1;
     }
-
   eassert (entry >= 0 && entry < ti->nentries);
   return entry;
+}
+
+/* Return index TI's maximum indexed character position.  */
+
+static ptrdiff_t
+max_indexed_charpos (const struct text_index *ti)
+{
+  return ti ? index_charpos (ti, ti->nentries - 1) : 0;
+}
+
+/* Return index TI's maximum indexed byte position.  */
+
+static ptrdiff_t
+max_indexed_bytepos (const struct text_index *ti)
+{
+  return ti ? index_bytepos (ti, ti->nentries - 1) : 0;
 }
 
 /* Given a byte position BYTEPOS in buffer B, return the byte position
@@ -145,7 +160,7 @@ make_text_index (size_t nbytes)
 {
   struct text_index *ti = xzalloc (sizeof *ti);
   ti->interval = text_index_interval;
-  ti->capacity = 1 + index_entry (ti, nbytes);
+  ti->capacity = 1 + index_bytepos_entry (ti, nbytes);
   ti->charpos = xnmalloc (ti->capacity, sizeof *ti->charpos);
   ti->charpos[0] = BEG;
   ti->nentries = 1;
@@ -168,7 +183,7 @@ text_index_free (struct text_index *ti)
 static void
 enlarge_index (struct text_index *ti, ptrdiff_t bytepos)
 {
-  ptrdiff_t needed_entries = index_entry (ti, bytepos) + 1;
+  ptrdiff_t needed_entries = index_bytepos_entry (ti, bytepos) + 1;
   if (needed_entries > ti->capacity)
     {
       ti->capacity = max (needed_entries, 2 * ti->capacity);
@@ -187,30 +202,8 @@ text_index_invalidate (struct buffer *b, ptrdiff_t bytepos)
   struct text_index *ti = b->text->index;
   if (ti == NULL)
     return;
-  ptrdiff_t last_valid = index_entry (ti, bytepos);
+  ptrdiff_t last_valid = index_bytepos_entry (ti, bytepos);
   ti->nentries = min (ti->nentries, last_valid + 1);
-}
-
-/* Return index TI's maximum indexed character position.  */
-
-static ptrdiff_t
-max_indexed_charpos (const struct text_index *ti)
-{
-  if (ti)
-    return ti->charpos[ti->nentries - 1];
-  return 0;
-}
-
-/* Return index TI's maximum indexed byte position.  */
-
-static ptrdiff_t
-max_indexed_bytepos (const struct text_index *ti)
-{
-  if (ti == NULL)
-    return 0;
-  if (ti->nentries == 1)
-    return BEG_BYTE;
-  return (ti->nentries - 1) * ti->interval;
 }
 
 /* Build text index of buffer B up to and including TO_BYTEPOS.  */
@@ -228,7 +221,7 @@ build_index_to_bytepos (struct buffer *b, ptrdiff_t to_bytepos)
      TO_BYTEPOS equals the byte position of that entry, this is okay,
      because the character position at that byte position cannot have
      changed.  */
-  ptrdiff_t entry = index_entry (ti,  to_bytepos);
+  ptrdiff_t entry = index_bytepos_entry (ti,  to_bytepos);
   ptrdiff_t charpos = index_charpos (ti, entry);
   ptrdiff_t bytepos = index_bytepos (ti, entry);
   ptrdiff_t next_stop = index_bytepos (ti, entry + 1);
@@ -244,7 +237,7 @@ build_index_to_bytepos (struct buffer *b, ptrdiff_t to_bytepos)
 
       if (bytepos == next_stop)
 	{
-	  ti->charpos[index_entry (ti, bytepos)] = charpos;
+	  ti->charpos[index_bytepos_entry (ti, bytepos)] = charpos;
 	  next_stop += ti->interval;
 	}
     }
@@ -280,7 +273,7 @@ build_index_to_charpos (struct buffer *b, const ptrdiff_t to_charpos)
 
       if (bytepos == next_stop)
 	{
-	  ti->charpos[index_entry (ti, bytepos)] = charpos;
+	  ti->charpos[index_bytepos_entry (ti, bytepos)] = charpos;
 	  if (charpos >= to_charpos)
 	    break;
 	  next_stop += ti->interval;
@@ -364,7 +357,7 @@ static bool
 can_scan_backward (const struct buffer *b, const ptrdiff_t bytepos)
 {
   const struct text_index *ti = b->text->index;
-  const ptrdiff_t entry = index_entry (ti, bytepos);
+  const ptrdiff_t entry = index_bytepos_entry (ti, bytepos);
   return entry + 1 < ti->nentries;
 }
 
@@ -373,7 +366,7 @@ text_index_bytepos_to_charpos (struct buffer *b, const ptrdiff_t bytepos)
 {
   ensure_bytepos_indexed (b, bytepos);
   struct text_index *ti = b->text->index;
-  const ptrdiff_t entry = index_entry (ti, bytepos);
+  const ptrdiff_t entry = index_bytepos_entry (ti, bytepos);
   const ptrdiff_t indexed_bytepos = index_bytepos (ti, entry);
   if (bytepos - indexed_bytepos < ti->interval / 2
       || !can_scan_backward (b, bytepos))
