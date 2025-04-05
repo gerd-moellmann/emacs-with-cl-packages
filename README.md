@@ -35,7 +35,7 @@ If you choose not to `make install`, you may need to:
 
 ```
 ~/code/emacs/emacs-mac/mac
-% ln -s `pwd`/../native-lisp Emacs.app/Contents/
+% ln -s ../native-lisp Emacs.app/Contents/
 ```
 
 to associate the native lisp files.
