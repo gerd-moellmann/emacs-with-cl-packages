@@ -393,31 +393,34 @@ bytepos_scanning_backward_to_charpos (struct buffer *b,
   return bytepos;
 }
 
-/* Return true if we can use backward scanning to find the character
-   position of BYTEPOS in buffer B, */
-
-static bool
-can_scan_backward (const struct buffer *b, const ptrdiff_t bytepos)
-{
-  const struct text_index *ti = b->text->index;
-  const ptrdiff_t entry = index_bytepos_entry (ti, bytepos);
-  return entry + 1 < ti->nentries;
-}
-
 ptrdiff_t
 text_index_bytepos_to_charpos (struct buffer *b, const ptrdiff_t bytepos)
 {
   ensure_bytepos_indexed (b, bytepos);
   struct text_index *ti = b->text->index;
+
+  /* If we are close to Z_BYTE, which does not have an index entry, scan
+     backward from (Z, Z_BYTE).  */
+  if (BUF_Z_BYTE (b) - bytepos < ti->interval / 2)
+    {
+      struct text_pos from = { .charpos = BUF_Z (b), .bytepos = BUF_Z_BYTE (b)};
+      return charpos_scanning_backward_to_bytepos (b, from, bytepos);
+    }
+
   const ptrdiff_t entry = index_bytepos_entry (ti, bytepos);
   const ptrdiff_t indexed_bytepos = index_bytepos (ti, entry);
+
+  /* If we are closer to the preceding index entry than to the next,
+     or we don't have a next entry, scan forward.  */
   if (bytepos - indexed_bytepos < ti->interval / 2
-      || !can_scan_backward (b, bytepos))
+      || entry + 1 >= ti->nentries)
     {
       struct text_pos from = index_text_pos (ti, entry);
       return charpos_scanning_forward_to_bytepos (b, from, bytepos);
     }
 
+  /* Scan backward from next index entry.  */
+  eassert (entry + 1 < ti->nentries);
   struct text_pos from = index_text_pos (ti, entry + 1);
   return charpos_scanning_backward_to_bytepos (b, from, bytepos);
 }
@@ -429,18 +432,31 @@ text_index_charpos_to_bytepos (struct buffer *b, ptrdiff_t charpos)
   struct text_index *ti = b->text->index;
   ptrdiff_t entry = index_charpos_entry (ti, charpos);
 
-  /* One could also try to use (Z, Z_BYTE) as a known position to
-     scan backwards from, but I'm not sure it's worth it.  */
-  if (entry + 1 < ti->nentries
-      && (index_charpos (ti, entry + 1) - charpos
-	  < charpos - index_charpos (ti, entry)))
+  /* If we are closer to Z than to the previous index entry,
+     scan backward from Z.  This is a bit hand-wavy because of
+     varying character lengths, but it looks good enough to me.  */
+  const ptrdiff_t indexed_charpos = index_charpos (ti, entry);
+  if (Z - charpos < charpos - indexed_charpos)
     {
-      struct text_pos from = index_text_pos (ti, entry + 1);
+      struct text_pos from = { .charpos = BUF_Z (b), .bytepos = BUF_Z_BYTE (b)};
       return bytepos_scanning_backward_to_charpos (b, from, charpos);
     }
 
-  struct text_pos from = index_text_pos (ti, entry);
-  return bytepos_scanning_forward_to_charpos (b, from, charpos);
+  /* If we are closer to the indexed charpos than to the next one or we
+     don't have a next entry, scan forward from the previous.  */
+  const ptrdiff_t next_indexed_charpos
+    = entry < ti->nentries - 1 ? index_charpos (ti, entry + 1) : 0;
+  if (next_indexed_charpos == 0
+      || charpos - indexed_charpos < next_indexed_charpos - charpos)
+    {
+      struct text_pos from = index_text_pos (ti, entry);
+      return bytepos_scanning_forward_to_charpos (b, from, charpos);
+    }
+
+  /* Scan backward from next index entry.  */
+  eassert (entry + 1 < ti->nentries);
+  struct text_pos from = index_text_pos (ti, entry + 1);
+  return bytepos_scanning_backward_to_charpos (b, from, charpos);
 }
 
 DEFUN ("text-index--position-bytes", Ftext_index__position_bytes,
