@@ -217,6 +217,8 @@ text_index_invalidate (struct buffer *b, ptrdiff_t bytepos)
 
 /* Build text index of buffer B up to and including TO_BYTEPOS.  */
 
+/* FIXME: Build index to entry after bytepos?. */
+
 static void
 build_index_to_bytepos (struct buffer *b, ptrdiff_t to_bytepos)
 {
@@ -230,10 +232,10 @@ build_index_to_bytepos (struct buffer *b, ptrdiff_t to_bytepos)
      TO_BYTEPOS equals the byte position of that entry, this is okay,
      because the character position at that byte position cannot have
      changed.  */
-  ptrdiff_t entry = index_bytepos_entry (ti, to_bytepos);
-  ptrdiff_t charpos = index_charpos (ti, entry);
-  ptrdiff_t bytepos = index_bytepos (ti, entry);
-  ptrdiff_t next_stop = index_bytepos (ti, entry + 1);
+  const ptrdiff_t last_entry = ti->nentries - 1;
+  ptrdiff_t charpos = index_charpos (ti, last_entry);
+  ptrdiff_t bytepos = index_bytepos (ti, last_entry);
+  ptrdiff_t next_stop = bytepos + ti->interval;
 
   /* Loop over bytes, starting one after the index entry we start from
      because we are only interested in yet unknown entries, and the
@@ -262,7 +264,7 @@ build_index_to_charpos (struct buffer *b, const ptrdiff_t to_charpos)
   eassert (to_charpos > max_indexed_charpos (ti));
 
   /* Start at the last index entry.  */
-  const ptrdiff_t last_entry = ti->nentries - 1;
+  ptrdiff_t last_entry = ti->nentries - 1;
   ptrdiff_t charpos = index_charpos (ti, last_entry);
   ptrdiff_t bytepos = index_bytepos (ti, last_entry);
   ptrdiff_t next_stop = bytepos + ti->interval;
@@ -270,7 +272,7 @@ build_index_to_charpos (struct buffer *b, const ptrdiff_t to_charpos)
   /* Give up if there are not enough bytes left to scan to make a new
      index entry.  */
   const ptrdiff_t z_byte = BUF_Z_BYTE (b);
-  if (next_stop > z_byte)
+  if (next_stop >= z_byte)
     return;
 
   /* Loop over bytes, starting one after the index entry, until we
@@ -282,15 +284,17 @@ build_index_to_charpos (struct buffer *b, const ptrdiff_t to_charpos)
 
       if (bytepos == next_stop)
 	{
-	  ti->charpos[index_bytepos_entry (ti, bytepos)] = charpos;
+	  enlarge_index (ti, bytepos);
+	  ti->charpos[last_entry] = charpos;
 	  if (charpos == to_charpos)
 	    break;
+	  ++last_entry;
 	  next_stop += ti->interval;
 	}
     }
 }
 
-/* Make sure tht buffer B has a text index.  */
+/* Make sure that buffer B has a text index.  */
 
 static void
 ensure_has_index (struct buffer *b)
@@ -411,8 +415,8 @@ next_known_text_pos (struct buffer *b, ptrdiff_t entry)
   const struct text_index *ti = b->text->index;
   if (entry + 1 < ti->nentries)
     return index_text_pos (ti, entry + 1);
-  return (struct text_pos)
-    { .charpos = BUF_Z (b), .bytepos = BUF_Z_BYTE (b) };
+  return (struct text_pos) { .charpos = BUF_Z (b),
+			     .bytepos = BUF_Z_BYTE (b) };
 }
 
 /* Return the character position in buffer B corresponding to
