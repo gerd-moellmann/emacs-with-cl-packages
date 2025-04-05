@@ -130,7 +130,7 @@ index_charpos_entry (const struct text_index *ti, ptrdiff_t charpos)
 static ptrdiff_t
 max_indexed_charpos (const struct text_index *ti)
 {
-  return ti ? index_charpos (ti, ti->nentries - 1) : 0;
+  return index_charpos (ti, ti->nentries - 1);
 }
 
 /* Return index TI's maximum indexed byte position.  */
@@ -138,7 +138,7 @@ max_indexed_charpos (const struct text_index *ti)
 static ptrdiff_t
 max_indexed_bytepos (const struct text_index *ti)
 {
-  return ti ? index_bytepos (ti, ti->nentries - 1) : 0;
+  return index_bytepos (ti, ti->nentries - 1);
 }
 
 /* Given a byte position BYTEPOS in buffer B, return the byte position
