@@ -408,10 +408,10 @@ text_index_bytepos_to_charpos (struct buffer *b, const ptrdiff_t bytepos)
   ensure_bytepos_indexed (b, bytepos);
   struct text_index *ti = b->text->index;
   const ptrdiff_t entry = index_bytepos_entry (ti, bytepos);
-  const struct text_pos indexed = index_text_pos (ti, entry);
+  const struct text_pos prev_known = index_text_pos (ti, entry);
   const struct text_pos next_known = next_known_text_pos (b, entry);
-  if (bytepos - indexed.bytepos < next_known.bytepos - bytepos)
-    return charpos_scanning_forward_to_bytepos (b, indexed, bytepos);
+  if (bytepos - prev_known.bytepos < next_known.bytepos - bytepos)
+    return charpos_scanning_forward_to_bytepos (b, prev_known, bytepos);
   return charpos_scanning_backward_to_bytepos (b, next_known, bytepos);
 }
 
@@ -421,10 +421,10 @@ text_index_charpos_to_bytepos (struct buffer *b, ptrdiff_t charpos)
   ensure_charpos_indexed (b, charpos);
   struct text_index *ti = b->text->index;
   ptrdiff_t entry = index_charpos_entry (ti, charpos);
-  const struct text_pos indexed = index_text_pos (ti, entry);
+  const struct text_pos prev_known = index_text_pos (ti, entry);
   const struct text_pos next_known = next_known_text_pos (b, entry);
-  if (charpos - indexed.charpos < next_known.charpos - charpos)
-    return bytepos_scanning_forward_to_charpos (b, indexed, charpos);
+  if (charpos - prev_known.charpos < next_known.charpos - charpos)
+    return bytepos_scanning_forward_to_charpos (b, prev_known, charpos);
   return bytepos_scanning_backward_to_charpos (b, next_known, charpos);
 }
 
