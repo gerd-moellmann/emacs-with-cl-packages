@@ -52,8 +52,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #include "dispextern.h"		/* for struct text_pos */
 #include "text-index.h"
 
-#define DEBUG_TEXT_INDEX 1
-
 // clang-format off
 
 struct text_index
@@ -331,9 +329,12 @@ charpos_forward_to_bytepos (struct buffer *b, const struct text_pos from,
 {
   ptrdiff_t bytepos = from.bytepos;
   ptrdiff_t charpos = from.charpos;
-  for (++bytepos; bytepos <= to_bytepos; ++bytepos)
-    if (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bytepos)))
-      ++charpos;
+  while (bytepos < to_bytepos)
+    {
+      ++bytepos;
+      if (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bytepos)))
+	++charpos;
+    }
   return charpos;
 }
 
@@ -346,19 +347,25 @@ charpos_backward_to_bytepos (struct buffer *b, const struct text_pos from,
 {
   ptrdiff_t bytepos = char_start_bytepos (b, from.bytepos);
   ptrdiff_t charpos = from.charpos;
-  for (--bytepos; bytepos >= to_bytepos; --bytepos)
-    if (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bytepos)))
-      --charpos;
+  while (bytepos > to_bytepos)
+    {
+      --bytepos;
+      if (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bytepos)))
+	--charpos;
+    }
   return charpos;
 }
 
 /* In buffer B, starting from FROM, scan forward in B's text to
-   TO_CHARPOS, and return the corresponding byte position.  */
+   TO_CHARPOS, and return the corresponding byte position.  The byte
+   position is the one of the character start.  FROM's charpos
+   must be < TO_CHARPOS.  */
 
 static ptrdiff_t
 bytepos_forward_to_charpos (struct buffer *b, const struct text_pos from,
 			    ptrdiff_t to_charpos)
 {
+  eassert (from.charpos < to_charpos);
   ptrdiff_t bytepos = from.bytepos;
   ptrdiff_t charpos = from.charpos;
   while (charpos < to_charpos)
@@ -367,21 +374,29 @@ bytepos_forward_to_charpos (struct buffer *b, const struct text_pos from,
       if (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bytepos)))
 	++charpos;
     }
+  eassert (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bytepos)));
   return bytepos;
 }
 
 /* In buffer B, starting from FROM, scan backward in B's text to
-   TO_CHARPOS, and return the corresponding byte position.  */
+   TO_CHARPOS, and return the corresponding byte position.  The byte
+   position is the one of the character start.  FROM's charpos must be
+   >= TO_CHARPOS.  */
 
 static ptrdiff_t
 bytepos_backward_to_charpos (struct buffer *b, const struct text_pos from,
 			     const ptrdiff_t to_charpos)
 {
+  eassert (from.charpos >= to_charpos);
   ptrdiff_t bytepos = char_start_bytepos (b, from.bytepos);
   ptrdiff_t charpos = from.charpos;
-  for (--bytepos; charpos > to_charpos; --bytepos)
-    if (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bytepos)))
-      --charpos;
+  while (charpos > to_charpos)
+    {
+      --bytepos;
+      if (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bytepos)))
+	--charpos;
+    }
+  eassert (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bytepos)));
   return bytepos;
 }
 
@@ -409,8 +424,12 @@ text_index_bytepos_to_charpos (struct buffer *b, const ptrdiff_t bytepos)
   const ptrdiff_t entry = index_bytepos_entry (ti, bytepos);
   const struct text_pos prev_known = index_text_pos (ti, entry);
   const struct text_pos next_known = next_known_text_pos (b, entry);
+
+  /* Scan forward if the distance to the previous known position is
+     smaller than the distance to the next known position.  */
   if (bytepos - prev_known.bytepos < next_known.bytepos - bytepos)
     return charpos_forward_to_bytepos (b, prev_known, bytepos);
+
   return charpos_backward_to_bytepos (b, next_known, bytepos);
 }
 
@@ -425,8 +444,15 @@ text_index_charpos_to_bytepos (struct buffer *b, ptrdiff_t charpos)
   const ptrdiff_t entry = index_charpos_entry (ti, charpos);
   const struct text_pos prev_known = index_text_pos (ti, entry);
   const struct text_pos next_known = next_known_text_pos (b, entry);
-  if (charpos - prev_known.charpos < next_known.charpos - charpos)
+
+  /* Don't scan forward if CHARPOS is exactly on the previous know
+     position because the index bytepos can be in the middle of a
+     character, which is found by scanning backwards.  Otherwise, scan
+     forward if we believe that's less expensive.  */
+  if (charpos > prev_known.charpos
+      && charpos - prev_known.charpos < next_known.charpos - charpos)
     return bytepos_forward_to_charpos (b, prev_known, charpos);
+
   return bytepos_backward_to_charpos (b, next_known, charpos);
 }
 
