@@ -51,6 +51,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #include <stdlib.h>
 #include "lisp.h"
 #include "buffer.h"
+#include "dispextern.h"
 #include "text-index.h"
 
 // clang-format off
@@ -123,6 +124,15 @@ index_charpos_entry (const struct text_index *ti, ptrdiff_t charpos)
     }
   eassert (entry >= 0 && entry < ti->nentries);
   return entry;
+}
+
+static struct text_pos
+index_text_pos (const struct text_index *ti, ptrdiff_t entry)
+{
+  return (struct text_pos) {
+    .charpos = index_charpos (ti, entry),
+    .bytepos = index_bytepos (ti, entry)
+  };
 }
 
 /* Return index TI's maximum indexed character position.  */
@@ -221,7 +231,7 @@ build_index_to_bytepos (struct buffer *b, ptrdiff_t to_bytepos)
      TO_BYTEPOS equals the byte position of that entry, this is okay,
      because the character position at that byte position cannot have
      changed.  */
-  ptrdiff_t entry = index_bytepos_entry (ti,  to_bytepos);
+  ptrdiff_t entry = index_bytepos_entry (ti, to_bytepos);
   ptrdiff_t charpos = index_charpos (ti, entry);
   ptrdiff_t bytepos = index_bytepos (ti, entry);
   ptrdiff_t next_stop = index_bytepos (ti, entry + 1);
@@ -315,12 +325,12 @@ ensure_charpos_indexed (struct buffer *b, ptrdiff_t charpos)
    position.  */
 
 static ptrdiff_t
-charpos_scanning_forward_to_bytepos (struct buffer *b, ptrdiff_t entry,
+charpos_scanning_forward_to_bytepos (struct buffer *b, const
+				     struct text_pos from,
 				     const ptrdiff_t to_bytepos)
 {
-  const struct text_index *ti = b->text->index;
-  ptrdiff_t bytepos = index_bytepos (ti, entry);
-  ptrdiff_t charpos = index_charpos (ti, entry);
+  ptrdiff_t bytepos = from.bytepos;
+  ptrdiff_t charpos = from.charpos;
   for (++bytepos; bytepos <= to_bytepos; ++bytepos)
     {
       const unsigned char byte = BUF_FETCH_BYTE (b, bytepos);
@@ -335,12 +345,12 @@ charpos_scanning_forward_to_bytepos (struct buffer *b, ptrdiff_t entry,
    position.  */
 
 static ptrdiff_t
-charpos_scanning_backward_to_bytepos (struct buffer *b, ptrdiff_t entry,
+charpos_scanning_backward_to_bytepos (struct buffer *b,
+				      const struct text_pos from,
 				      const ptrdiff_t to_bytepos)
 {
-  const struct text_index *ti = b->text->index;
-  ptrdiff_t bytepos = char_start_bytepos (b, index_bytepos (ti, entry));
-  ptrdiff_t charpos = index_charpos (ti, entry);
+  ptrdiff_t bytepos = char_start_bytepos (b, from.bytepos);
+  ptrdiff_t charpos = from.charpos;
   for (--bytepos; bytepos >= to_bytepos; --bytepos)
     {
       const unsigned char byte = BUF_FETCH_BYTE (b, bytepos);
@@ -348,6 +358,39 @@ charpos_scanning_backward_to_bytepos (struct buffer *b, ptrdiff_t entry,
 	--charpos;
     }
   return charpos;
+}
+
+static ptrdiff_t
+bytepos_scanning_forward_to_charpos (struct buffer *b,
+				     const struct text_pos from,
+				     ptrdiff_t to_charpos)
+{
+  ptrdiff_t bytepos = from.bytepos;
+  ptrdiff_t charpos = from.charpos;
+  while (charpos < to_charpos)
+    {
+      ++bytepos;
+      const unsigned char byte = BUF_FETCH_BYTE (b, bytepos);
+      if (CHAR_HEAD_P (byte))
+	++charpos;
+    }
+  return bytepos;
+}
+
+static ptrdiff_t
+bytepos_scanning_backward_to_charpos (struct buffer *b,
+				      const struct text_pos from,
+				      const ptrdiff_t to_charpos)
+{
+  ptrdiff_t bytepos = char_start_bytepos (b, from.bytepos);
+  ptrdiff_t charpos = from.charpos;
+  for (--bytepos; charpos > to_charpos; --bytepos)
+    {
+      const unsigned char byte = BUF_FETCH_BYTE (b, bytepos);
+      if (CHAR_HEAD_P (byte))
+	--charpos;
+    }
+  return bytepos;
 }
 
 /* Return true if we can use backward scanning to find the character
@@ -370,42 +413,13 @@ text_index_bytepos_to_charpos (struct buffer *b, const ptrdiff_t bytepos)
   const ptrdiff_t indexed_bytepos = index_bytepos (ti, entry);
   if (bytepos - indexed_bytepos < ti->interval / 2
       || !can_scan_backward (b, bytepos))
-    return charpos_scanning_forward_to_bytepos (b, entry, bytepos);
-  return charpos_scanning_backward_to_bytepos (b, entry + 1, bytepos);
-}
-
-static ptrdiff_t
-bytepos_scanning_forward_to_charpos (struct buffer *b, ptrdiff_t entry,
-				     ptrdiff_t to_charpos)
-{
-  const struct text_index *ti = b->text->index;
-  ptrdiff_t bytepos = index_bytepos (ti, entry);
-  ptrdiff_t charpos = index_charpos (ti, entry);
-  while (charpos < to_charpos)
     {
-      ++bytepos;
-      const unsigned char byte = BUF_FETCH_BYTE (b, bytepos);
-      if (CHAR_HEAD_P (byte))
-	++charpos;
+      struct text_pos from = index_text_pos (ti, entry);
+      return charpos_scanning_forward_to_bytepos (b, from, bytepos);
     }
-  return bytepos;
-}
 
-static ptrdiff_t
-bytepos_scanning_backward_to_charpos (struct buffer *b,
-				      const ptrdiff_t entry,
-				      const ptrdiff_t to_charpos)
-{
-  const struct text_index *ti = b->text->index;
-  ptrdiff_t bytepos = char_start_bytepos (b, index_bytepos (ti, entry));
-  ptrdiff_t charpos = index_charpos (ti, entry);
-  for (--bytepos; charpos > to_charpos; --bytepos)
-    {
-      const unsigned char byte = BUF_FETCH_BYTE (b, bytepos);
-      if (CHAR_HEAD_P (byte))
-	--charpos;
-    }
-  return bytepos;
+  struct text_pos from = index_text_pos (ti, entry + 1);
+  return charpos_scanning_backward_to_bytepos (b, from, bytepos);
 }
 
 ptrdiff_t
@@ -414,13 +428,19 @@ text_index_charpos_to_bytepos (struct buffer *b, ptrdiff_t charpos)
   ensure_charpos_indexed (b, charpos);
   struct text_index *ti = b->text->index;
   ptrdiff_t entry = index_charpos_entry (ti, charpos);
+
   /* One could also try to use (Z, Z_BYTE) as a known position to
      scan backwards from, but I'm not sure it's worth it.  */
   if (entry + 1 < ti->nentries
       && (index_charpos (ti, entry + 1) - charpos
 	  < charpos - index_charpos (ti, entry)))
-    return bytepos_scanning_backward_to_charpos (b, entry + 1, charpos);
-  return bytepos_scanning_forward_to_charpos (b, entry, charpos);
+    {
+      struct text_pos from = index_text_pos (ti, entry + 1);
+      return bytepos_scanning_backward_to_charpos (b, from, charpos);
+    }
+
+  struct text_pos from = index_text_pos (ti, entry);
+  return bytepos_scanning_forward_to_charpos (b, from, charpos);
 }
 
 DEFUN ("text-index--position-bytes", Ftext_index__position_bytes,
