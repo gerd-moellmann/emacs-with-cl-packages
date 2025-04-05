@@ -51,8 +51,7 @@ Additional features/fixes added on top of `emacs-mac` and Emacs proper:
 ### Bug fixes
 
 - Take care to avoid crashes when selecting fonts from the system font panel.
-- Prevent zombie "Emacs Web Content" processes on SVG load, ~~restoring normal WebView SVG rendering for MacOS v14+~~.  Update: `WebView` is deprecated, so this has been reverted another workaround installed.
-- For non-RSVG display of SVG images (e.g. the default for `image-mode` you get when `C-x C-f` an SVG image), revert to the non-JS version of WebKit SVG rendering for OS >=14.  This is faster and prevents "rogue" processes.  It's recommended to build with RSVG (it is enabled by default if the `librsvg2` library is found during build).
+- Prevent zombie "Emacs Web Content" processes [on SVG load](../../issues/9), ~~restoring normal WebView SVG rendering for MacOS v14+~~.  Update: `WebView` is deprecated, so this has been reverted and another workaround installed. It's recommended to build with RSVG (it is enabled by default if the `librsvg2` library is found during build).
 
 ## Debugging
 
