@@ -327,6 +327,7 @@ static ptrdiff_t
 charpos_forward_to_bytepos (struct buffer *b, const struct text_pos from,
 			    const ptrdiff_t to_bytepos)
 {
+  eassert (from.bytepos < to_bytepos);
   ptrdiff_t bytepos = from.bytepos;
   ptrdiff_t charpos = from.charpos;
   while (bytepos < to_bytepos)
@@ -345,6 +346,7 @@ static ptrdiff_t
 charpos_backward_to_bytepos (struct buffer *b, const struct text_pos from,
 			     const ptrdiff_t to_bytepos)
 {
+  eassert (from.bytepos >= to_bytepos);
   ptrdiff_t bytepos = char_start_bytepos (b, from.bytepos);
   ptrdiff_t charpos = from.charpos;
   while (bytepos > to_bytepos)
