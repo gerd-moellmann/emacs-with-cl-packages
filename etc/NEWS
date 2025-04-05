@@ -64,6 +64,9 @@ init file.
 
 * Changes in Emacs 31.1
 
+** `prettify-symbols-mode' attempts to ignore undisplayable characters.
+Previously, such characters would be rendered as, e.g., white boxes.
+
 +++
 ** 'standard-display-table' now has more extra slots.
 'standard-display-table' has been extended to allow specifying glyphs
@@ -475,6 +478,10 @@ method to facilitate writing in the orthographies of the five languages
 simultaneously.
 
 ---
+*** New input methods for languages based on Burmese.
+These include: Burmese, Burmese (visual order), Shan, and Mon.
+
+---
 ** 'visual-wrap-prefix-mode' now supports variable-pitch fonts.
 When using 'visual-wrap-prefix-mode' in buffers with variable-pitch
 fonts, the wrapped text will now be lined up correctly so that it's
@@ -564,6 +571,19 @@ When non-nil, buffer sizes are shown in human readable format.
 The prompts 'opstring' and 'active-opstring' can now either be strings
 or functions.  This is useful when your prompts can benefit from dynamic
 content.
+
+** ElDoc
+---
+*** New eldoc function 'elisp-eldoc-funcall-with-docstring'.
+This function includes the current function docstring in eldoc echo area
+and can be used as a more detailed alternative to 'elisp-eldoc-funcall'.
+
+---
+*** New user option 'elisp-eldoc-funcall-with-docstring-length'.
+This user option specifies how long function doc string must be
+displayed in 'elisp-eldoc-funcall-with-docstring'.  If set to 'short'
+(the default), only display the first sentence of the doc string.
+Otherwise, if set to 'full', display the full doc string.'
 
 ---
 ** Buffer Menu
@@ -1347,6 +1367,12 @@ mode.  Now, one needs to say '(midnight-mode +1)' instead.
 
 ** Python mode
 
+*** New repeat-map for Python indentation commands.
+The commands 'python-indent-shift-left' and 'python-indent-shift-right'
+can now be repeated using 'repeat-mode'.  With 'repeat-mode' enabled,
+after invoking one of these commands via 'C-c <' or 'C-c >', you can
+press '<' or '>' to repeat the command.
+
 ---
 *** Prefer "python" for 'python-interpreter' and 'python-shell-interpreter'.
 On recent versions of mainstream GNU/Linux distributions, "python"
@@ -1774,6 +1800,13 @@ You can now directly pass it a string or a buffer rather than a function.
 Actually passing it a function is now deprecated.
 
 +++
+** New function 'char-displayable-on-frame-p'.
+'char-displayable-on-frame-p' returns non-nil if Emacs ought to be able
+to display its char argument on a given frame.  This new function,
+unlike 'char-displayable-p', does not check whether the character can be
+encoded by the underlying terminal.
+
++++
 ** New macros 'static-when' and 'static-unless'.
 Like 'static-if', these macros evaluate their condition at
 macro-expansion time and are useful for writing code that can work
@@ -2078,6 +2111,13 @@ systems featuring Linux 3.5.0 and above.
 Put differently, this enables input events to be read and recursive
 editing sessions to be started from non-main threads.  The only platform
 where this remains unsupported is Nextstep (GNUstep or Mac OS).
+
+---
+** 'desktop-restore-frames' has been disabled by default on Android systems.
+Restrictions imposed on clients by the window manager on these systems
+are too prohibitive and don't allow restoring frame configurations.
+(For the same reason many window management facilities are also not
+implemented by Emacs.)
 
 ---
 ** 'NSSpeechRecognitionUsageDescription' now included in "Info.plist" (macOS).

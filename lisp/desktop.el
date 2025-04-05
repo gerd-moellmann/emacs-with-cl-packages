@@ -423,13 +423,17 @@ host is off-line."
   :type '(repeat symbol)
   :group 'desktop)
 
-(defcustom desktop-restore-frames t
+(defcustom desktop-restore-frames (not (featurep 'android))
   "When non-nil, save and restore the frame and window configuration.
 See related options `desktop-restore-reuses-frames',
-`desktop-restore-in-current-display', and `desktop-restore-forces-onscreen'."
+`desktop-restore-in-current-display', and `desktop-restore-forces-onscreen'.
+
+This option is enabled by default, except on Android.  It is disabled by
+default on Android because the window manager there prevents programs from
+restoring frames."
   :type 'boolean
   :group 'desktop
-  :version "24.4")
+  :version "31.1")
 
 (defcustom desktop-restore-in-current-display t
   "Controls how restoring of frames treats displays.
