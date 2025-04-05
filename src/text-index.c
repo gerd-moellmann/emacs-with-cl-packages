@@ -332,11 +332,8 @@ charpos_scanning_forward_to_bytepos (struct buffer *b, const
   ptrdiff_t bytepos = from.bytepos;
   ptrdiff_t charpos = from.charpos;
   for (++bytepos; bytepos <= to_bytepos; ++bytepos)
-    {
-      const unsigned char byte = BUF_FETCH_BYTE (b, bytepos);
-      if (CHAR_HEAD_P (byte))
-	++charpos;
-    }
+    if (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bytepos)))
+      ++charpos;
   return charpos;
 }
 
@@ -352,11 +349,8 @@ charpos_scanning_backward_to_bytepos (struct buffer *b,
   ptrdiff_t bytepos = char_start_bytepos (b, from.bytepos);
   ptrdiff_t charpos = from.charpos;
   for (--bytepos; bytepos >= to_bytepos; --bytepos)
-    {
-      const unsigned char byte = BUF_FETCH_BYTE (b, bytepos);
-      if (CHAR_HEAD_P (byte))
-	--charpos;
-    }
+    if (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bytepos)))
+      --charpos;
   return charpos;
 }
 
@@ -370,8 +364,7 @@ bytepos_scanning_forward_to_charpos (struct buffer *b,
   while (charpos < to_charpos)
     {
       ++bytepos;
-      const unsigned char byte = BUF_FETCH_BYTE (b, bytepos);
-      if (CHAR_HEAD_P (byte))
+      if (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bytepos)))
 	++charpos;
     }
   return bytepos;
@@ -385,11 +378,8 @@ bytepos_scanning_backward_to_charpos (struct buffer *b,
   ptrdiff_t bytepos = char_start_bytepos (b, from.bytepos);
   ptrdiff_t charpos = from.charpos;
   for (--bytepos; charpos > to_charpos; --bytepos)
-    {
-      const unsigned char byte = BUF_FETCH_BYTE (b, bytepos);
-      if (CHAR_HEAD_P (byte))
-	--charpos;
-    }
+    if (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bytepos)))
+      --charpos;
   return bytepos;
 }
 
