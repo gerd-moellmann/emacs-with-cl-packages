@@ -187,18 +187,19 @@ text_index_free (struct text_index *ti)
   xfree (ti);
 }
 
-/* Make text index TI large enough to contain BYTEPOS.  */
+/* Append entry for CHARPOS to index TI.  */
 
 static void
-enlarge_index (struct text_index *ti, ptrdiff_t bytepos)
+append_entry (struct text_index *ti, ptrdiff_t charpos)
 {
-  ptrdiff_t needed_entries = index_bytepos_entry (ti, bytepos) + 1;
-  if (needed_entries > ti->capacity)
+  if (ti->nentries == ti->capacity)
     {
-      ti->capacity = max (needed_entries, 2 * ti->capacity);
+      ti->capacity = max (10, 2 * ti->capacity);
       ti->charpos = xnrealloc (ti->charpos, ti->capacity,
 			       sizeof *ti->charpos);
     }
+  ti->charpos[ti->nentries] = charpos;
+  ++ti->nentries;
 }
 
 /* Invalidate index entries for all positions > BYTEPOS in buffer B.
@@ -223,8 +224,6 @@ static void
 build_index_to_bytepos (struct buffer *b, ptrdiff_t to_bytepos)
 {
   struct text_index *ti = b->text->index;
-  enlarge_index (ti, to_bytepos);
-
   eassert (to_bytepos >= BEG_BYTE && to_bytepos <= BUF_Z_BYTE (b));
   eassert (to_bytepos > max_indexed_bytepos (ti));
 
@@ -237,19 +236,34 @@ build_index_to_bytepos (struct buffer *b, ptrdiff_t to_bytepos)
   ptrdiff_t bytepos = index_bytepos (ti, last_entry);
   ptrdiff_t next_stop = bytepos + ti->interval;
 
+  /* Quickly give up if there are not enough bytes left to scan to make
+     a new index entry.  */
+  const ptrdiff_t z_byte = BUF_Z_BYTE (b);
+  if (next_stop >= z_byte)
+    return;
+
   /* Loop over bytes, starting one after the index entry we start from
      because we are only interested in yet unknown entries, and the
      one at EMTRY can be assumed to stay unchanged.  */
-  for (++bytepos; bytepos <= to_bytepos; ++bytepos)
+  for (++bytepos; bytepos < z_byte; ++bytepos)
     {
-      unsigned char byte = BUF_FETCH_BYTE (b, bytepos);
-      if (CHAR_HEAD_P (byte))
+      if (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bytepos)))
 	++charpos;
 
       if (bytepos == next_stop)
 	{
-	  ti->charpos[index_bytepos_entry (ti, bytepos)] = charpos;
+	  /* Add a new index entry. If we reached the one after
+	     BYTEPOS, we're done since we can then scan forward
+	     and backward to BYTEPOS.  */
+	  append_entry (ti, charpos);
+	  if (bytepos > to_bytepos)
+	    break;
+
+	  /* Compute next stop. We are done if no next entry
+	     can be built.  */
 	  next_stop += ti->interval;
+	  if (next_stop >= z_byte)
+	    break;
 	}
     }
 }
@@ -264,13 +278,13 @@ build_index_to_charpos (struct buffer *b, const ptrdiff_t to_charpos)
   eassert (to_charpos > max_indexed_charpos (ti));
 
   /* Start at the last index entry.  */
-  ptrdiff_t last_entry = ti->nentries - 1;
+  const ptrdiff_t last_entry = ti->nentries - 1;
   ptrdiff_t charpos = index_charpos (ti, last_entry);
   ptrdiff_t bytepos = index_bytepos (ti, last_entry);
   ptrdiff_t next_stop = bytepos + ti->interval;
 
-  /* Give up if there are not enough bytes left to scan to make a new
-     index entry.  */
+  /* Quickly give up if there are not enough bytes left to scan to make
+     a new index entry.  */
   const ptrdiff_t z_byte = BUF_Z_BYTE (b);
   if (next_stop >= z_byte)
     return;
@@ -284,12 +298,18 @@ build_index_to_charpos (struct buffer *b, const ptrdiff_t to_charpos)
 
       if (bytepos == next_stop)
 	{
-	  enlarge_index (ti, bytepos);
-	  ti->charpos[last_entry] = charpos;
-	  if (charpos == to_charpos)
+	  /* Add a new index entry. If we reached the one after CHARPOS,
+	     we're done since we can then scan forward and backward to
+	     CHARPOS.  */
+	  append_entry (ti, charpos);
+	  if (charpos > to_charpos)
 	    break;
-	  ++last_entry;
+
+	  /* Compute next stop. We are done if no next entry
+	     can be built.  */
 	  next_stop += ti->interval;
+	  if (next_stop >= z_byte)
+	    break;
 	}
     }
 }
