@@ -413,6 +413,12 @@ next_known_text_pos (struct buffer *b, ptrdiff_t entry)
 ptrdiff_t
 text_index_bytepos_to_charpos (struct buffer *b, const ptrdiff_t bytepos)
 {
+  /* If this buffer has as many characters as bytes, each character must
+     be one byte.  This takes care of the case where
+     enable-multibyte-characters is nil.  */
+  if (BUF_Z (b) == BUF_Z_BYTE (b))
+    return bytepos;
+
   ensure_bytepos_indexed (b, bytepos);
   struct text_index *ti = b->text->index;
   const ptrdiff_t entry = index_bytepos_entry (ti, bytepos);
@@ -433,6 +439,12 @@ text_index_bytepos_to_charpos (struct buffer *b, const ptrdiff_t bytepos)
 ptrdiff_t
 text_index_charpos_to_bytepos (struct buffer *b, ptrdiff_t charpos)
 {
+  /* If this buffer has as many characters as bytes, each character must
+     be one byte.  This takes care of the case where
+     enable-multibyte-characters is nil.  */
+  if (BUF_Z (b) == BUF_Z_BYTE (b))
+    return charpos;
+
   ensure_charpos_indexed (b, charpos);
   struct text_index *ti = b->text->index;
   const ptrdiff_t entry = index_charpos_entry (ti, charpos);
@@ -543,7 +555,7 @@ syms_of_text_index (void)
   DEFVAR_INT ("text-index-interval", text_index_interval, doc: /* */);
   text_index_interval = 160;
   DEFVAR_BOOL ("use-text-index", use_text_index, doc: /* */);
-  use_text_index = false;
+  use_text_index = true;
 }
 
 void
