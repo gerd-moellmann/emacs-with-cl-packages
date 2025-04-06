@@ -515,10 +515,13 @@ DEFUN ("text-index--raw-bytepos", Ftext_index__raw_bytepos,
   EMACS_INT to_charpos = fix_position (pos);
   if (to_charpos < BEG || to_charpos > Z)
     return Qnil;
-  ptrdiff_t charpos = 0, bytepos = BEG_BYTE;
+  ptrdiff_t charpos = BEG, bytepos = BEG_BYTE;
   while (charpos < to_charpos)
-    if (CHAR_HEAD_P (FETCH_BYTE (bytepos)))
-      ++charpos;
+    {
+      ++bytepos;
+      if (CHAR_HEAD_P (FETCH_BYTE (bytepos)))
+	++charpos;
+    }
   return make_fixnum (bytepos);
 }
 
