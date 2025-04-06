@@ -142,6 +142,8 @@ index_charpos_entry (const struct text_index *ti, ptrdiff_t charpos)
   return entry;
 }
 
+/* Return TI's index entry ENTRY as a struct text_pos.  */
+
 static struct text_pos
 index_text_pos (const struct text_index *ti, ptrdiff_t entry)
 {
@@ -317,7 +319,7 @@ static ptrdiff_t
 charpos_forward_to_bytepos (struct buffer *b, const struct text_pos from,
 			    const ptrdiff_t to_bytepos)
 {
-  eassert (from.bytepos < to_bytepos);
+  eassert (from.bytepos <= to_bytepos);
   ptrdiff_t bytepos = from.bytepos;
   ptrdiff_t charpos = from.charpos;
   while (bytepos < to_bytepos)
@@ -462,11 +464,30 @@ text_index_invalidate (struct buffer *b, ptrdiff_t bytepos)
   ti->nentries = min (ti->nentries, last_valid + 1);
 }
 
-#ifdef DEBUG_TEXT_INDEX
+/* The following is for testing / debugging / experimentation.  */
 
-DEFUN ("text-index--position-bytes", Ftext_index__position_bytes,
-       Stext_index__position_bytes, 1, 1, 0,
-       doc: /* Return the byte position for character position CHARPOS.
+DEFUN ("text-index--set", Ftext_index__set,
+       Stext_index__set, 1, 2, 0,
+       doc: /* Set text internal use on/off.
+USE non-nil means use text indices in all byte/character conversions.
+INTERVAL is the interval size to use for indices.  */)
+  (Lisp_Object use, Lisp_Object interval)
+{
+  use_text_index = !NILP (use);
+  text_index_interval = check_integer_range (interval, 1, 1000000);
+  Lisp_Object buffers = Fbuffer_list (Qnil);
+  FOR_EACH_TAIL (buffers)
+    {
+      struct buffer *b = XBUFFER (XCAR (buffers));
+      text_index_free (b->own_text.index);
+      b->own_text.index = NULL;
+    }
+  return Qnil;
+}
+
+DEFUN ("text-index--charpos-to-bytepos", Ftext_index__charpos_to_bytepos,
+       Stext_index__charpos_to_bytepos, 1, 1, 0,
+       doc: /* Convert CHARPOS to a bytepos in current buffer.
 If POSITION is out of range, the value is nil.  */)
   (Lisp_Object charpos)
 {
@@ -477,9 +498,9 @@ If POSITION is out of range, the value is nil.  */)
   return make_fixnum (bytepos);
 }
 
-DEFUN ("text-index--byte-to-position", Ftext_index__byte_to_position,
-       Stext_index__byte_to_position, 1, 1, 0,
-       doc: /* Return the character position for byte position BYTEPOS.
+DEFUN ("text-index--bytepos-to-charpos", Ftext_index__bytepos_to_charpos,
+       Stext_index__bytepos_to_charpos, 1, 1, 0,
+       doc: /* Convert BYTEPOS to a charpos in current buffer.
 If BYTEPOS is out of range, the value is nil.  */)
   (Lisp_Object bytepos)
 {
@@ -491,25 +512,11 @@ If BYTEPOS is out of range, the value is nil.  */)
   return make_fixnum (charpos);
 }
 
-DEFUN ("text-index--set-interval-bytes", Ftext_index__set_interval,
-       Stext_index__set_interval, 1, 1, 0,
-       doc: /* Set interval size to NBYTES, a positive, non-zero integer.  */)
-  (Lisp_Object nbytes)
-{
-  text_index_interval = check_integer_range (nbytes, 1, 1000000);
-  Lisp_Object buffers = Fbuffer_list (Qnil);
-  FOR_EACH_TAIL (buffers)
-    {
-      struct buffer *b = XBUFFER (XCAR (buffers));
-      text_index_free (b->own_text.index);
-      b->own_text.index = NULL;
-    }
-  return Qnil;
-}
-
-DEFUN ("text-index--raw-bytepos", Ftext_index__raw_bytepos,
-       Stext_index__raw_bytepos, 1, 1, 0,
-       doc: /* Return bytepos of POS, computed with brute force.  */)
+DEFUN ("text-index--charpos-to-bytepos-brute",
+       Ftext_index__charpos_to_bytepos_brute,
+       Stext_index__charpos_to_bytepos_brute, 1, 1, 0,
+       doc: /* Convert CHARPOS to a bytepos in current buffer.
+Compute with brute force.  */)
   (Lisp_Object pos)
 {
   EMACS_INT to_charpos = fix_position (pos);
@@ -525,26 +532,21 @@ DEFUN ("text-index--raw-bytepos", Ftext_index__raw_bytepos,
   return make_fixnum (bytepos);
 }
 
-#endif /* DEBUG_TEXT_INDEX */
-
-void
-init_text_index (void)
-{
-}
-
 void
 syms_of_text_index (void)
 {
-#ifdef DEBUG_TEXT_INDEX
-  defsubr (&Stext_index__position_bytes);
-  defsubr (&Stext_index__byte_to_position);
-  defsubr (&Stext_index__set_interval);
-  defsubr (&Stext_index__raw_bytepos);
-#endif
+  defsubr (&Stext_index__set);
+  defsubr (&Stext_index__charpos_to_bytepos);
+  defsubr (&Stext_index__bytepos_to_charpos);
+  defsubr (&Stext_index__charpos_to_bytepos_brute);
 
-  /* FIXME: For experimenting only.  */
   DEFVAR_INT ("text-index-interval", text_index_interval, doc: /* */);
   text_index_interval = 160;
   DEFVAR_BOOL ("use-text-index", use_text_index, doc: /* */);
   use_text_index = false;
+}
+
+void
+init_text_index (void)
+{
 }
