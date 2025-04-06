@@ -219,20 +219,6 @@ append_entry (struct text_index *ti, ptrdiff_t charpos)
   ++ti->nentries;
 }
 
-/* Invalidate index entries for all positions > BYTEPOS in buffer B.
-   Note that the entry for BYTEPOS itself, if it is at an interval
-   boundary, remains unchanged.  */
-
-void
-text_index_invalidate (struct buffer *b, ptrdiff_t bytepos)
-{
-  struct text_index *ti = b->text->index;
-  if (ti == NULL)
-    return;
-  ptrdiff_t last_valid = index_bytepos_entry (ti, bytepos);
-  ti->nentries = min (ti->nentries, last_valid + 1);
-}
-
 /* Build text index of buffer B up to and including position TO.
    One of TO.charpos or TO.bytepos must be non-zero.  */
 
@@ -461,6 +447,36 @@ text_index_charpos_to_bytepos (struct buffer *b, ptrdiff_t charpos)
 
   return bytepos_backward_to_charpos (b, next_known, charpos);
 }
+
+/* Invalidate index entries for all positions > BYTEPOS in buffer B.
+   Note that the entry for BYTEPOS itself, if it is at an interval
+   boundary, remains unchanged.  */
+
+static void
+invalidate_index (struct buffer *b, ptrdiff_t bytepos)
+{
+  struct text_index *ti = b->text->index;
+  if (ti == NULL)
+    return;
+  ptrdiff_t last_valid = index_bytepos_entry (ti, bytepos);
+  ti->nentries = min (ti->nentries, last_valid + 1);
+}
+
+void
+text_index_on_adjust_markers_for_delete (ptrdiff_t from, ptrdiff_t from_byte,
+					 ptrdiff_t to, ptrdiff_t to_byte)
+{
+  invalidate_index (current_buffer, from_byte);
+}
+
+void
+text_index_on_adjust_markers_for_insert (ptrdiff_t from, ptrdiff_t from_byte,
+					 ptrdiff_t to, ptrdiff_t to_byte,
+					 bool before_markers)
+{
+  invalidate_index (current_buffer, from_byte);
+}
+
 
 #ifdef DEBUG_TEXT_INDEX
 
