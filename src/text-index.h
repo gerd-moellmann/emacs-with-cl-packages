@@ -29,10 +29,6 @@ void syms_of_text_index (void);
 void text_index_free (struct text_index *ti);
 ptrdiff_t text_index_bytepos_to_charpos (struct buffer *b, ptrdiff_t bytepos);
 ptrdiff_t text_index_charpos_to_bytepos (struct buffer *b, ptrdiff_t charpos);
-void text_index_on_adjust_markers_for_delete (ptrdiff_t from, ptrdiff_t from_byte,
-					      ptrdiff_t to, ptrdiff_t to_byte);
-void text_index_on_adjust_markers_for_insert (ptrdiff_t from, ptrdiff_t from_byte,
-					      ptrdiff_t to, ptrdiff_t to_byte,
-					      bool before_markers);
+void text_index_invalidate (struct buffer *b, ptrdiff_t from_byte);
 
 #endif /* EMACS_TEXT_INDEX_H */
