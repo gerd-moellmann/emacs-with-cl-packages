@@ -147,6 +147,7 @@ index_charpos_entry (const struct text_index *ti, ptrdiff_t charpos)
 static struct text_pos
 index_text_pos (const struct text_index *ti, ptrdiff_t entry)
 {
+  eassert (entry >= 0 && entry < ti->nentries);
   return (struct text_pos) {
     .charpos = index_charpos (ti, entry),
     .bytepos = index_bytepos (ti, entry)
@@ -284,11 +285,12 @@ build_index (struct buffer *b, const struct text_pos to)
 
 /* Make sure that buffer B has a text index.  */
 
-static void
+static struct text_index *
 ensure_has_index (struct buffer *b)
 {
   if (b->text->index == NULL)
     b->text->index = make_text_index (BUF_Z_BYTE (b));
+  return b->text->index;
 }
 
 /* Make sure that buffer B's text index contains BYTEPOS.  */
@@ -296,8 +298,8 @@ ensure_has_index (struct buffer *b)
 static void
 ensure_bytepos_indexed (struct buffer *b, ptrdiff_t bytepos)
 {
-  ensure_has_index (b);
-  if (bytepos > max_indexed_bytepos (b->text->index))
+  struct text_index *ti = ensure_has_index (b);
+  if (bytepos > max_indexed_bytepos (ti))
     build_index (b, (struct text_pos) { .bytepos = bytepos });
 }
 
@@ -306,8 +308,8 @@ ensure_bytepos_indexed (struct buffer *b, ptrdiff_t bytepos)
 static void
 ensure_charpos_indexed (struct buffer *b, ptrdiff_t charpos)
 {
-  ensure_has_index (b);
-  if (charpos > max_indexed_charpos (b->text->index))
+  struct text_index *ti = ensure_has_index (b);
+  if (charpos > max_indexed_charpos (ti))
     build_index (b, (struct text_pos) { .charpos = charpos});
 }
 
@@ -419,7 +421,15 @@ text_index_bytepos_to_charpos (struct buffer *b, const ptrdiff_t bytepos)
   if (BUF_Z (b) == BUF_Z_BYTE (b))
     return bytepos;
 
+  /* BYTEPOS == Z_BYTE, and BYTEPOS is an interval boundary,
+     then BYTEPOS does not have an index entry because we don't want
+     extra entries for (Z, Z_BYTE).  Changing that would be possible
+     but leads to more code than this if-statement, so it's probably
+     not worth it.  */
+  if (bytepos == BUF_Z_BYTE (b))
+    return BUF_Z (b);
   ensure_bytepos_indexed (b, bytepos);
+
   struct text_index *ti = b->text->index;
   const ptrdiff_t entry = index_bytepos_entry (ti, bytepos);
   const struct text_pos prev_known = index_text_pos (ti, entry);
@@ -445,7 +455,10 @@ text_index_charpos_to_bytepos (struct buffer *b, ptrdiff_t charpos)
   if (BUF_Z (b) == BUF_Z_BYTE (b))
     return charpos;
 
+  if (charpos == BUF_Z (b))
+    return BUF_Z_BYTE (b);
   ensure_charpos_indexed (b, charpos);
+
   struct text_index *ti = b->text->index;
   const ptrdiff_t entry = index_charpos_entry (ti, charpos);
   const struct text_pos prev_known = index_text_pos (ti, entry);
