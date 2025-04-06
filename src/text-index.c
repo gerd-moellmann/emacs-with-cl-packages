@@ -216,21 +216,32 @@ text_index_invalidate (struct buffer *b, ptrdiff_t bytepos)
   ti->nentries = min (ti->nentries, last_valid + 1);
 }
 
-/* Build text index of buffer B up to and including TO_BYTEPOS.  */
-
-/* FIXME: Build index to entry after bytepos?. */
+/* Build text index of buffer B up to and including position TO.
+   One of TO.charpos or TO.bytepos must be non-zero.  */
 
 static void
-build_index_to_bytepos (struct buffer *b, ptrdiff_t to_bytepos)
+build_index (struct buffer *b, const struct text_pos to)
 {
   struct text_index *ti = b->text->index;
-  eassert (to_bytepos >= BEG_BYTE && to_bytepos <= BUF_Z_BYTE (b));
-  eassert (to_bytepos > max_indexed_bytepos (ti));
 
-  /* Start at the byte position of the index entry <= TO_BYTEPOS.  if
-     TO_BYTEPOS equals the byte position of that entry, this is okay,
-     because the character position at that byte position cannot have
-     changed.  */
+#ifdef ENABLE_CHECKING
+  eassert (to.charpos > 0 || to.bytepos > 0);
+  eassert (to.charpos == 0 || to.bytepos == 0);
+  if (to.bytepos > 0)
+    {
+      eassert (to.bytepos >= BEG_BYTE && to.bytepos <= BUF_Z_BYTE (b));
+      eassert (to.bytepos > max_indexed_bytepos (ti));
+    }
+  if (to.charpos > 0)
+    {
+      eassert (to.charpos >= BEG && to.charpos <= BUF_Z (b));
+      eassert (to.charpos > max_indexed_charpos (ti));
+    }
+#endif
+
+  /* Start at the byte position of the last index entry.  if TO_BYTEPOS
+     equals the byte position of that entry, this is okay, because the
+     character position at that byte position cannot have changed.  */
   const ptrdiff_t last_entry = ti->nentries - 1;
   ptrdiff_t charpos = index_charpos (ti, last_entry);
   ptrdiff_t bytepos = index_bytepos (ti, last_entry);
@@ -252,57 +263,12 @@ build_index_to_bytepos (struct buffer *b, ptrdiff_t to_bytepos)
 
       if (bytepos == next_stop)
 	{
-	  /* Add a new index entry. If we reached the one after
-	     BYTEPOS, we're done since we can then scan forward
-	     and backward to BYTEPOS.  */
+	  /* Add a new index entry. If we reached the one after the
+	     position we are interested in, we're done since we can then
+	     scan forward and backward to BYTEPOS.  */
 	  append_entry (ti, charpos);
-	  if (bytepos > to_bytepos)
-	    break;
-
-	  /* Compute next stop. We are done if no next entry
-	     can be built.  */
-	  next_stop += ti->interval;
-	  if (next_stop >= z_byte)
-	    break;
-	}
-    }
-}
-
-/* Build text index of buffer B up to and including TO_CHARPOS.  */
-
-static void
-build_index_to_charpos (struct buffer *b, const ptrdiff_t to_charpos)
-{
-  struct text_index *ti = b->text->index;
-  eassert (to_charpos >= BEG && to_charpos <= BUF_Z (b));
-  eassert (to_charpos > max_indexed_charpos (ti));
-
-  /* Start at the last index entry.  */
-  const ptrdiff_t last_entry = ti->nentries - 1;
-  ptrdiff_t charpos = index_charpos (ti, last_entry);
-  ptrdiff_t bytepos = index_bytepos (ti, last_entry);
-  ptrdiff_t next_stop = bytepos + ti->interval;
-
-  /* Quickly give up if there are not enough bytes left to scan to make
-     a new index entry.  */
-  const ptrdiff_t z_byte = BUF_Z_BYTE (b);
-  if (next_stop >= z_byte)
-    return;
-
-  /* Loop over bytes, starting one after the index entry, until we
-     reach the interesting character position.  */
-  for (++bytepos; bytepos < z_byte; ++bytepos)
-    {
-      if (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bytepos)))
-	++charpos;
-
-      if (bytepos == next_stop)
-	{
-	  /* Add a new index entry. If we reached the one after CHARPOS,
-	     we're done since we can then scan forward and backward to
-	     CHARPOS.  */
-	  append_entry (ti, charpos);
-	  if (charpos > to_charpos)
+	  if ((to.bytepos && bytepos > to.bytepos)
+	      || (to.charpos && charpos > to.charpos))
 	    break;
 
 	  /* Compute next stop. We are done if no next entry
@@ -330,7 +296,7 @@ ensure_bytepos_indexed (struct buffer *b, ptrdiff_t bytepos)
 {
   ensure_has_index (b);
   if (bytepos > max_indexed_bytepos (b->text->index))
-    build_index_to_bytepos (b, bytepos);
+    build_index (b, (struct text_pos) { .bytepos = bytepos });
 }
 
 /* Make sure that buffer B's text index contains CHARPOS.  */
@@ -340,7 +306,7 @@ ensure_charpos_indexed (struct buffer *b, ptrdiff_t charpos)
 {
   ensure_has_index (b);
   if (charpos > max_indexed_charpos (b->text->index))
-    build_index_to_charpos (b, charpos);
+    build_index (b, (struct text_pos) { .charpos = charpos});
 }
 
 /* In buffer B, starting from index entry ENTRY, scan forward in B's
