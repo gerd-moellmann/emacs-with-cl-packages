@@ -21,17 +21,34 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
    other things like line numbers, but that is currently not done.)
 
    The index divides buffer text into intervals of constant size =
-   number of bytes.  The index consists of an array of character
-   positions where the entry at index ENTRY is the character position of
-   the character containing the byte position ENTRY * interval-size.
-   Note that the byte position at interval boundaries can be in the
+   number of bytes.
+
+   BEG_BYTE                                        Z_BYTE
+   |-------------------------------------------------|
+   | interval | interval | interval | interval |          |
+   0          1          2          3          4          -
+		   index in character position array
+
+   The index consists of an array of character positions.  The entry at
+   index ENTRY is the character position of the character containing the
+   byte position ENTRY * interval size. There is no entry for a partial
+   interval at the end of the text.  The position (Z, Z_BYTE) is instead
+   handled specially in the code.
+
+   Note that the byte positions at interval boundaries can be in the
    middle of a multi-byte character.
+
+             character start byte position
+                |
+	  ------01234-------- bytes of a character (up to 5 in Emacs'
+                   |          internal encoding)
+	       N * interval
 
    To find the character position corresponding to a byte position
    BYTEPOS, we look up the character position in the index at BYTEPOS /
-   interval size.  From there, we can scan forward in the text until we
-   reach BYTEPOS, counting characters.  We also scan backward from the
-   interval end, if that is closer.
+   interval.  From there, we can scan forward in the text until we reach
+   BYTEPOS, counting characters, or we scan backward from the interval
+   end, if that is closer.
 
    To find the byte position BYTEPOS corresponding to a given character
    position CHARPOS, we search the index for the last entry ENTRY whose
@@ -41,10 +58,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
    byte position reached at the end is BYTEPOS.  We also scan backward
    from the interval end, if that looks advantageous.
 
-   Why divide the text into intervals of bytes instead of[C
-   characters?  Dividing the text into intervals of characters makes
-   scanning overhead less uniform, since characters can be of different
-   lengths (1 to 5 bytes).  */
+   Why divide the text into intervals of bytes instead of characters?
+   Dividing the text into intervals of characters makes scanning
+   overhead less uniform, since characters can be of different lengths
+   (1 to 5 bytes).  */
 
 #include <config.h>
 #include "lisp.h"
@@ -224,20 +241,17 @@ build_index (struct buffer *b, const struct text_pos to)
 {
   struct text_index *ti = b->text->index;
 
-#ifdef ENABLE_CHECKING
   eassert (to.charpos > 0 || to.bytepos > 0);
   eassert (to.charpos == 0 || to.bytepos == 0);
-  if (to.bytepos > 0)
-    {
-      eassert (to.bytepos >= BEG_BYTE && to.bytepos <= BUF_Z_BYTE (b));
-      eassert (to.bytepos > max_indexed_bytepos (ti));
-    }
-  if (to.charpos > 0)
-    {
-      eassert (to.charpos >= BEG && to.charpos <= BUF_Z (b));
-      eassert (to.charpos > max_indexed_charpos (ti));
-    }
-#endif
+  eassert (to.bytepos == 0
+	   || (to.bytepos >= BEG_BYTE
+	       && to.bytepos <= BUF_Z_BYTE (b)));
+  eassert (to.bytepos == 0
+	   || to.bytepos > max_indexed_bytepos (ti));
+  eassert (to.charpos == 0
+	   || (to.charpos >= BEG && to.charpos <= BUF_Z (b)));
+  eassert (to.charpos == 0
+	   || to.charpos > max_indexed_charpos (ti));
 
   /* Start at the byte position of the last index entry.  if TO_BYTEPOS
      equals the byte position of that entry, this is okay, because the
@@ -493,6 +507,21 @@ DEFUN ("text-index--set-interval-bytes", Ftext_index__set_interval,
   return Qnil;
 }
 
+DEFUN ("text-index--raw-bytepos", Ftext_index__raw_bytepos,
+       Stext_index__raw_bytepos, 1, 1, 0,
+       doc: /* Return bytepos of POS, computed with brute force.  */)
+  (Lisp_Object pos)
+{
+  EMACS_INT to_charpos = fix_position (pos);
+  if (to_charpos < BEG || to_charpos > Z)
+    return Qnil;
+  ptrdiff_t charpos = 0, bytepos = BEG_BYTE;
+  while (charpos < to_charpos)
+    if (CHAR_HEAD_P (FETCH_BYTE (bytepos)))
+      ++charpos;
+  return make_fixnum (bytepos);
+}
+
 #endif /* DEBUG_TEXT_INDEX */
 
 void
@@ -507,6 +536,7 @@ syms_of_text_index (void)
   defsubr (&Stext_index__position_bytes);
   defsubr (&Stext_index__byte_to_position);
   defsubr (&Stext_index__set_interval);
+  defsubr (&Stext_index__raw_bytepos);
 #endif
 
   /* FIXME: For experimenting only.  */
