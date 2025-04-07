@@ -208,9 +208,7 @@ It creates an autoload function for CNAME's constructor."
       ;; turn this into a usable self-pointing symbol
       (when eieio-backward-compatibility
         (set cname cname)
-        (make-obsolete-variable cname (format "\
-use '%s or turn off `eieio-backward-compatibility' instead" cname)
-                                "25.1"))
+        (make-obsolete-variable cname (format "use '%s instead" cname) "25.1"))
 
       (when (memq nil parents)
         ;; If some parents aren't yet fully defined, just ignore them for now.
@@ -740,18 +738,19 @@ Argument FN is the function calling this verifier."
 
 ;;; Get/Set slots in an object.
 
+(eval-and-compile
+  (defun eieio--check-slot-name (exp _obj slot &rest _)
+    (pcase slot
+      ((and (or `',name (and name (pred keywordp)))
+            (guard (not (eieio--known-slot-name-p name))))
+       (macroexp-warn-and-return
+        (format-message "Unknown slot `%S'" name)
+        exp nil 'compile-only name))
+      (_ exp))))
+
 (defun eieio-oref (obj slot)
   "Return the value in OBJ at SLOT in the object vector."
-  (declare (compiler-macro
-            (lambda (exp)
-              (ignore obj)
-              (pcase slot
-                ((and (or `',name (and name (pred keywordp)))
-                      (guard (not (eieio--known-slot-name-p name))))
-                 (macroexp-warn-and-return
-                  (format-message "Unknown slot `%S'" name)
-                  exp nil 'compile-only name))
-                (_ exp))))
+  (declare (compiler-macro eieio--check-slot-name)
            ;; FIXME: Make it a gv-expander such that the hash-table lookup is
            ;; only performed once when used in `push' and friends?
            (gv-setter eieio-oset))
@@ -822,6 +821,7 @@ Fills in CLASS's SLOT with its default value."
 (defun eieio-oset (obj slot value)
   "Do the work for the macro `oset'.
 Fills in OBJ's SLOT with VALUE."
+  (declare (compiler-macro eieio--check-slot-name))
   (cl-check-type slot symbol)
   (cond
    ((cl-typep obj '(or eieio-object cl-structure-object))
