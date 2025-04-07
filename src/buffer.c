@@ -594,6 +594,8 @@ even if it is dead.  The return value is never nil.  */)
 
   /* An ordinary buffer uses its own struct buffer_text.  */
   b->text = &b->own_text;
+  b->text->index = NULL;
+
   b->base_buffer = NULL;
   /* No one shares the text with us now.  */
   b->indirections = 0;
