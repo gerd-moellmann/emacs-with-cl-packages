@@ -14311,7 +14311,7 @@ static WebView *EmacsSVGDocumentLastWebView;
 
 - (BOOL)shouldNotCache
 {
-  return YES;
+  return NO; //YES;
 }
 
 + (NSArrayOf (NSString *) *)supportedTypes
