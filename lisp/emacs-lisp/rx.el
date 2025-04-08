@@ -1,4 +1,4 @@
-;;; --*- lexical-binding: t; symbol-packages: t -*-
+;;; -*- lexical-binding: t; symbol-packages: t -*-
 ;;; rx.el --- S-exp notation for regexps
 
 ;; Copyright (C) 2001-2025 Free Software Foundation, Inc.

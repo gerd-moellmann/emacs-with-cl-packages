@@ -1272,6 +1272,21 @@ close_file_unwind_android_fd (void *ptr)
 
 #endif
 
+static Lisp_Object
+get_lexical_binding (Lisp_Object stream, Lisp_Object from, bool *prefixes)
+{
+  lexical_cookie_t lexc = lisp_file_lexical_cookie (stream, prefixes);
+  return ((lexc == Cookie_Lex
+	   ? Qt
+	   : (lexc == Cookie_Dyn
+	      ? Qnil
+	      : ((NILP (from)	/* Loading a byte-compiled file.  */
+		  || NILP (Vinternal__get_default_lexical_binding_function))
+		 ? Fdefault_toplevel_value (Qlexical_binding)
+		 : calln (Vinternal__get_default_lexical_binding_function,
+			  from)))));
+}
+
 DEFUN ("load", Fload, Sload, 1, 5, 0,
        doc: /* Execute a file of Lisp code named FILE.
 First try FILE with `.elc' appended, then try with `.el', then try
@@ -1724,12 +1739,8 @@ Return t if the file exists and loads successfully.  */)
   else
     {
       bool prefixes;
-
-      lexical_cookie_t lexc = lisp_file_lexical_cookie (Qget_file_char, &prefixes);
       Fset (Qlexical_binding,
-	    (lexc == Cookie_Lex ? Qt
-	     : lexc == Cookie_Dyn ? Qnil
-	     : Fdefault_toplevel_value (Qlexical_binding)));
+	    get_lexical_binding (Qget_file_char, compiled ? Qnil : file, &prefixes));
 
       if (prefixes)
         Fset (Qsymbol_packages, Qt);
@@ -2618,11 +2629,7 @@ This function preserves the position of point.  */)
   record_unwind_protect_excursion ();
   BUF_TEMP_SET_PT (XBUFFER (buf), BUF_BEGV (XBUFFER (buf)));
   bool prefixes;
-  lexical_cookie_t lexc = lisp_file_lexical_cookie (buf, &prefixes);
-  specbind (Qlexical_binding,
-	    lexc == Cookie_Lex ? Qt
-	    : lexc == Cookie_Dyn ? Qnil
-	    : Fdefault_toplevel_value (Qlexical_binding));
+  specbind (Qlexical_binding, get_lexical_binding (buf, buf, &prefixes));
   BUF_TEMP_SET_PT (XBUFFER (buf), BUF_BEGV (XBUFFER (buf)));
   readevalloop (buf, 0, filename,
 		!NILP (printflag), unibyte, Qnil, Qnil, Qnil);
@@ -5775,6 +5782,11 @@ through `require'.  */);
   DEFSYM (Qweakness, "weakness");
 
   DEFSYM (Qchar_from_name, "char-from-name");
+
+  DEFVAR_LISP ("internal--get-default-lexical-binding-function",
+	       Vinternal__get_default_lexical_binding_function,
+	       doc: /* Function to decide default lexical-binding.  */);
+  Vinternal__get_default_lexical_binding_function = Qnil;
 
   DEFVAR_LISP ("read-symbol-shorthands", Vread_symbol_shorthands,
           doc: /* Alist of known symbol-name shorthands.
