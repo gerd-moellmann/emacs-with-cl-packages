@@ -86,7 +86,7 @@ struct text_index
   size_t capacity;
 
   /* Last position conversion result. (0, 0) if not valid.  */
-  struct text_pos last_result;
+  struct text_pos cache;
 
   /* Number of bytes in an interval. This is here instead of using a
      constant mainly because it makes things more flexible for
@@ -435,8 +435,31 @@ text_index_bytepos_to_charpos (struct buffer *b, const ptrdiff_t bytepos)
 
   struct text_index *ti = b->text->index;
   const ptrdiff_t entry = index_bytepos_entry (ti, bytepos);
-  const struct text_pos prev_known = index_text_pos (ti, entry);
-  const struct text_pos next_known = next_known_text_pos (b, entry);
+  struct text_pos prev_known = index_text_pos (ti, entry);
+  struct text_pos next_known = next_known_text_pos (b, entry);
+
+  ptrdiff_t last_bytepos = ti->cache.bytepos;
+  if (last_bytepos)
+    {
+      if (last_bytepos == bytepos)
+	return ti->cache.charpos;
+
+      /* If last_result is in [PREV_KNOWN NEXT_KNOWN] there is
+	 a chance that it is better than one or the other. */
+      if (last_bytepos > prev_known.bytepos
+	  && last_bytepos < next_known.bytepos)
+	{
+	  /* If LAST is in (PREV BYTEPOS) it is a better PREV. */
+	  if (last_bytepos < bytepos
+	      && last_bytepos > prev_known.bytepos)
+	    prev_known = ti->cache;
+
+	  /* If LAST is in (BYTEPOS NEXT) it is a better NEXT. */
+	  if (last_bytepos > bytepos
+	      && last_bytepos < next_known.bytepos)
+	    next_known = ti->cache;
+	}
+    }
 
   /* Scan forward if the distance to the previous known position is
      smaller than the distance to the next known position.  */
@@ -445,7 +468,7 @@ text_index_bytepos_to_charpos (struct buffer *b, const ptrdiff_t bytepos)
     charpos = charpos_forward_to_bytepos (b, prev_known, bytepos);
   else
     charpos = charpos_backward_to_bytepos (b, next_known, bytepos);
-  ti->last_result = (struct text_pos) {.charpos = charpos, .bytepos = bytepos};
+  ti->cache = (struct text_pos) {.charpos = charpos, .bytepos = bytepos};
   return charpos;
 }
 
@@ -480,7 +503,7 @@ text_index_charpos_to_bytepos (struct buffer *b, const ptrdiff_t charpos)
     bytepos = bytepos_forward_to_charpos (b, prev_known, charpos);
   else
     bytepos = bytepos_backward_to_charpos (b, next_known, charpos);
-  ti->last_result = (struct text_pos) {.charpos = charpos, .bytepos = bytepos};
+  ti->cache = (struct text_pos) {.charpos = charpos, .bytepos = bytepos};
   return bytepos;
 }
 
@@ -496,8 +519,8 @@ text_index_invalidate (struct buffer *b, ptrdiff_t bytepos)
     return;
   const ptrdiff_t last_valid = index_bytepos_entry (ti, bytepos);
   ti->nentries = min (ti->nentries, last_valid + 1);
-  if (ti->last_result.bytepos > bytepos)
-    ti->last_result = (struct text_pos) {0};
+  if (ti->cache.bytepos > bytepos)
+    ti->cache.bytepos = 0;
 }
 
 /* The following is for testing / debugging / experimentation.  */
@@ -577,7 +600,7 @@ syms_of_text_index (void)
   defsubr (&Stext_index__charpos_to_bytepos_brute);
 
   DEFVAR_INT ("text-index-interval", text_index_interval, doc: /* */);
-  text_index_interval = 160;
+  text_index_interval = 1024;
   DEFVAR_BOOL ("use-text-index", use_text_index, doc: /* */);
   use_text_index = true;
 }
