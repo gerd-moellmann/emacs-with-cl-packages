@@ -38,10 +38,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
    Note that the byte positions at interval boundaries can be in the
    middle of a multi-byte character.
 
-             character start byte position
-                |
+	     character start byte position
+		|
 	  ------01234-------- bytes of a character (up to 5 in Emacs'
-                   |          internal encoding)
+		   |          internal encoding)
 	       N * interval
 
    To find the character position corresponding to a byte position
@@ -85,7 +85,7 @@ struct text_index
   /* Number of entries allocated.  */
   size_t capacity;
 
-  /* Last position conversion result. (0, 0) if not valid.  */
+  /* Known position cache. This is the last position conversion result.  */
   struct text_pos cache;
 
   /* Number of bytes in an interval. This is here instead of using a
@@ -95,17 +95,28 @@ struct text_index
   size_t interval;
 };
 
+/* Cache (CHARPOS, BYTEPOS) as known position in index TI.  */
+
 static void
-cache (struct text_index *ti, ptrdiff_t charpos, ptrdiff_t bytepos)
+cache (struct text_index *ti, struct text_pos known)
 {
-  ti->cache.charpos = charpos;
-  ti->cache.bytepos = bytepos;
+  ti->cache = known;
 }
+
+/* Invalidate known position cache of TI.  */
 
 static void
 invalidate_cache (struct text_index *ti)
 {
   ti->cache.charpos = ti->cache.bytepos = 0;
+}
+
+/* Value is true is known position cache of TI is valid.  */
+
+static bool
+is_cache_valid (const struct text_index *ti)
+{
+  return ti->cache.bytepos != 0;
 }
 
 /* Return the byte position in index TI corresponding to index entry
@@ -425,6 +436,31 @@ next_known_text_pos (struct buffer *b, ptrdiff_t entry)
 			     .bytepos = BUF_Z_BYTE (b) };
 }
 
+/* Improve *PREV and *NEXT if KNOWN is closer to BYTEPOS.  */
+
+static void
+improve (struct text_pos *prev, struct text_pos *next,
+	 struct text_pos known, ptrdiff_t bytepos)
+{
+  eassert (known.bytepos);
+
+  /* If KNOWN is in [PREV_KNOWN NEXT_KNOWN] there is
+     a chance that it is better than one or the other. */
+  if (known.bytepos > prev->bytepos
+      && known.bytepos < next->bytepos)
+    {
+      /* If KNOWN is in (PREV BYTEPOS) it is a better PREV. */
+      if (known.bytepos < bytepos
+	  && known.bytepos > prev->bytepos)
+	*prev = known;
+
+      /* If LAST is in (BYTEPOS NEXT) it is a better NEXT. */
+      if (known.bytepos > bytepos
+	  && known.bytepos < next->bytepos)
+	*next = known;
+    }
+}
+
 /* Return the character position in buffer B corresponding to
    byte position BYTEPOS.  */
 
@@ -451,39 +487,23 @@ text_index_bytepos_to_charpos (struct buffer *b, const ptrdiff_t bytepos)
   struct text_pos prev_known = index_text_pos (ti, entry);
   struct text_pos next_known = next_known_text_pos (b, entry);
 
-  ptrdiff_t last_bytepos = ti->cache.bytepos;
-  if (last_bytepos)
+  if (is_cache_valid (ti))
     {
-      if (last_bytepos == bytepos)
+      if (ti->cache.bytepos == bytepos)
 	return ti->cache.charpos;
-
-      /* If last_result is in [PREV_KNOWN NEXT_KNOWN] there is
-	 a chance that it is better than one or the other. */
-      if (last_bytepos > prev_known.bytepos
-	  && last_bytepos < next_known.bytepos)
-	{
-	  /* If LAST is in (PREV BYTEPOS) it is a better PREV. */
-	  if (last_bytepos < bytepos
-	      && last_bytepos > prev_known.bytepos)
-	    prev_known = ti->cache;
-
-	  /* If LAST is in (BYTEPOS NEXT) it is a better NEXT. */
-	  if (last_bytepos > bytepos
-	      && last_bytepos < next_known.bytepos)
-	    next_known = ti->cache;
-	}
+      improve (&prev_known, &next_known, ti->cache, bytepos);
     }
 
   /* Scan forward if the distance to the previous known position is
      smaller than the distance to the next known position.  */
-  ptrdiff_t charpos;
+  struct text_pos result = {.bytepos = bytepos};
   if (bytepos - prev_known.bytepos < next_known.bytepos - bytepos)
-    charpos = charpos_forward_to_bytepos (b, prev_known, bytepos);
+    result.charpos = charpos_forward_to_bytepos (b, prev_known, bytepos);
   else
-    charpos = charpos_backward_to_bytepos (b, next_known, bytepos);
+    result.charpos = charpos_backward_to_bytepos (b, next_known, bytepos);
 
-  cache (ti, charpos, bytepos);
-  return charpos;
+  cache (ti, result);
+  return result.charpos;
 }
 
 /* Return the byte position in buffer B corresponding to character
@@ -511,15 +531,15 @@ text_index_charpos_to_bytepos (struct buffer *b, const ptrdiff_t charpos)
      position because the index bytepos can be in the middle of a
      character, which is found by scanning backwards.  Otherwise, scan
      forward if we believe that's less expensive.  */
-  ptrdiff_t bytepos;
+  struct text_pos result = {.charpos = charpos};
   if (charpos > prev_known.charpos
       && charpos - prev_known.charpos < next_known.charpos - charpos)
-    bytepos = bytepos_forward_to_charpos (b, prev_known, charpos);
+    result.bytepos = bytepos_forward_to_charpos (b, prev_known, charpos);
   else
-    bytepos = bytepos_backward_to_charpos (b, next_known, charpos);
+    result.bytepos = bytepos_backward_to_charpos (b, next_known, charpos);
 
-  cache (ti, charpos, bytepos);
-  return bytepos;
+  cache (ti, result);
+  return result.bytepos;
 }
 
 /* Invalidate index entries for all positions > BYTEPOS in buffer B.
@@ -617,7 +637,7 @@ syms_of_text_index (void)
   defsubr (&Stext_index__charpos_to_bytepos_brute);
 
   DEFVAR_INT ("text-index-interval", text_index_interval, doc: /* */);
-  text_index_interval = 1024;
+  text_index_interval = 1000;
   DEFVAR_BOOL ("use-text-index", use_text_index, doc: /* */);
   use_text_index = true;
 }
