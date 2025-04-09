@@ -85,6 +85,9 @@ struct text_index
   /* Number of entries allocated.  */
   size_t capacity;
 
+  /* Last position conversion result. (0, 0) if not valid.  */
+  struct text_pos last_result;
+
   /* Number of bytes in an interval. This is here instead of using a
      constant mainly because it makes things more flexible for
      experimentation.  The overhead is probably not worth worrying about
@@ -437,17 +440,20 @@ text_index_bytepos_to_charpos (struct buffer *b, const ptrdiff_t bytepos)
 
   /* Scan forward if the distance to the previous known position is
      smaller than the distance to the next known position.  */
+  ptrdiff_t charpos;
   if (bytepos - prev_known.bytepos < next_known.bytepos - bytepos)
-    return charpos_forward_to_bytepos (b, prev_known, bytepos);
-
-  return charpos_backward_to_bytepos (b, next_known, bytepos);
+    charpos = charpos_forward_to_bytepos (b, prev_known, bytepos);
+  else
+    charpos = charpos_backward_to_bytepos (b, next_known, bytepos);
+  ti->last_result = (struct text_pos) {.charpos = charpos, .bytepos = bytepos};
+  return charpos;
 }
 
 /* Return the byte position in buffer B corresponding to character
    position CHARPOS.  */
 
 ptrdiff_t
-text_index_charpos_to_bytepos (struct buffer *b, ptrdiff_t charpos)
+text_index_charpos_to_bytepos (struct buffer *b, const ptrdiff_t charpos)
 {
   /* If this buffer has as many characters as bytes, each character must
      be one byte.  This takes care of the case where
@@ -468,11 +474,14 @@ text_index_charpos_to_bytepos (struct buffer *b, ptrdiff_t charpos)
      position because the index bytepos can be in the middle of a
      character, which is found by scanning backwards.  Otherwise, scan
      forward if we believe that's less expensive.  */
+  ptrdiff_t bytepos;
   if (charpos > prev_known.charpos
       && charpos - prev_known.charpos < next_known.charpos - charpos)
-    return bytepos_forward_to_charpos (b, prev_known, charpos);
-
-  return bytepos_backward_to_charpos (b, next_known, charpos);
+    bytepos = bytepos_forward_to_charpos (b, prev_known, charpos);
+  else
+    bytepos = bytepos_backward_to_charpos (b, next_known, charpos);
+  ti->last_result = (struct text_pos) {.charpos = charpos, .bytepos = bytepos};
+  return bytepos;
 }
 
 /* Invalidate index entries for all positions > BYTEPOS in buffer B.
@@ -485,8 +494,9 @@ text_index_invalidate (struct buffer *b, ptrdiff_t bytepos)
   struct text_index *ti = b->text->index;
   if (ti == NULL)
     return;
-  ptrdiff_t last_valid = index_bytepos_entry (ti, bytepos);
+  const ptrdiff_t last_valid = index_bytepos_entry (ti, bytepos);
   ti->nentries = min (ti->nentries, last_valid + 1);
+  ti->last_result = (struct text_pos) {.charpos = 0, .bytepos = 0};
 }
 
 /* The following is for testing / debugging / experimentation.  */
@@ -516,7 +526,7 @@ DEFUN ("text-index--charpos-to-bytepos", Ftext_index__charpos_to_bytepos,
 If POSITION is out of range, the value is nil.  */)
   (Lisp_Object charpos)
 {
-  EMACS_INT pos = fix_position (charpos);
+  const EMACS_INT pos = fix_position (charpos);
   if (pos < BEG || pos > Z)
     return Qnil;
   ptrdiff_t bytepos = text_index_charpos_to_bytepos (current_buffer, pos);
@@ -530,7 +540,7 @@ If BYTEPOS is out of range, the value is nil.  */)
   (Lisp_Object bytepos)
 {
   CHECK_FIXNUM (bytepos);
-  ptrdiff_t pos_byte = XFIXNUM (bytepos);
+  const ptrdiff_t pos_byte = XFIXNUM (bytepos);
   if (pos_byte < BEG_BYTE || pos_byte > Z_BYTE)
     return Qnil;
   ptrdiff_t charpos = text_index_bytepos_to_charpos (current_buffer, pos_byte);
@@ -544,7 +554,7 @@ DEFUN ("text-index--charpos-to-bytepos-brute",
 Compute with brute force.  */)
   (Lisp_Object pos)
 {
-  EMACS_INT to_charpos = fix_position (pos);
+  const EMACS_INT to_charpos = fix_position (pos);
   if (to_charpos < BEG || to_charpos > Z)
     return Qnil;
   ptrdiff_t charpos = BEG, bytepos = BEG_BYTE;
