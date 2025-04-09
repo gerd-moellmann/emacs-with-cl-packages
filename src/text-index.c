@@ -95,6 +95,19 @@ struct text_index
   size_t interval;
 };
 
+static void
+cache (struct text_index *ti, ptrdiff_t charpos, ptrdiff_t bytepos)
+{
+  ti->cache.charpos = charpos;
+  ti->cache.bytepos = bytepos;
+}
+
+static void
+invalidate_cache (struct text_index *ti)
+{
+  ti->cache.charpos = ti->cache.bytepos = 0;
+}
+
 /* Return the byte position in index TI corresponding to index entry
    ENTRY.  Note that this position cab be in the middle of a multi-byte
    character.  */
@@ -468,7 +481,8 @@ text_index_bytepos_to_charpos (struct buffer *b, const ptrdiff_t bytepos)
     charpos = charpos_forward_to_bytepos (b, prev_known, bytepos);
   else
     charpos = charpos_backward_to_bytepos (b, next_known, bytepos);
-  ti->cache = (struct text_pos) {.charpos = charpos, .bytepos = bytepos};
+
+  cache (ti, charpos, bytepos);
   return charpos;
 }
 
@@ -503,7 +517,8 @@ text_index_charpos_to_bytepos (struct buffer *b, const ptrdiff_t charpos)
     bytepos = bytepos_forward_to_charpos (b, prev_known, charpos);
   else
     bytepos = bytepos_backward_to_charpos (b, next_known, charpos);
-  ti->cache = (struct text_pos) {.charpos = charpos, .bytepos = bytepos};
+
+  cache (ti, charpos, bytepos);
   return bytepos;
 }
 
@@ -517,10 +532,12 @@ text_index_invalidate (struct buffer *b, ptrdiff_t bytepos)
   struct text_index *ti = b->text->index;
   if (ti == NULL)
     return;
-  const ptrdiff_t last_valid = index_bytepos_entry (ti, bytepos);
-  ti->nentries = min (ti->nentries, last_valid + 1);
+
+  const ptrdiff_t last_valid_entry = index_bytepos_entry (ti, bytepos);
+  ti->nentries = min (ti->nentries, last_valid_entry + 1);
+
   if (ti->cache.bytepos > bytepos)
-    ti->cache.bytepos = 0;
+    invalidate_cache (ti);
 }
 
 /* The following is for testing / debugging / experimentation.  */
