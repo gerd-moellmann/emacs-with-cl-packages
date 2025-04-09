@@ -496,7 +496,8 @@ text_index_invalidate (struct buffer *b, ptrdiff_t bytepos)
     return;
   const ptrdiff_t last_valid = index_bytepos_entry (ti, bytepos);
   ti->nentries = min (ti->nentries, last_valid + 1);
-  ti->last_result = (struct text_pos) {.charpos = 0, .bytepos = 0};
+  if (ti->last_result.bytepos > bytepos)
+    ti->last_result = (struct text_pos) {0};
 }
 
 /* The following is for testing / debugging / experimentation.  */
