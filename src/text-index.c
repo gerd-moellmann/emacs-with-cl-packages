@@ -441,15 +441,13 @@ next_known_text_pos (struct buffer *b, ptrdiff_t entry)
    to BYTEPOS.  If KNOWN is an exact match for BYTEPOS return its
    charpos, otherwise return 0.  */
 
-static ptrdiff_t
-improve_bytepos_bounds_with_known (struct text_pos known,
-				   struct text_pos *prev,
-				   struct text_pos *next,
-				   ptrdiff_t bytepos)
+static bool
+narrow_bytepos_bounds_1 (const struct text_pos known, struct text_pos *prev,
+			 struct text_pos *next, const ptrdiff_t bytepos)
 {
   eassert (known.bytepos);
   if (known.bytepos == bytepos)
-    return known.charpos;
+    return true;
 
   /* If KNOWN is in [PREV_KNOWN NEXT_KNOWN] there is
      a chance that it is better than one or the other. */
@@ -467,24 +465,32 @@ improve_bytepos_bounds_with_known (struct text_pos known,
 	*next = known;
     }
 
-  return 0;
+  return false;
 }
 
-/* Improve the known bytepos bounds *PREV and *NEXT of index TI using
-   known positions that are outside of the index.  BYTEPOS is the byte
-   position to convert to a character position.  If an exact match for
-   BYTEPOS is found, return its charpos, otherwise return 0.  */
+/* Improve the known bytepos bounds *PREV and *NEXT of buffer B using
+   known positions in B.  BYTEPOS is a byte position to convert to a
+   character position.  If an exact match for BYTEPOS is found, return
+   its charpos, otherwise return 0.  */
 
 static ptrdiff_t
-improve_bytepos_bounds (struct text_index *ti, struct text_pos *prev,
-			struct text_pos *next, ptrdiff_t bytepos)
+narrow_bytepos_bounds (struct buffer *b, struct text_pos *prev,
+		       struct text_pos *next, const ptrdiff_t bytepos)
 {
-  if (is_cache_valid (ti))
-    {
-      ptrdiff_t charpos = improve_bytepos_bounds_with_known (ti->cache, prev, next, bytepos);
-      if (charpos)
-	return charpos;
-    }
+  const struct text_pos pt
+    = {.charpos = BUF_PT (b), .bytepos = BUF_PT_BYTE (b)};
+  if (narrow_bytepos_bounds_1 (pt, prev, next, bytepos))
+    return pt.charpos;
+
+  const struct text_pos gpt
+    = {.charpos = BUF_GPT (b), .bytepos = BUF_GPT_BYTE (b)};
+  if (narrow_bytepos_bounds_1 (gpt, prev, next, bytepos))
+    return gpt.charpos;
+
+  struct text_index *ti = b->text->index;
+  if (is_cache_valid (ti)
+      && narrow_bytepos_bounds_1 (ti->cache, prev, next, bytepos))
+    return ti->cache.charpos;
 
   return 0;
 }
@@ -515,7 +521,7 @@ text_index_bytepos_to_charpos (struct buffer *b, const ptrdiff_t bytepos)
   struct text_pos prev = index_text_pos (ti, entry);
   struct text_pos next = next_known_text_pos (b, entry);
 
-  ptrdiff_t charpos = improve_bytepos_bounds (ti, &prev, &next, bytepos);
+  ptrdiff_t charpos = narrow_bytepos_bounds (b, &prev, &next, bytepos);
   if (charpos)
     return charpos;
 
