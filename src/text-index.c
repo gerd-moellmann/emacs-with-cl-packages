@@ -438,32 +438,25 @@ next_known_text_pos (struct buffer *b, ptrdiff_t entry)
 }
 
 /* Improve the known bytepos bounds *PREV and *NEXT if KNOWN is closer
-   to BYTEPOS.  If KNOWN is an exact match for BYTEPOS return its
-   charpos, otherwise return 0.  */
+   to BYTEPOS.  If KNOWN is an exact match for BYTEPOS return true.  */
 
 static bool
 narrow_bytepos_bounds_1 (const struct text_pos known, struct text_pos *prev,
 			 struct text_pos *next, const ptrdiff_t bytepos)
 {
-  eassert (known.bytepos);
+  eassert (known.bytepos >= prev->bytepos && known.bytepos <= next->bytepos);
   if (known.bytepos == bytepos)
     return true;
 
-  /* If KNOWN is in [PREV_KNOWN NEXT_KNOWN] there is
-     a chance that it is better than one or the other. */
-  if (known.bytepos > prev->bytepos
-      && known.bytepos < next->bytepos)
-    {
-      /* If KNOWN is in (PREV BYTEPOS) it is a better PREV. */
-      if (known.bytepos < bytepos
-	  && known.bytepos > prev->bytepos)
-	*prev = known;
+  /* If KNOWN is in (PREV, BYTEPOS] it is a better PREV. */
+  if (known.bytepos < bytepos
+      && known.bytepos > prev->bytepos)
+    *prev = known;
 
-      /* If KNOWN is in (BYTEPOS NEXT) it is a better NEXT. */
-      if (known.bytepos > bytepos
-	  && known.bytepos < next->bytepos)
-	*next = known;
-    }
+  /* If KNOWN is in [BYTEPOS NEXT) it is a better NEXT. */
+  if (known.bytepos > bytepos
+      && known.bytepos < next->bytepos)
+    *next = known;
 
   return false;
 }
