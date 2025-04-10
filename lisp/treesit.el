@@ -174,26 +174,19 @@ The function is called with one argument, the position of point.
 
 In general, this function should call `treesit-node-at' with an
 explicit language (usually the host language), and determine the
-language at point using the type of the returned node.
-
-DO NOT derive the language at point from parser ranges.  It's
-cumbersome and can't deal with some edge cases.")
+language at point using the type of the returned node.")
 
 (defun treesit-language-at (position)
   "Return the language at POSITION.
 
-This function assumes that parser ranges are up-to-date.  It
-returns the return value of `treesit-language-at-point-function'
-if it's non-nil, otherwise it returns the language of the first
-parser in `treesit-parser-list', or nil if there is no parser.
-
-In a multi-language buffer, make sure
-`treesit-language-at-point-function' is implemented!  Otherwise
-`treesit-language-at' wouldn't return the correct result."
+When there are multiple parsers that covers POSITION, determine
+the most relevant parser (hence language) by their embed level.
+If `treesit-language-at-point-function' is non-nil, return
+the return value of that function instead."
   (if treesit-language-at-point-function
       (funcall treesit-language-at-point-function position)
-    (when-let* ((parser (car (treesit-parser-list))))
-      (treesit-parser-language parser))))
+    (treesit-parser-language
+     (car (treesit-parsers-at position)))))
 
 ;;; Node API supplement
 
@@ -247,8 +240,9 @@ language and doesn't match the language of the local parser."
                 (parser-or-lang
                  (let* ((local-parser (car (treesit-local-parsers-at
                                             pos parser-or-lang)))
-                        (global-parser (car (treesit-parser-list
-                                             nil parser-or-lang)))
+                        (global-parser (car (treesit-parsers-at
+                                             pos parser-or-lang nil
+                                             '(primary global))))
                         (parser (or local-parser global-parser)))
                    (when parser
                      (treesit-parser-root-node parser))))
@@ -267,13 +261,10 @@ language and doesn't match the language of the local parser."
                         (local-parser
                          ;; Find the local parser with highest
                          ;; embed-level at point.
-                         (car (seq-sort-by #'treesit-parser-embed-level
-                                           (lambda (a b)
-                                             (> (or a 0) (or b 0)))
-                                           (treesit-local-parsers-at
-                                            pos lang))))
-                        (global-parser (car (treesit-parser-list
-                                             nil lang)))
+                         (car (treesit-local-parsers-at pos lang)))
+                        (global-parser (car (treesit-parsers-at
+                                             pos lang nil
+                                             '(primary global))))
                         (parser (or local-parser global-parser)))
                    (when parser
                      (treesit-parser-root-node parser))))))
@@ -851,30 +842,68 @@ those inside are kept."
            if (<= start (car range) (cdr range) end)
            collect range))
 
+(defun treesit-parsers-at (&optional pos language with-host only)
+  "Return all parsers at POS.
+
+POS defaults to point.  The returned parsers are sorted by
+the decreasing embed level.
+
+If LANGUAGE is non-nil, only return parsers for LANGUAGE.
+
+If WITH-HOST is non-nil, return a list of (PARSER . HOST-PARSER)
+instead.  HOST-PARSER is the host parser which created the PARSER.
+
+If ONLY is nil, return all parsers including the primary parser.
+
+The argument ONLY can be a list of symbols that specify what
+parsers to include in the return value.
+
+If ONLY contains the symbol `local', include local parsers.
+Local parsers are those which only parse a limited region marked
+by an overlay with non-nil `treesit-parser-local-p' property.
+
+If ONLY contains the symbol `global', include non-local parsers
+excluding the primary parser.
+
+If ONLY contains the symbol `primary', include the primary parser."
+  (let ((res nil))
+    ;; Refer to (ref:local-parser-overlay) for more explanation of local
+    ;; parser overlays.
+    (dolist (ov (overlays-at (or pos (point))))
+      (when-let* ((parser (overlay-get ov 'treesit-parser))
+                  (host-parser (or (null with-host)
+                                   (overlay-get ov 'treesit-host-parser)))
+                  (_ (or (null language)
+                         (eq (treesit-parser-language parser)
+                             language)))
+                  (_ (or (null only)
+                         (and (memq 'local only) (memq 'global only))
+                         (and (memq 'local only)
+                              (overlay-get ov 'treesit-parser-local-p))
+                         (and (memq 'global only)
+                              (not (overlay-get ov 'treesit-parser-local-p))))))
+        (push (if with-host (cons parser host-parser) parser) res)))
+    (when (or (null only) (memq 'primary only))
+      (setq res (cons treesit-primary-parser res)))
+    (seq-sort-by (lambda (p)
+                   (treesit-parser-embed-level
+                    (or (car-safe p) p)))
+                 (lambda (a b)
+                   (> (or a 0) (or b 0)))
+                 res)))
+
 (defun treesit-local-parsers-at (&optional pos language with-host)
   "Return all the local parsers at POS.
 
 POS defaults to point.
 Local parsers are those which only parse a limited region marked
-by an overlay with non-nil `treesit-parser' property.
+by an overlay with non-nil `treesit-parser-local-p' property.
 If LANGUAGE is non-nil, only return parsers for LANGUAGE.
 
 If WITH-HOST is non-nil, return a list of (PARSER . HOST-PARSER)
 instead.  HOST-PARSER is the host parser which created the local
 PARSER."
-  (let ((res nil))
-    ;; Refer to (ref:local-parser-overlay) for more explanation of local
-    ;; parser overlays.
-    (dolist (ov (overlays-at (or pos (point))))
-      (let ((parser (overlay-get ov 'treesit-parser))
-            (host-parser (overlay-get ov 'treesit-host-parser))
-            (local-p (overlay-get ov 'treesit-parser-local-p)))
-        (when (and parser host-parser local-p
-                   (or (null language)
-                       (eq (treesit-parser-language parser)
-                           language)))
-          (push (if with-host (cons parser host-parser) parser) res))))
-    (nreverse res)))
+  (treesit-parsers-at pos language with-host '(local)))
 
 (defun treesit-local-parsers-on (&optional beg end language with-host)
   "Return the list of local parsers that cover the region between BEG and END.
@@ -883,7 +912,7 @@ BEG and END default to the beginning and end of the buffer's accessible
 portion.
 
 Local parsers are those that have an `embedded' tag, and only parse a
-limited region marked by an overlay with a non-nil `treesit-parser'
+limited region marked by an overlay with a non-nil `treesit-parser-local-p'
 property.  If LANGUAGE is non-nil, only return parsers for LANGUAGE.
 
 If WITH-HOST is non-nil, return a list of (PARSER . HOST-PARSER)
@@ -2975,8 +3004,7 @@ across atoms (such as symbols or words) inside the list."
   (let ((arg (or arg 1))
         (pred (or treesit-sexp-type-regexp 'sexp))
         (node-at-point
-         (when (null treesit-sexp-type-regexp)
-           (treesit-node-at (point) (treesit-language-at (point))))))
+         (treesit-node-at (point) (treesit-language-at (point)))))
     (or (when (and node-at-point
                    ;; Make sure point is strictly inside node.
                    (< (treesit-node-start node-at-point)
@@ -3078,7 +3106,7 @@ redefined by the variable `down-list-function'.
 
 ARG is described in the docstring of `down-list'."
   (interactive "^p")
-  (let* ((pred 'list)
+  (let* ((pred (or treesit-sexp-type-regexp 'list))
          (arg (or arg 1))
          (cnt arg)
          (inc (if (> arg 0) 1 -1)))
@@ -3094,7 +3122,8 @@ ARG is described in the docstring of `down-list'."
                         (treesit-thing-prev (point) pred)))
              (child (when sibling
                       (treesit-node-child sibling (if (> arg 0) 0 -1)))))
-        (or (when (and default-pos
+        (or (when (and (null treesit-sexp-type-regexp)
+                       default-pos
                        (or (null child)
                            (if (> arg 0)
                                (<= default-pos (treesit-node-start child))
@@ -3118,7 +3147,7 @@ redefined by the variable `up-list-function'.
 
 ARG is described in the docstring of `up-list'."
   (interactive "^p")
-  (let* ((pred 'list)
+  (let* ((pred (or treesit-sexp-type-regexp 'list))
          (arg (or arg 1))
          (cnt arg)
          (inc (if (> arg 0) 1 -1)))
@@ -3139,15 +3168,14 @@ ARG is described in the docstring of `up-list'."
           (setq parent (treesit-parent-until parent pred)))
 
         (unless parent
-          (let ((parsers (seq-keep (lambda (o)
-                                     (overlay-get o 'treesit-host-parser))
-                                   (overlays-at (point) t))))
+          (let ((parsers (mapcar #'cdr (treesit-parsers-at (point) nil t '(global local)))))
             (while (and (not parent) parsers)
               (setq parent (treesit-parent-until
                             (treesit-node-at (point) (car parsers)) pred)
                     parsers (cdr parsers)))))
 
-        (or (when (and default-pos
+        (or (when (and (null treesit-sexp-type-regexp)
+                       default-pos
                        (or (null parent)
                            (if (> arg 0)
                                (<= default-pos (treesit-node-end parent))
@@ -3159,6 +3187,39 @@ ARG is described in the docstring of `up-list'."
                            (treesit-node-start parent))))
             (user-error "At top level")))
       (setq cnt (- cnt inc)))))
+
+(defun treesit-toggle-sexp-mode ()
+  "Toggle the mode of navigation for sexp and list commands.
+This mode toggle affects navigation commands such as
+`treesit-forward-sexp', `treesit-forward-list', `treesit-down-list',
+`treesit-up-list'.
+
+The mode can be `list' (the default) or `sexp'.
+
+The `list' mode uses the `list' thing defined in `treesit-thing-settings'.
+See `treesit-thing-at-point'.  In this mode commands use syntax tables to
+navigate symbols and treesit definition to navigate lists.
+
+The `sexp' mode uses the `sexp' thing defined in `treesit-thing-settings'.
+In this mode commands use only the treesit definition of parser nodes,
+without distinction between symbols and lists."
+  (interactive)
+  (if (not (treesit-thing-defined-p 'list (treesit-language-at (point))))
+      (message "No `list' thing is defined in `treesit-thing-settings'")
+    (setq-local treesit-sexp-type-regexp
+                (unless treesit-sexp-type-regexp
+                  (if (treesit-thing-defined-p
+                       'sexp (treesit-language-at (point)))
+                      'sexp
+                    #'treesit-node-named))
+                forward-sexp-function
+                (if treesit-sexp-type-regexp
+                    #'treesit-forward-sexp
+                  #'treesit-forward-sexp-list))
+    (message "Toggle to mode where sexp commands navigate %s"
+             (or (and treesit-sexp-type-regexp
+                      "treesit nodes")
+                 "syntax symbols and treesit lists"))))
 
 (defun treesit-transpose-sexps (&optional arg)
   "Tree-sitter `transpose-sexps' function.
@@ -3891,9 +3952,8 @@ by `treesit-simple-imenu-settings'."
       (lambda (entry)
         (let* ((lang (car entry))
                (settings (cdr entry))
-               (global-parser (car (treesit-parser-list nil lang)))
-               (local-parsers
-                (treesit-parser-list nil lang 'embedded)))
+               (global-parser (car (treesit-parsers-at nil lang nil '(primary global))))
+               (local-parsers (treesit-local-parsers-at nil lang)))
           (cons (treesit-language-display-name lang)
                 ;; No one says you can't have both global and local
                 ;; parsers for the same language.  E.g., Rust uses
@@ -3959,7 +4019,7 @@ this variable takes priority.")
     (or (and current-valid current)
         (and next-valid (treesit-thing-at next pred)))))
 
-(defun treesit-outline-search (&optional bound move backward looking-at recursive)
+(defun treesit-outline-search (&optional bound move backward looking-at)
   "Search for the next outline heading in the syntax tree.
 For BOUND, MOVE, BACKWARD, LOOKING-AT, see the descriptions in
 `outline-search-function'."
@@ -3978,48 +4038,55 @@ For BOUND, MOVE, BACKWARD, LOOKING-AT, see the descriptions in
               (if (eq (point) (pos-bol))
                   (if (bobp) (point) (1- (point)))
                 (pos-eol))))
-           (pred (if treesit-aggregated-outline-predicate
-                     (alist-get (treesit-language-at (or bob-pos pos))
-                                treesit-aggregated-outline-predicate)
-                   treesit-outline-predicate))
+           (pred (unless bob-pos
+                   (if treesit-aggregated-outline-predicate
+                       (alist-get (treesit-language-at pos)
+                                  treesit-aggregated-outline-predicate)
+                     treesit-outline-predicate)))
            (found (or bob-pos
                       (treesit-navigate-thing pos (if backward -1 1) 'beg pred)))
-           (closest (unless bob-pos
+           (closest (when (and treesit-aggregated-outline-predicate (not bob-pos))
                       (if backward
                           (previous-single-char-property-change pos 'treesit-parser)
                         (next-single-char-property-change pos 'treesit-parser)))))
 
-      ;; Handle multi-language modes
-      (if (and closest
-               (not (eq closest (if backward (point-min) (point-max))))
-               (not recursive)
-               (or
-                ;; Possibly was inside the local parser, and when can't find
-                ;; more matches inside it then need to go over the closest
-                ;; parser boundary to the primary parser.
-                (not found)
-                ;; Possibly skipped the local parser, either while navigating
-                ;; inside the primary parser, or inside a local parser
-                ;; interspersed by ranges of other local parsers, e.g.
-                ;; <html><script>|</script><style/><script/></html>
-                (if backward (> closest found) (< closest found))))
-          (progn
-            (goto-char (if backward
-                           (max (point-min) (1- closest))
-                         (min (point-max) (1+ closest))))
-            (treesit-outline-search bound move backward nil 'recursive))
+      ;; Handle multi-language modes.
+      (while (and closest
+                  (not (eq closest (if backward (point-min) (point-max))))
+                  (or
+                   ;; Possibly was inside the local parser, and when can't find
+                   ;; more matches inside it then need to go over the closest
+                   ;; parser boundary to the primary parser, and search again.
+                   (not found)
+                   ;; Possibly skipped the local parser, either while navigating
+                   ;; inside the primary parser, or inside a local parser
+                   ;; interspersed by ranges of other local parsers, e.g.
+                   ;; <html><script>|</script><style/><script/></html>
+                   (if backward (> closest found) (< closest found))))
+        (goto-char (if backward
+                       (max (point-min) (1- closest))
+                     (min (point-max) (1+ closest))))
+        (setq pos (if (eq (point) (pos-bol))
+                      (if (bobp) (point) (1- (point)))
+                    (pos-eol))
+              pred (alist-get (treesit-language-at pos)
+                              treesit-aggregated-outline-predicate)
+              found (treesit-navigate-thing pos (if backward -1 1) 'beg pred)
+              closest (if backward
+                          (previous-single-char-property-change pos 'treesit-parser)
+                        (next-single-char-property-change pos 'treesit-parser))))
 
-        (if found
-            (if (or (not bound) (if backward (>= found bound) (<= found bound)))
-                (progn
-                  (goto-char found)
-                  (goto-char (pos-bol))
-                  (set-match-data (list (point) (pos-eol)))
-                  t)
-              (when move (goto-char bound))
-              nil)
-          (when move (goto-char (or bound (if backward (point-min) (point-max)))))
-          nil)))))
+      (if found
+          (if (or (not bound) (if backward (>= found bound) (<= found bound)))
+              (progn
+                (goto-char found)
+                (goto-char (pos-bol))
+                (set-match-data (list (point) (pos-eol)))
+                t)
+            (when move (goto-char bound))
+            nil)
+        (when move (goto-char (or bound (if backward (point-min) (point-max)))))
+        nil))))
 
 (defun treesit-outline-level ()
   "Return the depth of the current outline heading."
@@ -4033,9 +4100,7 @@ For BOUND, MOVE, BACKWARD, LOOKING-AT, see the descriptions in
       (setq level (1+ level)))
 
     ;; Continue counting the host nodes.
-    (dolist (parser (seq-keep (lambda (o)
-                                (overlay-get o 'treesit-host-parser))
-                              (overlays-at (point) t)))
+    (dolist (parser (mapcar #'cdr (treesit-parsers-at (point) nil t '(global local))))
       (let* ((node (treesit-node-at (point) parser))
              (lang (treesit-parser-language parser))
              (pred (alist-get lang treesit-aggregated-outline-predicate)))
@@ -4043,6 +4108,10 @@ For BOUND, MOVE, BACKWARD, LOOKING-AT, see the descriptions in
           (setq level (1+ level)))))
 
     level))
+
+(defun treesit--after-change (beg end _len)
+  "Force updating the ranges after each text change."
+  (treesit-update-ranges beg end))
 
 ;;; Hideshow mode
 
@@ -4338,7 +4407,16 @@ before calling this function."
       (setq treesit-outline-predicate
             #'treesit-outline-predicate--from-imenu))
     (setq-local outline-search-function #'treesit-outline-search
-                outline-level #'treesit-outline-level))
+                outline-level #'treesit-outline-level)
+    (add-hook 'outline-minor-mode-hook
+              (lambda ()
+                (if (bound-and-true-p outline-minor-mode)
+                    (add-hook 'after-change-functions
+                              #'treesit--after-change
+                              0 t)
+                  (remove-hook 'after-change-functions
+                               #'treesit--after-change t)))
+              nil t))
 
   ;; Remove existing local parsers.
   (dolist (ov (overlays-in (point-min) (point-max)))

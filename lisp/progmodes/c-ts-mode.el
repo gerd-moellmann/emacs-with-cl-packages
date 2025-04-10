@@ -1194,7 +1194,11 @@ if `c-ts-mode-emacs-sources-support' is non-nil."
 (defvar c-ts-mode--thing-settings
   `(;; It's more useful to include semicolons as sexp so
     ;; that users can move to the end of a statement.
-    (sexp (not ,(rx (or "{" "}" "[" "]" "(" ")" ","))))
+    (sexp (not (or (and named
+                        ,(rx bos (or "translation_unit" "comment") eos))
+                   (and anonymous
+                        ,(rx (or "{" "}" "[" "]"
+                                 "(" ")" ","))))))
     (list
      ,(regexp-opt '("preproc_params"
                     "preproc_if"
@@ -1488,8 +1492,6 @@ in your init files."
         (setq-local treesit-range-settings
                     (treesit-range-rules 'c-ts-mode--emacs-set-ranges))
 
-        (setq-local treesit-language-at-point-function
-                    (lambda (_pos) 'c))
         (treesit-font-lock-recompute-features '(emacs-devel)))
 
       ;; Inject doxygen parser for comment.

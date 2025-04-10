@@ -1150,32 +1150,6 @@ For NODE, OVERRIDE, START, and END, see `treesit-font-lock-rules'."
    'font-lock-warning-face
    override start end))
 
-(defun php-ts-mode--html-language-at-point (point)
-  "Return the language at POINT assuming the point is within a HTML region."
-  (let* ((node (treesit-node-at point 'html))
-         (parent (treesit-node-parent node))
-         (node-query (format "(%s (%s))"
-                             (treesit-node-type parent)
-                             (treesit-node-type node))))
-    (cond
-     ((string-equal "(script_element (raw_text))" node-query) 'javascript)
-     ((string-equal "(style_element (raw_text))" node-query) 'css)
-     (t 'html))))
-
-(defun php-ts-mode--language-at-point (point)
-  "Return the language at POINT."
-  (let* ((node (treesit-node-at point 'php))
-         (node-type (treesit-node-type node))
-         (parent (treesit-node-parent node))
-         (node-query (format "(%s (%s))" (treesit-node-type parent) node-type)))
-    (save-excursion
-      (goto-char (treesit-node-start node))
-      (cond
-       ((not (member node-query '("(program (text))"
-                                  "(text_interpolation (text))")))
-        'php)
-       (t (php-ts-mode--html-language-at-point point))))))
-
 
 ;;; Imenu
 
@@ -1466,8 +1440,6 @@ Depends on `c-ts-common-comment-setup'."
                     (start_tag (tag_name))
                     (raw_text) @cap))))
 
-    (setq-local treesit-language-at-point-function #'php-ts-mode--language-at-point)
-
     ;; Navigation.
     (setq-local treesit-defun-type-regexp
                 (regexp-opt '("class_declaration"
@@ -1483,7 +1455,14 @@ Depends on `c-ts-common-comment-setup'."
     (setq-local treesit-thing-settings
                 `((php
                    (defun ,treesit-defun-type-regexp)
-                   (sexp (not ,(rx (or "{" "}" "[" "]" "(" ")" ","))))
+                   (sexp (not (or (and named
+                                       ,(rx bos (or "program"
+                                                    "comment")
+                                            eos))
+                                  (and anonymous
+                                       ,(rx bos (or "{" "}" "[" "]"
+                                                    "(" ")" ",")
+                                            eos)))))
                    (list
                     ,(rx bos (or "namespace_use_group"
                                  "enum_declaration_list"
@@ -1548,7 +1527,7 @@ Depends on `c-ts-common-comment-setup'."
     (setq-local electric-indent-chars
                 (append "{}():;," electric-indent-chars))
 
-    ;; Imenu/Which-function/Outline
+    ;; Imenu/Which-function
     (setq-local treesit-simple-imenu-settings
                 '(("Class" "\\`class_declaration\\'" nil nil)
                   ("Enum" "\\`enum_declaration\\'" nil nil)
@@ -1559,6 +1538,16 @@ Depends on `c-ts-common-comment-setup'."
                   ("Trait" "\\`trait_declaration\\'" nil nil)
                   ("Variable" "\\`variable_name\\'" nil nil)
                   ("Constant" "\\`const_element\\'" nil nil)))
+
+    ;; Outline
+    (setq-local treesit-outline-predicate
+                (rx bos (or "class_declaration"
+                            "function_definition"
+                            "interface_declaration"
+                            "method_declaration"
+                            "namespace_definition"
+                            "trait_declaration")
+                    eos))
 
     ;; Font-lock.
     (setq-local treesit-font-lock-settings
