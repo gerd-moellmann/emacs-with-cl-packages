@@ -444,7 +444,8 @@ static bool
 narrow_bytepos_bounds_1 (const struct text_pos known, struct text_pos *prev,
 			 struct text_pos *next, const ptrdiff_t bytepos)
 {
-  eassert (known.bytepos >= prev->bytepos && known.bytepos <= next->bytepos);
+  eassert (bytepos >= prev->bytepos && bytepos <= next->bytepos);
+  eassert (known.bytepos != 0);
   if (known.bytepos == bytepos)
     return true;
 
@@ -495,8 +496,8 @@ static bool
 narrow_charpos_bounds_1 (const struct text_pos known, struct text_pos *prev,
 			 struct text_pos *next, const ptrdiff_t charpos)
 {
-  eassert (known.charpos >= prev->charpos && known.charpos <= next->charpos);
-  eassert (known.charpos >= prev->charpos && known.charpos <= next->charpos);
+  eassert (charpos >= prev->charpos && charpos <= next->charpos);
+  eassert (known.charpos != 0);
   if (known.charpos == charpos)
     return true;
 
