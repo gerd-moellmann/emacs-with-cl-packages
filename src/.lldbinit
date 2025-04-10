@@ -112,14 +112,6 @@ process handle SIGINT --pass true --stop false --notify false
 #command alias go process launch --disable-aslr false --working-dir .
 #b wrong_type_argument
 
-#target create temacs
-#settings set -- target.run-args --batch  -l loadup --temacs=pbootstrap --bin-dest /Users/gerd/emacs/github/igc-copy/nextstep/Emacs.app/Contents/MacOS/ --eln-dest /Users/gerd/emacs/github/igc-copy/nextstep/Emacs.app/Contents/Frameworks/
-#command alias go process launch --working-dir .
-
-# Start process with stderr 2> log, open log and auto-revert-tail-mode
-#process attach --waitfor --name emacs (--continue)
-
-b Ftext_index__position_bytes
-b Ftext_index__bytes_to_position
-
-# Attach to future Emacs
+target create temacs
+settings set -- target.run-args --batch  -l loadup --temacs=pbootstrap --bin-dest '/Users/gerd/.local/bin/' --eln-dest '/Users/gerd/.local/lib/emacs/31.0.50/'
+command alias go process launch --working-dir .

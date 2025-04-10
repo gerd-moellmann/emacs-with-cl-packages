@@ -488,6 +488,58 @@ narrow_bytepos_bounds (struct buffer *b, struct text_pos *prev,
   return 0;
 }
 
+/* Improve the known bytepos bounds *PREV and *NEXT if KNOWN is closer
+   to BYTEPOS.  If KNOWN is an exact match for BYTEPOS return true.  */
+
+static bool
+narrow_charpos_bounds_1 (const struct text_pos known, struct text_pos *prev,
+			 struct text_pos *next, const ptrdiff_t charpos)
+{
+  eassert (known.charpos >= prev->charpos && known.charpos <= next->charpos);
+  eassert (known.charpos >= prev->charpos && known.charpos <= next->charpos);
+  if (known.charpos == charpos)
+    return true;
+
+  /* If KNOWN is in (PREV, BYTEPOS] it is a better PREV. */
+  if (known.charpos < charpos
+      && known.charpos > prev->charpos)
+    *prev = known;
+
+  /* If KNOWN is in [BYTEPOS NEXT) it is a better NEXT. */
+  if (known.charpos > charpos
+      && known.charpos < next->charpos)
+    *next = known;
+
+  return false;
+}
+
+/* Improve the known bytepos bounds *PREV and *NEXT of buffer B using
+   known positions in B.  BYTEPOS is a byte position to convert to a
+   character position.  If an exact match for BYTEPOS is found, return
+   its charpos, otherwise return 0.  */
+
+static ptrdiff_t
+narrow_charpos_bounds (struct buffer *b, struct text_pos *prev,
+		       struct text_pos *next, const ptrdiff_t charpos)
+{
+  const struct text_pos pt
+    = {.charpos = BUF_PT (b), .bytepos = BUF_PT_BYTE (b)};
+  if (narrow_charpos_bounds_1 (pt, prev, next, charpos))
+    return pt.bytepos;
+
+  const struct text_pos gpt
+    = {.charpos = BUF_GPT (b), .bytepos = BUF_GPT_BYTE (b)};
+  if (narrow_charpos_bounds_1 (gpt, prev, next, charpos))
+    return gpt.bytepos;
+
+  struct text_index *ti = b->text->index;
+  if (is_cache_valid (ti)
+      && narrow_charpos_bounds_1 (ti->cache, prev, next, charpos))
+    return ti->cache.bytepos;
+
+  return 0;
+}
+
 /* Return the character position in buffer B corresponding to
    byte position BYTEPOS.  */
 
@@ -547,19 +599,22 @@ text_index_charpos_to_bytepos (struct buffer *b, const ptrdiff_t charpos)
 
   struct text_index *ti = b->text->index;
   const ptrdiff_t entry = index_charpos_entry (ti, charpos);
-  const struct text_pos prev_known = index_text_pos (ti, entry);
-  const struct text_pos next_known = next_known_text_pos (b, entry);
+  struct text_pos prev = index_text_pos (ti, entry);
+  struct text_pos next = next_known_text_pos (b, entry);
+
+  ptrdiff_t bytepos = narrow_charpos_bounds (b, &prev, &next, charpos);
+  if (bytepos)
+    return bytepos;
 
   /* Don't scan forward if CHARPOS is exactly on the previous know
      position because the index bytepos can be in the middle of a
      character, which is found by scanning backwards.  Otherwise, scan
      forward if we believe that's less expensive.  */
-  ptrdiff_t bytepos;
-  if (charpos > prev_known.charpos
-      && charpos - prev_known.charpos < next_known.charpos - charpos)
-    bytepos = bytepos_forward_to_charpos (b, prev_known, charpos);
+  if (charpos > prev.charpos
+      && charpos - prev.charpos < next.charpos - charpos)
+    bytepos = bytepos_forward_to_charpos (b, prev, charpos);
   else
-    bytepos = bytepos_backward_to_charpos (b, next_known, charpos);
+    bytepos = bytepos_backward_to_charpos (b, next, charpos);
 
   cache (ti, charpos, bytepos);
   return bytepos;
