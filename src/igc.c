@@ -4598,7 +4598,7 @@ igc_add_marker (struct buffer *b, struct Lisp_Marker *m)
   ptrdiff_t next = XFIXNUM (IGC_MA_NEXT (xv, slot));
   if (next >= 0)
     IGC_MA_PREV (xv, next) = make_fixnum (slot);
-  m->slot = slot;
+  m->mv_entry = slot;
   m->buffer = b;
 }
 
@@ -4608,11 +4608,11 @@ igc_remove_marker (struct buffer *b, struct Lisp_Marker *m)
   Lisp_Object v = BUF_MARKERS (b);
   igc_assert (VECTORP (v));
   struct Lisp_Vector *xv = XVECTOR (v);
-  igc_assert (m->slot >= 0 && m->slot < IGC_MA_CAPACITY (xv));
-  igc_assert (MARKERP (IGC_MA_MARKER (xv, m->slot))
-	      && XMARKER (IGC_MA_MARKER (xv, m->slot)) == m);
-  unchain (xv, m->slot);
-  m->slot = -1;
+  igc_assert (m->mv_entry >= 0 && m->mv_entry < IGC_MA_CAPACITY (xv));
+  igc_assert (MARKERP (IGC_MA_MARKER (xv, m->mv_entry))
+	      && XMARKER (IGC_MA_MARKER (xv, m->mv_entry)) == m);
+  unchain (xv, m->mv_entry);
+  m->mv_entry = -1;
   m->buffer = NULL;
 }
 

@@ -28,7 +28,7 @@ struct marker_vector_it
 {
   struct Lisp_Vector *v;
   Lisp_Object marker;
-  ptrdiff_t slot;
+  ptrdiff_t entry;
 };
 
 /* A marker array is a Lisp vector starting with a header of
@@ -52,9 +52,9 @@ enum
 };
 
 INLINE ptrdiff_t
-marker_vector_slot_to_index (const ptrdiff_t slot)
+marker_vector_entry_to_index (const ptrdiff_t entry)
 {
-  return ((slot * MARKER_VECTOR_ENTRY_SIZE)
+  return ((entry * MARKER_VECTOR_ENTRY_SIZE)
 	  + MARKER_VECTOR_HEADER_SIZE);
 }
 
@@ -65,23 +65,23 @@ marker_vector_head (const struct Lisp_Vector *v)
 }
 
 INLINE Lisp_Object
-marker_vector_marker (const struct Lisp_Vector *v, const ptrdiff_t slot)
+marker_vector_marker (const struct Lisp_Vector *v, const ptrdiff_t entry)
 {
-  return v->contents[marker_vector_slot_to_index (slot)
+  return v->contents[marker_vector_entry_to_index (entry)
 		     + MARKER_VECTOR_OFFSET_MARKER];
 }
 
 INLINE Lisp_Object
-marker_vector_next (const struct Lisp_Vector *v, const ptrdiff_t slot)
+marker_vector_next (const struct Lisp_Vector *v, const ptrdiff_t entry)
 {
-  return v->contents[marker_vector_slot_to_index (slot)
+  return v->contents[marker_vector_entry_to_index (entry)
 		     + MARKER_VECTOR_OFFSET_NEXT];
 }
 
 INLINE Lisp_Object
-marker_vector_prev (const struct Lisp_Vector *v, const ptrdiff_t slot)
+marker_vector_prev (const struct Lisp_Vector *v, const ptrdiff_t entry)
 {
-  return v->contents[marker_vector_slot_to_index (slot)
+  return v->contents[marker_vector_entry_to_index (entry)
 		     + MARKER_VECTOR_OFFSET_PREV];
 }
 
@@ -94,9 +94,9 @@ marker_vector_it_is_valid (const struct marker_vector_it *it)
 INLINE void
 marker_vector_it_set_to_bext (struct marker_vector_it *it)
 {
-  it->slot = XFIXNUM (marker_vector_next (it->v, it->slot));
-  if (it->slot >= 0)
-    it->marker = marker_vector_marker (it->v, it->slot);
+  it->entry = XFIXNUM (marker_vector_next (it->v, it->entry));
+  if (it->entry >= 0)
+    it->marker = marker_vector_marker (it->v, it->entry);
   else
     it->marker = Qnil;
 }
@@ -109,12 +109,12 @@ marker_vector_it_marker (struct marker_vector_it *it)
 
 # define DO_MARKER_VECTOR(b, m)					\
   for (struct marker_vector_it it_ = marker_vector_it_init (b);	\
-       marker_vector_it_is_valid (&it_);				\
-       marker_vector_it_set_to_next (&it_))				\
+       marker_vector_it_is_valid (&it_);			\
+       marker_vector_it_set_to_next (&it_))			\
     {								\
        struct Lisp_Marker *m = marker_vector_it_marker (&it_);
 
-# define END_DO_MARKERS }
+# define END_DO_MARKER_VECTORS }
 
 struct marker_vector_it marker_vector_it_init (struct buffer *b);
 void marker_vector_add_marker (struct buffer *b, struct Lisp_Marker *m);
