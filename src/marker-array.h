@@ -48,6 +48,8 @@ enum
   /* Relative indices of entries.  */
   MARKER_ARRAY_OFFSET_NEXT = 0,
   MARKER_ARRAY_OFFSET_PREV = 1,
+  /* If entry is free, this is the index of the next free entry in the
+     free-list. */
   MARKER_ARRAY_OFFSET_MARKER = 2,
 };
 
@@ -62,12 +64,6 @@ INLINE Lisp_Object
 marker_array_head (const struct Lisp_Vector *v)
 {
   return v->contents[MARKER_ARRAY_HEAD];
-}
-
-INLINE Lisp_Object
-marker_array_free_list (const struct Lisp_Vector *v)
-{
-  return v->contents[MARKER_ARRAY_FREE_LIST];
 }
 
 INLINE Lisp_Object
@@ -89,13 +85,6 @@ marker_array_prev (const struct Lisp_Vector *v, const ptrdiff_t slot)
 {
   return v->contents[marker_array_slot_to_index (slot)
 		     + MARKER_ARRAY_OFFSET_PREV];
-}
-
-INLINE ptrdiff_t
-marker_array_capacity (const struct Lisp_Vector *v)
-{
-  return ((v->header.size - MARKER_ARRAY_HEADER_SIZE)
-	  / MARKER_ARRAY_ENTRY_SIZE);
 }
 
 INLINE bool
@@ -130,5 +119,7 @@ struct marker_array_it marker_array_it_init (struct buffer *b);
        struct Lisp_Marker *m = marker_array_it_marker (&it_);
 
 # define END_DO_MARKERS }
+
+void marker_array_add_marker (struct buffer *b, struct Lisp_Marker *m);
 
 #endif /* EMACS_MARKER_ARRAY_H */
