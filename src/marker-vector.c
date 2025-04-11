@@ -21,17 +21,20 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #include "buffer.h"
 #include "marker-vector.h"
 
-#define IDX(s, o) (marker_vector_entry_to_index (s) \
+#define IDX(e, o) (marker_vector_entry_to_index (e) \
 		   + MARKER_VECTOR_OFFSET_##o)
 
-#define NEXT(v, s) (v)->contents[IDX (s, NEXT)]
-#define PREV(v, s) (v)->contents[IDX (s, PREV)]
-#define MARKER(v, s) (v)->contents[IDX (s, MARKER)]
-#define NEXT_FREE(v, s) MARKER (v, s)
+/* Access fields of an entry E of marker vecgor V as lvalues.  */
+#define NEXT(v, e) (v)->contents[IDX ((e), NEXT)]
+#define PREV(v, e) (v)->contents[IDX ((e), PREV)]
+#define MARKER(v, e) (v)->contents[IDX ((e), MARKER)]
+#define NEXT_FREE(v, e) MARKER (v, e)
 
+/* Access header fields of marker vecgor V as lvalues.  */
 #define FREE_LIST(v) (v)->contents[MARKER_VECTOR_FREE_LIST]
 #define HEAD(v) (v)->contents[MARKER_VECTOR_HEAD]
 
+/* End marker in lists.  */
 #define NONE make_fixnum (-1)
 #define NONEP(x) (FIXNUMP (x) && XFIXNUM(x) == -1)
 
@@ -117,10 +120,10 @@ add_entry (Lisp_Object markers, Lisp_Object marker)
   MARKER (v, entry) = marker;
   NEXT (v, entry) = HEAD (v);
   PREV (v, entry) = NONE;
-  const ptrdiff_t old_head = XFIXNUM (marker_vector_head (v));
   HEAD (v) = make_fixnum (entry);
-  if (old_head >= 0)
-    PREV (v, old_head) = make_fixnum (entry);
+
+  if (!NONEP (NEXT (v, entry)))
+    PREV (v, XFIXNUM (NEXT (v, entry))) = make_fixnum (entry);
 
   return entry;
 }
