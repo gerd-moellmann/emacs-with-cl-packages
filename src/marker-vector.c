@@ -36,7 +36,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
 /* End marker in lists.  */
 #define NONE make_fixnum (-1)
-#define NONEP(x) (FIXNUMP (x) && XFIXNUM(x) == -1)
+#define IS_NONE(x) (FIXNUMP (x) && XFIXNUM(x) == -1)
 
 /* Return a marker vector iterator for buffer B.  */
 
@@ -71,7 +71,7 @@ push_free_list (struct Lisp_Vector *v, const ptrdiff_t entry)
 static ptrdiff_t
 pop_free_list (struct Lisp_Vector *v)
 {
-  eassert (!NONEP (FREE_LIST (v)));
+  eassert (!IS_NONE (FREE_LIST (v)));
   const ptrdiff_t free = XFIXNUM (FREE_LIST (v));
   FREE_LIST (v) = NEXT_FREE (v, free);
   return free;
@@ -122,7 +122,7 @@ add_entry (Lisp_Object markers, Lisp_Object marker)
   PREV (v, entry) = NONE;
   HEAD (v) = make_fixnum (entry);
 
-  if (!NONEP (NEXT (v, entry)))
+  if (!IS_NONE (NEXT (v, entry)))
     PREV (v, XFIXNUM (NEXT (v, entry))) = make_fixnum (entry);
 
   return entry;
@@ -134,7 +134,7 @@ add_entry (Lisp_Object markers, Lisp_Object marker)
 static bool
 has_room (Lisp_Object markers)
 {
-  return VECTORP (markers) && !NONEP (FREE_LIST (XVECTOR (markers)));
+  return VECTORP (markers) && !IS_NONE (FREE_LIST (XVECTOR (markers)));
 }
 
 static Lisp_Object
@@ -149,7 +149,7 @@ alloc_marker_vector (ptrdiff_t len, Lisp_Object init)
 static Lisp_Object
 larger_marker_vector (Lisp_Object v)
 {
-  eassert (NILP (v) || (VECTORP (v) && NONEP (FREE_LIST (XVECTOR (v)))));
+  eassert (NILP (v) || (VECTORP (v) && IS_NONE (FREE_LIST (XVECTOR (v)))));
   const ptrdiff_t old_nentrys = NILP (v) ? 0 : capacity (XVECTOR (v));
   const ptrdiff_t new_nentrys = max (4, 2 * old_nentrys);
   const ptrdiff_t alloc_len = (new_nentrys * MARKER_VECTOR_ENTRY_SIZE
@@ -207,12 +207,12 @@ unchain (struct Lisp_Vector *v, const ptrdiff_t entry)
   const Lisp_Object prev = PREV (v, entry);
   const Lisp_Object next = NEXT (v, entry);
 
-  if (NONEP (prev))
+  if (IS_NONE (prev))
     HEAD (v) = NEXT (v, entry);
   else
     NEXT (v, XFIXNUM (prev)) = next;
 
-  if (!NONEP (next))
+  if (!IS_NONE (next))
     PREV (v, XFIXNUM (next)) = prev;
 
   push_free_list (v, entry);
