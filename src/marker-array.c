@@ -54,6 +54,14 @@ set_prev (struct Lisp_Vector *v, ptrdiff_t slot, Lisp_Object prev)
   v->contents[i] = prev;
 }
 
+static void
+set_marker (struct Lisp_Vector *v, ptrdiff_t slot, Lisp_Object marker)
+{
+  const ptrdiff_t i
+    = marker_array_slot_to_index (slot) + MARKER_ARRAY_OFFSET_MARKER;
+  v->contents[i] = marker;
+}
+
 static Lisp_Object
 next_free (struct Lisp_Vector *v, ptrdiff_t slot)
 {
@@ -130,9 +138,26 @@ copy_entry (struct Lisp_Vector *to, const struct Lisp_Vector *from,
 static void
 copy (struct Lisp_Vector *to, const struct Lisp_Vector *from)
 {
+  set_free_list (to, free_list (from));
+  set_head (to, head (from));
   for (ptrdiff_t slot = 0; slot < capacity (from); ++slot)
     copy_entry (to, from, slot);
 }
+
+static void
+add_entry (struct Lisp_Vector *v, Lisp_Object marker)
+{
+  const ptrdiff_t slot = pop_free_list (v);
+
+  set_marker (v, slot, marker);
+  set_next (v, slot, head (v));
+  set_prev (v, slot, make_fixnum (-1));
+  const ptrdiff_t old_head = XFIXNUM (marker_array_head (v));
+  set_head (v, make_fixnum (slot));
+  if (old_head >= 0)
+    set_prev (v, old_head, make_fixnum (slot));
+}
+
 
 static Lisp_Object
 alloc_marker_vector (ptrdiff_t len, Lisp_Object init)
@@ -158,8 +183,6 @@ larger_marker_array (Lisp_Object v)
   if (VECTORP (v))
     {
       struct Lisp_Vector *xv = XVECTOR (v);
-      set_free_list (xnew_v, free_list (xv));
-      set_head (xnew_v, head (xv));
       copy (xnew_v, xv);
       free_start = capacity (xv);
     }
@@ -191,15 +214,7 @@ marker_array_add_marker (struct buffer *b, struct Lisp_Marker *m)
       slot = XFIXNUM (free_list (xv));
     }
 
-  IGC_MA_FREE_LIST (xv) = IGC_MA_MARKER (xv, slot);
-  IGC_MA_MARKER (xv, slot) = make_lisp_ptr (m, Lisp_Vectorlike);
-  IGC_MA_NEXT (xv, slot) = IGC_MA_HEAD (xv);
-  IGC_MA_PREV (xv, slot) = make_fixnum (-1);
-  IGC_MA_HEAD (xv) = make_fixnum (slot);
-
-  ptrdiff_t next = XFIXNUM (IGC_MA_NEXT (xv, slot));
-  if (next >= 0)
-    IGC_MA_PREV (xv, next) = make_fixnum (slot);
+  add_entry (xv, make_lisp_ptr (m, Lisp_Vectorlike));
   m->slot = slot;
   m->buffer = b;
 }
