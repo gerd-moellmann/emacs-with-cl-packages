@@ -119,5 +119,6 @@ struct marker_array_it marker_array_it_init (struct buffer *b);
 # define END_DO_MARKERS }
 
 void marker_array_add_marker (struct buffer *b, struct Lisp_Marker *m);
+void marker_array_remove_marker (struct buffer *b, struct Lisp_Marker *m);
 
 #endif /* EMACS_MARKER_ARRAY_H */

@@ -57,8 +57,6 @@ marker_array_it_init (struct buffer *b)
 static void
 push_free_list (struct Lisp_Vector *v, ptrdiff_t slot)
 {
-  NEXT (v, slot) = NONE;
-  PREV (v, slot) = NONE;
   NEXT_FREE (v, slot) = FREE_LIST (v);
   FREE_LIST (v) = make_fixnum (slot);
 }
@@ -177,21 +175,41 @@ marker_array_add_marker (struct buffer *b, struct Lisp_Marker *m)
   m->buffer = b;
 }
 
-#if 0
+static void
+unchain (struct Lisp_Vector *v, const ptrdiff_t slot)
+{
+  MARKER (v, slot) = FREE_LIST (v);
+  FREE_LIST (v) = make_fixnum (slot);
+
+  Lisp_Object prev = PREV (v, slot);
+  Lisp_Object next = NEXT (v, slot);
+
+  if (NONEP (prev))
+    HEAD (v) = NEXT (v, slot);
+  else
+    NEXT (v, XFIXNUM (prev)) = next;
+
+  if (!NONEP (next))
+    PREV (v, XFIXNUM (next)) = prev;
+
+  push_free_list (v, slot);
+}
+
 void
-igc_remove_marker (struct buffer *b, struct Lisp_Marker *m)
+marker_array_remove_marker (struct buffer *b, struct Lisp_Marker *m)
 {
   Lisp_Object v = BUF_MARKERS (b);
-  igc_assert (VECTORP (v));
+  eassert (VECTORP (v));
   struct Lisp_Vector *xv = XVECTOR (v);
-  igc_assert (m->slot >= 0 && m->slot < IGC_MA_CAPACITY (xv));
-  igc_assert (MARKERP (IGC_MA_MARKER (xv, m->slot))
-	      && XMARKER (IGC_MA_MARKER (xv, m->slot)) == m);
+  eassert (m->slot >= 0 && m->slot < capacity (xv));
+  eassert (MARKERP (MARKER (xv, m->slot)));
+  eassert (XMARKER (MARKER (xv, m->slot)) == m);
   unchain (xv, m->slot);
   m->slot = -1;
   m->buffer = NULL;
 }
 
+#if 0
 void
 igc_remove_all_markers (struct buffer *b)
 {
