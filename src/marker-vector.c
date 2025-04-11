@@ -239,13 +239,13 @@ marker_vector_remove_marker (struct buffer *b, struct Lisp_Marker *m)
 void
 marker_vector_remove_all_markers (struct buffer *b)
 {
-  Lisp_Object v = BUF_MARKERS (b);
-  if (VECTORP (v))
+  Lisp_Object mv = BUF_MARKERS (b);
+  if (VECTORP (mv))
     {
-      struct Lisp_Vector *xv = XVECTOR (v);
-      for (ptrdiff_t entry = 0; entry < capacity (xv); ++entry)
-	if (MARKERP (MARKER (xv, entry)))
-	  XMARKER (MARKER (xv, entry))->buffer = NULL;
+      struct Lisp_Vector *v = XVECTOR (mv);
+      for (ptrdiff_t entry = 0; entry < capacity (v); ++entry)
+	if (MARKERP (MARKER (v, entry)))
+	  XMARKER (MARKER (v, entry))->buffer = NULL;
       BUF_MARKERS (b) = Qnil;
     }
 }
