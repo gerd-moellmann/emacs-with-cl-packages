@@ -3101,7 +3101,7 @@ struct Lisp_Marker
 # ifdef HAVE_MPS
   /* If in a buffer's marker vector, this is the index where it is
      stored. */
-  ptrdiff_t mv_entry;
+  ptrdiff_t entry;
 # endif
 } GCALIGNED_STRUCT;
 
