@@ -144,9 +144,10 @@ copy (struct Lisp_Vector *to, const struct Lisp_Vector *from)
     copy_entry (to, from, slot);
 }
 
-static void
-add_entry (struct Lisp_Vector *v, Lisp_Object marker)
+static ptrdiff_t
+add_entry (Lisp_Object markers, Lisp_Object marker)
 {
+  struct Lisp_Vector *v = XVECTOR (markers);
   const ptrdiff_t slot = pop_free_list (v);
 
   set_marker (v, slot, marker);
@@ -156,8 +157,16 @@ add_entry (struct Lisp_Vector *v, Lisp_Object marker)
   set_head (v, make_fixnum (slot));
   if (old_head >= 0)
     set_prev (v, old_head, make_fixnum (slot));
+
+  return slot;
 }
 
+static bool
+has_room (Lisp_Object markers)
+{
+  return VECTORP (markers)
+    && XFIXNUM (free_list (XVECTOR (markers))) >= 0;
+}
 
 static Lisp_Object
 alloc_marker_vector (ptrdiff_t len, Lisp_Object init)
@@ -202,20 +211,16 @@ larger_marker_array (Lisp_Object v)
 void
 marker_array_add_marker (struct buffer *b, struct Lisp_Marker *m)
 {
-  Lisp_Object v = BUF_MARKERS (b);
-  eassert (NILP (v) || VECTORP (v));
-  struct Lisp_Vector *xv = NILP (v) ? NULL : XVECTOR (v);
+  Lisp_Object markers = BUF_MARKERS (b);
+  eassert (NILP (markers) || VECTORP (markers));
 
-  ptrdiff_t slot = NILP (v) ? -1 : XFIXNUM (free_list (xv));
-  if (slot < 0)
+  if (!has_room (markers))
     {
-      v = BUF_MARKERS (b) = larger_marker_array (v);
-      xv = XVECTOR (v);
-      slot = XFIXNUM (free_list (xv));
+      markers = larger_marker_array (markers);
+      BUF_MARKERS (b) = markers;
     }
 
-  add_entry (xv, make_lisp_ptr (m, Lisp_Vectorlike));
-  m->slot = slot;
+  m->slot = add_entry (markers, make_lisp_ptr (m, Lisp_Vectorlike));
   m->buffer = b;
 }
 
