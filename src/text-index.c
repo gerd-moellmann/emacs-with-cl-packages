@@ -95,8 +95,6 @@ struct text_index
   size_t interval;
 };
 
-static bool use_narrow_bounds = true;
-
 /* Cache (CHARPOS, BYTEPOS) as known position in index TI.  */
 
 static void
@@ -448,7 +446,6 @@ narrow_bytepos_bounds_1 (const struct text_pos known, struct text_pos *prev,
 {
   eassert (bytepos >= prev->bytepos && bytepos <= next->bytepos);
   eassert (known.bytepos != 0);
-
   if (known.bytepos == bytepos)
     return true;
 
@@ -474,9 +471,6 @@ static ptrdiff_t
 narrow_bytepos_bounds (struct buffer *b, struct text_pos *prev,
 		       struct text_pos *next, const ptrdiff_t bytepos)
 {
-  if (!use_narrow_bounds)
-    return 0;
-
   const struct text_pos pt
     = {.charpos = BUF_PT (b), .bytepos = BUF_PT_BYTE (b)};
   if (narrow_bytepos_bounds_1 (pt, prev, next, bytepos))
@@ -529,9 +523,6 @@ static ptrdiff_t
 narrow_charpos_bounds (struct buffer *b, struct text_pos *prev,
 		       struct text_pos *next, const ptrdiff_t charpos)
 {
-  if (!use_narrow_bounds)
-    return 0;
-
   const struct text_pos pt
     = {.charpos = BUF_PT (b), .bytepos = BUF_PT_BYTE (b)};
   if (narrow_charpos_bounds_1 (pt, prev, next, charpos))
@@ -651,15 +642,13 @@ text_index_invalidate (struct buffer *b, ptrdiff_t bytepos)
 /* The following is for testing / debugging / experimentation.  */
 
 DEFUN ("text-index--set", Ftext_index__set,
-       Stext_index__set, 3, 3, 0,
+       Stext_index__set, 1, 2, 0,
        doc: /* Set text internal use on/off.
 USE non-nil means use text indices in all byte/character conversions.
-INTERVAL is the interval size to use for indices.  NARROW non-nil
-means use known positions and cache.  */)
-  (Lisp_Object use, Lisp_Object interval, Lisp_Object narrow)
+INTERVAL is the interval size to use for indices.  */)
+  (Lisp_Object use, Lisp_Object interval)
 {
   use_text_index = !NILP (use);
-  use_narrow_bounds = !NILP (narrow);
   text_index_interval = check_integer_range (interval, 1, 1000000);
   Lisp_Object buffers = Fbuffer_list (Qnil);
   FOR_EACH_TAIL (buffers)
@@ -727,7 +716,7 @@ syms_of_text_index (void)
   defsubr (&Stext_index__charpos_to_bytepos_brute);
 
   DEFVAR_INT ("text-index-interval", text_index_interval, doc: /* */);
-  text_index_interval = 4000;
+  text_index_interval = 4*1024;
   DEFVAR_BOOL ("use-text-index", use_text_index, doc: /* */);
   use_text_index = true;
 }
