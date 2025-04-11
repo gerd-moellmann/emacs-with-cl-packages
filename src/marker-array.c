@@ -178,11 +178,8 @@ marker_array_add_marker (struct buffer *b, struct Lisp_Marker *m)
 static void
 unchain (struct Lisp_Vector *v, const ptrdiff_t slot)
 {
-  MARKER (v, slot) = FREE_LIST (v);
-  FREE_LIST (v) = make_fixnum (slot);
-
-  Lisp_Object prev = PREV (v, slot);
-  Lisp_Object next = NEXT (v, slot);
+  const Lisp_Object prev = PREV (v, slot);
+  const Lisp_Object next = NEXT (v, slot);
 
   if (NONEP (prev))
     HEAD (v) = NEXT (v, slot);
