@@ -22,33 +22,33 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #include <config.h>
 #include "lisp.h"
 #include "buffer.h"
-#include "marker-array.h"
+#include "marker-vector.h"
 
 /* Return a marker array iterator for buffer B.  */
 
-struct marker_array_it
-marker_array_it_init (struct buffer *b)
+struct marker_vector_it
+marker_vector_it_init (struct buffer *b)
 {
   if (VECTORP (BUF_MARKERS (b)))
     {
       const Lisp_Object markers = BUF_MARKERS (b);
       struct Lisp_Vector *v = XVECTOR (markers);
-      const ptrdiff_t slot = XFIXNUM (marker_array_head (v));
+      const ptrdiff_t slot = XFIXNUM (marker_vector_head (v));
       if (slot >= 0)
-	return (struct marker_array_it)
-	  {.slot = slot, .v = v, .marker = marker_array_marker (v, slot)};
+	return (struct marker_vector_it)
+	  {.slot = slot, .v = v, .marker = marker_vector_marker (v, slot)};
     }
 
-  return (struct marker_array_it) {.marker = Qnil};
+  return (struct marker_vector_it) {.marker = Qnil};
 }
 
-#define IDX(s, o) (marker_array_slot_to_index (s) + MARKER_ARRAY_OFFSET_##o)
+#define IDX(s, o) (marker_vector_slot_to_index (s) + MARKER_VECTOR_OFFSET_##o)
 #define NEXT(v, s) (v)->contents[IDX (s, NEXT)]
 #define PREV(v, s) (v)->contents[IDX (s, PREV)]
 #define MARKER(v, s) (v)->contents[IDX (s, MARKER)]
 #define NEXT_FREE(v, s) MARKER (v, s)
-#define FREE_LIST(v) (v)->contents[MARKER_ARRAY_FREE_LIST]
-#define HEAD(v) (v)->contents[MARKER_ARRAY_HEAD]
+#define FREE_LIST(v) (v)->contents[MARKER_VECTOR_FREE_LIST]
+#define HEAD(v) (v)->contents[MARKER_VECTOR_HEAD]
 #define NONE make_fixnum (-1)
 #define NONEP(x) (FIXNUMP (x) && XFIXNUM(x) == -1)
 
@@ -76,16 +76,16 @@ pop_free_list (struct Lisp_Vector *v)
 static ptrdiff_t
 capacity (const struct Lisp_Vector *v)
 {
-  return ((v->header.size - MARKER_ARRAY_HEADER_SIZE)
-	  / MARKER_ARRAY_ENTRY_SIZE);
+  return ((v->header.size - MARKER_VECTOR_HEADER_SIZE)
+	  / MARKER_VECTOR_ENTRY_SIZE);
 }
 
 static void
 copy_entry (struct Lisp_Vector *to, const struct Lisp_Vector *from,
 	    ptrdiff_t slot)
 {
-  const ptrdiff_t start = marker_array_slot_to_index (slot);
-  for (ptrdiff_t i = 0; i < MARKER_ARRAY_ENTRY_SIZE; ++i)
+  const ptrdiff_t start = marker_vector_slot_to_index (slot);
+  for (ptrdiff_t i = 0; i < MARKER_VECTOR_ENTRY_SIZE; ++i)
     to->contents[start + i] = from->contents[start + i];
 }
 
@@ -107,7 +107,7 @@ add_entry (Lisp_Object markers, Lisp_Object marker)
   MARKER (v, slot) = marker;
   NEXT (v, slot) = HEAD (v);
   PREV (v, slot) = NONE;
-  const ptrdiff_t old_head = XFIXNUM (marker_array_head (v));
+  const ptrdiff_t old_head = XFIXNUM (marker_vector_head (v));
   HEAD (v) = make_fixnum (slot);
   if (old_head >= 0)
     PREV (v, old_head) = make_fixnum (slot);
@@ -128,13 +128,13 @@ alloc_marker_vector (ptrdiff_t len, Lisp_Object init)
 }
 
 static Lisp_Object
-larger_marker_array (Lisp_Object v)
+larger_marker_vector (Lisp_Object v)
 {
   eassert (NILP (v) || (VECTORP (v) && NONEP (FREE_LIST (XVECTOR (v)))));
   const ptrdiff_t old_nslots = NILP (v) ? 0 : capacity (XVECTOR (v));
   const ptrdiff_t new_nslots = max (4, 2 * old_nslots);
-  const ptrdiff_t alloc_len = (new_nslots * MARKER_ARRAY_ENTRY_SIZE
-			       + MARKER_ARRAY_HEADER_SIZE);
+  const ptrdiff_t alloc_len = (new_nslots * MARKER_VECTOR_ENTRY_SIZE
+			       + MARKER_VECTOR_HEADER_SIZE);
   Lisp_Object new_v = alloc_marker_vector (alloc_len, Qnil);
 
   /* Copy existing items. */
@@ -160,14 +160,14 @@ larger_marker_array (Lisp_Object v)
 }
 
 void
-marker_array_add_marker (struct buffer *b, struct Lisp_Marker *m)
+marker_vector_add_marker (struct buffer *b, struct Lisp_Marker *m)
 {
   Lisp_Object markers = BUF_MARKERS (b);
   eassert (NILP (markers) || VECTORP (markers));
 
   if (!has_room (markers))
     {
-      markers = larger_marker_array (markers);
+      markers = larger_marker_vector (markers);
       BUF_MARKERS (b) = markers;
     }
 
@@ -193,7 +193,7 @@ unchain (struct Lisp_Vector *v, const ptrdiff_t slot)
 }
 
 void
-marker_array_remove_marker (struct buffer *b, struct Lisp_Marker *m)
+marker_vector_remove_marker (struct buffer *b, struct Lisp_Marker *m)
 {
   Lisp_Object v = BUF_MARKERS (b);
   eassert (VECTORP (v));
@@ -207,7 +207,7 @@ marker_array_remove_marker (struct buffer *b, struct Lisp_Marker *m)
 }
 
 void
-marker_array_remove_all_markers (struct buffer *b)
+marker_vector_remove_all_markers (struct buffer *b)
 {
   Lisp_Object v = BUF_MARKERS (b);
   if (VECTORP (v))
