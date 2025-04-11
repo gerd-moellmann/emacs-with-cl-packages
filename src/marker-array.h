@@ -48,8 +48,6 @@ enum
   /* Relative indices of entries.  */
   MARKER_ARRAY_OFFSET_NEXT = 0,
   MARKER_ARRAY_OFFSET_PREV = 1,
-  /* If entry is free, this is the index of the next free entry in the
-     free-list. */
   MARKER_ARRAY_OFFSET_MARKER = 2,
 };
 
