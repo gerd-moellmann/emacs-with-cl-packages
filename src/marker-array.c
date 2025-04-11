@@ -206,18 +206,16 @@ marker_array_remove_marker (struct buffer *b, struct Lisp_Marker *m)
   m->buffer = NULL;
 }
 
-#if 0
 void
-igc_remove_all_markers (struct buffer *b)
+marker_array_remove_all_markers (struct buffer *b)
 {
   Lisp_Object v = BUF_MARKERS (b);
   if (VECTORP (v))
     {
       struct Lisp_Vector *xv = XVECTOR (v);
-      for (ptrdiff_t slot = 0; slot < IGC_MA_CAPACITY (xv); ++slot)
-	if (MARKERP (IGC_MA_MARKER (xv, slot)))
-	  XMARKER (IGC_MA_MARKER (xv, slot))->buffer = NULL;
+      for (ptrdiff_t slot = 0; slot < capacity (xv); ++slot)
+	if (MARKERP (MARKER (xv, slot)))
+	  XMARKER (MARKER (xv, slot))->buffer = NULL;
       BUF_MARKERS (b) = Qnil;
     }
 }
-#endif
