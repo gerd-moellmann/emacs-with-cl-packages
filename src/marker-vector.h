@@ -122,7 +122,13 @@ marker_vector_it_marker (struct marker_vector_it *it)
     {									\
       next_ = XFIXNUM (marker_vector_next (v, entry_));			\
       ptrdiff_t index = marker_vector_entry_to_index (entry_)		\
-	+ MARKER_VECTOR_OFFSET_MARKER;					\
+	+ MARKER_VECTOR_OFFSET_MARKER;
+
+# define DO_MARKER_SLOTS(v, index)					\
+  for (ptrdiff_t index = MARKER_VECTOR_HEADER_SIZE + MARKER_VECTOR_OFFSET_MARKER; \
+       index < (v)->header.size;					\
+       index += MARKER_VECTOR_ENTRY_SIZE)				\
+    {
 
 struct marker_vector_it marker_vector_it_init (struct buffer *b);
 void marker_vector_add (struct buffer *b, struct Lisp_Marker *m);
