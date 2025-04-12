@@ -2079,7 +2079,7 @@ cleaning up all windows currently displaying the buffer to be killed. */)
       /* Unchain all markers that belong to this indirect buffer.
 	 Don't unchain the markers that belong to the base buffer
 	 or its other indirect buffers.  */
-      DO_MARKERS (b, m)
+      DO_MARKERS_LRU (b, m)
 	{
 	  if (m->buffer == b)
 	    marker_vector_remove (XVECTOR (BUF_MARKERS (b)), m);
@@ -2623,7 +2623,7 @@ results, see Info node `(elisp)Swapping Text'.  */)
   other_buffer->text->end_unchanged = other_buffer->text->gpt;
   swap_buffer_overlays (current_buffer, other_buffer);
   {
-    DO_MARKERS (current_buffer, m)
+    DO_MARKERS_LRU (current_buffer, m)
       {
 	if (m->buffer == other_buffer)
 	  m->buffer = current_buffer;
@@ -2633,7 +2633,7 @@ results, see Info node `(elisp)Swapping Text'.  */)
 	  eassert (!m->buffer);
       }
     END_DO_MARKERS;
-    DO_MARKERS (other_buffer, m)
+    DO_MARKERS_LRU (other_buffer, m)
       {
 	if (m->buffer == current_buffer)
 	  m->buffer = other_buffer;
@@ -2756,7 +2756,7 @@ current buffer is cleared.  */)
       GPT = GPT_BYTE;
       TEMP_SET_PT_BOTH (PT_BYTE, PT_BYTE);
 
-      DO_MARKERS (current_buffer, tail)
+      DO_MARKERS_LRU (current_buffer, tail)
 	{
 	  tail->charpos = tail->bytepos;
 	}
@@ -2910,8 +2910,7 @@ current buffer is cleared.  */)
 	TEMP_SET_PT_BOTH (position, byte);
       }
 
-#ifdef HAVE_MPS
-      DO_MARKERS (current_buffer, tail)
+      DO_MARKERS_LRU (current_buffer, tail)
 	{
 	  Lisp_Object buf_markers = BUF_MARKERS (current_buffer);
 	  BUF_MARKERS (current_buffer) = Qnil;
@@ -2920,27 +2919,6 @@ current buffer is cleared.  */)
 	  BUF_MARKERS (current_buffer) = buf_markers;
 	}
       END_DO_MARKERS;
-#else
-      tail = markers = BUF_MARKERS (current_buffer);
-
-      /* This prevents BYTE_TO_CHAR (that is, buf_bytepos_to_charpos) from
-	 getting confused by the markers that have not yet been updated.
-	 It is also a signal that it should never create a marker.  */
-      BUF_MARKERS (current_buffer) = NULL;
-
-      for (; tail; tail = tail->next)
-	{
-	  tail->bytepos = advance_to_char_boundary (tail->bytepos);
-	  tail->charpos = BYTE_TO_CHAR (tail->bytepos);
-	}
-
-      /* Make sure no markers were put on the chain
-	 while the chain value was incorrect.  */
-      if (BUF_MARKERS (current_buffer))
-	emacs_abort ();
-
-      BUF_MARKERS (current_buffer) = markers;
-#endif
 
       /* Do this last, so it can calculate the new correspondences
 	 between chars and bytes.  */

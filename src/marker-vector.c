@@ -117,7 +117,6 @@ add_entry (Lisp_Object mv, struct Lisp_Marker *m)
 {
   struct Lisp_Vector *v = XVECTOR (mv);
   const ptrdiff_t entry = pop_free (v);
-  eassert (NILP (MARKER (v, entry)));
 
   Lisp_Object marker = make_lisp_ptr (m, Lisp_Vectorlike);
   MARKER (v, entry) = marker;

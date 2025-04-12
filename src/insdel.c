@@ -253,7 +253,7 @@ adjust_markers_for_delete (ptrdiff_t from, ptrdiff_t from_byte,
   ptrdiff_t charpos;
 
   adjust_suspend_auto_hscroll (from, to);
-  DO_MARKERS (current_buffer, m)
+  DO_MARKERS_LRU (current_buffer, m)
     {
       charpos = m->charpos;
       eassert (charpos <= Z);
@@ -293,7 +293,7 @@ adjust_markers_for_insert (ptrdiff_t from, ptrdiff_t from_byte,
   ptrdiff_t nbytes = to_byte - from_byte;
 
   adjust_suspend_auto_hscroll (from, to);
-  DO_MARKERS (current_buffer, m)
+  DO_MARKERS_LRU (current_buffer, m)
     {
       eassert (m->bytepos >= m->charpos
 	       && m->bytepos - m->charpos <= Z_BYTE - Z);
@@ -362,7 +362,7 @@ adjust_markers_for_replace (ptrdiff_t from, ptrdiff_t from_byte,
 
   adjust_suspend_auto_hscroll (from, from + old_chars);
 
-  DO_MARKERS (current_buffer, m)
+  DO_MARKERS_LRU (current_buffer, m)
     {
       if (m->bytepos >= prev_to_byte)
 	{
@@ -422,7 +422,7 @@ adjust_markers_bytepos (ptrdiff_t from, ptrdiff_t from_byte,
     {
       /* Make sure each affected marker's bytepos is equal to
 	 its charpos.  */
-      DO_MARKERS (current_buffer, m)
+      DO_MARKERS_LRU (current_buffer, m)
 	{
 	  if (m->bytepos > from_byte
 	      && (to_z || m->bytepos <= to_byte))
@@ -432,7 +432,7 @@ adjust_markers_bytepos (ptrdiff_t from, ptrdiff_t from_byte,
     }
   else
     {
-      DO_MARKERS (current_buffer, m)
+      DO_MARKERS_LRU (current_buffer, m)
 	{
 	  /* Recompute each affected marker's bytepos.  */
 	  if (m->bytepos > from_byte

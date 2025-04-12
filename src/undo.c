@@ -129,7 +129,7 @@ record_marker_adjustments (ptrdiff_t from, ptrdiff_t to)
 {
   prepare_record ();
 
-  DO_MARKERS (current_buffer, m)
+  DO_MARKERS_LRU (current_buffer, m)
     {
       ptrdiff_t charpos = m->charpos;
       eassert (charpos <= Z);

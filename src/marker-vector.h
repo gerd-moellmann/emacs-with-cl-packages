@@ -107,7 +107,7 @@ marker_vector_it_marker (struct marker_vector_it *it)
   return XMARKER (it->marker);
 }
 
-# define DO_MARKERS(b, m)					\
+# define DO_MARKERS_LRU(b, m)					\
   for (struct marker_vector_it it_ = marker_vector_it_init (b);	\
        marker_vector_it_is_valid (&it_);			\
        marker_vector_it_set_to_next (&it_))			\
@@ -123,8 +123,6 @@ marker_vector_it_marker (struct marker_vector_it *it)
       next_ = XFIXNUM (marker_vector_next (v, entry_));			\
       ptrdiff_t index = marker_vector_entry_to_index (entry_)		\
 	+ MARKER_VECTOR_OFFSET_MARKER;					\
-
-# define END_DO_MARKERS_INDEX }
 
 struct marker_vector_it marker_vector_it_init (struct buffer *b);
 void marker_vector_add (struct buffer *b, struct Lisp_Marker *m);
