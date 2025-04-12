@@ -117,8 +117,8 @@ marker_vector_it_marker (struct marker_vector_it *it)
 # define END_DO_MARKER_VECTORS }
 
 struct marker_vector_it marker_vector_it_init (struct buffer *b);
-void marker_vector_add_marker (struct buffer *b, struct Lisp_Marker *m);
-void marker_vector_remove_marker (struct buffer *b, struct Lisp_Marker *m);
-void marker_vector_remove_all_markers (struct buffer *b);
+void marker_vector_add (struct buffer *b, struct Lisp_Marker *m);
+void marker_vector_remove (struct buffer *b, struct Lisp_Marker *m);
+void marker_vector_clear (struct buffer *b);
 
 #endif /* EMACS_MARKER_VECTOR_H */

@@ -138,6 +138,23 @@ add_entry (Lisp_Object mv, struct Lisp_Marker *m)
   return entry;
 }
 
+/* Take ENTRY out of the list of used markers in marker vector V..  */
+
+static void
+remove_entry (struct Lisp_Vector *v, const ptrdiff_t entry)
+{
+  const Lisp_Object prev = PREV (v, entry);
+  const Lisp_Object next = NEXT (v, entry);
+
+  if (IS_NONE (prev))
+    HEAD (v) = NEXT (v, entry);
+  else
+    NEXT (v, XFIXNUM (prev)) = next;
+
+  if (!IS_NONE (next))
+    PREV (v, XFIXNUM (next)) = prev;
+}
+
 static Lisp_Object
 alloc_marker_vector (ptrdiff_t len, Lisp_Object init)
 {
@@ -183,7 +200,7 @@ larger_marker_vector (Lisp_Object v)
    make one.  If B's marker vector is full, make a new larger one.  */
 
 void
-marker_vector_add_marker (struct buffer *b, struct Lisp_Marker *m)
+marker_vector_add (struct buffer *b, struct Lisp_Marker *m)
 {
   Lisp_Object mv = BUF_MARKERS (b);
   eassert (NILP (mv) || VECTORP (mv));
@@ -198,30 +215,10 @@ marker_vector_add_marker (struct buffer *b, struct Lisp_Marker *m)
   m->buffer = b;
 }
 
-/* Take marker at ENTRY out of the list of used markers in marker
-   vector V and put it in the free-list.  */
-
-static void
-unchain (struct Lisp_Vector *v, const ptrdiff_t entry)
-{
-  const Lisp_Object prev = PREV (v, entry);
-  const Lisp_Object next = NEXT (v, entry);
-
-  if (IS_NONE (prev))
-    HEAD (v) = NEXT (v, entry);
-  else
-    NEXT (v, XFIXNUM (prev)) = next;
-
-  if (!IS_NONE (next))
-    PREV (v, XFIXNUM (next)) = prev;
-
-  push_free (v, entry);
-}
-
 /* Remove marker M from the markers of buffer B.  */
 
 void
-marker_vector_remove_marker (struct buffer *b, struct Lisp_Marker *m)
+marker_vector_remove (struct buffer *b, struct Lisp_Marker *m)
 {
   Lisp_Object mv = BUF_MARKERS (b);
   eassert (VECTORP (mv));
@@ -229,7 +226,8 @@ marker_vector_remove_marker (struct buffer *b, struct Lisp_Marker *m)
   eassert (m->entry >= 0 && m->entry < capacity (v));
   eassert (MARKERP (MARKER (v, m->entry)));
   eassert (XMARKER (MARKER (v, m->entry)) == m);
-  unchain (v, m->entry);
+  remove_entry (v, m->entry);
+  push_free (v, m->entry);
   m->entry = -1;
   m->buffer = NULL;
 }
@@ -237,7 +235,7 @@ marker_vector_remove_marker (struct buffer *b, struct Lisp_Marker *m)
 /* Remove all markers from buffer B.  */
 
 void
-marker_vector_remove_all_markers (struct buffer *b)
+marker_vector_clear (struct buffer *b)
 {
   Lisp_Object mv = BUF_MARKERS (b);
   if (VECTORP (mv))
