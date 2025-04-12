@@ -42,8 +42,8 @@ enum
   MARKER_VECTOR_ENTRY_SIZE = 3,
 
   /* Indices of header.  */
-  MARKER_VECTOR_FREE_LIST = 0,
-  MARKER_VECTOR_HEAD = 1,
+  MARKER_VECTOR_HEAD = 0,
+  MARKER_VECTOR_FREE = 1,
 
   /* Relative indices of entries.  */
   MARKER_VECTOR_OFFSET_NEXT = 0,
