@@ -108,15 +108,6 @@ copy (struct Lisp_Vector *to, const struct Lisp_Vector *from)
     copy_entry (to, from, entry);
 }
 
-/* Value is true if marker vector MARKERS has enough room for a new
-   entry.  */
-
-static bool
-has_room (Lisp_Object markers)
-{
-  return VECTORP (markers) && !IS_NONE (FREE (XVECTOR (markers)));
-}
-
 /* Add a new entry for M to marker array MV and return
    its entry number.  */
 
@@ -156,44 +147,57 @@ remove_entry (struct Lisp_Vector *v, const ptrdiff_t entry)
 }
 
 static Lisp_Object
-alloc_marker_vector (ptrdiff_t len, Lisp_Object init)
+alloc_marker_vector (ptrdiff_t len)
 {
   return Qnil;
 }
 
-/* Return a new vector that is larger then marker vector V.  V must be
-   full.  */
+/* Return a new marker vector that is larger then marker vector V.  */
 
 static Lisp_Object
-larger_marker_vector (Lisp_Object v)
+larger_marker_vector (Lisp_Object mv)
 {
-  eassert (NILP (v) || (VECTORP (v) && IS_NONE (FREE (XVECTOR (v)))));
-  const ptrdiff_t old_nentrys = NILP (v) ? 0 : capacity (XVECTOR (v));
-  const ptrdiff_t new_nentrys = max (4, 2 * old_nentrys);
+  const ptrdiff_t old_nentrys = NILP (mv) ? 0 : capacity (XVECTOR (mv));
+  const ptrdiff_t new_nentrys = max (10, 2 * old_nentrys);
   const ptrdiff_t alloc_len = (new_nentrys * MARKER_VECTOR_ENTRY_SIZE
 			       + MARKER_VECTOR_HEADER_SIZE);
-  Lisp_Object new_v = alloc_marker_vector (alloc_len, Qnil);
+  Lisp_Object new_mv = alloc_marker_vector (alloc_len);
+  struct Lisp_Vector *new_v = XVECTOR (new_mv);
 
   /* Copy existing entries. */
-  struct Lisp_Vector *xnew_v = XVECTOR (new_v);
   ptrdiff_t free_start;
-  if (VECTORP (v))
+  if (VECTORP (mv))
     {
-      struct Lisp_Vector *xv = XVECTOR (v);
-      copy (xnew_v, xv);
-      free_start = capacity (xv);
+      struct Lisp_Vector *old_v = XVECTOR (mv);
+      copy (new_v, old_v);
+      free_start = capacity (old_v);
     }
   else
     {
-      HEAD (xnew_v) = NONE;
+      HEAD (new_v) = NONE;
       free_start = 0;
     }
 
   /* Add rest of entries to free-list.  */
-  for (ptrdiff_t entry = free_start; entry < capacity (xnew_v); ++entry)
-    push_free (xnew_v, entry + 1);
+  for (ptrdiff_t entry = free_start; entry < capacity (new_v); ++entry)
+    push_free (new_v, entry + 1);
 
-  return new_v;
+  return new_mv;
+}
+
+/* Make sure that the marker vector of B has room for a new entry.
+   Value is the marker vector.  */
+
+static Lisp_Object
+make_room_for_entry (struct buffer *b)
+{
+  Lisp_Object mv = BUF_MARKERS (b);
+  if (NILP (mv) || IS_NONE (FREE (XVECTOR (mv))))
+    {
+      mv = larger_marker_vector (mv);
+      BUF_MARKERS (b) = mv;
+    }
+  return mv;
 }
 
 /* Add marker M to the marker vector of B.  If B has no marker vector yet,
@@ -202,15 +206,7 @@ larger_marker_vector (Lisp_Object v)
 void
 marker_vector_add (struct buffer *b, struct Lisp_Marker *m)
 {
-  Lisp_Object mv = BUF_MARKERS (b);
-  eassert (NILP (mv) || VECTORP (mv));
-
-  if (!has_room (mv))
-    {
-      mv = larger_marker_vector (mv);
-      BUF_MARKERS (b) = mv;
-    }
-
+  Lisp_Object mv = make_room_for_entry (b);
   m->entry = add_entry (mv, m);
   m->buffer = b;
 }
@@ -221,7 +217,6 @@ void
 marker_vector_remove (struct buffer *b, struct Lisp_Marker *m)
 {
   Lisp_Object mv = BUF_MARKERS (b);
-  eassert (VECTORP (mv));
   struct Lisp_Vector *v = XVECTOR (mv);
   eassert (m->entry >= 0 && m->entry < capacity (v));
   eassert (MARKERP (MARKER (v, m->entry)));
