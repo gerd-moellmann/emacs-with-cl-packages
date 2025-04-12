@@ -16,6 +16,26 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
+/* A marker vector is used to hold the markers of a buffer. The vector
+   is a normal Lisp vector that consists of a header and a number of
+   entries for each marker.
+
+   +------+------+---------+---------+-------------+
+   | HEAD | FREE | entry 0 | entry 1 | ...         |
+   +------+------+---------+---------+-------------+
+   |<- header -->|
+
+   Entries consist of 3 vector slots MARKER, NEXT and PREV. MARKER
+   holds a marker, if the entry is in use. NEXT and PREV are entry
+   numbers used to form a doubly-linked list in the marker vector.
+
+   HEAD is the entry number of the start of the doubly-linked list
+   of used entries.
+
+   FREE is the entry number of the next free entry in the marker vector.
+   Free entries form a singly-linked list using the NEXT field of
+   entries. */
+
 #include <config.h>
 #include "lisp.h"
 #include "buffer.h"
@@ -28,7 +48,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #define NEXT(v, e) (v)->contents[IDX ((e), NEXT)]
 #define PREV(v, e) (v)->contents[IDX ((e), PREV)]
 #define MARKER(v, e) (v)->contents[IDX ((e), MARKER)]
-#define NEXT_FREE(v, e) MARKER (v, e)
 
 /* Access header fields of marker vecgor V as lvalues.  */
 #define FREE(v) (v)->contents[MARKER_VECTOR_FREE]
@@ -61,7 +80,7 @@ marker_vector_it_init (struct buffer *b)
 static void
 push_free (struct Lisp_Vector *v, const ptrdiff_t entry)
 {
-  NEXT_FREE (v, entry) = FREE (v);
+  NEXT (v, entry) = FREE (v);
   FREE (v) = make_fixnum (entry);
 }
 
@@ -73,7 +92,7 @@ pop_free (struct Lisp_Vector *v)
 {
   eassert (!IS_NONE (FREE (v)));
   const ptrdiff_t free = XFIXNUM (FREE (v));
-  FREE (v) = NEXT_FREE (v, free);
+  FREE (v) = NEXT (v, free);
   return free;
 }
 
