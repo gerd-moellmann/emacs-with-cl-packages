@@ -2141,7 +2141,7 @@ fix_marker_vector (mps_ss_t ss, struct Lisp_Vector *v)
   {
     DO_MARKER_SLOTS (v, i)
     {
-      Lisp_Object old = v->contents[i];
+      volatile Lisp_Object old = v->contents[i];
       eassert (NILP (old) || MARKERP (old));
       if (!NILP (old))
 	{

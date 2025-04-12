@@ -176,6 +176,7 @@ larger_marker_vector (Lisp_Object old_mv)
       const size_t nbytes = old_v->header.size * sizeof (Lisp_Object);
       memcpy (new_v->contents, old_v->contents, nbytes);
       free_start = capacity (old_v);
+      memclear (old_v->contents, old_v->header.size * sizeof (Lisp_Object));
     }
   else
     {
@@ -189,6 +190,53 @@ larger_marker_vector (Lisp_Object old_mv)
     push_free (new_v, e);
 
   return new_mv;
+}
+
+static void
+check_marker_vector (const struct Lisp_Vector *v)
+{
+  size_t nfree = 0;
+  for (Lisp_Object e = FREE (v); !IS_NONE (e); e = NEXT (v, XFIXNUM (e)))
+    {
+      ptrdiff_t i = XFIXNUM (e);
+      eassert (NILP (MARKER (v, i)));
+      eassert (IS_NONE (PREV (v, i)));
+      ++nfree;
+    }
+
+  size_t nused = 0;
+  for (Lisp_Object e = HEAD (v); !IS_NONE (e); e = NEXT (v, XFIXNUM (e)))
+    {
+      ptrdiff_t i = XFIXNUM (e);
+      eassert (MARKERP (MARKER (v, i)));
+      struct Lisp_Marker *m = XMARKER (MARKER (v, i));
+      eassert (m->entry = i);
+      eassert (m->buffer != NULL);
+      struct Lisp_Vector *mv = XVECTOR (BUF_MARKERS (m->buffer));
+      eassert (mv == v);
+      ++nused;
+    }
+
+  size_t ndo = 0;
+  DO_MARKER_SLOTS (v, i)
+  {
+    Lisp_Object marker = v->contents[i];
+    eassert (NILP (marker) || MARKERP (marker));
+    const ptrdiff_t entry = (i - MARKER_VECTOR_HEADER_SIZE) / MARKER_VECTOR_ENTRY_SIZE;
+    eassert (EQ (marker, MARKER (v, entry)));
+    if (MARKERP (marker))
+      {
+	struct Lisp_Marker *m = XMARKER (marker);
+	eassert (XVECTOR (BUF_MARKERS (m->buffer)) == v);
+	eassert (m->entry == entry);
+      }
+    ++ndo;
+  }
+  END_DO_MARKERS;
+
+  eassert (ndo == nused + nfree);
+  eassert ((nused + nfree) * MARKER_VECTOR_ENTRY_SIZE
+	   + MARKER_VECTOR_HEADER_SIZE == v->header.size);
 }
 
 /* Make sure that the marker vector of B has room for a new entry.
@@ -215,6 +263,7 @@ marker_vector_add (struct buffer *b, struct Lisp_Marker *m)
   Lisp_Object mv = make_room_for_entry (b);
   m->entry = add_entry (mv, m);
   m->buffer = b;
+  check_marker_vector (XVECTOR (mv));
 }
 
 /* Remove marker M from the markers of buffer B.  */
@@ -229,6 +278,7 @@ marker_vector_remove (struct Lisp_Vector *v, struct Lisp_Marker *m)
   push_free (v, m->entry);
   m->entry = -1;
   m->buffer = NULL;
+  check_marker_vector (v);
 }
 
 /* Remove all markers from buffer B.  */

@@ -103,12 +103,6 @@ process handle SIGINT --pass true --stop false --notify false
 #settings set -- target.run-args -Q --eval '(progn (view-hello-file) (redisplay) (igc--collect) (forward-line))'
 
 #target create temacs
-#settings set -- target.run-args --batch  -l loadup --temacs=pbootstrap --bin-dest not-set --eln-dest not-set
-#command alias go process launch --working-dir .
-##settings set target.disable-aslr false
-
-
-#target create temacs
 #settings set -- target.run-args --batch  -l loadup --temacs=pbootstrap --bin-dest /Users/gerd/emacs/github/igc-copy/nextstep/Emacs.app/Contents/MacOS/ --eln-dest /Users/gerd/emacs/github/igc-copy/nextstep/Emacs.app/Contents/Frameworks/
 #command alias go process launch --working-dir .
 
@@ -117,6 +111,7 @@ process handle SIGINT --pass true --stop false --notify false
 
 # Attach to future Emacs
 
-target create bootstrap-emacs
-settings set -- target.run-args -batch --no-site-file --no-site-lisp -f batch-byte-compile emacs-lisp/cconv.el
-command alias go process launch --disable-aslr false --working-dir ../lisp
+target create temacs
+settings set -- target.run-args --batch  -l loadup --temacs=pbootstrap 	--bin-dest '/Users/gerd/.local/bin/' --eln-dest '/Users/gerd/.local/lib/emacs/31.0.50/'
+command alias go process launch --working-dir .
+##settings set target.disable-aslr false
