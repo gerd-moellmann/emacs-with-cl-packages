@@ -697,10 +697,13 @@ detach_marker (Lisp_Object marker)
    buffer NULL.  */
 
 void
-unchain_marker (register struct Lisp_Marker *marker)
+unchain_marker (struct Lisp_Marker *marker)
 {
   if (marker->buffer)
-    marker_vector_remove (marker->buffer, marker);
+    {
+      Lisp_Object mv = BUF_MARKERS (marker->buffer);
+      marker_vector_remove (XVECTOR (mv), marker);
+    }
 }
 
 /* Return the char position of marker MARKER, as a C integer.  */

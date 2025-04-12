@@ -56,7 +56,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
 /* End marker in lists.  */
 #define NONE make_fixnum (-1)
-#define IS_NONE(x) (FIXNUMP (x) && XFIXNUM(x) == -1)
+#define IS_NONE(x) (FIXNUMP (x) && XFIXNUM (x) == -1)
 
 /* Return a marker vector iterator for buffer B.  */
 
@@ -76,11 +76,22 @@ marker_vector_it_init (struct buffer *b)
   return (struct marker_vector_it) {.marker = Qnil};
 }
 
+/* Return the capacity of marker vector V in entries.  */
+
+static ptrdiff_t
+capacity (const struct Lisp_Vector *v)
+{
+  return ((v->header.size - MARKER_VECTOR_HEADER_SIZE)
+	  / MARKER_VECTOR_ENTRY_SIZE);
+}
+
 /* Add entry ENTRY of V to its free-list.  */
 
 static void
 push_free (struct Lisp_Vector *v, const ptrdiff_t entry)
 {
+  MARKER (v, entry) = Qnil;
+  PREV (v, entry) = NONE;
   NEXT (v, entry) = FREE (v);
   FREE (v) = make_fixnum (entry);
 }
@@ -93,39 +104,9 @@ pop_free (struct Lisp_Vector *v)
 {
   eassert (!IS_NONE (FREE (v)));
   const ptrdiff_t free = XFIXNUM (FREE (v));
+  eassert (free >= 0 && free < capacity (v));
   FREE (v) = NEXT (v, free);
   return free;
-}
-
-/* Return the capacity of marker vector V in entries.  */
-
-static ptrdiff_t
-capacity (const struct Lisp_Vector *v)
-{
-  return ((v->header.size - MARKER_VECTOR_HEADER_SIZE)
-	  / MARKER_VECTOR_ENTRY_SIZE);
-}
-
-/* Copy entry ENTRY of marker vector FROM to TO.  */
-
-static void
-copy_entry (struct Lisp_Vector *to, const struct Lisp_Vector *from,
-	    ptrdiff_t entry)
-{
-  const ptrdiff_t start = marker_vector_entry_to_index (entry);
-  for (ptrdiff_t i = 0; i < MARKER_VECTOR_ENTRY_SIZE; ++i)
-    to->contents[start + i] = from->contents[start + i];
-}
-
-/* Copy marker VECTOR FROM to TO.  */
-
-static void
-copy (struct Lisp_Vector *to, const struct Lisp_Vector *from)
-{
-  FREE (to) = FREE (from);
-  HEAD (to) = HEAD (from);
-  for (ptrdiff_t entry = 0; entry < capacity (from); ++entry)
-    copy_entry (to, from, entry);
 }
 
 /* Add a new entry for M to marker array MV and return
@@ -136,6 +117,7 @@ add_entry (Lisp_Object mv, struct Lisp_Marker *m)
 {
   struct Lisp_Vector *v = XVECTOR (mv);
   const ptrdiff_t entry = pop_free (v);
+  eassert (NILP (MARKER (v, entry)));
 
   Lisp_Object marker = make_lisp_ptr (m, Lisp_Vectorlike);
   MARKER (v, entry) = marker;
@@ -174,12 +156,12 @@ alloc_marker_vector (ptrdiff_t len)
 #endif
 }
 
-/* Return a new marker vector that is larger then marker vector V.  */
+/* Return a new marker vector that is like OLD_MV but larger.  */
 
 static Lisp_Object
-larger_marker_vector (Lisp_Object mv)
+larger_marker_vector (Lisp_Object old_mv)
 {
-  const ptrdiff_t old_nentrys = NILP (mv) ? 0 : capacity (XVECTOR (mv));
+  const ptrdiff_t old_nentrys = NILP (old_mv) ? 0 : capacity (XVECTOR (old_mv));
   const ptrdiff_t new_nentrys = max (10, 2 * old_nentrys);
   const ptrdiff_t alloc_len = (new_nentrys * MARKER_VECTOR_ENTRY_SIZE
 			       + MARKER_VECTOR_HEADER_SIZE);
@@ -188,21 +170,24 @@ larger_marker_vector (Lisp_Object mv)
 
   /* Copy existing entries. */
   ptrdiff_t free_start;
-  if (VECTORP (mv))
+  if (VECTORP (old_mv))
     {
-      struct Lisp_Vector *old_v = XVECTOR (mv);
-      copy (new_v, old_v);
+      struct Lisp_Vector *old_v = XVECTOR (old_mv);
+      eassert (IS_NONE (FREE (old_v)));
+      const size_t nbytes = old_v->header.size * sizeof (Lisp_Object);
+      memcpy (new_v->contents, old_v->contents, nbytes);
       free_start = capacity (old_v);
     }
   else
     {
       HEAD (new_v) = NONE;
+      FREE (new_v) = NONE;
       free_start = 0;
     }
 
   /* Add rest of entries to free-list.  */
-  for (ptrdiff_t entry = free_start; entry < capacity (new_v); ++entry)
-    push_free (new_v, entry + 1);
+  for (ptrdiff_t e = free_start; e < capacity (new_v); ++e)
+    push_free (new_v, e);
 
   return new_mv;
 }
