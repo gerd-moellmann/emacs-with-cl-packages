@@ -27,6 +27,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "intervals.h"
 #include "character.h"
 #include "buffer.h"
+#include "marker-vector.h"
 #include "window.h"
 #include "region-cache.h"
 #include "pdumper.h"

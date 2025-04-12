@@ -292,6 +292,7 @@ encode_coding_XXX (struct coding_system *coding)
 #include "lisp.h"
 #include "character.h"
 #include "buffer.h"
+#include "marker-vector.h"
 #include "charset.h"
 #include "ccl.h"
 #include "composite.h"

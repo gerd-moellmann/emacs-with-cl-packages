@@ -92,7 +92,7 @@ marker_vector_it_is_valid (const struct marker_vector_it *it)
 }
 
 INLINE void
-marker_vector_it_set_to_bext (struct marker_vector_it *it)
+marker_vector_it_set_to_next (struct marker_vector_it *it)
 {
   it->entry = XFIXNUM (marker_vector_next (it->v, it->entry));
   if (it->entry >= 0)
@@ -107,18 +107,28 @@ marker_vector_it_marker (struct marker_vector_it *it)
   return XMARKER (it->marker);
 }
 
-# define DO_MARKER_VECTOR(b, m)					\
+# define DO_MARKERS(b, m)					\
   for (struct marker_vector_it it_ = marker_vector_it_init (b);	\
        marker_vector_it_is_valid (&it_);			\
        marker_vector_it_set_to_next (&it_))			\
     {								\
        struct Lisp_Marker *m = marker_vector_it_marker (&it_);
 
-# define END_DO_MARKER_VECTORS }
+# define END_DO_MARKERS }
+
+# define DO_MARKERS_INDEX(v, index)					\
+  for (ptrdiff_t entry_ = XFIXNUM (marker_vector_head (v)), next_;	\
+	 entry_ >= 0; entry_ = next_)					\
+    {									\
+      next_ = XFIXNUM (marker_vector_next (v, entry_));			\
+      ptrdiff_t index = marker_vector_entry_to_index (entry_)		\
+	+ MARKER_VECTOR_OFFSET_MARKER;					\
+
+# define END_DO_MARKERS_INDEX }
 
 struct marker_vector_it marker_vector_it_init (struct buffer *b);
 void marker_vector_add (struct buffer *b, struct Lisp_Marker *m);
-void marker_vector_remove (struct buffer *b, struct Lisp_Marker *m);
+void marker_vector_remove (struct Lisp_Vector *v, struct Lisp_Marker *m);
 void marker_vector_clear (struct buffer *b);
 
 #endif /* EMACS_MARKER_VECTOR_H */

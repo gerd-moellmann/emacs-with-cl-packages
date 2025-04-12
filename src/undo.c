@@ -22,6 +22,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include "lisp.h"
 #include "buffer.h"
+#include "marker-vector.h"
 #include "keyboard.h"
 
 /* The first time a command records something for undo.

@@ -43,6 +43,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "xwidget.h"
 #include "itree.h"
 #include "pdumper.h"
+#include "marker-vector.h"
 #include "igc.h"
 
 #ifdef WINDOWSNT
@@ -2078,27 +2079,13 @@ cleaning up all windows currently displaying the buffer to be killed. */)
       /* Unchain all markers that belong to this indirect buffer.
 	 Don't unchain the markers that belong to the base buffer
 	 or its other indirect buffers.  */
-#ifdef HAVE_MPS
       DO_MARKERS (b, m)
 	{
 	  if (m->buffer == b)
-	    igc_remove_marker (b, m);
+	    marker_vector_remove (XVECTOR (BUF_MARKERS (b)), m);
 	}
       END_DO_MARKERS;
-#else
-      struct Lisp_Marker **mp = &BUF_MARKERS (b);
-      struct Lisp_Marker *m;
-      while ((m = *mp))
-	{
-	  if (m->buffer == b)
-	    {
-	      m->buffer = NULL;
-	      *mp = m->next;
-	    }
-	  else
-	    mp = &m->next;
-	}
- #endif
+
      /* Intervals should be owned by the base buffer (Bug#16502).  */
       i = buffer_intervals (b);
       if (i)
@@ -2112,18 +2099,7 @@ cleaning up all windows currently displaying the buffer to be killed. */)
     {
       /* Unchain all markers of this buffer and its indirect buffers.
 	 and leave them pointing nowhere.  */
-#ifdef HAVE_MPS
-      igc_remove_all_markers (b);
-#else
-      for (struct Lisp_Marker *m = BUF_MARKERS (b); m; )
-	{
-	  struct Lisp_Marker *next = m->next;
-	  m->buffer = 0;
-	  m->next = NULL;
-	  m = next;
-	}
-      BUF_MARKERS (b) = NULL;
-#endif
+      marker_vector_clear (b);
       set_buffer_intervals (b, NULL);
 
       /* Perhaps we should explicitly free the interval tree here...  */

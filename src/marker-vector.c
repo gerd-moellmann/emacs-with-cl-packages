@@ -40,6 +40,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #include "lisp.h"
 #include "buffer.h"
 #include "marker-vector.h"
+#include "igc.h"
 
 #define IDX(e, o) (marker_vector_entry_to_index (e) \
 		   + MARKER_VECTOR_OFFSET_##o)
@@ -168,7 +169,9 @@ remove_entry (struct Lisp_Vector *v, const ptrdiff_t entry)
 static Lisp_Object
 alloc_marker_vector (ptrdiff_t len)
 {
-  return Qnil;
+#ifdef HAVE_MPS
+  return igc_alloc_marker_vector (len);
+#endif
 }
 
 /* Return a new marker vector that is larger then marker vector V.  */
@@ -233,10 +236,8 @@ marker_vector_add (struct buffer *b, struct Lisp_Marker *m)
 /* Remove marker M from the markers of buffer B.  */
 
 void
-marker_vector_remove (struct buffer *b, struct Lisp_Marker *m)
+marker_vector_remove (struct Lisp_Vector *v, struct Lisp_Marker *m)
 {
-  Lisp_Object mv = BUF_MARKERS (b);
-  struct Lisp_Vector *v = XVECTOR (mv);
   eassert (m->entry >= 0 && m->entry < capacity (v));
   eassert (MARKERP (MARKER (v, m->entry)));
   eassert (XMARKER (MARKER (v, m->entry)) == m);

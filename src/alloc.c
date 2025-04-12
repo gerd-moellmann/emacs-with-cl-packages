@@ -38,6 +38,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "systime.h"
 #include "character.h"
 #include "buffer.h"
+#include "marker-vector.h"
 #include "window.h"
 #include "keyboard.h"
 #include "frame.h"
@@ -4073,12 +4074,7 @@ build_marker (struct buffer *buf, ptrdiff_t charpos, ptrdiff_t bytepos)
   m->bytepos = bytepos;
   m->insertion_type = 0;
   m->need_adjustment = 0;
-#ifdef HAVE_MPS
-  igc_add_marker (buf, m);
-#else
-  m->next = BUF_MARKERS (buf);
-  BUF_MARKERS (buf) = m;
-#endif
+  marker_vector_add (buf, m);
   return make_lisp_ptr (m, Lisp_Vectorlike);
 }
 

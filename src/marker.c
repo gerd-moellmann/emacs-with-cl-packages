@@ -28,6 +28,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "lisp.h"
 #include "character.h"
 #include "buffer.h"
+#include "marker-vector.h"
 #include "window.h"
 #include "igc.h"
 
@@ -503,12 +504,7 @@ attach_marker (struct Lisp_Marker *m, struct buffer *b,
     {
       unchain_marker (m);
       m->buffer = b;
-#ifdef HAVE_MPS
-      igc_add_marker (b, m);
-#else
-      m->next = BUF_MARKERS (b);
-      BUF_MARKERS (b) = m;
-#endif
+      marker_vector_add (b, m);
     }
 }
 
@@ -703,43 +699,8 @@ detach_marker (Lisp_Object marker)
 void
 unchain_marker (register struct Lisp_Marker *marker)
 {
-  register struct buffer *b = marker->buffer;
-
-  if (b)
-    {
-#ifdef HAVE_MPS
-      igc_remove_marker (b, marker);
-#else
-      register struct Lisp_Marker *tail, **prev;
-
-      /* No dead buffers here.  */
-      eassert (BUFFER_LIVE_P (b));
-
-      marker->buffer = NULL;
-      prev = &BUF_MARKERS (b);
-
-      for (tail = BUF_MARKERS (b); tail; prev = &tail->next, tail = *prev)
-	if (marker == tail)
-	  {
-	    if (*prev == BUF_MARKERS (b))
-	      {
-		/* Deleting first marker from the buffer's chain.  Crash
-		   if new first marker in chain does not say it belongs
-		   to the same buffer, or at least that they have the same
-		   base buffer.  */
-		if (tail->next && b->text != tail->next->buffer->text)
-		  emacs_abort ();
-	      }
-	    *prev = tail->next;
-	    /* We have removed the marker from the chain;
-	       no need to scan the rest of the chain.  */
-	    break;
-	  }
-
-      /* Error if marker was not in it's chain.  */
-      eassert (tail != NULL);
-#endif
-    }
+  if (marker->buffer)
+    marker_vector_remove (marker->buffer, marker);
 }
 
 /* Return the char position of marker MARKER, as a C integer.  */
