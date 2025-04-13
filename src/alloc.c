@@ -4047,9 +4047,7 @@ DEFUN ("make-marker", Fmake_marker, Smake_marker, 0, 0, 0,
   p->buffer = 0;
   p->bytepos = 0;
   p->charpos = 0;
-#ifndef HAVE_MPS
-  p->next = NULL;
-#endif
+  p->entry = 0;
   p->insertion_type = 0;
   p->need_adjustment = 0;
   return make_lisp_ptr (p, Lisp_Vectorlike);
@@ -7440,19 +7438,22 @@ sweep_symbols (void)
 
 /* Remove BUFFER's markers that are due to be swept.  This is needed since
    we treat BUF_MARKERS and markers's `next' field as weak pointers.  */
+
 static void
 unchain_dead_markers (struct buffer *buffer)
 {
-  struct Lisp_Marker *this, **prev = &BUF_MARKERS (buffer);
-
-  while ((this = *prev))
-    if (vectorlike_marked_p (&this->header))
-      prev = &this->next;
-    else
-      {
-        this->buffer = NULL;
-        *prev = this->next;
-      }
+  Lisp_Object mv = BUF_MARKERS (buffer);
+  for (ptrdiff_t i = MARKER_VECTOR_HEADER_SIZE; i < gc_asize (mv);
+       i += MARKER_VECTOR_ENTRY_SIZE)
+    {
+      Lisp_Object marker = AREF (mv, i);
+      if (MARKERP (marker))
+	{
+	  struct Lisp_Marker *m = XMARKER (marker);
+	  if (!vectorlike_marked_p (&m->header))
+	    marker_vector_remove (XVECTOR (mv), m);
+	}
+    }
 }
 
 NO_INLINE /* For better stack traces */

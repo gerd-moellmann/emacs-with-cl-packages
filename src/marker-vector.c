@@ -132,45 +132,9 @@ alloc_marker_vector (ptrdiff_t len)
 {
 #ifdef HAVE_MPS
   return igc_alloc_marker_vector (len);
+#else
+  return make_vector (len, Qnil);
 #endif
-}
-
-static void
-add_to_free_list (Lisp_Object mv, ptrdiff_t upto)
-{
-  struct Lisp_Vector *v = XVECTOR (mv);
-  for (ptrdiff_t e = ASIZE (mv) - MARKER_VECTOR_ENTRY_SIZE;
-       e >= upto; e -= MARKER_VECTOR_ENTRY_SIZE)
-    push_free (v, e);
-}
-
-Lisp_Object
-make_marker_vector (void)
-{
-  Lisp_Object mv = alloc_marker_vector (MARKER_VECTOR_MIN_SIZE);
-  add_to_free_list (mv, MARKER_VECTOR_HEADER_SIZE);
-  return mv;
-}
-
-/* Return a new marker vector that is like OLD_MV but larger.  */
-
-static Lisp_Object
-larger_marker_vector (Lisp_Object old_mv)
-{
-  const ptrdiff_t old_size = ASIZE (old_mv);
-  const ptrdiff_t new_size = max (MARKER_VECTOR_MIN_SIZE, 2 * old_size);
-  Lisp_Object new_mv = alloc_marker_vector (new_size);
-  struct Lisp_Vector *new_v = XVECTOR (new_mv);
-
-  /* Copy existing entries. */
-  struct Lisp_Vector *old_v = XVECTOR (old_mv);
-  eassert (NILP (FREE (old_v)));
-  const size_t nbytes = ASIZE (old_mv) * sizeof (Lisp_Object);
-  memcpy (new_v->contents, old_v->contents, nbytes);
-
-  /* Add new entries to free-list.  */
-  add_to_free_list (new_mv, old_size);
-  return new_mv;
 }
 
 static void
@@ -197,6 +161,46 @@ check_marker_vector (const struct Lisp_Vector *v)
 
   eassert ((nused + nfree) * MARKER_VECTOR_ENTRY_SIZE
 	   + MARKER_VECTOR_HEADER_SIZE == vsize (v));
+}
+
+static void
+add_to_free_list (Lisp_Object mv, ptrdiff_t upto)
+{
+  struct Lisp_Vector *v = XVECTOR (mv);
+  for (ptrdiff_t e = ASIZE (mv) - MARKER_VECTOR_ENTRY_SIZE;
+       e >= upto; e -= MARKER_VECTOR_ENTRY_SIZE)
+    push_free (v, e);
+}
+
+Lisp_Object
+make_marker_vector (void)
+{
+  Lisp_Object mv = alloc_marker_vector (MARKER_VECTOR_MIN_SIZE);
+  add_to_free_list (mv, MARKER_VECTOR_HEADER_SIZE);
+  check_marker_vector (XVECTOR (mv));
+  return mv;
+}
+
+/* Return a new marker vector that is like OLD_MV but larger.  */
+
+static Lisp_Object
+larger_marker_vector (Lisp_Object old_mv)
+{
+  const ptrdiff_t old_size = ASIZE (old_mv);
+  const ptrdiff_t new_size = max (MARKER_VECTOR_MIN_SIZE, 2 * old_size);
+  Lisp_Object new_mv = alloc_marker_vector (new_size);
+  struct Lisp_Vector *new_v = XVECTOR (new_mv);
+
+  /* Copy existing entries. */
+  struct Lisp_Vector *old_v = XVECTOR (old_mv);
+  eassert (NILP (FREE (old_v)));
+  const size_t nbytes = ASIZE (old_mv) * sizeof (Lisp_Object);
+  memcpy (new_v->contents, old_v->contents, nbytes);
+
+  /* Add new entries to free-list.  */
+  add_to_free_list (new_mv, old_size);
+  check_marker_vector (new_v);
+  return new_mv;
 }
 
 /* Make sure that the marker vector of B has room for a new entry.

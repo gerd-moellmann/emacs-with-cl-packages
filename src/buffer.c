@@ -2702,9 +2702,6 @@ If the multibyte flag was really changed, undo information of the
 current buffer is cleared.  */)
   (Lisp_Object flag)
 {
-#ifndef HAVE_MPS
-  struct Lisp_Marker *tail, *markers;
-#endif
   Lisp_Object btail, other;
   ptrdiff_t begv, zv;
   bool narrowed = (BEG != BEGV || Z != ZV);
