@@ -91,6 +91,9 @@ capacity (const struct Lisp_Vector *v)
 static void
 push_free (struct Lisp_Vector *v, const ptrdiff_t entry)
 {
+  eassert (entry >= MARKER_VECTOR_HEADER_SIZE);
+  eassert (entry < v->header.size);
+  eassert ((entry - MARKER_VECTOR_HEADER_SIZE) % MARKER_VECTOR_ENTRY_SIZE == 0);
   NEXT_FREE (v, entry) = FREE (v);
   FREE (v) = make_fixnum (entry);
 }
@@ -105,6 +108,9 @@ pop_free (struct Lisp_Vector *v)
   const ptrdiff_t free = XFIXNUM (FREE (v));
   eassert (free >= 0 && free < capacity (v));
   FREE (v) = NEXT_FREE (v, free);
+  eassert (free >= MARKER_VECTOR_HEADER_SIZE);
+  eassert (free < v->header.size);
+  eassert ((free - MARKER_VECTOR_HEADER_SIZE) % MARKER_VECTOR_ENTRY_SIZE == 0);
   return free;
 }
 
