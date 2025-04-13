@@ -28,6 +28,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "character.h"
 #include "buffer.h"
 #include "marker-vector.h"
+#include "text-index.h"
 #include "window.h"
 #include "region-cache.h"
 #include "pdumper.h"
@@ -252,6 +253,8 @@ adjust_markers_for_delete (ptrdiff_t from, ptrdiff_t from_byte,
 {
   ptrdiff_t charpos;
 
+  text_index_invalidate (current_buffer, from_byte);
+
   adjust_suspend_auto_hscroll (from, to);
   DO_MARKERS (current_buffer, m)
     {
@@ -289,6 +292,8 @@ void
 adjust_markers_for_insert (ptrdiff_t from, ptrdiff_t from_byte,
 			   ptrdiff_t to, ptrdiff_t to_byte, bool before_markers)
 {
+  text_index_invalidate (current_buffer, from_byte);
+
   ptrdiff_t nchars = to - from;
   ptrdiff_t nbytes = to_byte - from_byte;
 
@@ -344,6 +349,8 @@ adjust_markers_for_replace (ptrdiff_t from, ptrdiff_t from_byte,
 			    ptrdiff_t old_chars, ptrdiff_t old_bytes,
 			    ptrdiff_t new_chars, ptrdiff_t new_bytes)
 {
+  text_index_invalidate (current_buffer, from_byte);
+
   ptrdiff_t prev_to_byte = from_byte + old_bytes;
   ptrdiff_t diff_chars = new_chars - old_chars;
   ptrdiff_t diff_bytes = new_bytes - old_bytes;

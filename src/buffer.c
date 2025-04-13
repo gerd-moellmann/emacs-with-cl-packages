@@ -45,6 +45,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "pdumper.h"
 #include "marker-vector.h"
 #include "igc.h"
+#include "text-index.h"
 
 #ifdef WINDOWSNT
 #include "w32heap.h"		/* for mmap_* */
@@ -594,6 +595,8 @@ even if it is dead.  The return value is never nil.  */)
 
   /* An ordinary buffer uses its own struct buffer_text.  */
   b->text = &b->own_text;
+  b->text->index = NULL;
+
   b->base_buffer = NULL;
   /* No one shares the text with us now.  */
   b->indirections = 0;
@@ -2146,6 +2149,7 @@ cleaning up all windows currently displaying the buffer to be killed. */)
       free_region_cache (b->bidi_paragraph_cache);
       b->bidi_paragraph_cache = 0;
     }
+  text_index_free (b->own_text.index);
   bset_width_table (b, Qnil);
   unblock_input ();
 

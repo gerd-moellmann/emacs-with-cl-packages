@@ -29,6 +29,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "character.h"
 #include "buffer.h"
 #include "marker-vector.h"
+#include "text-index.h"
 #include "window.h"
 #include "igc.h"
 
@@ -173,6 +174,9 @@ buf_charpos_to_bytepos (struct buffer *b, ptrdiff_t charpos)
   ptrdiff_t distance = BYTECHAR_DISTANCE_INITIAL;
 
   eassert (BUF_BEG (b) <= charpos && charpos <= BUF_Z (b));
+
+  if (use_text_index)
+    return text_index_charpos_to_bytepos (b, charpos);
 
   best_above = BUF_Z (b);
   best_above_byte = BUF_Z_BYTE (b);
@@ -329,6 +333,9 @@ buf_bytepos_to_charpos (struct buffer *b, ptrdiff_t bytepos)
   ptrdiff_t distance = BYTECHAR_DISTANCE_INITIAL;
 
   eassert (BUF_BEG_BYTE (b) <= bytepos && bytepos <= BUF_Z_BYTE (b));
+
+  if (use_text_index)
+    return text_index_bytepos_to_charpos (b, bytepos);
 
   best_above = BUF_Z (b);
   best_above_byte = BUF_Z_BYTE (b);

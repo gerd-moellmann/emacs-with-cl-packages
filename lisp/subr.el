@@ -185,9 +185,10 @@ pair.
       ;; Can't use backquote here, it's too early in the bootstrap.
       (setq expr
             (cons
-             (list 'set
-                   (list 'make-local-variable (list 'quote (car pairs)))
-                   (car (cdr pairs)))
+             (list 'setq (car pairs)
+                   (list 'prog1
+                    (car (cdr pairs))
+                    (list 'make-local-variable (list 'quote (car pairs)))))
              expr))
       (setq pairs (cdr (cdr pairs))))
     (macroexp-progn (nreverse expr))))
@@ -4772,6 +4773,7 @@ Interactively, prompt for SOURCE.
 The replacement is performed using `replace-region-contents'
 which also describes the MAX-SECS and MAX-COSTS arguments and the
 return value."
+  (declare (obsolete replace-region-contents "31.1"))
   (interactive "bSource buffer: ")
   (replace-region-contents (point-min) (point-max) (get-buffer source)
                            max-secs max-costs))

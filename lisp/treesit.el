@@ -3049,6 +3049,14 @@ ARG is described in the docstring of `forward-list'."
         ;; Use the default function only if it doesn't go
         ;; over the sibling and doesn't go out of the current group.
         (or (when (and default-pos
+                       ;; Fallback to the default sexp function when
+                       ;; matching the thing 'sexp-default' at point.
+                       (treesit-node-match-p
+                        (treesit-node-at (if (> arg 0) (point)
+                                           (max (1- (point)) (point-min))))
+                        'sexp-default t))
+              (goto-char default-pos))
+            (when (and default-pos
                        (or (null sibling)
                            (if (> arg 0)
                                (<= default-pos (treesit-node-start sibling))
@@ -3188,20 +3196,19 @@ ARG is described in the docstring of `up-list'."
             (user-error "At top level")))
       (setq cnt (- cnt inc)))))
 
-(defun treesit-toggle-sexp-mode ()
-  "Toggle the mode of navigation for sexp and list commands.
-This mode toggle affects navigation commands such as
-`treesit-forward-sexp', `treesit-forward-list', `treesit-down-list',
-`treesit-up-list'.
+(defun treesit-cycle-sexp-type ()
+  "Cycle the type of navigation for sexp and list commands.
+This type affects navigation commands such as `treesit-forward-sexp',
+`treesit-forward-list', `treesit-down-list', `treesit-up-list'.
 
-The mode can be `list' (the default) or `sexp'.
+The type can be `list' (the default) or `sexp'.
 
-The `list' mode uses the `list' thing defined in `treesit-thing-settings'.
-See `treesit-thing-at-point'.  In this mode commands use syntax tables to
+The `list' type uses the `list' thing defined in `treesit-thing-settings'.
+See `treesit-thing-at-point'.  With this type commands use syntax tables to
 navigate symbols and treesit definition to navigate lists.
 
-The `sexp' mode uses the `sexp' thing defined in `treesit-thing-settings'.
-In this mode commands use only the treesit definition of parser nodes,
+The `sexp' type uses the `sexp' thing defined in `treesit-thing-settings'.
+With this type commands use only the treesit definition of parser nodes,
 without distinction between symbols and lists."
   (interactive)
   (if (not (treesit-thing-defined-p 'list (treesit-language-at (point))))
@@ -3216,7 +3223,7 @@ without distinction between symbols and lists."
                 (if treesit-sexp-type-regexp
                     #'treesit-forward-sexp
                   #'treesit-forward-sexp-list))
-    (message "Toggle to mode where sexp commands navigate %s"
+    (message "Cycle sexp type to navigate %s"
              (or (and treesit-sexp-type-regexp
                       "treesit nodes")
                  "syntax symbols and treesit lists"))))
