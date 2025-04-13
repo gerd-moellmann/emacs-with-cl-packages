@@ -48,22 +48,23 @@ enum
   MARKER_VECTOR_OFFSET_CHARPOS = 1,
 };
 
-# define DO_MARKERS(b, m)					\
+# define DO_MARKERS_VECTOR(mv, m)				\
   for (ptrdiff_t i_ = MARKER_VECTOR_HEADER_SIZE,		\
-	 end_ = gc_asize (BUF_MARKERS (b));			\
+	 end_ = gc_asize (mv);					\
        i_ < end_;						\
        i_ += MARKER_VECTOR_ENTRY_SIZE)				\
     {								\
-       Lisp_Object m_ = AREF (BUF_MARKERS (b), i_);		\
+       Lisp_Object m_ = AREF (mv, i_);				\
        if (MARKERP (m_))					\
 	 {							\
             struct Lisp_Marker *m = XMARKER (m_);
 
+# define DO_MARKERS(b, m) DO_MARKERS_VECTOR (BUF_MAKERS (b), m)
 # define END_DO_MARKERS }}
 
 Lisp_Object make_marker_vector (void);
 void marker_vector_add (struct buffer *b, struct Lisp_Marker *m);
-void marker_vector_remove (struct Lisp_Vector *v, struct Lisp_Marker *m);
+void marker_vector_remove (Lisp_Object mv, struct Lisp_Marker *m);
 void marker_vector_clear (struct buffer *b);
 
 #endif /* EMACS_MARKER_VECTOR_H */

@@ -2919,13 +2919,8 @@ dump_buffer (struct dump_context *ctx, const struct buffer *in_buffer)
       DUMP_FIELD_COPY (out, buffer, own_text.overlay_unchanged_modified);
       if (buffer->own_text.intervals)
         dump_field_fixup_later (ctx, out, buffer, &buffer->own_text.intervals);
-#ifdef HAVE_MPS
       dump_field_lv (ctx, out, buffer, &buffer->own_text.markers,
 		     WEIGHT_NORMAL);
-#else
-      dump_field_lv_rawptr (ctx, out, buffer, &buffer->own_text.markers,
-                            Lisp_Vectorlike, WEIGHT_NORMAL);
-#endif
       DUMP_FIELD_COPY (out, buffer, own_text.inhibit_shrinking);
       DUMP_FIELD_COPY (out, buffer, own_text.redisplay);
     }
