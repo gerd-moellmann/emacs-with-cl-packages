@@ -26,10 +26,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
    +-------------+---------+---------+-------------+
    |<- header -->|
 
-   Entries consist of 3 vector slots MARKER, BYTEPOS and CHARPOS. MARKER
-   holds a marker, if the entry is in use. BYTEPOS and CHARPOS are not
-   yet used. (The idea is to move the positions from markers here,
-   which speeds up adjusting positions when the text changes.)
+   Entries consist of 3 vector slots MARKER and CHARPOS. MARKER holds a
+   marker, if the entry is in use. CHARPOS is not yet used. (The idea is
+   to move the positions from Lisp_Marker here, which speeds up
+   adjusting positions when the text changes.)
 
    FREE is the array index of the next free entry in the marker vector.
    Free entries form a singly-linked list using the MARKER field of
@@ -47,16 +47,23 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #include "igc.h"
 #endif
 
+enum
+{
+  MARKER_VECTOR_OFFSET_NEXT_FREE = MARKER_VECTOR_OFFSET_MARKER
+};
+
+/* You have to check the code below if you want this to not be equal to
+   the MARKER offset. */
+static_assert (MARKER_VECTOR_OFFSET_NEXT_FREE == MARKER_VECTOR_OFFSET_MARKER);
+
 /* Minimum number of entries to allocate.  */
 #define MARKER_VECTOR_MIN_SIZE ((10 * MARKER_VECTOR_ENTRY_SIZE) \
 				+ MARKER_VECTOR_HEADER_SIZE)
 
 /* Access fields of an entry E of marker vecgor V as lvalues.  */
-#define IDX(e, o) ((e) + MARKER_VECTOR_OFFSET_##o)
-#define BYTEPOS(v, e) (v)->contents[IDX ((e), BYTEPOS)]
-#define CHARPOS(v, e) (v)->contents[IDX ((e), CHARPOS)]
-#define MARKER(v, e) (v)->contents[IDX ((e), MARKER)]
-#define NEXT_FREE(v, e) BYTEPOS (v, e)
+#define MARKER(v, e) (v)->contents[(e) + MARKER_VECTOR_OFFSET_MARKER]
+#define CHARPOS(v, e) (v)->contents[(e) + MARKER_VECTOR_OFFSET_CHARPOS]
+#define NEXT_FREE(v, e) (v)->contents[(e) + MARKER_VECTOR_OFFSET_NEXT_FREE]
 
 /* Access header fields of marker vecgor V as lvalues.  */
 #define FREE(v) (v)->contents[MARKER_VECTOR_FREE]
@@ -67,10 +74,12 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 static ptrdiff_t
 vsize (const struct Lisp_Vector *v)
 {
-  return v->header.size;
+  Lisp_Object vector = make_lisp_ptr ((struct Lisp_Vector*) v, Lisp_Vectorlike);
+  return gc_asize (vector);
 }
 
-/* Add entry ENTRY of V to its free-list.  */
+/* Add entry ENTRY of V to its free-list. This implicitly sets
+   MARKER to not be a marker */
 
 static void
 push_free (struct Lisp_Vector *v, const ptrdiff_t entry)
@@ -226,7 +235,6 @@ marker_vector_remove (struct Lisp_Vector *v, struct Lisp_Marker *m)
   eassert (MARKERP (MARKER (v, m->entry)));
   eassert (XMARKER (MARKER (v, m->entry)) == m);
   push_free (v, m->entry);
-  MARKER (v, m->entry) = make_fixnum (-42);
   m->entry = 0;
   m->buffer = NULL;
   check_marker_vector (v);

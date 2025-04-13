@@ -38,20 +38,19 @@ enum
 {
   /* Size of header and entries in number of Lisp_Objects.  */
   MARKER_VECTOR_HEADER_SIZE = 1,
-  MARKER_VECTOR_ENTRY_SIZE = 3,
+  MARKER_VECTOR_ENTRY_SIZE = 2,
 
   /* Indices of header.  */
   MARKER_VECTOR_FREE = 0,
 
   /* Relative indices of entries.  */
   MARKER_VECTOR_OFFSET_MARKER = 0,
-  MARKER_VECTOR_OFFSET_BYTEPOS = 1,
-  MARKER_VECTOR_OFFSET_CHARPOS = 2,
+  MARKER_VECTOR_OFFSET_CHARPOS = 1,
 };
 
 # define DO_MARKERS(b, m)					\
   for (ptrdiff_t i_ = MARKER_VECTOR_HEADER_SIZE,		\
-	 end_ = ASIZE (BUF_MARKERS (b));			\
+	 end_ = gc_asize (BUF_MARKERS (b));			\
        i_ < end_;						\
        i_ += MARKER_VECTOR_ENTRY_SIZE)				\
     {								\

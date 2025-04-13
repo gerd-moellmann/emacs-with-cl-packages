@@ -7440,20 +7440,14 @@ sweep_symbols (void)
    we treat BUF_MARKERS and markers's `next' field as weak pointers.  */
 
 static void
-unchain_dead_markers (struct buffer *buffer)
+unchain_dead_markers (struct buffer *b)
 {
-  Lisp_Object mv = BUF_MARKERS (buffer);
-  for (ptrdiff_t i = MARKER_VECTOR_HEADER_SIZE; i < gc_asize (mv);
-       i += MARKER_VECTOR_ENTRY_SIZE)
+  DO_MARKERS (b, m)
     {
-      Lisp_Object marker = AREF (mv, i);
-      if (MARKERP (marker))
-	{
-	  struct Lisp_Marker *m = XMARKER (marker);
-	  if (!vectorlike_marked_p (&m->header))
-	    marker_vector_remove (XVECTOR (mv), m);
-	}
+      if (!vectorlike_marked_p (&m->header))
+	marker_vector_remove (XVECTOR (BUF_MARKERS (b)), m);
     }
+  END_DO_MARKERS;
 }
 
 NO_INLINE /* For better stack traces */
