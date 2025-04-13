@@ -661,11 +661,7 @@ even if it is dead.  The return value is never nil.  */)
   reset_buffer_local_variables (b, 1);
 
   bset_mark (b, Fmake_marker ());
-#ifdef HAVE_MPS
-  BUF_MARKERS (b) = Qnil;
-#else
-  BUF_MARKERS (b) = NULL;
-#endif
+  BUF_MARKERS (b) = make_marker_vector ();
   /* Put this in the alist of all live buffers.  */
   XSETBUFFER (buffer, b);
   Vbuffer_alist = nconc2 (Vbuffer_alist, list1 (Fcons (name, buffer)));

@@ -271,18 +271,8 @@ struct buffer_text
     /* Properties of this buffer's text.  */
     INTERVAL intervals;
 
-# ifdef HAVE_MPS
+    /* Marker vector.  */
     Lisp_Object markers;
-# else
-    /* The markers that refer to this buffer.
-       This is actually a single marker ---
-       successive elements in its marker `chain'
-       are the other markers referring to this buffer.
-       This is a singly linked unordered list, which means that it's
-       very cheap to add a marker to the list and it's also very cheap
-       to move a marker within a buffer.  */
-    struct Lisp_Marker *markers;
-# endif
 
     /* Usually false.  Temporarily true in decode_coding_gap to
        prevent Fgarbage_collect from shrinking the gap and losing

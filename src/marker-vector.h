@@ -82,6 +82,7 @@ marker_vector_it_set_to_next (struct marker_vector_it *it)
 # define END_DO_MARKERS }
 
 struct marker_vector_it marker_vector_it_init (struct buffer *b);
+Lisp_Object make_marker_vector (void);
 void marker_vector_add (struct buffer *b, struct Lisp_Marker *m);
 void marker_vector_remove (struct Lisp_Vector *v, struct Lisp_Marker *m);
 void marker_vector_clear (struct buffer *b);
