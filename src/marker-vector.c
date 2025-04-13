@@ -44,9 +44,13 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
    The use of a free list gives O(1) for adding a marker. The index
    stored in the Lisp_Marker provides O(1) deletion of a marker.
+
    Iteration over markers is O(N) where N is the size of the marker
-   vector.  FIXME: This could be improved to N being the number of
-   live markers by putting marker entries in a doubly-linked list.  */
+   vector.  This could be improved to N being the number of live markers
+   by putting marker entries in a doubly-linked list.  The downside is
+   that iteration might access the marker vector slots in an
+   unpredictable order, while the current method scans the vector
+   sequentially.  */
 
 #include <config.h>
 #include "lisp.h"
