@@ -206,7 +206,7 @@ check_marker_vector (const struct Lisp_Vector *v)
       ptrdiff_t i = XFIXNUM (e);
       eassert (MARKERP (MARKER (v, i)));
       struct Lisp_Marker *m = XMARKER (MARKER (v, i));
-      eassert (m->entry = i);
+      eassert (m->entry == i);
       eassert (m->buffer != NULL);
       struct Lisp_Vector *mv = XVECTOR (BUF_MARKERS (m->buffer));
       eassert (mv == v);
