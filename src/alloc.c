@@ -6604,9 +6604,9 @@ mark_buffer (struct buffer *buffer)
 
   mark_interval_tree (buffer_intervals (buffer));
 
-  /* Mark the marker vector itself live, but don't process
-     its contents yet, because these are weak references.
-     The marker vector can already be set to nil in kill-buffer.  */
+  /* Mark the marker vector itself live, but don't process its contents
+     yet, because these are weak references.  The marker vector can
+     already have been set to nil in kill-buffer.  */
   Lisp_Object mv = BUF_MARKERS (buffer);
   if (!NILP (mv))
     set_vector_marked (XVECTOR (mv));
