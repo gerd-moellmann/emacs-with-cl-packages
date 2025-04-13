@@ -76,7 +76,7 @@ marker_vector_it_init (struct buffer *b)
   return (struct marker_vector_it) {.marker = Qnil};
 }
 
-/* Return the capacity of marker vector V in entries.  */
+/* Return the capacity of marker vector V in number of entries.  */
 
 static ptrdiff_t
 capacity (const struct Lisp_Vector *v)
@@ -139,7 +139,7 @@ remove_entry (struct Lisp_Vector *v, const ptrdiff_t entry)
   const Lisp_Object next = NEXT (v, entry);
 
   if (IS_NONE (prev))
-    HEAD (v) = NEXT (v, entry);
+    HEAD (v) = next;
   else
     NEXT (v, XFIXNUM (prev)) = next;
 
@@ -160,33 +160,29 @@ alloc_marker_vector (ptrdiff_t len)
 static Lisp_Object
 larger_marker_vector (Lisp_Object old_mv)
 {
-  const ptrdiff_t old_nentrys = NILP (old_mv) ? 0 : capacity (XVECTOR (old_mv));
-  const ptrdiff_t new_nentrys = max (10, 2 * old_nentrys);
-  const ptrdiff_t alloc_len = (new_nentrys * MARKER_VECTOR_ENTRY_SIZE
+  const ptrdiff_t old_capacity = NILP (old_mv) ? 0 : capacity (XVECTOR (old_mv));
+  const ptrdiff_t new_capacity = max (10, 2 * old_capacity);
+  const ptrdiff_t alloc_len = (new_capacity * MARKER_VECTOR_ENTRY_SIZE
 			       + MARKER_VECTOR_HEADER_SIZE);
   Lisp_Object new_mv = alloc_marker_vector (alloc_len);
   struct Lisp_Vector *new_v = XVECTOR (new_mv);
 
   /* Copy existing entries. */
-  ptrdiff_t free_start;
   if (VECTORP (old_mv))
     {
       struct Lisp_Vector *old_v = XVECTOR (old_mv);
       eassert (IS_NONE (FREE (old_v)));
       const size_t nbytes = old_v->header.size * sizeof (Lisp_Object);
       memcpy (new_v->contents, old_v->contents, nbytes);
-      free_start = capacity (old_v);
-      memclear (old_v->contents, old_v->header.size * sizeof (Lisp_Object));
     }
   else
     {
       HEAD (new_v) = NONE;
       FREE (new_v) = NONE;
-      free_start = 0;
     }
 
   /* Add rest of entries to free-list.  */
-  for (ptrdiff_t e = free_start; e < capacity (new_v); ++e)
+  for (ptrdiff_t e = new_capacity - 1; e >= old_capacity; --e)
     push_free (new_v, e);
 
   return new_mv;
@@ -292,7 +288,11 @@ marker_vector_clear (struct buffer *b)
       struct Lisp_Vector *v = XVECTOR (mv);
       for (ptrdiff_t entry = 0; entry < capacity (v); ++entry)
 	if (MARKERP (MARKER (v, entry)))
-	  XMARKER (MARKER (v, entry))->buffer = NULL;
+	  {
+	    struct Lisp_Marker *m = XMARKER (MARKER (v, entry));
+	    m->buffer = NULL;
+	    m->entry = -1;
+	  }
       BUF_MARKERS (b) = Qnil;
     }
 }
