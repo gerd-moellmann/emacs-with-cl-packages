@@ -78,7 +78,7 @@ Lisp_Object igc_make_cons (Lisp_Object car, Lisp_Object cdr);
 void igc_resurrect_markers (struct buffer *b);
 Lisp_Object igc_alloc_symbol (void);
 void *igc_alloc_global_ref (void);
-Lisp_Object igc_alloc_marker_vector (ptrdiff_t len);
+Lisp_Object igc_alloc_marker_vector (ptrdiff_t len, Lisp_Object init);
 
 struct Lisp_Buffer_Local_Value *igc_alloc_blv (void);
 void *igc_alloc_handler (void);

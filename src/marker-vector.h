@@ -49,7 +49,7 @@ enum
 };
 
 # define DO_MARKERS_VECTOR(mv, m)				\
-  for (ptrdiff_t i_ = MARKER_VECTOR_HEADER_SIZE,		\
+  for (ptrdiff_t i_ = MARKER_VECTOR_HEADER_SIZE + MARKER_VECTOR_OFFSET_MARKER, \
 	 end_ = gc_asize (mv);					\
        i_ < end_;						\
        i_ += MARKER_VECTOR_ENTRY_SIZE)				\
@@ -63,6 +63,7 @@ enum
 # define END_DO_MARKERS }}
 
 Lisp_Object make_marker_vector (void);
+Lisp_Object alloc_marker_vector (ptrdiff_t len);
 void marker_vector_add (struct buffer *b, struct Lisp_Marker *m);
 void marker_vector_remove (struct Lisp_Vector *v, struct Lisp_Marker *m);
 void marker_vector_clear (struct buffer *b);

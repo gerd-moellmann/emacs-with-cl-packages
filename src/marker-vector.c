@@ -47,23 +47,19 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #include "igc.h"
 #endif
 
-enum
-{
-  MARKER_VECTOR_OFFSET_NEXT_FREE = MARKER_VECTOR_OFFSET_MARKER
-};
-
-/* You have to check the code below if you want this to not be equal to
-   the MARKER offset. */
-static_assert (MARKER_VECTOR_OFFSET_NEXT_FREE == MARKER_VECTOR_OFFSET_MARKER);
-static_assert (MARKER_VECTOR_HEADER_SIZE > 0);
-
 /* Minimum number of entries to allocate.  */
 #define MARKER_VECTOR_INITIAL_ENTRIES 10
 
 /* Access fields of an entry E of marker vecgor V as lvalues.  */
 #define MARKER(v, e) (v)->contents[(e) + MARKER_VECTOR_OFFSET_MARKER]
 #define CHARPOS(v, e) (v)->contents[(e) + MARKER_VECTOR_OFFSET_CHARPOS]
-#define NEXT_FREE(v, e) (v)->contents[(e) + MARKER_VECTOR_OFFSET_NEXT_FREE]
+
+/* This must use the marker field so that putting an entry on the free
+   list implicitly sets the marker slot to a non-marker.  See
+   fix_marker_vector in igc.c.  */
+#define NEXT_FREE(v, e) MARKER (v, e)
+#define FREE_LIST_END make_fixnum (0)
+
 
 /* Access header fields of marker vecgor V as lvalues.  */
 #define FREE(v) (v)->contents[MARKER_VECTOR_FREE]
@@ -86,6 +82,18 @@ check_is_entry (const struct Lisp_Vector *v, ptrdiff_t entry)
   eassert ((entry - MARKER_VECTOR_HEADER_SIZE) % MARKER_VECTOR_ENTRY_SIZE == 0);
 }
 
+static bool
+is_eol (Lisp_Object x)
+{
+  return EQ (x, FREE_LIST_END);
+}
+
+static bool
+is_full (const struct Lisp_Vector *v)
+{
+  return is_eol (FREE (v));
+}
+
 /* Add entry ENTRY of V to its free-list. This implicitly sets
    MARKER to not be a marker */
 
@@ -103,9 +111,7 @@ push_free (struct Lisp_Vector *v, const ptrdiff_t entry)
 static ptrdiff_t
 pop_free (struct Lisp_Vector *v)
 {
-  eassert (!NILP (FREE (v)));
   const ptrdiff_t free = XFIXNUM (FREE (v));
-  eassert (free >= 0 && free < vsize (v));
   FREE (v) = NEXT_FREE (v, free);
   check_is_entry (v, free);
   return free;
@@ -124,13 +130,13 @@ add_entry (Lisp_Object mv, struct Lisp_Marker *m)
   return entry;
 }
 
-static Lisp_Object
+Lisp_Object
 alloc_marker_vector (ptrdiff_t len)
 {
 #ifdef HAVE_MPS
-  return igc_alloc_marker_vector (len);
+  return igc_alloc_marker_vector (len, FREE_LIST_END);
 #else
-  return make_vector (len, Qnil);
+  return make_vector (len, FREE_LIST_END);
 #endif
 }
 
@@ -141,7 +147,7 @@ check_marker_vector (struct Lisp_Vector *v, bool allocating)
 {
 #ifdef ENABLE_CHECKING
   size_t nfree = 0;
-  for (Lisp_Object e = FREE (v); !NILP (e); e = NEXT_FREE (v, XFIXNUM (e)))
+  for (Lisp_Object e = FREE (v); !is_eol (e); e = NEXT_FREE (v, XFIXNUM (e)))
     ++nfree;
 
   size_t nused = 0;
@@ -203,7 +209,7 @@ larger_marker_vector (Lisp_Object old_mv)
 
   /* Copy existing entries. */
   struct Lisp_Vector *old_v = XVECTOR (old_mv);
-  eassert (NILP (FREE (old_v)));
+  eassert (is_full (old_v));
   const size_t nbytes = old_size * sizeof (Lisp_Object);
   memcpy (new_v->contents, old_v->contents, nbytes);
 
@@ -220,7 +226,7 @@ static Lisp_Object
 ensure_room (struct buffer *b)
 {
   Lisp_Object mv = BUF_MARKERS (b);
-  if (NILP (FREE (XVECTOR (mv))))
+  if (is_full (XVECTOR (mv)))
     {
       mv = larger_marker_vector (mv);
       BUF_MARKERS (b) = mv;

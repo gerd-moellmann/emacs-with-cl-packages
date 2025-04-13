@@ -2139,16 +2139,20 @@ fix_marker_vector (mps_ss_t ss, struct Lisp_Vector *v)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    for (ptrdiff_t i = MARKER_VECTOR_HEADER_SIZE + MARKER_VECTOR_OFFSET_MARKER;
-	 i < v->header.size; i += MARKER_VECTOR_ENTRY_SIZE)
+    for (ptrdiff_t i = MARKER_VECTOR_HEADER_SIZE + MARKER_VECTOR_OFFSET_MARKER,
+	   n = vector_size (v);
+	 i < n;
+	 i += MARKER_VECTOR_ENTRY_SIZE)
       {
 	Lisp_Object *p = &v->contents[i];
-	Lisp_Object marker = *p;
-	if (MARKERP (marker))
+	Lisp_Object before = *p;
+	if (NILP (*p) && !NILP (before))
 	  {
-	    IGC_FIX12_OBJ (ss, p);
-	    if (NILP (*p))
-	      marker_vector_remove (v, XMARKER (marker));
+	    /* Put on free list. Note that we don't access fields of the
+	       marker because that is not allowed by MPS while
+	       scanning an unrelated object. */
+	    v->contents[i] = v->contents[MARKER_VECTOR_FREE];
+	    v->contents[MARKER_VECTOR_FREE] = make_fixnum (i);
 	  }
       }
   }
@@ -4511,13 +4515,13 @@ igc_valid_lisp_object_p (Lisp_Object obj)
 }
 
 Lisp_Object
-igc_alloc_marker_vector (ptrdiff_t len)
+igc_alloc_marker_vector (ptrdiff_t len, Lisp_Object init)
 {
   struct Lisp_Vector *v
     = alloc (header_size + len * word_size, IGC_OBJ_MARKER_VECTOR);
   v->header.size = len;
   for (ptrdiff_t i = 0; i < len; ++i)
-    v->contents[i] = Qnil;
+    v->contents[i] = init;
   return make_lisp_ptr (v, Lisp_Vectorlike);
 }
 
@@ -4544,7 +4548,7 @@ igc_resurrect_markers (struct buffer *b)
     return;
   igc_assert (!weak_vector_p (old));
   size_t len = ASIZE (old);
-  Lisp_Object new = igc_alloc_marker_vector (len);
+  Lisp_Object new = alloc_marker_vector (len);
   memcpy (XVECTOR (new)->contents, XVECTOR (old)->contents,
 	  len * sizeof (Lisp_Object));
   BUF_MARKERS (b) = new;
