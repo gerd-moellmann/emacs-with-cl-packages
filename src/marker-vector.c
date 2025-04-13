@@ -55,7 +55,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #define BYTEPOS(v, e) (v)->contents[IDX ((e), BYTEPOS)]
 #define CHARPOS(v, e) (v)->contents[IDX ((e), CHARPOS)]
 #define MARKER(v, e) (v)->contents[IDX ((e), MARKER)]
-#define NEXT_FREE(v, e) MARKER (v, e)
+#define NEXT_FREE(v, e) BYTEPOS (v, e)
 
 /* Access header fields of marker vecgor V as lvalues.  */
 #define FREE(v) (v)->contents[MARKER_VECTOR_FREE]
@@ -221,6 +221,7 @@ void
 marker_vector_add (struct buffer *b, struct Lisp_Marker *m)
 {
   Lisp_Object mv = ensure_room (b);
+  check_marker_vector (XVECTOR (mv));
   m->entry = add_entry (mv, m);
   m->buffer = b;
   check_marker_vector (XVECTOR (mv));
@@ -231,11 +232,13 @@ marker_vector_add (struct buffer *b, struct Lisp_Marker *m)
 void
 marker_vector_remove (struct Lisp_Vector *v, struct Lisp_Marker *m)
 {
-  eassert (m->entry >= 0 && m->entry < vsize (v));
+  check_marker_vector (v);
+  eassert (m->entry > 0 && m->entry < vsize (v));
+  eassert ((m->entry - MARKER_VECTOR_HEADER_SIZE) % MARKER_VECTOR_ENTRY_SIZE == 0);
   eassert (MARKERP (MARKER (v, m->entry)));
   eassert (XMARKER (MARKER (v, m->entry)) == m);
-  /* Nota this sets the marker of the entry to a non-marker. */
   push_free (v, m->entry);
+  MARKER (v, m->entry) = make_fixnum (-42);
   m->entry = 0;
   m->buffer = NULL;
   check_marker_vector (v);
@@ -248,6 +251,7 @@ marker_vector_clear (struct buffer *b)
 {
   Lisp_Object mv = BUF_MARKERS (b);
   struct Lisp_Vector *v = XVECTOR (mv);
+  check_marker_vector (v);
   for (ptrdiff_t e = MARKER_VECTOR_HEADER_SIZE; e < ASIZE (mv);
        e += MARKER_VECTOR_ENTRY_SIZE)
     if (MARKERP (MARKER (v, e)))

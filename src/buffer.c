@@ -618,6 +618,8 @@ even if it is dead.  The return value is never nil.  */)
   b->begv_byte = BEG_BYTE;
   b->zv_byte = BEG_BYTE;
 
+  BUF_MARKERS (b) = make_marker_vector ();
+
   BUF_GPT (b) = BEG;
   BUF_GPT_BYTE (b) = BEG_BYTE;
 
@@ -661,7 +663,6 @@ even if it is dead.  The return value is never nil.  */)
   reset_buffer_local_variables (b, 1);
 
   bset_mark (b, Fmake_marker ());
-  BUF_MARKERS (b) = make_marker_vector ();
   /* Put this in the alist of all live buffers.  */
   XSETBUFFER (buffer, b);
   Vbuffer_alist = nconc2 (Vbuffer_alist, list1 (Fcons (name, buffer)));
