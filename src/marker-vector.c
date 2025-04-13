@@ -58,8 +58,7 @@ static_assert (MARKER_VECTOR_OFFSET_NEXT_FREE == MARKER_VECTOR_OFFSET_MARKER);
 static_assert (MARKER_VECTOR_HEADER_SIZE > 0);
 
 /* Minimum number of entries to allocate.  */
-#define MARKER_VECTOR_MIN_SIZE ((10 * MARKER_VECTOR_ENTRY_SIZE) \
-				+ MARKER_VECTOR_HEADER_SIZE)
+#define MARKER_VECTOR_INITIAL_ENTRIES 10
 
 /* Access fields of an entry E of marker vecgor V as lvalues.  */
 #define MARKER(v, e) (v)->contents[(e) + MARKER_VECTOR_OFFSET_MARKER]
@@ -135,9 +134,12 @@ alloc_marker_vector (ptrdiff_t len)
 #endif
 }
 
+/* Expensive pre- and post-condition checking.  */
+
 static void
-check_marker_vector (Lisp_Object mv)
+check_marker_vector (Lisp_Object mv, bool allocating)
 {
+#ifdef ENABLE_CHECKING
   const struct Lisp_Vector *v = XVECTOR (mv);
 
   size_t nfree = 0;
@@ -149,31 +151,42 @@ check_marker_vector (Lisp_Object mv)
     {
       eassert (m->entry == i_);
       eassert (m->buffer != NULL);
-      struct Lisp_Vector *mv = XVECTOR (BUF_MARKERS (m->buffer));
-      eassert (mv == v);
+      if (!allocating)
+	{
+	  struct Lisp_Vector *mv = XVECTOR (BUF_MARKERS (m->buffer));
+	  eassert (mv == v);
+	}
       ++nused;
     }
   END_DO_MARKERS;
 
   eassert ((nused + nfree) * MARKER_VECTOR_ENTRY_SIZE
 	   + MARKER_VECTOR_HEADER_SIZE == vsize (v));
+#endif
 }
 
+/* Add all entries of MV starting with FIRST to the free list.  */
+
 static void
-add_to_free_list (Lisp_Object mv, ptrdiff_t upto)
+add_to_free_list (Lisp_Object mv, ptrdiff_t first)
 {
   struct Lisp_Vector *v = XVECTOR (mv);
   for (ptrdiff_t e = ASIZE (mv) - MARKER_VECTOR_ENTRY_SIZE;
-       e >= upto; e -= MARKER_VECTOR_ENTRY_SIZE)
+       e >= first; e -= MARKER_VECTOR_ENTRY_SIZE)
     push_free (v, e);
 }
+
+/* Make a new marker vector.  */
 
 Lisp_Object
 make_marker_vector (void)
 {
-  Lisp_Object mv = alloc_marker_vector (MARKER_VECTOR_MIN_SIZE);
+  const ptrdiff_t len
+    = (MARKER_VECTOR_INITIAL_ENTRIES * MARKER_VECTOR_ENTRY_SIZE
+       + MARKER_VECTOR_HEADER_SIZE);
+  Lisp_Object mv = alloc_marker_vector (len);
   add_to_free_list (mv, MARKER_VECTOR_HEADER_SIZE);
-  check_marker_vector (mv);
+  check_marker_vector (mv, true);
   return mv;
 }
 
@@ -183,19 +196,21 @@ static Lisp_Object
 larger_marker_vector (Lisp_Object old_mv)
 {
   const ptrdiff_t old_size = ASIZE (old_mv);
-  const ptrdiff_t new_size = max (MARKER_VECTOR_MIN_SIZE, 2 * old_size);
+  const ptrdiff_t old_wo_header = old_size - MARKER_VECTOR_HEADER_SIZE;
+  const ptrdiff_t new_size = 2 * old_wo_header + MARKER_VECTOR_HEADER_SIZE;
+
   Lisp_Object new_mv = alloc_marker_vector (new_size);
   struct Lisp_Vector *new_v = XVECTOR (new_mv);
 
   /* Copy existing entries. */
   struct Lisp_Vector *old_v = XVECTOR (old_mv);
   eassert (NILP (FREE (old_v)));
-  const size_t nbytes = ASIZE (old_mv) * sizeof (Lisp_Object);
+  const size_t nbytes = old_size * sizeof (Lisp_Object);
   memcpy (new_v->contents, old_v->contents, nbytes);
 
   /* Add new entries to free-list.  */
   add_to_free_list (new_mv, old_size);
-  check_marker_vector (new_mv);
+  check_marker_vector (new_mv, true);
   return new_mv;
 }
 
@@ -221,10 +236,10 @@ void
 marker_vector_add (struct buffer *b, struct Lisp_Marker *m)
 {
   Lisp_Object mv = ensure_room (b);
-  check_marker_vector (mv);
+  check_marker_vector (mv, false);
   m->entry = add_entry (mv, m);
   m->buffer = b;
-  check_marker_vector (mv);
+  check_marker_vector (mv, false);
 }
 
 /* Remove marker M from marker vector MV.  */
@@ -232,7 +247,7 @@ marker_vector_add (struct buffer *b, struct Lisp_Marker *m)
 void
 marker_vector_remove (Lisp_Object mv, struct Lisp_Marker *m)
 {
-  check_marker_vector (mv);
+  check_marker_vector (mv, false);
   struct Lisp_Vector *v = XVECTOR (mv);
   check_is_entry (v, m->entry);
   eassert (MARKERP (MARKER (v, m->entry)));
@@ -240,7 +255,7 @@ marker_vector_remove (Lisp_Object mv, struct Lisp_Marker *m)
   push_free (v, m->entry);
   m->entry = 0;
   m->buffer = NULL;
-  check_marker_vector (mv);
+  check_marker_vector (mv, false);
 }
 
 /* Free all markers from buffer B.  Called from kill-buffer.  */
@@ -250,7 +265,7 @@ marker_vector_clear (struct buffer *b)
 {
   Lisp_Object mv = BUF_MARKERS (b);
   struct Lisp_Vector *v = XVECTOR (mv);
-  check_marker_vector (mv);
+  check_marker_vector (mv, false);
   for (ptrdiff_t e = MARKER_VECTOR_HEADER_SIZE; e < ASIZE (mv);
        e += MARKER_VECTOR_ENTRY_SIZE)
     if (MARKERP (MARKER (v, e)))
