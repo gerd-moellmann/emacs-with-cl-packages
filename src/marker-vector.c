@@ -43,15 +43,16 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #include "lisp.h"
 #include "buffer.h"
 #include "marker-vector.h"
+#ifdef HAVE_MPS
 #include "igc.h"
+#endif
 
 /* Minimum number of entries to allocate.  */
-#define MARKER_VECTOR_MIN_SIZE ((100 * MARKER_VECTOR_ENTRY_SIZE) \
+#define MARKER_VECTOR_MIN_SIZE ((10 * MARKER_VECTOR_ENTRY_SIZE) \
 				+ MARKER_VECTOR_HEADER_SIZE)
 
-#define IDX(e, o) ((e) + MARKER_VECTOR_OFFSET_##o)
-
 /* Access fields of an entry E of marker vecgor V as lvalues.  */
+#define IDX(e, o) ((e) + MARKER_VECTOR_OFFSET_##o)
 #define BYTEPOS(v, e) (v)->contents[IDX ((e), BYTEPOS)]
 #define CHARPOS(v, e) (v)->contents[IDX ((e), CHARPOS)]
 #define MARKER(v, e) (v)->contents[IDX ((e), MARKER)]
@@ -59,23 +60,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
 /* Access header fields of marker vecgor V as lvalues.  */
 #define FREE(v) (v)->contents[MARKER_VECTOR_FREE]
-
-/* Return a marker vector iterator for buffer B.  */
-
-struct marker_vector_it
-marker_vector_it_init (struct buffer *b)
-{
-  Lisp_Object mv = BUF_MARKERS (b);
-  if (NILP (mv))
-    return (struct marker_vector_it) {.i = 0};
-
-  for (ptrdiff_t i = MARKER_VECTOR_HEADER_SIZE + MARKER_VECTOR_OFFSET_MARKER;
-       i < ASIZE (mv); i += MARKER_VECTOR_ENTRY_SIZE)
-    if (MARKERP (AREF (mv, i)))
-      return (struct marker_vector_it) {.i = i, .mv = mv};
-
-  return (struct marker_vector_it) {.i = 0};
-}
 
 /* Return the size of marker vector V. This is like ASIZE but for a
    pointer.  */

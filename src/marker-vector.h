@@ -49,39 +49,19 @@ enum
   MARKER_VECTOR_OFFSET_CHARPOS = 2,
 };
 
-INLINE bool
-marker_vector_it_is_valid (const struct marker_vector_it *it)
-{
-  return it->i > 0;
-}
-
-INLINE struct Lisp_Marker *
-marker_vector_it_marker (const struct marker_vector_it *it)
-{
-  return XMARKER (AREF (it->mv, it->i));
-}
-
-INLINE void
-marker_vector_it_set_to_next (struct marker_vector_it *it)
-{
-  for (it->i += MARKER_VECTOR_ENTRY_SIZE;
-       it->i < ASIZE (it->mv);
-       it->i += MARKER_VECTOR_ENTRY_SIZE)
-    if (MARKERP (AREF (it->mv, it->i)))
-      return;
-  it->i = 0;
-}
-
 # define DO_MARKERS(b, m)					\
-  for (struct marker_vector_it it_ = marker_vector_it_init (b);	\
-       marker_vector_it_is_valid (&it_);			\
-       marker_vector_it_set_to_next (&it_))			\
+  for (ptrdiff_t i_ = MARKER_VECTOR_HEADER_SIZE,		\
+	 end_ = ASIZE (BUF_MARKERS (b));			\
+       i_ < end_;						\
+       i_ += MARKER_VECTOR_ENTRY_SIZE)				\
     {								\
-       struct Lisp_Marker *m = marker_vector_it_marker (&it_);
+       Lisp_Object m_ = AREF (BUF_MARKERS (b), i_);		\
+       if (MARKERP (m_))					\
+	 {							\
+            struct Lisp_Marker *m = XMARKER (m_);
 
-# define END_DO_MARKERS }
+# define END_DO_MARKERS }}
 
-struct marker_vector_it marker_vector_it_init (struct buffer *b);
 Lisp_Object make_marker_vector (void);
 void marker_vector_add (struct buffer *b, struct Lisp_Marker *m);
 void marker_vector_remove (struct Lisp_Vector *v, struct Lisp_Marker *m);
