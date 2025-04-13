@@ -270,7 +270,6 @@ marker_vector_remove (struct Lisp_Vector *v, struct Lisp_Marker *m)
   eassert (MARKERP (MARKER (v, m->entry)));
   eassert (XMARKER (MARKER (v, m->entry)) == m);
   push_free (v, m->entry);
-  m->entry = 0;
   m->buffer = NULL;
   check_marker_vector (v, false);
 }
