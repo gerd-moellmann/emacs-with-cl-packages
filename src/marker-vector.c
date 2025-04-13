@@ -18,29 +18,36 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
 /* A marker vector is used to hold the markers of a buffer. The vector
    is a normal Lisp vector that consists of a header and a number of
-   entries for each marker.
+   entries for each marker. A Lisp vector is used because the vector
+   references markers "weakly", and that's what easy for igc.
 
-   +------+------+---------+---------+-------------+
-   | HEAD | FREE | entry 0 | entry 1 | ...         |
-   +------+------+---------+---------+-------------+
+   +-------------+---------+---------+-------------+
+   | FREE        | entry 0 | entry 1 | ...         |
+   +-------------+---------+---------+-------------+
    |<- header -->|
 
-   Entries consist of 3 vector slots MARKER, NEXT and PREV. MARKER
-   holds a marker, if the entry is in use. NEXT and PREV are entry
-   numbers used to form a doubly-linked list in the marker vector.
+   Entries consist of 3 vector slots MARKER, BYTEPOS and CHARPOS. MARKER
+   holds a marker, if the entry is in use. BYTEPOS and CHARPOS are not
+   yet used. (The idea is to move the positions from markers here,
+   which speeds up adjusting positions when the text changes.)
 
-   HEAD is the entry number of the start of the doubly-linked list
-   of used entries.
+   FREE is the array index of the next free entry in the marker vector.
+   Free entries form a singly-linked list using the MARKER field of
+   entries.
 
-   FREE is the entry number of the next free entry in the marker vector.
-   Free entries form a singly-linked list using the NEXT field of
-   entries. */
+   Iteration over marker vectors is done naively by iterating over
+   all slots of the vector that can contain markers, skipping
+   those that don't.  */
 
 #include <config.h>
 #include "lisp.h"
 #include "buffer.h"
 #include "marker-vector.h"
 #include "igc.h"
+
+/* Minimum number of entries to allocate.  */
+#define MARKER_ARRAY_MIN_SIZE ((100 * MARKER_VECTOR_ENTRY_SIZE) \
+			       + MARKER_VECTOR_HEADER_SIZE)
 
 #define IDX(e, o) ((e) + MARKER_VECTOR_OFFSET_##o)
 
@@ -128,10 +135,8 @@ static Lisp_Object
 larger_marker_vector (Lisp_Object old_mv)
 {
   const ptrdiff_t old_size = NILP (old_mv) ? 0 : ASIZE (old_mv);
-  const ptrdiff_t new_size = max (10, 2 * old_size);
-  const ptrdiff_t alloc_len = (new_size * MARKER_VECTOR_ENTRY_SIZE
-			       + MARKER_VECTOR_HEADER_SIZE);
-  Lisp_Object new_mv = alloc_marker_vector (alloc_len);
+  const ptrdiff_t new_size = max (MARKER_ARRAY_MIN_SIZE, 2 * old_size);
+  Lisp_Object new_mv = alloc_marker_vector (new_size);
   struct Lisp_Vector *new_v = XVECTOR (new_mv);
 
   /* Copy existing entries. */
@@ -143,8 +148,9 @@ larger_marker_vector (Lisp_Object old_mv)
       memcpy (new_v->contents, old_v->contents, nbytes);
     }
 
-  /* Add rest of entries to free-list.  */
-  for (ptrdiff_t e = new_size - 1; e >= old_size; --e)
+  /* Add new entries to free-list.  */
+  for (ptrdiff_t e = new_size - MARKER_VECTOR_ENTRY_SIZE;
+       e >= MARKER_VECTOR_HEADER_SIZE; e -= MARKER_VECTOR_ENTRY_SIZE)
     push_free (new_v, e);
 
   return new_mv;
@@ -161,13 +167,15 @@ check_marker_vector (const struct Lisp_Vector *v)
   for (ptrdiff_t e = MARKER_VECTOR_HEADER_SIZE;
        e < capacity (v); e += MARKER_VECTOR_ENTRY_SIZE)
     {
-      eassert (MARKERP (MARKER (v, e)));
-      struct Lisp_Marker *m = XMARKER (MARKER (v, e));
-      eassert (m->entry == e);
-      eassert (m->buffer != NULL);
-      struct Lisp_Vector *mv = XVECTOR (BUF_MARKERS (m->buffer));
-      eassert (mv == v);
-      ++nused;
+      if (MARKERP (MARKER (v, e)))
+	{
+	  struct Lisp_Marker *m = XMARKER (MARKER (v, e));
+	  eassert (m->entry == e);
+	  eassert (m->buffer != NULL);
+	  struct Lisp_Vector *mv = XVECTOR (BUF_MARKERS (m->buffer));
+	  eassert (mv == v);
+	  ++nused;
+	}
     }
 
   eassert ((nused + nfree) * MARKER_VECTOR_ENTRY_SIZE
