@@ -64,7 +64,7 @@ enum
 
 Lisp_Object make_marker_vector (void);
 void marker_vector_add (struct buffer *b, struct Lisp_Marker *m);
-void marker_vector_remove (Lisp_Object mv, struct Lisp_Marker *m);
+void marker_vector_remove (struct Lisp_Vector *v, struct Lisp_Marker *m);
 void marker_vector_clear (struct buffer *b);
 
 #endif /* EMACS_MARKER_VECTOR_H */

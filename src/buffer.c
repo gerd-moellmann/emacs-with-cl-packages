@@ -2079,7 +2079,7 @@ cleaning up all windows currently displaying the buffer to be killed. */)
       DO_MARKERS (b, m)
 	{
 	  if (m->buffer == b)
-	    marker_vector_remove (BUF_MARKERS (b), m);
+	    marker_vector_remove (XVECTOR (BUF_MARKERS (b)), m);
 	}
       END_DO_MARKERS;
 
