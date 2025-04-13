@@ -70,3 +70,21 @@ from savannah. Use `M-x tm-menu-mode` to activate. See the doc string of
 that function. The menu's behavior is patterned after what macOS does.
 
 It's unclear at the moment if that will land in GNU.
+
+## Text index
+
+Emacs internal text encoding is an extended UTF-8. Characters can be
+between 1 and 5 bytes long in this encoding. Such a variable-length
+representation requires a conversion between character positions
+and byte positions.
+
+A text index is a data structure which supports such position
+conversions with predictable performance and without relying on markers
+and heuristics.
+
+The implementation can be found in `text-index.c`. Please read the
+comment at the start of that file for details.
+
+I am now using this by default. There is also a branch
+`scratch/text-index` on savannah which Stefan Monnier said he'll take a
+look at.
