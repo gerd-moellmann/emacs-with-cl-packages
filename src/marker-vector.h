@@ -59,7 +59,7 @@ enum
 	 {							\
             struct Lisp_Marker *m = XMARKER (m_);
 
-# define DO_MARKERS(b, m) DO_MARKERS_VECTOR (BUF_MAKERS (b), m)
+# define DO_MARKERS(b, m) DO_MARKERS_VECTOR (BUF_MARKERS (b), m)
 # define END_DO_MARKERS }}
 
 Lisp_Object make_marker_vector (void);

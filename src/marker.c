@@ -702,7 +702,7 @@ unchain_marker (struct Lisp_Marker *marker)
   if (marker->buffer)
     {
       Lisp_Object mv = BUF_MARKERS (marker->buffer);
-      marker_vector_remove (XVECTOR (mv), marker);
+      marker_vector_remove (mv, marker);
     }
 }
 

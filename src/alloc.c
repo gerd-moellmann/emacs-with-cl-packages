@@ -7457,7 +7457,7 @@ unchain_dead_markers (struct buffer *b)
   DO_MARKERS (b, m)
     {
       if (!vectorlike_marked_p (&m->header))
-	marker_vector_remove (XVECTOR (BUF_MARKERS (b)), m);
+	marker_vector_remove (BUF_MARKERS (b), m);
     }
   END_DO_MARKERS;
 }
