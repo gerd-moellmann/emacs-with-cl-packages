@@ -2139,18 +2139,18 @@ fix_marker_vector (mps_ss_t ss, struct Lisp_Vector *v)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    DO_MARKER_SLOTS (v, i)
-    {
-      volatile Lisp_Object old = v->contents[i];
-      eassert (NILP (old) || MARKERP (old));
-      if (!NILP (old))
-	{
-	  IGC_FIX12_OBJ (ss, &v->contents[i]);
-	  if (NILP (v->contents[i]))
-	    marker_vector_remove (v, XMARKER (old));
-	}
-    }
-    END_DO_MARKERS;
+    for (ptrdiff_t i = MARKER_VECTOR_HEADER_SIZE + MARKER_VECTOR_OFFSET_MARKER;
+	 i < v->header.size; i += MARKER_VECTOR_ENTRY_SIZE)
+      {
+	Lisp_Object *p = &v->contents[i];
+	Lisp_Object marker = *p;
+	if (MARKERP (marker))
+	  {
+	    IGC_FIX12_OBJ (ss, p);
+	    if (NILP (*p))
+	      marker_vector_remove (v, XMARKER (marker));
+	  }
+      }
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;

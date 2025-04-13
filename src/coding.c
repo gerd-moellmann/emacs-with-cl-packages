@@ -8119,7 +8119,7 @@ decode_coding_object (struct coding_system *coding,
 	move_gap_both (from, from_byte);
       if (BASE_EQ (src_object, dst_object))
 	{
-	  DO_MARKERS_LRU (current_buffer, tail)
+	  DO_MARKERS (current_buffer, tail)
 	    {
 	      tail->need_adjustment
 		= tail->charpos == (tail->insertion_type ? from : to);
@@ -8250,7 +8250,7 @@ decode_coding_object (struct coding_system *coding,
 
       if (need_marker_adjustment)
 	{
-	  DO_MARKERS_LRU (current_buffer, tail)
+	  DO_MARKERS (current_buffer, tail)
 	    {
 	      if (tail->need_adjustment)
 		{
@@ -8340,7 +8340,7 @@ encode_coding_object (struct coding_system *coding,
   if (BASE_EQ (src_object, dst_object) && BUFFERP (src_object))
     {
       same_buffer = true;
-      DO_MARKERS_LRU (XBUFFER (src_object), tail)
+      DO_MARKERS (XBUFFER (src_object), tail)
 	{
 	  tail->need_adjustment
 	    = tail->charpos == (tail->insertion_type ? from : to);
@@ -8504,7 +8504,7 @@ encode_coding_object (struct coding_system *coding,
 
       if (need_marker_adjustment)
 	{
-	  DO_MARKERS_LRU (current_buffer, tail)
+	  DO_MARKERS (current_buffer, tail)
 	    {
 	      if (tail->need_adjustment)
 		{

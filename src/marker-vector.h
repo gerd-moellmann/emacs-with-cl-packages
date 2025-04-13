@@ -26,9 +26,8 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
 struct marker_vector_it
 {
-  struct Lisp_Vector *v;
-  Lisp_Object marker;
-  ptrdiff_t entry;
+  Lisp_Object mv;
+  ptrdiff_t i;
 };
 
 /* A marker array is a Lisp vector starting with a header of
@@ -38,76 +37,42 @@ struct marker_vector_it
 enum
 {
   /* Size of header and entries in number of Lisp_Objects.  */
-  MARKER_VECTOR_HEADER_SIZE = 2,
+  MARKER_VECTOR_HEADER_SIZE = 1,
   MARKER_VECTOR_ENTRY_SIZE = 3,
 
   /* Indices of header.  */
-  MARKER_VECTOR_HEAD = 0,
-  MARKER_VECTOR_FREE = 1,
+  MARKER_VECTOR_FREE = 0,
 
   /* Relative indices of entries.  */
-  MARKER_VECTOR_OFFSET_NEXT = 0,
-  MARKER_VECTOR_OFFSET_PREV = 1,
-  MARKER_VECTOR_OFFSET_MARKER = 2,
+  MARKER_VECTOR_OFFSET_MARKER = 0,
+  MARKER_VECTOR_OFFSET_BYTEPOS = 1,
+  MARKER_VECTOR_OFFSET_CHARPOS = 2,
 };
-
-INLINE ptrdiff_t
-marker_vector_entry_to_index (const ptrdiff_t entry)
-{
-  return ((entry * MARKER_VECTOR_ENTRY_SIZE)
-	  + MARKER_VECTOR_HEADER_SIZE);
-}
-
-INLINE Lisp_Object
-marker_vector_head (const struct Lisp_Vector *v)
-{
-  return v->contents[MARKER_VECTOR_HEAD];
-}
-
-INLINE Lisp_Object
-marker_vector_marker (const struct Lisp_Vector *v, const ptrdiff_t entry)
-{
-  return v->contents[marker_vector_entry_to_index (entry)
-		     + MARKER_VECTOR_OFFSET_MARKER];
-}
-
-INLINE Lisp_Object
-marker_vector_next (const struct Lisp_Vector *v, const ptrdiff_t entry)
-{
-  return v->contents[marker_vector_entry_to_index (entry)
-		     + MARKER_VECTOR_OFFSET_NEXT];
-}
-
-INLINE Lisp_Object
-marker_vector_prev (const struct Lisp_Vector *v, const ptrdiff_t entry)
-{
-  return v->contents[marker_vector_entry_to_index (entry)
-		     + MARKER_VECTOR_OFFSET_PREV];
-}
 
 INLINE bool
 marker_vector_it_is_valid (const struct marker_vector_it *it)
 {
-  return MARKERP (it->marker);
+  return it->i > 0;
+}
+
+INLINE struct Lisp_Marker *
+marker_vector_it_marker (const struct marker_vector_it *it)
+{
+  return XMARKER (AREF (it->mv, it->i));
 }
 
 INLINE void
 marker_vector_it_set_to_next (struct marker_vector_it *it)
 {
-  it->entry = XFIXNUM (marker_vector_next (it->v, it->entry));
-  if (it->entry >= 0)
-    it->marker = marker_vector_marker (it->v, it->entry);
-  else
-    it->marker = Qnil;
+  for (it->i += MARKER_VECTOR_ENTRY_SIZE;
+       it->i < ASIZE (it->mv);
+       it->i += MARKER_VECTOR_ENTRY_SIZE)
+    if (MARKERP (AREF (it->mv, it->i)))
+      return;
+  it->i = 0;
 }
 
-INLINE struct Lisp_Marker *
-marker_vector_it_marker (struct marker_vector_it *it)
-{
-  return XMARKER (it->marker);
-}
-
-# define DO_MARKERS_LRU(b, m)					\
+# define DO_MARKERS(b, m)					\
   for (struct marker_vector_it it_ = marker_vector_it_init (b);	\
        marker_vector_it_is_valid (&it_);			\
        marker_vector_it_set_to_next (&it_))			\
@@ -115,20 +80,6 @@ marker_vector_it_marker (struct marker_vector_it *it)
        struct Lisp_Marker *m = marker_vector_it_marker (&it_);
 
 # define END_DO_MARKERS }
-
-# define DO_MARKERS_INDEX(v, index)					\
-  for (ptrdiff_t entry_ = XFIXNUM (marker_vector_head (v)), next_;	\
-	 entry_ >= 0; entry_ = next_)					\
-    {									\
-      next_ = XFIXNUM (marker_vector_next (v, entry_));			\
-      ptrdiff_t index = marker_vector_entry_to_index (entry_)		\
-	+ MARKER_VECTOR_OFFSET_MARKER;
-
-# define DO_MARKER_SLOTS(v, index)					\
-  for (ptrdiff_t index = MARKER_VECTOR_HEADER_SIZE + MARKER_VECTOR_OFFSET_MARKER; \
-       index < (v)->header.size;					\
-       index += MARKER_VECTOR_ENTRY_SIZE)				\
-    {
 
 struct marker_vector_it marker_vector_it_init (struct buffer *b);
 void marker_vector_add (struct buffer *b, struct Lisp_Marker *m);

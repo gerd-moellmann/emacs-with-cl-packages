@@ -4426,7 +4426,7 @@ transpose_markers (ptrdiff_t start1, ptrdiff_t end1,
   amt1_byte = (end2_byte - start2_byte) + (start2_byte - end1_byte);
   amt2_byte = (end1_byte - start1_byte) + (start2_byte - end1_byte);
 
-  DO_MARKERS_LRU (current_buffer, marker)
+  DO_MARKERS (current_buffer, marker)
     {
       mpos = marker->bytepos;
       if (mpos >= start1_byte && mpos < end2_byte)

@@ -203,7 +203,7 @@ buf_charpos_to_bytepos (struct buffer *b, ptrdiff_t charpos)
   if (b == cached_buffer && BUF_MODIFF (b) == cached_modiff)
     CONSIDER (cached_charpos, cached_bytepos);
 
-  DO_MARKERS_LRU (b, tail)
+  DO_MARKERS (b, tail)
     {
       /* If we are down to a range of DISTANCE chars,
 	 don't bother checking any other markers;
@@ -354,7 +354,7 @@ buf_bytepos_to_charpos (struct buffer *b, ptrdiff_t bytepos)
   if (b == cached_buffer && BUF_MODIFF (b) == cached_modiff)
     CONSIDER (cached_bytepos, cached_charpos);
 
-  DO_MARKERS_LRU (b, tail)
+  DO_MARKERS (b, tail)
     {
       /* If we are down to a range of DISTANCE chars,
 	 don't bother checking any other markers;
