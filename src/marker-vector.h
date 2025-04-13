@@ -66,6 +66,6 @@ Lisp_Object make_marker_vector (void);
 Lisp_Object alloc_marker_vector (ptrdiff_t len);
 void marker_vector_add (struct buffer *b, struct Lisp_Marker *m);
 void marker_vector_remove (struct Lisp_Vector *v, struct Lisp_Marker *m);
-void marker_vector_clear (struct buffer *b);
+void marker_vector_reset (struct buffer *b);
 
 #endif /* EMACS_MARKER_VECTOR_H */

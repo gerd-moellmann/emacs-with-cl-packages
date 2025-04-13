@@ -37,7 +37,16 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
    Iteration over marker vectors is done naively by iterating over
    all slots of the vector that can contain markers, skipping
-   those that don't.  */
+   those that don't.
+
+   Lisp_Marker objects contain the index under which they are stored in
+   the marker vector.
+
+   The use of a free list gives O(1) for adding a marker. The index
+   stored in the Lisp_Marker provides O(1) deletion of a marker.
+   Iteration over markers is O(N) where N is the size of the marker
+   vector.  FIXME: This could be improved to N being the number of
+   live markers by putting marker entries in a doubly-linked list.  */
 
 #include <config.h>
 #include "lisp.h"
@@ -265,19 +274,15 @@ marker_vector_remove (struct Lisp_Vector *v, struct Lisp_Marker *m)
 /* Free all markers from buffer B.  Called from kill-buffer.  */
 
 void
-marker_vector_clear (struct buffer *b)
+marker_vector_reset (struct buffer *b)
 {
-  Lisp_Object mv = BUF_MARKERS (b);
-  struct Lisp_Vector *v = XVECTOR (mv);
-  check_marker_vector (v, false);
-  for (ptrdiff_t e = MARKER_VECTOR_HEADER_SIZE; e < ASIZE (mv);
-       e += MARKER_VECTOR_ENTRY_SIZE)
-    if (MARKERP (MARKER (v, e)))
-      {
-	struct Lisp_Marker *m = XMARKER (MARKER (v, e));
-	m->buffer = NULL;
-	m->entry = 0;
-	MARKER (v, e) = Qnil;
-      }
+  /* The old GC contains at least one assertion that unchaining markers
+     in kill-buffer resets the markers' buffers.  IGC does not do this,
+     can't do this, and does not need it.  */
+  DO_MARKERS (b, m)
+    {
+      m->buffer = NULL;
+    }
+  END_DO_MARKERS;
   BUF_MARKERS (b) = Qnil;
 }

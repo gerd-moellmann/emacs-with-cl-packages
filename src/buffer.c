@@ -2099,7 +2099,7 @@ cleaning up all windows currently displaying the buffer to be killed. */)
     {
       /* Unchain all markers of this buffer and its indirect buffers.
 	 and leave them pointing nowhere.  */
-      marker_vector_clear (b);
+      marker_vector_reset (b);
       set_buffer_intervals (b, NULL);
 
       /* Perhaps we should explicitly free the interval tree here...  */
