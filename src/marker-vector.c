@@ -26,7 +26,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
    +-------------+---------+---------+-------------+
    |<- header -->|
 
-   Entries consist of 3 vector slots MARKER and CHARPOS. MARKER holds a
+   Entries consist of 2 vector slots MARKER and CHARPOS. MARKER holds a
    marker, if the entry is in use. CHARPOS is not yet used. (The idea is
    to move the positions from Lisp_Marker here, which speeds up
    adjusting positions when the text changes.)
@@ -270,7 +270,7 @@ marker_vector_remove (struct Lisp_Vector *v, struct Lisp_Marker *m)
   check_marker_vector (v, false);
 }
 
-/* Free all markers from buffer B.  Called from kill-buffer.  */
+/* Reset markers of buffer B.  Called from kill-buffer.  */
 
 void
 marker_vector_reset (struct buffer *b)
