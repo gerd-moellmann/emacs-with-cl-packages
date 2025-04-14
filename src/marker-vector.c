@@ -39,7 +39,8 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
    the marker vector.
 
    The use of a free list gives O(1) for adding a marker. The index
-   stored in the Lisp_Marker provides O(1) deletion of a marker.
+   stored in the Lisp_Marker provides O(1) deletion of a marker from
+   the markers of a buffer.
 
    Iteration over marker vectors is done by iterating over all slots of
    the vector that can contain markers, skipping those that don't.
@@ -47,9 +48,9 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
    Iteration over markers is O(N) where N is the size of the marker
    vector.  This could be improved to N being the number of live markers
    by putting marker entries in a doubly-linked list.  The downside is
-   that iteration might access the marker vector slots in an
+   that iteration then might access the marker vector slots in an
    unpredictable order, while the current method scans the vector
-   sequentially.  */
+   sequentially which should be fast.  */
 
 #include <config.h>
 #include "lisp.h"
@@ -59,26 +60,27 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #include "igc.h"
 #endif
 
-/* Minimum number of entries to allocate.  */
-#define MARKER_VECTOR_INITIAL_ENTRIES 10
+/* Number of entries to allocate initially.  */
+#define MARKER_VECTOR_INITIAL_ENTRIES 20
 
 /* Access fields of an entry E of marker vector V as lvalues.  */
 #define MARKER(v, e) (v)->contents[(e) + MARKER_VECTOR_OFFSET_MARKER]
 #define CHARPOS(v, e) (v)->contents[(e) + MARKER_VECTOR_OFFSET_CHARPOS]
 
-/* Index of next free entry.  This must use the marker field so that
-   putting an entry on the free list implicitly sets the marker slot to
-   a non-marker.  See fix_marker_vector in igc.c.  */
+/* Index of next free entry in the header of a marker vector.  This must
+   use the marker field so that putting an entry on the free list
+   implicitly sets the marker slot to a non-marker.  See
+   fix_marker_vector in igc.c.  */
 #define NEXT_FREE(v, e) MARKER (v, e)
 
-/* Index denoting end of list.  */
+/* Value denoting end of the free list.  */
 #define FREE_LIST_END make_fixnum (0)
 #define IS_FREE_LIST_END(x) EQ ((x), FREE_LIST_END)
 
-/* Access header fields of marker vecgor V as lvalues.  */
+/* Access header fields of marker vector V as lvalues.  */
 #define FREE(v) (v)->contents[MARKER_VECTOR_FREE]
 
-/* Return the size of marker vector V. This is like ASIZE but for a
+/* Return the size of marker vector V. This is gc_asize but for a
    pointer.  */
 
 static ptrdiff_t
@@ -98,8 +100,9 @@ check_is_entry (const struct Lisp_Vector *v, ptrdiff_t entry)
   eassert ((entry - MARKER_VECTOR_HEADER_SIZE) % MARKER_VECTOR_ENTRY_SIZE == 0);
 }
 
-/* Add entry ENTRY of V to its free-list. This implicitly sets
-   MARKER to not be a marker */
+/* Push entry ENTRY of V to its free-list. This must set MARKER to not
+   be a marker, which is done by using the MARKER field of entry
+   to form the free-list.  */
 
 static void
 push_free (struct Lisp_Vector *v, const ptrdiff_t entry)
@@ -110,7 +113,7 @@ push_free (struct Lisp_Vector *v, const ptrdiff_t entry)
 }
 
 /* Pop the next free entry from the free-list of V and return its entry
-   number.  */
+   start index.  */
 
 static ptrdiff_t
 pop_free (struct Lisp_Vector *v)
@@ -121,16 +124,15 @@ pop_free (struct Lisp_Vector *v)
   return free;
 }
 
-/* Add a new entry for M to marker array MV and return
-   its entry number.  */
+/* Add a new entry for marker M to marker vector MV and return its entry
+   start index.  */
 
 static ptrdiff_t
 add_entry (Lisp_Object mv, struct Lisp_Marker *m)
 {
   struct Lisp_Vector *v = XVECTOR (mv);
   const ptrdiff_t entry = pop_free (v);
-  Lisp_Object marker = make_lisp_ptr (m, Lisp_Vectorlike);
-  MARKER (v, entry) = marker;
+  MARKER (v, entry) = make_lisp_ptr (m, Lisp_Vectorlike);
   return entry;
 }
 
@@ -177,7 +179,8 @@ check_marker_vector (struct Lisp_Vector *v, bool allocating)
 #endif
 }
 
-/* Add all entries of MV starting with FIRST to the free list.  */
+/* Add all entries of MV starting with FIRST to the end of marker vector MV
+   to its free list.  */
 
 static void
 add_to_free_list (Lisp_Object mv, ptrdiff_t first)
@@ -208,15 +211,15 @@ static Lisp_Object
 larger_marker_vector (Lisp_Object old_mv)
 {
   const ptrdiff_t old_size = ASIZE (old_mv);
-  const ptrdiff_t old_wo_header = old_size - MARKER_VECTOR_HEADER_SIZE;
-  const ptrdiff_t new_size = 2 * old_wo_header + MARKER_VECTOR_HEADER_SIZE;
+  const ptrdiff_t old_entries_size = old_size - MARKER_VECTOR_HEADER_SIZE;
+  const ptrdiff_t new_size = 2 * old_entries_size + MARKER_VECTOR_HEADER_SIZE;
 
   /* Allocate a new marker vector.  */
   Lisp_Object new_mv = alloc_marker_vector (new_size);
   struct Lisp_Vector *new_v = XVECTOR (new_mv);
 
   /* Copy existing entries. */
-  struct Lisp_Vector *old_v = XVECTOR (old_mv);
+  const struct Lisp_Vector *old_v = XVECTOR (old_mv);
   const size_t nbytes = old_size * sizeof (Lisp_Object);
   memcpy (new_v->contents, old_v->contents, nbytes);
 
@@ -226,8 +229,9 @@ larger_marker_vector (Lisp_Object old_mv)
   return new_mv;
 }
 
-/* Make sure that the marker vector of B has room for a new entry.  Make
-   a larger marker vector if not.  Value is the marker vector of B.  */
+/* Make sure that the marker vector of buffer B has room for a new
+   entry.  Make a larger marker vector if not.  Value is the marker
+   vector of B at the end.  */
 
 static Lisp_Object
 ensure_room (struct buffer *b)
@@ -241,15 +245,15 @@ ensure_room (struct buffer *b)
   return mv;
 }
 
-/* Add marker M to the marker vector of buffer B. */
+/* Add marker M to the marker vector of buffer B.  */
 
 void
 marker_vector_add (struct buffer *b, struct Lisp_Marker *m)
 {
-  Lisp_Object mv = ensure_room (b);
+  const Lisp_Object mv = ensure_room (b);
   check_marker_vector (XVECTOR (mv), false);
-  m->entry = add_entry (mv, m);
   m->buffer = b;
+  m->entry = add_entry (mv, m);
   check_marker_vector (XVECTOR (mv), false);
 }
 
