@@ -2139,20 +2139,24 @@ fix_marker_vector (mps_ss_t ss, struct Lisp_Vector *v)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    for (ptrdiff_t i = MARKER_VECTOR_HEADER_SIZE + MARKER_VECTOR_OFFSET_MARKER,
-	   n = vector_size (v);
-	 i < n;
-	 i += MARKER_VECTOR_ENTRY_SIZE)
+    for (ptrdiff_t e = MARKER_VECTOR_HEADER_SIZE, n = vector_size (v);
+	 e < n; e += MARKER_VECTOR_ENTRY_SIZE)
       {
-	Lisp_Object *p = &v->contents[i];
-	Lisp_Object before = *p;
-	if (NILP (*p) && !NILP (before))
+	/* Note that we cannot access anything of a marker here because
+	   that is not allowed by MPS while scanning an unrelated
+	   object.  This includes MARKERP because that accesses the
+	   header of a marker.  */
+	Lisp_Object *p = &v->contents[e + MARKER_VECTOR_OFFSET_MARKER];
+	if (!NILP (*p) && !FIXNUMP (*p))
 	  {
-	    /* Put on free list. Note that we don't access fields of the
-	       marker because that is not allowed by MPS while
-	       scanning an unrelated object. */
-	    v->contents[i] = v->contents[MARKER_VECTOR_FREE];
-	    v->contents[MARKER_VECTOR_FREE] = make_fixnum (i);
+	    IGC_FIX12_OBJ (ss, p);
+	    if (NILP (*p))
+	      {
+		/* Changed to nil means the weak reference was to a dead
+		   marker.  Put on free-list.  */
+		v->contents[e] = v->contents[MARKER_VECTOR_FREE];
+		v->contents[MARKER_VECTOR_FREE] = make_fixnum (e);
+	      }
 	  }
       }
   }
