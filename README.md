@@ -71,7 +71,9 @@ that function. The menu's behavior is patterned after what macOS does.
 
 It's unclear at the moment if that will land in GNU.
 
-## Text index
+## Text indices and marker vectors
+
+### Text indices
 
 Emacs internal text encoding is an extended UTF-8. Characters can be
 between 1 and 5 bytes long in this encoding. Such a variable-length
@@ -85,6 +87,18 @@ and heuristics.
 The implementation can be found in `text-index.c`. Please read the
 comment at the start of that file for details.
 
-I am now using this by default. There is also a branch
+### Marker vectors
+
+Markers in Emacs are traditionally kept in a doubly-linked list per
+buffer. Adding a marker is O(1), deleting a marker is O(N). Iteration
+over markers to update them when text is inserted/delete accesses
+memory all over the place.
+
+IGC changed that to use marker vectors instead of a list, which I now
+ported to the old GC. See `marker-vector.c`.
+
+### Status
+
+I am now using both by default. There is also a branch
 `scratch/text-index` on savannah which Stefan Monnier said he'll take a
 look at.
