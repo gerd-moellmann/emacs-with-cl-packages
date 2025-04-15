@@ -30,7 +30,8 @@ enum
 {
   /* Header. */
   MARKER_VECTOR_FREE = 0,
-  MARKER_VECTOR_HEADER_SIZE = 1,
+  MARKER_VECTOR_MAX_MARKER_INDEX = 1,
+  MARKER_VECTOR_HEADER_SIZE = 2,
 
   /* Entries.  */
   MARKER_VECTOR_OFFSET_MARKER = 0,
@@ -42,15 +43,16 @@ enum
    name M to a pointer to Lisp_Marker.  The loop must be ended
    with an END_DO_MARKERS.  */
 
-# define DO_MARKERS_OF_VECTOR(mv, m)				\
-  for (ptrdiff_t i_ = MARKER_VECTOR_HEADER_SIZE + MARKER_VECTOR_OFFSET_MARKER, \
-	 end_ = gc_asize (mv);					\
-       i_ < end_;						\
-       i_ += MARKER_VECTOR_ENTRY_SIZE)				\
-    {								\
-       Lisp_Object m_ = AREF (mv, i_);				\
-       if (MARKERP (m_))					\
-	 {							\
+# define DO_MARKERS_OF_VECTOR(mv, m)					\
+  for (ptrdiff_t i_ = (MARKER_VECTOR_HEADER_SIZE			\
+		       + MARKER_VECTOR_OFFSET_MARKER),			\
+	 end_ = XFIXNUM (AREF (mv, MARKER_VECTOR_MAX_MARKER_INDEX));	\
+       i_ <= end_;							\
+       i_ += MARKER_VECTOR_ENTRY_SIZE)					\
+    {									\
+       Lisp_Object m_ = AREF (mv, i_);					\
+       if (MARKERP (m_))						\
+	 {								\
             struct Lisp_Marker *m = XMARKER (m_);
 
 /* Iterate over markers of buffer B, binding a variable with name M to a

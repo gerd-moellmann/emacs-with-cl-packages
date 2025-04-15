@@ -21,9 +21,9 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
    entries for each marker. A Lisp vector is used because the vector
    references markers "weakly", and that's what easy for igc.
 
-   +-------------+---------+---------+-------------+
-   | FREE        | entry 0 | entry 1 | ...         |
-   +-------------+---------+---------+-------------+
+   +------+------+---------+---------+-------------+
+   | FREE | MAX  | entry 0 | entry 1 | ...         |
+   +------+------+---------+---------+-------------+
    |<- header -->|
 
    Entries consist of 2 vector slots MARKER and CHARPOS. MARKER holds a
@@ -34,6 +34,12 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
    FREE is the array index of the start of the next free entry in the
    marker vector.  Free entries form a singly-linked list using the
    MARKER field of entries.
+
+   MAX (actually MAX_MARKER_INDEX) is the largest index ever used to
+   store a marker. This is used to (supposedly) speed up iteration
+   over the marker vector, with the assumption that there might be
+   a tail of slots in the marker vector that is never used. Or, IOW,
+   that we over-allocate room in the marker vector.
 
    Lisp_Marker objects contain the index under which they are stored in
    the marker vector.
@@ -79,6 +85,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
 /* Access header fields of marker vector V as lvalues.  */
 #define FREE(v) (v)->contents[MARKER_VECTOR_FREE]
+#define MAX_MARKER_INDEX(v) (v)->contents[MARKER_VECTOR_MAX_MARKER_INDEX]
 
 /* Check that index ENTRY is a valid entry start index in vector V.  */
 
@@ -123,6 +130,8 @@ add_entry (Lisp_Object mv, struct Lisp_Marker *m)
   struct Lisp_Vector *v = XVECTOR (mv);
   const ptrdiff_t entry = pop_free (v);
   MARKER (v, entry) = make_lisp_ptr (m, Lisp_Vectorlike);
+  const ptrdiff_t max_index = XFIXNUM (MAX_MARKER_INDEX (v));
+  MAX_MARKER_INDEX (v) = make_fixnum (max (entry, max_index));
   return entry;
 }
 
