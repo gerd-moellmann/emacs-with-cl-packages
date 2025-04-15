@@ -22,7 +22,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #include <config.h>
 #include "lisp.h"
 
-/* A marker array is a Lisp vector starting with a header of
+/* A marker vector is a Lisp vector starting with a header of
    MARKER_VECTOR_HEADER_SIZE Lisp_Objects, followed by entries of
    MARKER_VECTOR_ENTRY_SIZE Lisp_Objects.  */
 
@@ -40,9 +40,9 @@ enum
 
 /* Iterate over markers in marker vector MV, binding a variable with
    name M to a pointer to Lisp_Marker.  The loop must be ended
-   with an END_DO_MARKER.  */
+   with an END_DO_MARKERS.  */
 
-# define DO_MARKERS_VECTOR(mv, m)				\
+# define DO_MARKERS_OF_VECTOR(mv, m)				\
   for (ptrdiff_t i_ = MARKER_VECTOR_HEADER_SIZE + MARKER_VECTOR_OFFSET_MARKER, \
 	 end_ = gc_asize (mv);					\
        i_ < end_;						\
@@ -55,9 +55,9 @@ enum
 
 /* Iterate over markers of buffer B, binding a variable with name M to a
    pointer to Lisp_Marker.  The loop must be ended with an
-   END_DO_MARKER.  */
+   END_DO_MARKERS.  */
 
-# define DO_MARKERS(b, m) DO_MARKERS_VECTOR (BUF_MARKERS (b), m)
+# define DO_MARKERS(b, m) DO_MARKERS_OF_VECTOR (BUF_MARKERS (b), m)
 # define END_DO_MARKERS }}
 
 Lisp_Object make_marker_vector (void);
