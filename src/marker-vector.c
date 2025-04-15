@@ -80,23 +80,13 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 /* Access header fields of marker vector V as lvalues.  */
 #define FREE(v) (v)->contents[MARKER_VECTOR_FREE]
 
-/* Return the size of marker vector V. This is gc_asize but for a
-   pointer.  */
-
-static ptrdiff_t
-vsize (const struct Lisp_Vector *v)
-{
-  Lisp_Object vector = make_lisp_ptr ((struct Lisp_Vector*) v, Lisp_Vectorlike);
-  return gc_asize (vector);
-}
-
 /* Check that index ENTRY is a valid entry start index in vector V.  */
 
 static void
 check_is_entry (const struct Lisp_Vector *v, ptrdiff_t entry)
 {
   eassert (entry >= MARKER_VECTOR_HEADER_SIZE);
-  eassert (entry < vsize (v));
+  eassert (entry < gc_vsize (v));
   eassert ((entry - MARKER_VECTOR_HEADER_SIZE) % MARKER_VECTOR_ENTRY_SIZE == 0);
 }
 
@@ -148,7 +138,10 @@ alloc_marker_vector (ptrdiff_t len)
 #endif
 }
 
-/* Expensive pre- and post-condition checking.  */
+/* Expensive pre- and post-condition checking. V is the marker vector to
+   check.  ALLOCATING true means we are called from allocation functions
+   where V may be different from the underlying buffer's marker
+   vector.  */
 
 static void
 check_marker_vector (struct Lisp_Vector *v, bool allocating)
@@ -161,7 +154,7 @@ check_marker_vector (struct Lisp_Vector *v, bool allocating)
 
   size_t nused = 0;
   Lisp_Object mv = make_lisp_ptr (v, Lisp_Vectorlike);
-  DO_MARKERS_VECTOR (mv, m)
+  DO_MARKERS_OF_VECTOR (mv, m)
     {
       eassert (m->entry == i_);
       eassert (m->buffer != NULL);
@@ -175,7 +168,7 @@ check_marker_vector (struct Lisp_Vector *v, bool allocating)
   END_DO_MARKERS;
 
   eassert ((nused + nfree) * MARKER_VECTOR_ENTRY_SIZE
-	   + MARKER_VECTOR_HEADER_SIZE == vsize (v));
+	   + MARKER_VECTOR_HEADER_SIZE == gc_vsize (v));
 #endif
 }
 
@@ -257,7 +250,7 @@ marker_vector_add (struct buffer *b, struct Lisp_Marker *m)
   check_marker_vector (XVECTOR (mv), false);
 }
 
-/* Remove marker M from marker vector MV.  */
+/* Remove marker M from marker vector V.  */
 
 void
 marker_vector_remove (struct Lisp_Vector *v, struct Lisp_Marker *m)
