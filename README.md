@@ -16,7 +16,7 @@ Known working systems:
 Please see the [issues](../../issues) for advice on build configurations for your system.
 
 >[!IMPORTANT]
-> Please open an [issue](../../issues) to report your experiences, even if you encounter no problems.  Mention your OS version, CPU, and any other relevant details.
+> Please open an [issue](../../issues) to report your experiences, even if you encounter no problems.  Mention your OS version, CPU, and any other relevant details, including the build/configure flags you used.
 
 ## Install
 
