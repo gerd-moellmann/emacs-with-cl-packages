@@ -30,7 +30,7 @@ enum
 {
   /* Header. */
   MARKER_VECTOR_FREE = 0,
-  MARKER_VECTOR_MAX_MARKER_INDEX = 1,
+  MARKER_VECTOR_MAX_ENTRY = 1,
   MARKER_VECTOR_HEADER_SIZE = 2,
 
   /* Entries.  */
@@ -44,13 +44,12 @@ enum
    with an END_DO_MARKERS.  */
 
 # define DO_MARKERS_OF_VECTOR(mv, m)					\
-  for (ptrdiff_t i_ = (MARKER_VECTOR_HEADER_SIZE			\
-		       + MARKER_VECTOR_OFFSET_MARKER),			\
-	 end_ = XFIXNUM (AREF (mv, MARKER_VECTOR_MAX_MARKER_INDEX));	\
-       i_ <= end_;							\
-       i_ += MARKER_VECTOR_ENTRY_SIZE)					\
+  for (ptrdiff_t e_ = MARKER_VECTOR_HEADER_SIZE,			\
+	 end_ = XFIXNUM (AREF (mv, MARKER_VECTOR_MAX_ENTRY));		\
+       e_ <= end_;							\
+       e_ += MARKER_VECTOR_ENTRY_SIZE)					\
     {									\
-       Lisp_Object m_ = AREF (mv, i_);					\
+       Lisp_Object m_ = AREF (mv, e_ + MARKER_VECTOR_OFFSET_MARKER);	\
        if (MARKERP (m_))						\
 	 {								\
             struct Lisp_Marker *m = XMARKER (m_);

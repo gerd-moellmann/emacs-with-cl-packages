@@ -2139,8 +2139,9 @@ fix_marker_vector (mps_ss_t ss, struct Lisp_Vector *v)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    for (ptrdiff_t e = MARKER_VECTOR_HEADER_SIZE, n = vector_size (v);
-	 e < n; e += MARKER_VECTOR_ENTRY_SIZE)
+    const ptrdiff_t max_entry = XFIXNUM (v->contents[MARKER_VECTOR_MAX_ENTRY]);
+    for (ptrdiff_t e = MARKER_VECTOR_HEADER_SIZE;
+	 e <= max_entry; e += MARKER_VECTOR_ENTRY_SIZE)
       {
 	/* Note that we cannot access anything of a marker here because
 	   that is not allowed by MPS while scanning an unrelated
