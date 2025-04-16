@@ -324,24 +324,6 @@ adjust_markers_for_replace (ptrdiff_t from, ptrdiff_t from_byte,
   adjust_overlays_for_delete (from, old_chars);
 }
 
-/* Starting at POS (BYTEPOS), find the byte position corresponding to
-   ENDPOS, which could be either before or after POS.  */
-static ptrdiff_t
-count_bytes (ptrdiff_t pos, ptrdiff_t bytepos, ptrdiff_t endpos)
-{
-  eassert (BEG_BYTE <= bytepos && bytepos <= Z_BYTE
-	   && BEG <= endpos && endpos <= Z);
-
-  if (pos <= endpos)
-    for ( ; pos < endpos; pos++)
-      bytepos += next_char_len (bytepos);
-  else
-    for ( ; pos > endpos; pos--)
-      bytepos -= prev_char_len (bytepos);
-
-  return bytepos;
-}
-
 /* Adjust byte positions of markers when their character positions
    didn't change.  This is used in several places that replace text,
    but keep the character positions of the markers unchanged -- the

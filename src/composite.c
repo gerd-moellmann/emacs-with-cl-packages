@@ -941,7 +941,7 @@ autocmp_chars (Lisp_Object rule, ptrdiff_t charpos, ptrdiff_t bytepos,
   specpdl_ref count = SPECPDL_INDEX ();
   Lisp_Object pos = make_fixnum (charpos);
   ptrdiff_t to;
-  ptrdiff_t pt = PT, pt_byte = PT_BYTE;
+  ptrdiff_t pt = PT;
   Lisp_Object re, font_object, lgstring;
   ptrdiff_t len;
 
