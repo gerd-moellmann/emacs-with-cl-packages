@@ -158,14 +158,15 @@ attach_marker (struct Lisp_Marker *m, struct buffer *b,
   else
     eassert (charpos <= bytepos);
 
-  marker_vector_set_charpos (m, charpos);
-
   if (m->buffer != b)
     {
       unchain_marker (m);
       m->buffer = b;
       marker_vector_add (b, m);
     }
+
+  eassert (m->buffer == b);
+  marker_vector_set_charpos (m, charpos);
 }
 
 /* If BUFFER is nil, return current buffer pointer.  Next, check
