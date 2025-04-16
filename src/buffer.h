@@ -1744,4 +1744,6 @@ INLINE_HEADER_END
 int compare_overlays (const void *v1, const void *v2);
 void make_sortvec_item (struct sortvec *item, Lisp_Object overlay);
 
+#include "marker-vector.h"
+
 #endif /* EMACS_BUFFER_H */

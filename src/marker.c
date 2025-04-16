@@ -128,7 +128,7 @@ DEFUN ("marker-position", Fmarker_position, Smarker_position, 1, 1, 0,
 {
   CHECK_MARKER (marker);
   if (XMARKER (marker)->buffer)
-    return make_fixnum (XMARKER (marker)->charpos);
+    return make_fixnum (marker_vector_charpos (XMARKER (marker)));
 
   return Qnil;
 }
@@ -142,7 +142,7 @@ before it was killed.  */)
 {
   CHECK_MARKER (marker);
 
-  return make_fixnum (XMARKER (marker)->charpos);
+  return make_fixnum (marker_vector_charpos (XMARKER (marker)));
 }
 
 /* Change M so it points to B at CHARPOS and BYTEPOS.  */
@@ -158,8 +158,7 @@ attach_marker (struct Lisp_Marker *m, struct buffer *b,
   else
     eassert (charpos <= bytepos);
 
-  m->charpos = charpos;
-  m->bytepos = bytepos;
+  marker_vector_set_charpos (m, charpos);
 
   if (m->buffer != b)
     {
@@ -205,8 +204,8 @@ set_marker_internal (Lisp_Object marker, Lisp_Object position,
   else if (MARKERP (position) && b == XMARKER (position)->buffer
 	   && b == m->buffer)
     {
-      m->bytepos = XMARKER (position)->bytepos;
-      m->charpos = XMARKER (position)->charpos;
+      const ptrdiff_t charpos = marker_vector_charpos (XMARKER (position));
+      marker_vector_set_charpos (m, charpos);
     }
 
   else
@@ -231,8 +230,8 @@ set_marker_internal (Lisp_Object marker, Lisp_Object position,
 	}
       else if (MARKERP (position))
 	{
-	  charpos = XMARKER (position)->charpos;
-	  bytepos = XMARKER (position)->bytepos;
+	  charpos = marker_vector_charpos (XMARKER (position));
+	  bytepos = marker_vector_bytepos (XMARKER (position));
 	}
       else
 	wrong_type_argument (Qinteger_or_marker_p, position);
@@ -378,9 +377,9 @@ marker_position (Lisp_Object marker)
   if (!buf)
     error ("Marker does not point anywhere");
 
-  eassert (BUF_BEG (buf) <= m->charpos && m->charpos <= BUF_Z (buf));
-
-  return m->charpos;
+  const ptrdiff_t charpos = marker_vector_charpos (m);
+  eassert (BUF_BEG (buf) <= charpos && charpos <= BUF_Z (buf));
+  return charpos;
 }
 
 /* Return the byte position of marker MARKER, as a C integer.  */
@@ -394,9 +393,9 @@ marker_byte_position (Lisp_Object marker)
   if (!buf)
     error ("Marker does not point anywhere");
 
-  eassert (BUF_BEG_BYTE (buf) <= m->bytepos && m->bytepos <= BUF_Z_BYTE (buf));
-
-  return m->bytepos;
+  const ptrdiff_t bytepos = marker_vector_bytepos (m);
+  eassert (BUF_BEG_BYTE (buf) <= bytepos && bytepos <= BUF_Z_BYTE (buf));
+  return bytepos;
 }
 
 DEFUN ("copy-marker", Fcopy_marker, Scopy_marker, 0, 2, 0,
