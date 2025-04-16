@@ -294,6 +294,31 @@ marker_vector_reset (struct buffer *b)
 }
 
 void
+marker_vector_set_charpos (struct Lisp_Marker *m, ptrdiff_t charpos)
+{
+  eassert (m->buffer);
+  struct Lisp_Vector *v = XVECTOR (BUF_MARKERS (m->buffer));
+  check_is_entry (v, m->entry);
+  CHARPOS (v, m->entry) = make_fixnum (charpos);
+}
+
+ptrdiff_t
+marker_vector_charpos (const struct Lisp_Marker *m)
+{
+  eassert (m->buffer);
+  struct Lisp_Vector *v = XVECTOR (BUF_MARKERS (m->buffer));
+  check_is_entry (v, m->entry);
+  return XFIXNUM (CHARPOS (v, m->entry));
+}
+
+ptrdiff_t
+marker_vector_bytepos (const struct Lisp_Marker *m)
+{
+  const ptrdiff_t charpos = marker_vector_charpos (m);
+  return text_index_charpos_to_bytepos (m->buffer, charpos);
+}
+
+void
 marker_vector_adjust_for_delete (struct buffer *b, const ptrdiff_t from,
 				 const ptrdiff_t to)
 {
@@ -351,11 +376,4 @@ marker_vector_adjust_for_replace (struct buffer *b, const ptrdiff_t from,
 	CHARPOS (v, m->entry) = make_fixnum (from);
     }
   END_DO_MARKERS;
-}
-
-ptrdiff_t
-marker_vector_bytepos (const struct Lisp_Marker *m)
-{
-  const ptrdiff_t charpos = marker_vector_charpos (m);
-  return text_index_charpos_to_bytepos (m->buffer, charpos);
 }
