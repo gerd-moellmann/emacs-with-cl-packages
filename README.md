@@ -71,34 +71,56 @@ that function. The menu's behavior is patterned after what macOS does.
 
 It's unclear at the moment if that will land in GNU.
 
-## Text indices and marker vectors
-
-### Text indices
+## Markers, Text indices, and marker vectors
 
 Emacs internal text encoding is an extended UTF-8. Characters can be
 between 1 and 5 bytes long in this encoding. Such a variable-length
-representation requires a conversion between character positions
-and byte positions.
+representation requires a conversion between character and byte
+positions.
 
-A text index is a data structure which supports such position
-conversions with predictable performance and without relying on markers
-and heuristics.
+This conversion is traditionally sped up by consulting the a
+doubly-linked list of markers that each buffer has. Each marker contains
+a character and a byte position. A heuristic is used to pick a suitable
+marker from whose position one can forward or backward in the buffer
+text to convert character to byte positions and vice versa.
 
-The implementation can be found in `text-index.c`. Please read the
-comment at the start of that file for details.
+This has some problems:
 
-### Marker vectors
+- Adding a marker is O(1), but deleting a marker is O(N).
 
-Markers in Emacs are traditionally kept in a doubly-linked list per
-buffer. Adding a marker is O(1), deleting a marker is O(N). Iteration
-over markers to update them when text is inserted/delete accesses
-memory all over the place.
+- Iteration over markers to update them when text is inserted/delete
+  accesses memory all over the place, the marker objects.
 
-IGC changed that to use marker vectors instead of a list, which I now
-ported to the old GC. See `marker-vector.c`.
+- A possibly large number of "cache marker" are produced to make it more
+  likely that the heuristic finds suitable markers.
+
+- The heuristic doesn't really work in some use cases.
+
+What I've added here is:
+
+Add text indices: A text index is a data structure which supports such
+position conversions with predictable performance and without relying on
+markers and heuristics. The implementation can be found in
+`text-index.c`. Please read the comment at the start of that file for
+details.
+
+Add marker vectors: I had already changed the doubly-linked list of
+markers to use marker vectors in igc. This is now ported to the non-igc
+case, so that both can use a common implementation. (Please note that
+`feature/igc` still uses the old implementation. It will use the new one
+should this land in master.)
+
+Remove positions from markers: Store the character position of a marker
+in the marker vector and compute the byte position as needed using text
+indices. This allows position adjustments when text changes t be done by
+iterating over the narker vector without touching other memory.
 
 ### Status
 
-I am now using both by default. There is also a branch
-`scratch/text-index` on savannah which Stefan Monnier said he'll take a
-look at.
+I am now using this on a daily basis.
+
+There is also a branch `scratch/text-index` on savannah where I ported
+this to master.  If that lands in master or when is unclear.  Stefan
+Monnier seems interested, and has run some benchmarks that look
+good. One notorious case was sped up by 2 orders of magnitude in an
+early version.
