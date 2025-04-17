@@ -52,6 +52,7 @@
   (tab-bar-tabs-set nil))
 
 (ert-deftest tab-bar-tests-quit-restore-window ()
+  (skip-when (and noninteractive (eq system-type 'windows-nt)))
   (let* ((frame-params (when noninteractive
                          '((window-system . nil)
                            (tty-type . "linux"))))
@@ -88,12 +89,16 @@
       (should (eq (length (window-list)) 2))
       (should (equal (buffer-name) "*info*"))
       (quit-window)
+      ;; 'quit-window' unexpectedly selects the original frame,
+      ;; so move back to the created frame
+      (select-frame (car (frame-list)))
       (should (eq (length (window-list)) 1))
       (should (eq (length (frame-list)) 2))
-      ;; FIXME: uncomment (should (equal (buffer-name) "*Messages*"))
+      (should (equal (buffer-name) "*Messages*"))
       (quit-window)
       (should (eq (length (frame-list)) 2))
-      ;; Clean up the frame afterwards
+      ;; Delete the created frame afterwards because with tty frames
+      ;; the output of 'message' is bound to the original frame
       (delete-frame))
 
     ;; 2.1. 'quit-restore-window' should close the tab
