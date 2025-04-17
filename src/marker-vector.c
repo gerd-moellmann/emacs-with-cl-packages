@@ -293,6 +293,8 @@ marker_vector_reset (struct buffer *b)
   BUF_MARKERS (b) = Qnil;
 }
 
+/* Set marker M's character position to CHARPOS.  */
+
 void
 marker_vector_set_charpos (struct Lisp_Marker *m, ptrdiff_t charpos)
 {
@@ -301,6 +303,8 @@ marker_vector_set_charpos (struct Lisp_Marker *m, ptrdiff_t charpos)
   check_is_entry (v, m->entry);
   CHARPOS (v, m->entry) = make_fixnum (charpos);
 }
+
+/* Return marker M's character position.  */
 
 ptrdiff_t
 marker_vector_charpos (const struct Lisp_Marker *m)
@@ -311,6 +315,8 @@ marker_vector_charpos (const struct Lisp_Marker *m)
   return XFIXNUM (CHARPOS (v, m->entry));
 }
 
+/* Return marker M's byte position.  */
+
 ptrdiff_t
 marker_vector_bytepos (const struct Lisp_Marker *m)
 {
@@ -318,62 +324,75 @@ marker_vector_bytepos (const struct Lisp_Marker *m)
   return text_index_charpos_to_bytepos (m->buffer, charpos);
 }
 
+/* Adjust all marker positions of buffer B for a deletion of a range
+   FROM_CHARPOS to TO_CHARPOS characters.  */
+
 void
-marker_vector_adjust_for_delete (struct buffer *b, const ptrdiff_t from,
-				 const ptrdiff_t to)
+marker_vector_adjust_for_delete (struct buffer *b,
+				 const ptrdiff_t from_charpos,
+				 const ptrdiff_t to_charpos)
 {
+  const ptrdiff_t nchars = to_charpos - from_charpos;
+  struct Lisp_Vector *v = XVECTOR (BUF_MARKERS (b));
   DO_MARKERS (b, m)
     {
-      struct Lisp_Vector *v = XVECTOR (BUF_MARKERS (b));
       const ptrdiff_t charpos = XFIXNUM (CHARPOS (v, m->entry));
       eassert (charpos <= Z);
-
-      if (charpos > to)
-	CHARPOS (v, m->entry) = make_fixnum (charpos - (to - from));
-      else if (charpos > from)
-	CHARPOS (v, m->entry) = make_fixnum (from);
+      if (charpos > to_charpos)
+	CHARPOS (v, m->entry) = make_fixnum (charpos - nchars);
+      else if (charpos > from_charpos)
+	CHARPOS (v, m->entry) = make_fixnum (from_charpos);
     }
   END_DO_MARKERS;
 }
 
-void
-marker_vector_adjust_for_insert (struct buffer *b, const ptrdiff_t from,
-				 const ptrdiff_t to, const bool before_markers)
-{
-  const ptrdiff_t nchars = to - from;
-  DO_MARKERS (current_buffer, m)
-    {
-      struct Lisp_Vector *v = XVECTOR (BUF_MARKERS (b));
-      const ptrdiff_t charpos = XFIXNUM (CHARPOS (v, m->entry));
-
-      if (charpos == from)
-	{
-	  if (m->insertion_type || before_markers)
-	    CHARPOS (v, m->entry) = make_fixnum (to);
-	}
-      else if (charpos > from)
-	{
-	  CHARPOS (v, m->entry) = make_fixnum (charpos + nchars);
-	}
-    }
-  END_DO_MARKERS;
-}
+/* Adjust marker positions in buffer B for an insertion that stretches
+   from FROM_CHARPOS to TO_CHARPOS.  When a marker points at the
+   insertion point FROM_CHARPOS, we advance it if either its
+   insertion-type is t or BEFORE_MARKERS is true.  */
 
 void
-marker_vector_adjust_for_replace (struct buffer *b, const ptrdiff_t from,
-				  const ptrdiff_t old_chars,
-				  const ptrdiff_t new_chars)
+marker_vector_adjust_for_insert (struct buffer *b,
+				 const ptrdiff_t from_charpos,
+				 const ptrdiff_t to_charpos,
+				 const bool before_markers)
 {
-  const ptrdiff_t diff_chars = new_chars - old_chars;
-  const ptrdiff_t prev_to_char = from + old_chars;
+  const ptrdiff_t nchars = to_charpos - from_charpos;
+  struct Lisp_Vector *v = XVECTOR (BUF_MARKERS (b));
   DO_MARKERS (b, m)
     {
-      struct Lisp_Vector *v = XVECTOR (BUF_MARKERS (b));
       const ptrdiff_t charpos = XFIXNUM (CHARPOS (v, m->entry));
-      if (charpos >= prev_to_char)
-	CHARPOS (v, m->entry) = make_fixnum (charpos + diff_chars);
-      else if (charpos > from)
-	CHARPOS (v, m->entry) = make_fixnum (from);
+      if (charpos == from_charpos)
+	{
+	  if (m->insertion_type || before_markers)
+	    CHARPOS (v, m->entry) = make_fixnum (to_charpos);
+	}
+      else if (charpos > from_charpos)
+	CHARPOS (v, m->entry) = make_fixnum (charpos + nchars);
+    }
+  END_DO_MARKERS;
+}
+
+/* Adjust marker positions of buffer Bs for a replacement of text at
+   FROM_CHARPOS of length OLD_NCHARS to a new text of length NEW_NCHARS.
+   It is assumed that OLD_CHARS > 0, i.e., this is not an insertion.  */
+
+void
+marker_vector_adjust_for_replace (struct buffer *b,
+				  const ptrdiff_t from_charpos,
+				  const ptrdiff_t old_nchars,
+				  const ptrdiff_t new_nchars)
+{
+  const ptrdiff_t diff_nchars = new_nchars - old_nchars;
+  const ptrdiff_t old_to_charpos = from_charpos + old_nchars;
+  struct Lisp_Vector *v = XVECTOR (BUF_MARKERS (b));
+  DO_MARKERS (b, m)
+    {
+      const ptrdiff_t charpos = XFIXNUM (CHARPOS (v, m->entry));
+      if (charpos >= old_to_charpos)
+	CHARPOS (v, m->entry) = make_fixnum (charpos + diff_nchars);
+      else if (charpos > from_charpos)
+	CHARPOS (v, m->entry) = make_fixnum (from_charpos);
     }
   END_DO_MARKERS;
 }
