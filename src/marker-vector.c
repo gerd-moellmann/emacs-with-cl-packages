@@ -62,7 +62,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #include "lisp.h"
 #include "buffer.h"
 #include "text-index.h"
-#include "marker-vector.h"
 #ifdef HAVE_MPS
 #include "igc.h"
 #endif

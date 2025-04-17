@@ -38,7 +38,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "systime.h"
 #include "character.h"
 #include "buffer.h"
-#include "marker-vector.h"
 #include "window.h"
 #include "keyboard.h"
 #include "frame.h"

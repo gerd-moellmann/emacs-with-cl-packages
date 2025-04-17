@@ -47,7 +47,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #include "igc.h"
 #include "bignum.h"
 #include "buffer.h"
-#include "marker-vector.h"
 #include "coding.h"
 #include "charset.h"
 #include "dispextern.h"

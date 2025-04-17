@@ -28,7 +28,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "lisp.h"
 #include "character.h"
 #include "buffer.h"
-#include "marker-vector.h"
 #include "text-index.h"
 #include "window.h"
 #include "igc.h"

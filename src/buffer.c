@@ -43,7 +43,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "xwidget.h"
 #include "itree.h"
 #include "pdumper.h"
-#include "marker-vector.h"
 #include "igc.h"
 #include "text-index.h"
 
