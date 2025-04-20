@@ -256,7 +256,7 @@ pkg_find_symbol (Lisp_Object name, Lisp_Object package, Lisp_Object *status)
   eassert (PACKAGEP (package));
 
   struct Lisp_Hash_Table *h = XHASH_TABLE (PACKAGE_SYMBOLS (package));
-  ptrdiff_t i = hash_lookup (h, name);
+  ptrdiff_t i = hash_find (h, name);
   if (i >= 0)
     {
       if (status)
@@ -269,7 +269,7 @@ pkg_find_symbol (Lisp_Object name, Lisp_Object package, Lisp_Object *status)
     {
       const Lisp_Object used_package = XCAR (tail);
       h = XHASH_TABLE (PACKAGE_SYMBOLS (used_package));
-      i = hash_lookup (h, name);
+      i = hash_find (h, name);
       if (i >= 0 && EQ (HASH_VALUE (h, i), QCexternal))
 	{
 	  if (status)
@@ -516,7 +516,7 @@ pkg_set_status (Lisp_Object symbol, Lisp_Object package, Lisp_Object status)
     pkg_error ("Invalid symbol status %s", status);
 
   struct Lisp_Hash_Table *h = XHASH_TABLE (PACKAGE_SYMBOLS (package));
-  const ptrdiff_t i = hash_lookup (h, SYMBOL_NAME (symbol));
+  const ptrdiff_t i = hash_find (h, SYMBOL_NAME (symbol));
   if (i < 0)
     pkg_error ("Symbol '%s' is not an internal symbol in package '%s'",
 	       SDATA (SYMBOL_NAME (symbol)),

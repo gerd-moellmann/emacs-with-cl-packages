@@ -34,6 +34,19 @@
 (declare-function treesit-node-type "treesit.c")
 (declare-function treesit-parser-create "treesit.c")
 
+(add-to-list
+ 'treesit-language-source-alist
+ '(markdown
+   "https://github.com/tree-sitter-grammars/tree-sitter-markdown" "v0.4.1"
+   "tree-sitter-markdown/src")
+ t)
+(add-to-list
+ 'treesit-language-source-alist
+ '(markdown-inline
+   "https://github.com/tree-sitter-grammars/tree-sitter-markdown" "v0.4.1"
+   "tree-sitter-markdown-inline/src")
+ t)
+
 ;;; Helper functions
 
 (defvar markdown-ts--code-block-language-map
@@ -174,6 +187,7 @@ maps to tree-sitter language `cpp'.")
       (paragraph (inline (block_continuation) @markdown-ts-delimiter))))
 
    :language 'markdown-inline
+   :override t ;; override paren delimiter inside inline link
    :feature 'paragraph-inline
    '(((image_description) @link)
      ((link_destination) @font-lock-string-face)
@@ -304,7 +318,8 @@ the same features enabled in MODE."
               `(("Headings" markdown-ts-imenu-node-p nil markdown-ts-imenu-name-function)))
   (setq-local treesit-outline-predicate "section")
 
-  (when (treesit-ready-p 'markdown)
+  (when (and (treesit-ensure-installed 'markdown)
+             (treesit-ensure-installed 'markdown-inline))
     (treesit-parser-create 'markdown-inline)
     (treesit-parser-create 'markdown)
     (markdown-ts-setup)))

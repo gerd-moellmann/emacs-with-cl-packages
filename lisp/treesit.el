@@ -190,9 +190,13 @@ the return value of that function instead."
 
 (defun treesit-language-at-point-default (position)
   "Default function for `treesit-language-at-point-function'.
-Return the deepest parser by embed level."
-  (treesit-parser-language
-   (car (treesit-parsers-at position))))
+
+Returns the language at POSITION, or nil if there's no parser in the
+buffer.  When there are multiple parsers that cover POSITION, use the
+parser with the deepest embed level as it's the \"most relevant\" parser
+at POSITION."
+  (when-let* ((parser (car (treesit-parsers-at position))))
+    (treesit-parser-language parser)))
 
 ;;; Node API supplement
 
@@ -855,7 +859,10 @@ by an overlay with non-nil `treesit-parser-local-p' property.
 If ONLY contains the symbol `global', include non-local parsers
 excluding the primary parser.
 
-If ONLY contains the symbol `primary', include the primary parser."
+If ONLY contains the symbol `primary', include the primary parser.
+
+The returned parsers are sorted in descending order of embed level.
+That is, the deepest embedded parser comes first."
   (let ((res nil))
     ;; Refer to (ref:local-parser-overlay) for more explanation of local
     ;; parser overlays.
@@ -1053,7 +1060,7 @@ Return updated parsers as a list."
 
 (defun treesit--update-ranges-local
     ( host-parser query embedded-lang modified-tick embed-level
-      &optional beg end range-fn)
+      &optional beg end offset range-fn)
   "Update range for local parsers between BEG and END under HOST-PARSER.
 Use QUERY to get the ranges, and make sure each range has a local
 parser for EMBEDDED-LANG.  HOST-PARSER and QUERY must match.
@@ -1083,10 +1090,10 @@ Return the created local parsers as a list."
   (let ((ranges-by-lang
          (if (functionp embedded-lang)
              (treesit-query-range-by-language
-              host-parser query embedded-lang beg end range-fn)
+              host-parser query embedded-lang beg end offset range-fn)
            (list (cons embedded-lang
                        (treesit-query-range
-                        host-parser query beg end range-fn)))))
+                        host-parser query beg end offset range-fn)))))
         (touched-parsers nil))
     (dolist (lang-and-range ranges-by-lang)
       (let ((embedded-lang (car lang-and-range))
@@ -1164,7 +1171,7 @@ Function range settings in SETTINGS are ignored."
                   (append touched-parsers
                           (treesit--update-ranges-local
                            host-parser query embed-lang modified-tick
-                           embed-level beg end range-fn))))
+                           embed-level beg end offset range-fn))))
            ;; When updating ranges, we want to avoid querying the whole
            ;; buffer which could be slow in very large buffers.
            ;; Instead, we only query for nodes that intersect with the
@@ -5268,6 +5275,36 @@ If anything goes wrong, this function signals an `treesit-error'."
         (make-directory dest-dir t))
       (dolist (file (directory-files query-dir t "\\.scm\\'" t))
         (copy-file file (expand-file-name (file-name-nondirectory file) dest-dir) t)))))
+
+(defcustom treesit-auto-install-grammar 'ask
+  "Whether to install tree-sitter language grammar libraries when needed.
+This controls whether Emacs will install missing grammar libraries
+when they are needed by some tree-sitter based mode.
+If `ask', ask for confirmation before installing the required grammar library.
+If `always', install the grammar library without asking.
+If nil or `never' or anything else, don't install the grammar library
+even while visiting a file in the mode that requires such grammar; this
+might display a warning and/or fail to turn on the mode."
+  :type '(choice (const :tag "Never install grammar libraries" never)
+                 (const :tag "Always automatically install grammar libraries"
+                        always)
+                 (const :tag "Ask whether to install missing grammar libraries"
+                        ask))
+  :version "31.1")
+
+(defun treesit-ensure-installed (lang)
+  "Ensure that the grammar library for the language LANG is installed.
+The option `treesit-auto-install-grammar' defines whether to install
+the grammar library if it's unavailable."
+  (or (treesit-ready-p lang t)
+      (when (or (eq treesit-auto-install-grammar 'always)
+                (and (eq treesit-auto-install-grammar 'ask)
+                     (y-or-n-p (format "\
+Tree-sitter grammar for `%s' is missing; install it?"
+                                       lang))))
+        (treesit-install-language-grammar lang)
+        ;; Check that the grammar was installed successfully
+        (treesit-ready-p lang))))
 
 ;;; Shortdocs
 

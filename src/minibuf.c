@@ -2122,7 +2122,7 @@ the values STRING, PREDICATE and `lambda'.  */)
 	 properties.  It may be, for example, "emacs:cd".
        */
       struct Lisp_Hash_Table *h = XHASH_TABLE (collection);
-      ptrdiff_t i = hash_lookup (h, string);
+      ptrdiff_t i = hash_find (h, string);
       if (i >= 0)
         {
           tem = HASH_KEY (h, i);

@@ -52,7 +52,16 @@
   (tab-bar-tabs-set nil))
 
 (ert-deftest tab-bar-tests-quit-restore-window ()
-  (skip-when (and noninteractive (eq system-type 'windows-nt)))
+  (skip-when (pcase system-type
+               ;; Skip test on MS-Windows in batch mode, since terminal
+               ;; frames cannot be created in that case.
+               ('windows-nt noninteractive)
+               ;; Emba runs the container without "--tty"
+               ;; (the environment variable "TERM" is nil), and this
+               ;; test fails with '(error "Could not open file: /dev/tty")'.
+               ;; Therefore skip it unless it can use '(tty-type . "linux")'.
+               ('gnu/linux (null (getenv "TERM")))))
+
   (let* ((frame-params (when noninteractive
                          '((window-system . nil)
                            (tty-type . "linux"))))
@@ -89,9 +98,6 @@
       (should (eq (length (window-list)) 2))
       (should (equal (buffer-name) "*info*"))
       (quit-window)
-      ;; 'quit-window' unexpectedly selects the original frame,
-      ;; so move back to the created frame
-      (select-frame (car (frame-list)))
       (should (eq (length (window-list)) 1))
       (should (eq (length (frame-list)) 2))
       (should (equal (buffer-name) "*Messages*"))
@@ -99,7 +105,7 @@
       (should (eq (length (frame-list)) 2))
       ;; Delete the created frame afterwards because with tty frames
       ;; the output of 'message' is bound to the original frame
-      (delete-frame))
+      (delete-frame (car (frame-list))))
 
     ;; 2.1. 'quit-restore-window' should close the tab
     ;; from initial window (bug#59862)
