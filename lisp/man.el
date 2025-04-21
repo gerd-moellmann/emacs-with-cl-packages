@@ -637,7 +637,7 @@ This is necessary if one wants to dump man.el with Emacs."
 	       "")
              ;; Use octal numbers.  Otherwise, \032 (Ctrl-Z) would
              ;; suspend remote connections.
-	     "-e '/^[\\o001-\\o032][\\o001-\\o032]*$/d'"
+	     "-e '/^[[:cntrl:]][[:cntrl:]]*$/d'"
 	     "-e '/\e[789]/s///g'"
 	     "-e '/Reformatting page.  Wait/d'"
 	     "-e '/Reformatting entry.  Wait/d'"
