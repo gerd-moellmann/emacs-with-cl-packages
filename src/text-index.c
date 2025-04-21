@@ -101,6 +101,31 @@ enum
   TEXT_INDEX_INVALID_POSITION = -1
 };
 
+/* Get PT, GPT, Z as text_pos structures..  Use these instead of BUF_PT,
+   and so to make sure to never try to get positions from markers, which
+   could lead to infinite recursion.  */
+
+static struct text_pos
+z_pos (const struct buffer *b)
+{
+  return (struct text_pos)
+    {.charpos = b->text->z, .bytepos = b->text->z_byte};
+}
+
+static struct text_pos
+gpt_pos (const struct buffer *b)
+{
+  return (struct text_pos)
+    {.charpos = b->text->gpt, .bytepos = b->text->gpt_byte};
+}
+
+static struct text_pos
+pt_pos (const struct buffer *b)
+{
+  return (struct text_pos)
+    {.charpos = b->pt, .bytepos = b->pt_byte};
+}
+
 /* Cache (CHARPOS, BYTEPOS) as known position in index TI.  */
 
 static void
@@ -272,11 +297,11 @@ build_index (struct buffer *b, const struct text_pos to)
 	   || to.bytepos == TEXT_INDEX_INVALID_POSITION);
   eassert (to.bytepos == TEXT_INDEX_INVALID_POSITION
 	   || (to.bytepos >= BEG_BYTE
-	       && to.bytepos <= BUF_Z_BYTE (b)));
+	       && to.bytepos <= z_pos (b).bytepos));
   eassert (to.bytepos == TEXT_INDEX_INVALID_POSITION
 	   || to.bytepos > max_indexed_bytepos (ti));
   eassert (to.charpos == TEXT_INDEX_INVALID_POSITION
-	   || (to.charpos >= BEG && to.charpos <= BUF_Z (b)));
+	   || (to.charpos >= BEG && to.charpos <= z_pos (b).charpos));
   eassert (to.charpos == TEXT_INDEX_INVALID_POSITION
 	   || to.charpos > max_indexed_charpos (ti));
 
@@ -290,7 +315,7 @@ build_index (struct buffer *b, const struct text_pos to)
 
   /* Quickly give up if there are not enough bytes left to scan to make
      a new index entry.  */
-  const ptrdiff_t z_byte = BUF_Z_BYTE (b);
+  const ptrdiff_t z_byte = z_pos (b).bytepos;
   if (next_stop >= z_byte)
     return;
 
@@ -331,7 +356,7 @@ static struct text_index *
 ensure_has_index (struct buffer *b)
 {
   if (b->text->index == NULL)
-    b->text->index = make_text_index (BUF_Z_BYTE (b));
+    b->text->index = make_text_index (z_pos (b).bytepos);
   return b->text->index;
 }
 
@@ -455,8 +480,7 @@ next_known_text_pos (struct buffer *b, ptrdiff_t entry)
   const struct text_index *ti = b->text->index;
   if (entry + 1 < ti->nentries)
     return index_text_pos (ti, entry + 1);
-  return (struct text_pos) { .charpos = BUF_Z (b),
-			     .bytepos = BUF_Z_BYTE (b) };
+  return z_pos (b);
 }
 
 /* Improve the known bytepos bounds *PREV and *NEXT if KNOWN is closer
@@ -493,13 +517,11 @@ static ptrdiff_t
 narrow_bytepos_bounds (struct buffer *b, struct text_pos *prev,
 		       struct text_pos *next, const ptrdiff_t bytepos)
 {
-  const struct text_pos pt
-    = {.charpos = BUF_PT (b), .bytepos = BUF_PT_BYTE (b)};
+  const struct text_pos pt = pt_pos (b);
   if (narrow_bytepos_bounds_1 (pt, prev, next, bytepos))
     return pt.charpos;
 
-  const struct text_pos gpt
-    = {.charpos = BUF_GPT (b), .bytepos = BUF_GPT_BYTE (b)};
+  const struct text_pos gpt = gpt_pos (b);
   if (narrow_bytepos_bounds_1 (gpt, prev, next, bytepos))
     return gpt.charpos;
 
@@ -545,13 +567,11 @@ static ptrdiff_t
 narrow_charpos_bounds (struct buffer *b, struct text_pos *prev,
 		       struct text_pos *next, const ptrdiff_t charpos)
 {
-  const struct text_pos pt
-    = {.charpos = BUF_PT (b), .bytepos = BUF_PT_BYTE (b)};
+  const struct text_pos pt = pt_pos (b);
   if (narrow_charpos_bounds_1 (pt, prev, next, charpos))
     return pt.bytepos;
 
-  const struct text_pos gpt
-    = {.charpos = BUF_GPT (b), .bytepos = BUF_GPT_BYTE (b)};
+  const struct text_pos gpt = gpt_pos (b);
   if (narrow_charpos_bounds_1 (gpt, prev, next, charpos))
     return gpt.bytepos;
 
@@ -572,7 +592,8 @@ text_index_bytepos_to_charpos (struct buffer *b, const ptrdiff_t bytepos)
   /* If this buffer has as many characters as bytes, each character must
      be one byte.  This takes care of the case where
      enable-multibyte-characters is nil.  */
-  if (BUF_Z (b) == BUF_Z_BYTE (b))
+  const struct text_pos z = z_pos (b);
+  if (z.charpos == z.bytepos)
     return bytepos;
 
   /* BYTEPOS == Z_BYTE, and BYTEPOS is an interval boundary,
@@ -580,8 +601,8 @@ text_index_bytepos_to_charpos (struct buffer *b, const ptrdiff_t bytepos)
      extra entries for (Z, Z_BYTE).  Changing that would be possible
      but leads to more code than this if-statement, so it's probably
      not worth it.  */
-  if (bytepos == BUF_Z_BYTE (b))
-    return BUF_Z (b);
+  if (bytepos == z.bytepos)
+    return z.charpos;
   ensure_bytepos_indexed (b, bytepos);
 
   struct text_index *ti = b->text->index;
@@ -613,11 +634,12 @@ text_index_charpos_to_bytepos (struct buffer *b, const ptrdiff_t charpos)
   /* If this buffer has as many characters as bytes, each character must
      be one byte.  This takes care of the case where
      enable-multibyte-characters is nil.  */
-  if (BUF_Z (b) == BUF_Z_BYTE (b))
+  const struct text_pos z = z_pos (b);
+  if (z.charpos == z.bytepos)
     return charpos;
 
-  if (charpos == BUF_Z (b))
-    return BUF_Z_BYTE (b);
+  if (charpos == z.charpos)
+    return z.bytepos;
   ensure_charpos_indexed (b, charpos);
 
   struct text_index *ti = b->text->index;
