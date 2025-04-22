@@ -246,12 +246,10 @@ Argument LANGUAGE is either `typescript' or `tsx'."
 
                      (jsx_attribute (property_identifier)
                                     @typescript-ts-jsx-attribute-face))))
-    (or (ignore-errors
-          (treesit-query-compile language queries-a t)
-          queries-a)
-        (ignore-errors
-          (treesit-query-compile language queries-b t)
-          queries-b)
+    (or (and (treesit-query-valid-p language queries-a)
+             queries-a)
+        (and (treesit-query-valid-p language queries-b)
+             queries-b)
         ;; Return a dummy query that doesn't do anything, if neither
         ;; query works.
         '("," @_ignore))))
@@ -665,8 +663,6 @@ at least 3 (which is the default value)."
     ;; Comments.
     (setq-local comment-start "// ")
     (setq-local comment-end "")
-    (setq-local block-comment-start "/*")
-    (setq-local block-comment-end "*/")
     (setq-local comment-start-skip (rx (or (seq "/" (+ "/"))
                                            (seq "/" (+ "*")))
                                        (* (syntax whitespace))))

@@ -182,12 +182,6 @@ guaranteed to be correctly ordered.  It is called within `save-excursion'.
 Applicable at least in modes for languages like fixed-format Fortran where
 comments always start in column zero.")
 
-(defvar block-comment-start nil
-  "String to insert to start a new block comment, or nil if no supported.")
-
-(defvar block-comment-end nil
-  "String to insert to end a new block comment, or nil if no supported.")
-
 (defvar comment-quote-nested t
   "Non-nil if nested comments should be quoted.
 This should be locally set by each major mode if needed.")
@@ -719,12 +713,10 @@ Point is expected to be at the start of the comment."
 If CONTINUE is non-nil, use the `comment-continue' markers if any."
   (interactive "*")
   (comment-normalize-vars)
-  (let* ((empty (save-excursion (beginning-of-line)
-				(looking-at "[ \t]*$")))
-	 (starter (or (and continue comment-continue)
-		      (and empty block-comment-start) comment-start))
-	 (ender (or (and continue comment-continue "")
-		    (and empty block-comment-end) comment-end)))
+  (let ((starter (or (and continue comment-continue)
+                     comment-start))
+	(ender (or (and continue comment-continue "")
+                   comment-end)))
     (unless starter (error "No comment syntax defined"))
     (beginning-of-line)
     (let* ((eolpos (line-end-position))

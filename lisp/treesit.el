@@ -70,6 +70,9 @@ in a Emacs not built with tree-sitter library."
      (declare-function treesit-language-available-p "treesit.c")
      (declare-function treesit-language-version "treesit.c")
 
+     (declare-function treesit-language-abi-version "treesit.c")
+     (declare-function treesit-library-abi-version "treesit.c")
+
      (declare-function treesit-parser-p "treesit.c")
      (declare-function treesit-node-p "treesit.c")
      (declare-function treesit-compiled-query-p "treesit.c")
@@ -4204,6 +4207,9 @@ Expected to be called after each text change."
 ;;; Show paren mode
 
 (defun treesit-show-paren-data--categorize (pos &optional end-p)
+  "Return a list suitable for `show-paren-data-function' (which see).
+If the optional argument END-P is non-nil, interpret the position POS
+as belonging to the node that ends before POS (by subtracting 1 from POS)."
   (let* ((pred 'list)
          (parent (when (treesit-thing-defined-p
                         pred (treesit-language-at (if end-p (1- pos) pos)))
