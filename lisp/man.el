@@ -635,8 +635,6 @@ This is necessary if one wants to dump man.el with Emacs."
 	     (if Man-sed-script
 		 (concat "-e '" Man-sed-script "'")
 	       "")
-             ;; Use octal numbers.  Otherwise, \032 (Ctrl-Z) would
-             ;; suspend remote connections.
 	     "-e '/^[[:cntrl:]][[:cntrl:]]*$/d'"
 	     "-e '/\e[789]/s///g'"
 	     "-e '/Reformatting page.  Wait/d'"
@@ -772,7 +770,7 @@ Different man programs support this feature in different ways.
 The default Debian man program (\"man-db\") has a `--local-file'
 \(or `-l') option for this purpose.  The default Red Hat man
 program has no such option, but interprets any name containing
-a \"/\" as a local filename.  The function returns either `man-db'
+a \"/\" as a local filename.  The function returns either `man-db',
 `man', or nil."
   (if (eq Man-support-local-filenames 'auto-detect)
       (with-connection-local-variables

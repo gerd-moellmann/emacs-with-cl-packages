@@ -3200,7 +3200,7 @@ ARG is described in the docstring of `up-list'."
                             (point) (point))))))
       (setq cnt (- cnt inc)))))
 
-(defun treesit-cycle-sexp-type ()
+(defun treesit-cycle-sexp-type (&optional interactive)
   "Cycle the type of navigation for sexp and list commands.
 This type affects navigation commands such as `treesit-forward-sexp',
 `treesit-forward-list', `treesit-down-list', `treesit-up-list'.
@@ -3214,9 +3214,9 @@ navigate symbols and treesit definition to navigate lists.
 The `sexp' type uses the `sexp' thing defined in `treesit-thing-settings'.
 With this type commands use only the treesit definition of parser nodes,
 without distinction between symbols and lists."
-  (interactive)
+  (interactive "p")
   (if (not (treesit-thing-defined-p 'list (treesit-language-at (point))))
-      (message "No `list' thing is defined in `treesit-thing-settings'")
+      (user-error "No `list' thing is defined in `treesit-thing-settings'")
     (setq-local treesit-sexp-type-regexp
                 (unless treesit-sexp-type-regexp
                   (if (treesit-thing-defined-p
@@ -3227,10 +3227,11 @@ without distinction between symbols and lists."
                 (if treesit-sexp-type-regexp
                     #'treesit-forward-sexp
                   #'treesit-forward-sexp-list))
-    (message "Cycle sexp type to navigate %s"
-             (or (and treesit-sexp-type-regexp
-                      "treesit nodes")
-                 "syntax symbols and treesit lists"))))
+    (when interactive
+      (message "Cycle sexp type to navigate %s"
+               (or (and treesit-sexp-type-regexp
+                        "treesit nodes")
+                   "syntax symbols and treesit lists")))))
 
 (defun treesit-transpose-sexps (&optional arg)
   "Tree-sitter `transpose-sexps' function.
@@ -4205,7 +4206,7 @@ Expected to be called after each text change."
 (defun treesit-show-paren-data--categorize (pos &optional end-p)
   (let* ((pred 'list)
          (parent (when (treesit-thing-defined-p
-                        pred (treesit-language-at pos))
+                        pred (treesit-language-at (if end-p (1- pos) pos)))
                    (treesit-parent-until
                     (treesit-node-at (if end-p (1- pos) pos)) pred)))
          (first (when parent (treesit-node-child parent 0)))
