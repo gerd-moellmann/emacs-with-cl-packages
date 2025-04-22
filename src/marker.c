@@ -99,7 +99,7 @@ buf_bytepos_to_charpos (struct buffer *b, ptrdiff_t bytepos)
 }
 
 
-/* Operations on markers. */
+/* Operations on markers.  */
 
 DEFUN ("marker-buffer", Fmarker_buffer, Smarker_buffer, 1, 1, 0,
        doc: /* Return the buffer that MARKER points into, or nil if none.
