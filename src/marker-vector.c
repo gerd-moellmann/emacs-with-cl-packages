@@ -273,6 +273,7 @@ marker_vector_remove (struct Lisp_Vector *v, struct Lisp_Marker *m)
      in kill-buffer resets the markers' buffers.  IGC does not do this,
      can't do this, and does not need it.  */
   m->buffer = NULL;
+  m->entry = - XFIXNUM (CHARPOS (v, m->entry));
   check_marker_vector (v, false);
 }
 
@@ -312,6 +313,16 @@ marker_vector_charpos (const struct Lisp_Marker *m)
   struct Lisp_Vector *v = XVECTOR (BUF_MARKERS (m->buffer));
   check_is_entry (v, m->entry);
   return XFIXNUM (CHARPOS (v, m->entry));
+}
+
+/* Return marker M's last character position.  */
+
+ptrdiff_t
+marker_vector_last_charpos (const struct Lisp_Marker *m)
+{
+  eassert (m->buffer == NULL);
+  eassert (m->entry < 0);
+  return - m->entry;
 }
 
 /* Return marker M's byte position.  */

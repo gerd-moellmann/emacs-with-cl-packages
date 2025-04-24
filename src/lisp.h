@@ -3086,7 +3086,9 @@ struct Lisp_Marker
   /* The remaining fields are meaningless in a marker that
      does not point anywhere.  */
 
-  /* If in a buffer's marker vector, this is the entry where it is stored. */
+  /* If in a buffer's marker vector, this is the entry where it is stored.
+     If not in the marker vector, this is minus its last
+     character position. */
   ptrdiff_t entry;
 } GCALIGNED_STRUCT;
 
