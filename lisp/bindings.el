@@ -431,7 +431,8 @@ a menu, so this function is not useful for non-menu keymaps."
 
 (defcustom mode-line-collapse-minor-modes nil
   "Minor modes for which mode line lighters are hidden.
-Hidden lighters are collapsed into one.
+Hidden lighters are collapsed into one, which latter is customizable
+using the option `mode-line-collapse-minor-modes-to'.
 
 The value could be a list (MODES ...) which means to collapse lighters
 only for MODES, or a list (not MODES ...) which means to collapse all
@@ -442,6 +443,24 @@ lighters hidden."
                  (cons :tag "All modes except"
                        (const not) (repeat symbol))
                  (const :tag "All modes" t))
+  :group 'mode-line
+  :version "31.1")
+
+(defcustom mode-line-collapse-minor-modes-to
+  (if (char-displayable-p ?…) " …" " ...")
+  "Lighter for collapsed minor modes.
+This is effective only when `mode-line-collapse-minor-modes' is non-nil."
+  :type 'string
+  :initialize #'custom-initialize-delay
+  :group 'mode-line
+  :version "31.1")
+
+(defcustom mode-line-modes-delimiters '("(" . ")")
+  "Strings placed around the modes displayed in the mode line.
+These elements are placed around `mode-name' and `mode-line-modes'."
+  :type '(choice (const :tag "No delimiters")
+                 (cons (string :tag "Left delimiter")
+                       (string :tag "Right delimiter")))
   :group 'mode-line
   :version "31.1")
 
@@ -541,7 +560,7 @@ mouse-3: Toggle minor modes"
                       :parent mode-line-minor-mode-keymap
                       "<mode-line> <down-mouse-1>" menu
                       "<mode-line> <mouse-2>" #'describe-mode)))
-              `(:propertize ,(if (char-displayable-p ?…) " …" " ...")
+              `(:propertize mode-line-collapse-minor-modes-to
                             mouse-face mode-line-highlight
                             help-echo "Hidden minor modes\n\
 mouse-1: Display hidden minor modes\n\
@@ -577,7 +596,7 @@ Keymap to display on minor modes.")
   (let ((recursive-edit-help-echo
          "Recursive edit, type C-M-c to get out"))
     (list (propertize "%[" 'help-echo recursive-edit-help-echo)
-	  "("
+          '(:eval (car mode-line-modes-delimiters))
 	  `(:propertize ("" mode-name)
 			help-echo "Major mode\n\
 mouse-1: Display major mode menu\n\
@@ -591,7 +610,7 @@ mouse-3: Toggle minor modes"
 		      'local-map (make-mode-line-mouse-map
 				  'mouse-2 #'mode-line-widen))
 	  '("" mode-line-minor-modes)
-	  ")"
+          '(:eval (cdr mode-line-modes-delimiters))
 	  (propertize "%]" 'help-echo recursive-edit-help-echo)
 	  " "))
   "Mode line construct for displaying major and minor modes.")

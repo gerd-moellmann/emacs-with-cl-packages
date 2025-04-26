@@ -4,7 +4,7 @@
 
 ;; Author: Pavel Kobyakov <pk_at_work@yahoo.com>
 ;; Maintainer: Spencer Baugh <sbaugh@janestreet.com>
-;; Version: 1.4.0
+;; Version: 1.4.1
 ;; Keywords: c languages tools
 ;; Package-Requires: ((emacs "26.1") (eldoc "1.14.0") (project "0.7.1"))
 
@@ -391,8 +391,9 @@ TYPE is a diagnostic symbol (see Info Node `(Flymake)Flymake error
 types')
 
 INFO is a description of the problem detected.  It may be a string, or
-list of three strings (ORIGIN CODE MESSAGE) appropriately categorizing
-and describing the diagnostic.
+list (ORIGIN CODE MESSAGE) appropriately categorizing and describing the
+diagnostic.  ORIGIN may be a string or nil.  CODE maybe be a string, a
+number or nil.  MESSAGE must be a string.
 
 DATA is any object that the caller wishes to attach to the created
 diagnostic for later retrieval with `flymake-diagnostic-data'.
@@ -409,8 +410,10 @@ in the `flymake-overlay-control' property of the diagnostic's type
 symbol."
   (when (stringp locus)
     (setq locus (expand-file-name locus)))
-  (when (stringp info)
-    (setq info (list nil nil info)))
+  (cond ((stringp info)
+         (setq info (list nil nil info)))
+        ((numberp (cadr info))
+         (setf (cadr info) (number-to-string (cadr info)))))
   (flymake--diag-make :locus locus :beg beg :end end
                       :type type :origin (car info) :code (cadr info)
                       :message (caddr info) :data data
@@ -1953,16 +1956,16 @@ POS can be a buffer position or a button"
 
 (defvar flymake--tabulated-list-format-base
   `[("File" 15)
-    ("Line" 5 ,(lambda (l1 l2)
+    ("Line" 4 ,(lambda (l1 l2)
                  (< (plist-get (car l1) :line)
                     (plist-get (car l2) :line)))
      :right-align t)
     ("Col" 3 nil :right-align t)
-    ("Type" 8 ,(lambda (l1 l2)
+    ("Type" 4 ,(lambda (l1 l2)
                  (< (plist-get (car l1) :severity)
                     (plist-get (car l2) :severity))))
-    ("Origin" 8 t)
-    ("Code" 8 t)
+    ("Origin" 6 t)
+    ("Code" 4 t)
     ("Message" 0 t)])
 
 (defun flymake--tabulated-setup-1 (diags project-root)
