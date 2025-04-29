@@ -18,6 +18,8 @@ Please see the [issues](../../issues) for advice on build configurations for you
 >[!IMPORTANT]
 > Please open an [issue](../../issues) to report your experiences, even if you encounter no problems.  Mention your OS version, CPU, and any other relevant details, including the build/configure flags you used.
 
+This build is kept current with the [`emacs-30`](https://github.com/emacs-mirror/emacs/tree/emacs-30) release branch.
+
 ## Install
 
 See the `emacs-mac-30_1_exp` branch and the file `README-mac` for compile instructions.  Briefly:
