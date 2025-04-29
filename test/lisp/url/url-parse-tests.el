@@ -166,7 +166,7 @@
                  (url-parse-make-urlobj "http" nil nil "банки.рф" nil
                                         "/фыва/" nil nil t))))
 
-(ert-deftest url-generic-parse-url/ms-windows-file-uri-hanlding ()
+(ert-deftest url-generic-parse-url/ms-windows-file-uri-handling ()
   "Make an exception if a file:// URI  \"looks like\" a Windows file."
   (should (equal (url-generic-parse-url "file:///c:/windows-path")
                  (url-parse-make-urlobj "file" nil nil "" nil
@@ -190,10 +190,16 @@
   (should (equal (url-filename
                   (url-generic-parse-url "file:///c:\\directory\\file.txt"))
                  "c:\\directory\\file.txt"))
-  ;;
+  ;; paths with hostname = "localhost" should work too
   (should (equal (url-filename
                   (url-generic-parse-url "file://localhost/c:/path/to/file"))
-                 "c:/path/to/file")))
+                 "c:/path/to/file"))
+  ;; empty "file" url structs have to behave proper
+  (should (equal (url-recreate-url
+                  (url-parse-make-urlobj "file" nil nil "myhost" nil
+                                         nil nil nil t))
+                 "file://myhost/")))
+
 
 (provide 'url-parse-tests)
 

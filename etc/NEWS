@@ -1716,6 +1716,14 @@ Now Emacs prompts to first register the unregistered files, so that all
 files in the fileset are in a compatible state for a checkin.
 
 ---
+*** New 'log-edit-hook' option to display diff of changes to commit.
+You can customize 'log-edit-hook' to include its new
+'log-edit-maybe-show-diff' option to enable displaying a diff of the
+changes to be committed in a window.  This is like the 'C-c C-d' command
+in Log Edit mode buffers, except that it does not select the *vc-diff*
+buffer's window, and so works well when added to 'log-edit-hook'.
+
+---
 *** New buffer-local variable 'vc-buffer-overriding-fileset'.
 Primarily intended for buffers not visiting files, this specifies the
 VC backend and VCS-managed file name or file names to which the buffer's
@@ -1726,6 +1734,9 @@ This replaces and generalizes the old 'vc-annotate-parent-file'.
 *** New buffer-local variable 'vc-buffer-revision'.
 This specifies the revision to which the buffer's contents corresponds.
 This replaces and generalizes the old 'vc-annotate-parent-rev'.
+
+---
+*** vc-dav.el is now obsolete.
 
 ** Diff mode
 
@@ -1939,6 +1950,11 @@ highlight the fill-column indicators.  By default, this is disabled.
 When 'flymake-indicator-type' is set to 'fringes', as is now the default,
 flymake will automatically fall back to using margin indicators in
 windows without fringes, including any window on a text terminal.
+
+*** Enhanced 'flymake-show-diagnostics-at-end-of-line'
+The new value 'fancy' allowed for this variable will attempt to layout
+diagnostics below the affected line using unicode graphics to point to
+diagnostic locus.
 
 *** Enhanced 'flymake-show-buffer-diagnostics'.
 The command 'flymake-show-buffer-diagnostics' is now capable of
