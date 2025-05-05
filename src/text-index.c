@@ -408,8 +408,46 @@ ensure_charpos_indexed (struct buffer *b, ptrdiff_t charpos)
     }
 }
 
+/* Return true if the byte interval [FROM_BYTEPOS, TO_BYTEPOS) in buffer
+   B lies partially in front of B's gap. Return the start and end of the
+   part before the gap in *START and *END. */
+
+static bool
+before_gap (struct buffer *b,
+	    const ptrdiff_t from_bytepos, const ptrdiff_t to_bytepos,
+	    const uint8_t **start, const uint8_t **end)
+{
+  const uint8_t *gap_start = BUF_GPT_ADDR (b);
+  const uint8_t *from_p = BUF_BYTE_ADDRESS (b, from_bytepos);
+  if (from_p >= gap_start)
+    return false;
+  *start = from_p;
+  const uint8_t *to_p = BUF_BYTE_ADDRESS (b, to_bytepos);
+  *end = min (gap_start, to_p);
+  return true;
+}
+
+/* Return true if the byte interval [FROM_BYTEPOS, TO_BYTEPOS) in buffer
+   B lies partially after B's gap. Return the start and end of the part
+   after the gap in *START and *END. */
+
+static bool
+after_gap (struct buffer *b,
+	   const ptrdiff_t from_bytepos, const ptrdiff_t to_bytepos,
+	   const uint8_t **start, const uint8_t **end)
+{
+  const uint8_t *gap_end = BUF_GAP_END_ADDR (b);
+  const uint8_t *to_p = BUF_BYTE_ADDRESS (b, to_bytepos);
+  if (to_p <= gap_end)
+    return false;
+  const uint8_t *from_p = BUF_BYTE_ADDRESS (b, from_bytepos);
+  *start = max (from_p, gap_end);
+  *end = to_p;
+  return true;
+}
+
 /* In buffer B, starting from index entry ENTRY, scan forward in B's
-   text to TO_BYTEPOS, and return the corresponding character
+   text upto TO_BYTEPOS, and return the corresponding character
    position.  */
 
 static ptrdiff_t
@@ -417,14 +455,38 @@ charpos_forward_to_bytepos (struct buffer *b, const struct text_pos from,
 			    const ptrdiff_t to_bytepos)
 {
   eassert (from.bytepos <= to_bytepos);
-  ptrdiff_t bytepos = from.bytepos;
+
+  /* Normalize things, so that the bytepos is always the one
+     at which the character starts, which is not necessarily the
+     case if FROM is an index entry. */
+  const ptrdiff_t bytepos = char_start_bytepos (b, from.bytepos);
   ptrdiff_t charpos = from.charpos;
-  while (bytepos < to_bytepos)
-    {
-      ++bytepos;
-      if (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bytepos)))
+
+  const uint8_t *start, *end;
+  if (before_gap (b, bytepos, to_bytepos, &start, &end))
+    for (; start < end; ++start)
+      if (CHAR_HEAD_P (*start))
 	++charpos;
-    }
+
+  if (after_gap (b, bytepos, to_bytepos, &start, &end))
+    for (; start < end; ++start)
+      if (CHAR_HEAD_P (*start))
+	++charpos;
+
+#ifdef ENABLE_CHECKING
+  {
+    ptrdiff_t bytepos2 = from.bytepos;
+    ptrdiff_t charpos2 = from.charpos;
+    while (bytepos2 < to_bytepos)
+      {
+	++bytepos2;
+	if (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bytepos2)))
+	  ++charpos2;
+      }
+    eassert (charpos2 == charpos);
+  }
+#endif
+
   return charpos;
 }
 
