@@ -448,6 +448,9 @@ after_gap (struct buffer *b,
   return true;
 }
 
+/* Count characters in interval [FROM_BYTEPOS, TO_BYTEPOS) in buffer
+   B.  */
+
 static size_t
 count_chars (struct buffer *b, const ptrdiff_t from_bytepos,
 	     const ptrdiff_t to_bytepos)
@@ -477,26 +480,10 @@ static ptrdiff_t
 charpos_forward_to_bytepos (struct buffer *b, const struct text_pos from,
 			    const ptrdiff_t to_bytepos)
 {
-  eassert (from.bytepos <= to_bytepos);
-  const ptrdiff_t bytepos = char_start_bytepos (b, from.bytepos);
-  const ptrdiff_t charpos = from.charpos;
-  const size_t nchars = count_chars (b, bytepos, to_bytepos);
-
-#ifdef ENABLE_CHECKING
-  {
-    ptrdiff_t bytepos2 = bytepos;
-    ptrdiff_t charpos2 = charpos;
-    while (bytepos2 < to_bytepos)
-      {
-	++bytepos2;
-	if (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bytepos2)))
-	  ++charpos2;
-      }
-    eassert (charpos2 == charpos + nchars);
-  }
-#endif
-
-  return charpos + nchars;
+  const ptrdiff_t from_bytepos = char_start_bytepos (b, from.bytepos);
+  eassert (from_bytepos <= to_bytepos);
+  const size_t nchars = count_chars (b, from_bytepos, to_bytepos);
+  return from.charpos + nchars;
 }
 
 /* In buffer B, starting from FROM, scan backward in B's text to
@@ -506,26 +493,10 @@ static ptrdiff_t
 charpos_backward_to_bytepos (struct buffer *b, const struct text_pos from,
 			     const ptrdiff_t to_bytepos)
 {
-  eassert (from.bytepos >= to_bytepos);
-  ptrdiff_t bytepos = char_start_bytepos (b, from.bytepos);
-  ptrdiff_t charpos = from.charpos;
-  const size_t nchars = count_chars (b, to_bytepos, bytepos);
-
-#ifdef ENABLE_CHECKING
-  {
-    ptrdiff_t bytepos2 = bytepos;
-    ptrdiff_t charpos2 = from.charpos;
-    while (bytepos2 > to_bytepos)
-      {
-	--bytepos2;
-	if (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bytepos2)))
-	  --charpos2;
-      }
-    eassert (charpos2 == charpos - nchars);
-  }
-#endif
-
-  return charpos - nchars;
+  ptrdiff_t from_bytepos = char_start_bytepos (b, from.bytepos);
+  eassert (from_bytepos >= to_bytepos);
+  const size_t nchars = count_chars (b, to_bytepos, from_bytepos);
+  return from.charpos - nchars;
 }
 
 /* In buffer B, starting from FROM, scan forward in B's text to
