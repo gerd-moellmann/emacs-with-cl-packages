@@ -122,6 +122,20 @@ count_chars_1 (const uint8_t *start, const uint8_t *end)
   return nchars;
 }
 
+static ptrdiff_t
+forward_bytes_1 (const uint8_t *start, const uint8_t *end,
+		 ptrdiff_t *charpos, ptrdiff_t to_charpos)
+{
+  const uint8_t *p = start;
+  for (; p < end && *charpos < to_charpos;)
+    {
+      ++p;
+      if (CHAR_HEAD_P (*p))
+	*charpos += 1;
+    }
+  return p - start;
+}
+
 #else // not __aarch64__
 
 static size_t
@@ -132,6 +146,15 @@ count_chars_1 (const uint8_t *start, const uint8_t *end)
     if (CHAR_HEAD_P (*start))
       ++nheads;
   return nheads;
+}
+
+static size_t
+forward_chars_1 (const uint8_t *start, const uint8_t *end, size_t nchars)
+{
+  for (; start < end && count > 0; ++start)
+    if (CHAR_HEAD_P (*start))
+      --count;
+  return count;
 }
 
 #endif // defined __aarch64__
@@ -570,16 +593,46 @@ bytepos_forward_to_charpos (struct buffer *b, const struct text_pos from,
 			    ptrdiff_t to_charpos)
 {
   eassert (from.charpos <= to_charpos);
-  ptrdiff_t bytepos = char_start_bytepos (b, from.bytepos);
+
+  ptrdiff_t from_bytepos = char_start_bytepos (b, from.bytepos);
+  ptrdiff_t old_bytepos = from_bytepos;
+  {
+    ptrdiff_t charpos2 = from.charpos;
+    while (charpos2 < to_charpos)
+      {
+	++old_bytepos;
+	if (CHAR_HEAD_P (BUF_FETCH_BYTE (b, old_bytepos)))
+	  ++charpos2;
+      }
+  }
+
+  if (from.charpos == to_charpos)
+    return from_bytepos;
+
+  const uint8_t *start = BUF_BYTE_ADDRESS (b, from_bytepos);
   ptrdiff_t charpos = from.charpos;
-  while (charpos < to_charpos)
+  ptrdiff_t nbytes = 0;
+  if (charpos < BUF_GPT (b))
     {
-      ++bytepos;
-      if (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bytepos)))
-	++charpos;
+      const uint8_t *gap_start = BUF_GPT_ADDR (b);
+      nbytes += forward_bytes_1 (start, gap_start, &charpos, to_charpos);
     }
-  eassert (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bytepos)));
-  return bytepos;
+
+  if (charpos < to_charpos)
+    {
+      start = max (start, BUF_GAP_END_ADDR (b));
+      nbytes += forward_bytes_1 (start, BUF_Z_ADDR (b), &charpos, to_charpos);
+    }
+  eassert (charpos == to_charpos);
+  const ptrdiff_t to_bytepos = from_bytepos + nbytes;
+
+  if (to_bytepos != old_bytepos)
+    {
+      fprintf (stderr, "new = %ld, old = %ld\n", to_bytepos, old_bytepos);
+      eassert (to_bytepos == old_bytepos);
+    }
+  eassert (CHAR_HEAD_P (BUF_FETCH_BYTE (b, from_bytepos)));
+  return to_bytepos;
 }
 
 /* In buffer B, starting from FROM, scan backward in B's text to
