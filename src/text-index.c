@@ -417,6 +417,7 @@ before_gap (struct buffer *b,
 	    const ptrdiff_t from_bytepos, const ptrdiff_t to_bytepos,
 	    const uint8_t **start, const uint8_t **end)
 {
+  eassert (from_bytepos <= to_bytepos);
   const uint8_t *gap_start = BUF_GPT_ADDR (b);
   const uint8_t *from_p = BUF_BYTE_ADDRESS (b, from_bytepos);
   if (from_p >= gap_start)
@@ -436,6 +437,7 @@ after_gap (struct buffer *b,
 	   const ptrdiff_t from_bytepos, const ptrdiff_t to_bytepos,
 	   const uint8_t **start, const uint8_t **end)
 {
+  eassert (from_bytepos <= to_bytepos);
   const uint8_t *gap_end = BUF_GAP_END_ADDR (b);
   const uint8_t *to_p = BUF_BYTE_ADDRESS (b, to_bytepos);
   if (to_p <= gap_end)
@@ -500,13 +502,42 @@ charpos_backward_to_bytepos (struct buffer *b, const struct text_pos from,
   eassert (from.bytepos >= to_bytepos);
   ptrdiff_t bytepos = char_start_bytepos (b, from.bytepos);
   ptrdiff_t charpos = from.charpos;
-  while (bytepos > to_bytepos)
-    {
-      --bytepos;
-      if (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bytepos)))
-	--charpos;
-    }
-  return charpos;
+
+  eassert (CHAR_HEAD_P (BUF_FETCH_BYTE (b, to_bytepos)));
+  const uint8_t *start, *end;
+  ptrdiff_t count = 0;
+  if (before_gap (b, to_bytepos, bytepos, &start, &end))
+    for (; start < end; ++start)
+      if (CHAR_HEAD_P (*start))
+	++count;
+
+  if (after_gap (b, to_bytepos, bytepos, &start, &end))
+    for (; start < end; ++start)
+      if (CHAR_HEAD_P (*start))
+	++count;
+
+#ifdef ENABLE_CHECKING
+  {
+    ptrdiff_t bytepos2 = bytepos;
+    ptrdiff_t charpos2 = from.charpos;
+    while (bytepos2 > to_bytepos)
+      {
+	--bytepos2;
+	if (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bytepos2)))
+	  --charpos2;
+      }
+    if (charpos2 != charpos - count)
+      {
+	fprintf (stderr, "alt %ld -> neu %ld\n", charpos2, charpos - count);
+	//pkg_break ();
+//charpos_backward_to_bytepos (b, from, to_bytepos);
+	eassert (charpos2 == charpos - count);
+      }
+
+  }
+#endif
+
+  return charpos - count;
 }
 
 /* In buffer B, starting from FROM, scan forward in B's text to
