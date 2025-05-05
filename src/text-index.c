@@ -71,6 +71,71 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
 // clang-format off
 
+#ifdef __aarch64__
+# include <arm_neon.h>
+#endif
+
+#if defined __aarch64__ && 1
+
+/* Return number of character heads in the contiguous memory
+   [BYTES, END).  */
+
+static size_t
+count_chars_1 (const uint8_t *start, const uint8_t *end)
+{
+  const size_t nbytes = end - start;
+
+  // Vector of 16 times 0xc0.
+  const uint8x16_t v0xC0 = vdupq_n_u8 (0xc0);
+  // Vector of 16 times 0x80.
+  const uint8x16_t v0x80 = vdupq_n_u8 (0x80);
+  // Vector containing 1 in all 16 byte lanes (for accumulating counts)
+  const uint8x16_t v0x01 = vdupq_n_u8 (1);
+  // Vector containing 0 in all 16 byte lanes
+  const uint8x16_t v0x00 = vdupq_n_u8 (0);
+
+  // Accumulator.
+  size_t nchars = 0;
+  const size_t step = 16;
+  const size_t nsteps = nbytes & ~(step - 1);
+  size_t i = 0;
+  for (; i < nsteps; i += step)
+    {
+      // Load 16 bytes
+      uint8x16_t data = vld1q_u8 (start + i);
+      // And all bytes with 0xC0.
+      uint8x16_t and_0xC0 = vandq_u8 (data, v0xC0);
+      // Compare byte-wise with 0x80. Result bytes are
+      // 0xFF if equal, 0x00 if not.
+      uint8x16_t eq_0x80 = vceqq_u8 (and_0xC0, v0x80);
+      // Select 1 where comparison was false, 0 otherwise
+      uint8x16_t ones = vbslq_u8 (eq_0x80, v0x00, v0x01);
+      // Accumulate.
+      nchars += vaddlvq_s8 (ones);
+    }
+
+  // Handle rest bytes at the end.
+  for (; i < nbytes; ++i)
+    if (CHAR_HEAD_P (start[i]))
+      ++nchars;
+
+  return nchars;
+}
+
+#else // not __aarch64__
+
+static size_t
+count_chars_1 (const uint8_t *start, const uint8_t *end)
+{
+  size_t nheads = 0;
+  for (; start < end; ++start)
+    if (CHAR_HEAD_P (*start))
+      ++nheads;
+  return nheads;
+}
+
+#endif // defined __aarch64__
+
 struct text_index
 {
   /* Value at index IDX is the character position of byte position IDX *
@@ -460,14 +525,10 @@ count_chars (struct buffer *b, const ptrdiff_t from_bytepos,
   size_t count = 0;
   const uint8_t *start, *end;
   if (before_gap (b, from_bytepos, to_bytepos, &start, &end))
-    for (; start < end; ++start)
-      if (CHAR_HEAD_P (*start))
-	++count;
+    count += count_chars_1 (start, end);
 
   if (after_gap (b, from_bytepos, to_bytepos, &start, &end))
-    for (; start < end; ++start)
-      if (CHAR_HEAD_P (*start))
-	++count;
+    count += count_chars_1 (start, end);
 
   return count;
 }
