@@ -448,6 +448,27 @@ after_gap (struct buffer *b,
   return true;
 }
 
+static size_t
+count_chars (struct buffer *b, const ptrdiff_t from_bytepos,
+	     const ptrdiff_t to_bytepos)
+{
+  eassert (from_bytepos <= to_bytepos);
+
+  size_t count = 0;
+  const uint8_t *start, *end;
+  if (before_gap (b, from_bytepos, to_bytepos, &start, &end))
+    for (; start < end; ++start)
+      if (CHAR_HEAD_P (*start))
+	++count;
+
+  if (after_gap (b, from_bytepos, to_bytepos, &start, &end))
+    for (; start < end; ++start)
+      if (CHAR_HEAD_P (*start))
+	++count;
+
+  return count;
+}
+
 /* In buffer B, starting from index entry ENTRY, scan forward in B's
    text upto TO_BYTEPOS, and return the corresponding character
    position.  */
@@ -457,39 +478,25 @@ charpos_forward_to_bytepos (struct buffer *b, const struct text_pos from,
 			    const ptrdiff_t to_bytepos)
 {
   eassert (from.bytepos <= to_bytepos);
-
-  /* Normalize things, so that the bytepos is always the one
-     at which the character starts, which is not necessarily the
-     case if FROM is an index entry. */
   const ptrdiff_t bytepos = char_start_bytepos (b, from.bytepos);
-  ptrdiff_t charpos = from.charpos;
-
-  const uint8_t *start, *end;
-  if (before_gap (b, bytepos, to_bytepos, &start, &end))
-    for (; start < end; ++start)
-      if (CHAR_HEAD_P (*start))
-	++charpos;
-
-  if (after_gap (b, bytepos, to_bytepos, &start, &end))
-    for (; start < end; ++start)
-      if (CHAR_HEAD_P (*start))
-	++charpos;
+  const ptrdiff_t charpos = from.charpos;
+  const size_t nchars = count_chars (b, bytepos, to_bytepos);
 
 #ifdef ENABLE_CHECKING
   {
-    ptrdiff_t bytepos2 = from.bytepos;
-    ptrdiff_t charpos2 = from.charpos;
+    ptrdiff_t bytepos2 = bytepos;
+    ptrdiff_t charpos2 = charpos;
     while (bytepos2 < to_bytepos)
       {
 	++bytepos2;
 	if (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bytepos2)))
 	  ++charpos2;
       }
-    eassert (charpos2 == charpos);
+    eassert (charpos2 == charpos + nchars);
   }
 #endif
 
-  return charpos;
+  return charpos + nchars;
 }
 
 /* In buffer B, starting from FROM, scan backward in B's text to
@@ -502,19 +509,7 @@ charpos_backward_to_bytepos (struct buffer *b, const struct text_pos from,
   eassert (from.bytepos >= to_bytepos);
   ptrdiff_t bytepos = char_start_bytepos (b, from.bytepos);
   ptrdiff_t charpos = from.charpos;
-
-  eassert (CHAR_HEAD_P (BUF_FETCH_BYTE (b, to_bytepos)));
-  const uint8_t *start, *end;
-  ptrdiff_t count = 0;
-  if (before_gap (b, to_bytepos, bytepos, &start, &end))
-    for (; start < end; ++start)
-      if (CHAR_HEAD_P (*start))
-	++count;
-
-  if (after_gap (b, to_bytepos, bytepos, &start, &end))
-    for (; start < end; ++start)
-      if (CHAR_HEAD_P (*start))
-	++count;
+  const size_t nchars = count_chars (b, to_bytepos, bytepos);
 
 #ifdef ENABLE_CHECKING
   {
@@ -526,18 +521,11 @@ charpos_backward_to_bytepos (struct buffer *b, const struct text_pos from,
 	if (CHAR_HEAD_P (BUF_FETCH_BYTE (b, bytepos2)))
 	  --charpos2;
       }
-    if (charpos2 != charpos - count)
-      {
-	fprintf (stderr, "alt %ld -> neu %ld\n", charpos2, charpos - count);
-	//pkg_break ();
-//charpos_backward_to_bytepos (b, from, to_bytepos);
-	eassert (charpos2 == charpos - count);
-      }
-
+    eassert (charpos2 == charpos - nchars);
   }
 #endif
 
-  return charpos - count;
+  return charpos - nchars;
 }
 
 /* In buffer B, starting from FROM, scan forward in B's text to

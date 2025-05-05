@@ -111,11 +111,6 @@ process handle SIGINT --pass true --stop false --notify false
 
 # Attach to future Emacs
 
-target create temacs
-settings set -- target.run-args --batch  -l loadup --temacs=pbootstrap 	--bin-dest '/Users/gerd/.local/bin/' --eln-dest '/Users/gerd/.local/lib/emacs/31.0.50/'
-command alias go process launch --working-dir .
-##settings set target.disable-aslr false
-
 target create bootstrap-emacs
-settings set -- target.run-args -batch --no-site-file --no-site-lisp -l titdic-cnv -f batch-tit-miscdic-convert -dir ./../lisp/leim/quail MISC-DIC/cangjie-table.b5
-command alias go process launch --working-dir ../leim/
+settings set -- target.run-args -batch --no-site-file --no-site-lisp -l ./emacs-lisp/loaddefs-gen.elc -f loaddefs-generate--emacs-batch . ./calc ./calendar ./cedet ./cedet/ede ./cedet/semantic ./cedet/semantic/analyze ./cedet/semantic/bovine ./cedet/semantic/decorate ./cedet/semantic/symref ./cedet/semantic/wisent ./cedet/srecode ./emacs-lisp ./emulation ./erc ./eshell ./gnus ./image ./international ./language ./leim ./leim/quail ./mail ./mh-e ./net ./nxml ./org ./play ./progmodes ./textmodes ./url ./use-package ./vc
+command alias go process launch --working-dir ../lisp
