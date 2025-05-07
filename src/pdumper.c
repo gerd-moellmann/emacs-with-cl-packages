@@ -2220,7 +2220,7 @@ dump_string (struct dump_context *ctx, const struct Lisp_String *string)
 static dump_off
 dump_marker (struct dump_context *ctx, const struct Lisp_Marker *marker)
 {
-#if CHECK_STRUCTS && !defined HASH_Lisp_Marker_123009D29E
+#if CHECK_STRUCTS && !defined HASH_Lisp_Marker_4BB55E3147
 # error "Lisp_Marker changed. See CHECK_STRUCTS comment in config.h."
 #endif
 
@@ -2852,7 +2852,7 @@ dump_weak_hash_table (struct dump_context *ctx, Lisp_Object object)
 static dump_off
 dump_buffer (struct dump_context *ctx, const struct buffer *in_buffer)
 {
-#if CHECK_STRUCTS && !defined HASH_buffer_text_A56AE3DB19
+#if CHECK_STRUCTS && !defined HASH_buffer_text_43E82F3212
 # error "buffer changed. See CHECK_STRUCTS comment in config.h."
 #endif
   struct buffer munged_buffer = *in_buffer;
