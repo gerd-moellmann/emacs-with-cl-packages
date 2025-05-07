@@ -30,6 +30,7 @@
 ;; documented in the Emacs user's manual: (info "(emacs) Registers").
 
 (eval-when-compile (require 'cl-lib))
+(declare-function cl-find-class "cl-extra" (type))
 
 ;;; Code:
 
