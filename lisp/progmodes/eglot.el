@@ -4542,17 +4542,17 @@ If NOERROR, return predicate, else erroring function."
  "type"
  :typeHierarchyProvider
  :textDocument/prepareTypeHierarchy
- ((:typeHierarchy/supertypes " ↑ " derived "supertypes" "derives from")
-  (:typeHierarchy/subtypes " ↓ " base "subtypes" "base of")))
+ ((:typeHierarchy/supertypes " ▲ " derived "supertypes" "derives from")
+  (:typeHierarchy/subtypes " ▼ " base "subtypes" "base of")))
 
 (eglot--define-hierarchy-command
  eglot-show-call-hierarchy
  "call"
  :callHierarchyProvider
  :textDocument/prepareCallHierarchy
- ((:callHierarchy/incomingCalls " ← " incoming "incoming calls" "called by"
+ ((:callHierarchy/incomingCalls " ◀ " incoming "incoming calls" "called by"
                                 :from :fromRanges)
-  (:callHierarchy/outgoingCalls " → " base "outgoing calls" "calls"
+  (:callHierarchy/outgoingCalls " ▶ " base "outgoing calls" "calls"
                                 :to :fromRanges)))
 
 (defvar-local eglot--hierarchy-roots nil)
