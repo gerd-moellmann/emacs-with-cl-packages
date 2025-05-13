@@ -343,7 +343,8 @@ registered in the package registry, that is it will not be found
 under its names by `find-package'.  Use `register-package' to
 register the package.  This deviates from the CLHS specification,
 but is what Common Lisp implementations usually do."
-  (cl-check-type size (or null natnum))
+  (unless (or (null size) (natnump size))
+    (error "SIZE must be null or a non-negative integer"))
   (let* ((name (pkg--stringify-name name "package name"))
          (nicknames (pkg--stringify-names nicknames "package nickname"))
          (use (pkg--packages-from-names use))
@@ -824,7 +825,7 @@ Value is t."
 	 (cond (size-p
 		(error "Can't specify :SIZE twice."))
 	       ((and (consp (cdr option))
-		     (cl-typep (cl-second option) 'natnum))
+		     (natnump (cl-second option)))
 		(setf size (cl-second option))
                 (setf size-p t))
 	       (t
