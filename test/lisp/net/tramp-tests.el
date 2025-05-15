@@ -5122,11 +5122,9 @@ This tests also `make-symbolic-link', `file-truename' and `add-name-to-file'."
 			     ipv6-prefix
 			     (substring-no-properties
 			      host 0 (min 2 (length host))))
-			   (,(concat
-			      tramp-prefix-format hop method-string host-string)
-			    ,(concat
-			      tramp-prefix-format hop method-string
-			      default-user-string host-string))
+			   ,(concat
+			     tramp-prefix-format hop method-string
+			     default-user-string host-string)
 			   ,host-string)))
 		      ;; Complete user and host name.
 		      (unless (or (tramp-string-empty-or-nil-p user)
