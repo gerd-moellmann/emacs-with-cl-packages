@@ -60,7 +60,7 @@ This has meanwhile landed in master on savannah.
 
 My Emacs is now beginning to be a DTrace USDT provider. Configure
 `--with-dtrace=no` to disable it. This is only tested on
-macOS. Development is ongoing in slow pace.
+macOS. Development is ongoing in a very slow pace.
 
 ## TTY menus in Lisp
 
@@ -69,7 +69,9 @@ Lisp. See lisp/tm.el. That file can also be used with a current master
 from savannah. Use `M-x tm-menu-mode` to activate. See the doc string of
 that function. The menu's behavior is patterned after what macOS does.
 
-It's unclear at the moment if that will land in GNU.
+It's unclear at the moment if that will land in GNU because I haven't
+offered it for inclusion, and reason for that is that I'm not interested
+in the inevitable discussions about the macOS menu behavior and whatnot.
 
 ## Markers, Text indices, and marker vectors
 
@@ -78,17 +80,17 @@ between 1 and 5 bytes long in this encoding. Such a variable-length
 representation requires a conversion between character and byte
 positions.
 
-This conversion is traditionally sped up by consulting the a
+This position conversion is currently sped up in Emacs by consulting the
 doubly-linked list of markers that each buffer has. Each marker contains
 a character and a byte position. A heuristic is used to pick a suitable
-marker from whose position one can forward or backward in the buffer
-text to convert character to byte positions and vice versa.
+marker from whose known position one can scan forward or backward in the
+buffer text to convert character to byte positions and vice versa.
 
 This has some problems:
 
 - Adding a marker is O(1), but deleting a marker is O(N).
 
-- Iteration over markers to update them when text is inserted/delete
+- Iteration over markers to update them when text is inserted/deleted
   accesses memory all over the place, the marker objects.
 
 - A possibly large number of "cache marker" are produced to make it more
@@ -96,28 +98,28 @@ This has some problems:
 
 - The heuristic doesn't really work in some use cases.
 
-What I've added here is:
+What I've done here is:
 
-Add text indices: A text index is a data structure which supports such
+- Add text indices: A text index is a data structure which supports such
 position conversions with predictable performance and without relying on
 markers and heuristics. The implementation can be found in
 `text-index.c`. Please read the comment at the start of that file for
 details.
 
-Add marker vectors: I had already changed the doubly-linked list of
+- Add marker vectors: I had already changed the doubly-linked list of
 markers to use marker vectors in igc. This is now ported to the non-igc
 case, so that both can use a common implementation. (Please note that
 `feature/igc` still uses the old implementation. It will use the new one
 should this land in master.)
 
-Remove positions from markers: Store the character position of a marker
+- Remove positions from markers: Store the character position of a marker
 in the marker vector and compute the byte position as needed using text
 indices. This allows position adjustments when text changes t be done by
-iterating over the narker vector without touching other memory.
+iterating over the marker vector without touching other memory.
 
 ### Status
 
-I am now using this on a daily basis.
+I am using this on a daily basis.
 
 There is also a branch `scratch/text-index` on savannah where I ported
 this to master.  If that lands in master or when is unclear.  Stefan
