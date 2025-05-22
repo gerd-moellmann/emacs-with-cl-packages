@@ -6144,16 +6144,21 @@ ns_term_shutdown (int sig)
 
   [super sendEvent:theEvent];
 
+#ifdef NS_IMPL_COCOA
   /* We have the problem that app-defined events get lost for an unknown
      reason. When that happens, Emacs still processes NS events, and no
      beach ball is displayed. But Emacs' own event loop does not gain
      control again and it doesn't react to input anymore.  */
+  if ([NSApp modalWindow] != nil)
+    return;
+
   static int count = 0;
   if (++count == 10)
     {
       count = 0;
       [self stop: self];
     }
+#endif
 }
 
 
