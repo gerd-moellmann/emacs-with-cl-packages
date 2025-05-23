@@ -4745,7 +4745,7 @@ dump_anonymous_allocate_w32 (void *base,
 }
 #endif
 
-#if VM_SUPPORTED == VM_POSIX
+#if VM_SUPPORTED == VM_POSIX && !defined HAVE_MPS
 
 /* Old versions of macOS only define MAP_ANON, not MAP_ANONYMOUS.
    FIXME: This probably belongs elsewhere (gnulib/autoconf?)  */
@@ -4753,7 +4753,6 @@ dump_anonymous_allocate_w32 (void *base,
 #  define MAP_ANONYMOUS MAP_ANON
 # endif
 
-#ifndef HAVE_MPS
 static void *
 dump_anonymous_allocate_posix (void *base,
                                size_t size,
@@ -4805,7 +4804,6 @@ dump_anonymous_allocate_posix (void *base,
   return ret;
 }
 #endif
-#endif
 
 /* Perform anonymous memory allocation.  */
 #ifndef HAVE_MPS
@@ -4841,8 +4839,9 @@ dump_anonymous_release (void *addr, size_t size)
   emacs_abort ();
 #endif
 }
+#endif	/* !HAVE_MPS */
 
-#elif VM_SUPPORTED == VM_MS_WINDOWS && !defined HAVE_MPS
+#if VM_SUPPORTED == VM_MS_WINDOWS && !defined HAVE_MPS
 static void *
 dump_map_file_w32 (void *base, int fd, off_t offset, size_t size,
 		   enum dump_memory_protection protection)
