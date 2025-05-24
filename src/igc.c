@@ -4715,7 +4715,7 @@ make_arena (struct igc *gc)
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
 
-  mps_gen_param_s gens[] = { { 128000, 0.8 }, { 5 * 128000, 0.4 } };
+  mps_gen_param_s gens[] = { { 256000, 0.8 }, { 5 * 256000, 0.4 } };
   res = mps_chain_create (&gc->chain, gc->arena, ARRAYELTS (gens), gens);
   IGC_CHECK_RES (res);
 }
