@@ -3163,17 +3163,6 @@ ns_create_tip_frame (struct ns_display_info *dpyinfo, Lisp_Object parms)
      the tip frame.  */
   face_change = face_change_before;
 
-#ifdef NS_IMPL_COCOA
-  {
-    /* Try to make sure that the tooltip appears in the same space that
-       the Emacs is in in case it is full screen.  */
-    NSWindow *win = [FRAME_NS_VIEW (XFRAME (frame)) window];
-    NSWindowCollectionBehavior b = [win collectionBehavior];
-    b |= NSWindowCollectionBehaviorMoveToActiveSpace;
-    [win setCollectionBehavior: b];
-  }
-#endif
-
   /* Discard the unwind_protect.  */
   return unbind_to (count, frame);
 }
