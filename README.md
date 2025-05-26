@@ -24,6 +24,16 @@ This build is kept current with the [`emacs-30`](https://github.com/emacs-mirror
 
 See the `emacs-mac-30_1_exp` branch and the file `README-mac` for compile instructions.  Briefly:
 
+### Install (optional) libraries
+
+If you like native-compilation, tree-sitter support, and RSVG (all recommended), try:
+
+```bash
+brew install tree-sitter libgccjit librsvg
+```
+
+### Compile and install
+
 ```bash
 ./autogen.sh
 CFLAGS="-O3 -mcpu=native" ./configure --with-native-compilation --with-tree-sitter --enable-mac-app=yes  # or whatever config options you use
