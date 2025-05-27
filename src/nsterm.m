@@ -9480,14 +9480,6 @@ ns_in_echo_area (void)
 #ifdef NS_IMPL_COCOA
       if ([self respondsToSelector:@selector(setTabbingMode:)])
         [self setTabbingMode:NSWindowTabbingModeDisallowed];
-
-      if (f->tooltip)
-	{
-	  NSWindowCollectionBehavior b = [self collectionBehavior];
-	  b |= NSWindowCollectionBehaviorCanJoinAllSpaces;
-	  [self setCollectionBehavior: b];
-	}
-
 #endif
     }
 
