@@ -24,17 +24,13 @@ This build is kept current with the [`emacs-30`](https://github.com/emacs-mirror
 
 See the `emacs-mac-30_1_exp` branch and the file `README-mac` for compile instructions.  Briefly:
 
-## Install tooling
+> [!NOTE]
+> On Apple, `gcc` is actually aliased to the `clang` compiler, which is required to build `emacs-mac`, as `gcc` either cannot build for the architecture (Apple Silicon) or does not support [blocks](https://en.wikipedia.org/wiki/Blocks_(C_language_extension)), which this build uses heavily.
 
-Note: on Apple Silicon, `gcc` is `clang`, which is required as `gcc` cannot build for these architectures.
-
-```bash
-brew install gcc libgccjit
-```
 
 ### Install (optional) libraries
 
-If you like native-compilation, tree-sitter support, and RSVG (all recommended), try:
+If you like native-compilation, tree-sitter support, and RSVG (all recommended), first install those with:
 
 ```bash
 brew install tree-sitter libgccjit librsvg
@@ -44,7 +40,7 @@ brew install tree-sitter libgccjit librsvg
 
 ```bash
 ./autogen.sh
-CFLAGS="-O3 -mcpu=native" ./configure --with-native-compilation --with-tree-sitter --enable-mac-app=yes  # or whatever config options you use
+CFLAGS="-O3 -mcpu=native" ./configure --with-native-compilation --with-tree-sitter --enable-mac-app=yes  # tune config options to your liking
 make
 sudo make install  # optional, compresses EL files and installs some resources in /usr/local/share/emacs/30.1.50
 ```
@@ -54,7 +50,7 @@ You'll find the app under `mac`.
 If you choose not to `make install`, you may need to:
 
 ```
-~/code/emacs/emacs-mac/mac
+% cd emacs-mac/mac
 % ln -s ../native-lisp Emacs.app/Contents/
 ```
 
@@ -66,16 +62,16 @@ Additional features/fixes added on top of `emacs-mac` and Emacs proper:
 
 ### Features
 
-- `New Frame` Dock Menu Item
+- A `New Frame` Dock Menu Item
 
 ### Bug fixes
 
-- Take care to avoid crashes when selecting fonts from the system font panel.
+- Take care to avoid crashes when selecting certain fonts from the system font panel.
 - Prevent zombie "Emacs Web Content" processes [on SVG load](../../issues/9), ~~restoring normal WebView SVG rendering for MacOS v14+~~.  Update: `WebView` is deprecated, so this has been reverted and another workaround installed. It's recommended to build with RSVG (it is enabled by default if the `librsvg2` library is found during build).
 
 ## Debugging
 
-If you get crashes or just want to help with debugging, it would be very useful to run emacs under `lldb`, the clang debugger.  Here's how:
+If you get crashes or just want to help with debugging, it would be very useful to run emacs-mac under `lldb`, the clang debugger.  Here's how:
 
 1. Build emacs-mac with debug flags:
    ```
@@ -87,9 +83,8 @@ If you get crashes or just want to help with debugging, it would be very useful 
     %lldb ../mac/Emacs.app/Contents/MacOS/Emacs
     ```
     Then `run` (or better, `run -Q`).
-1. Now cause your crash to occur, go `up` to the frame of interest, and use `xprint` on the potentially problematic variables.
+1. Now cause your crash to occur, go `up` to the frame of interest, and use `xprint`, `p`, etc. on the potentially problematic variables.
 2. You can also try `gui` which is a little curses-based terminal GUI inside lldb (slow for me though).
-
 
 ## Notes
 
