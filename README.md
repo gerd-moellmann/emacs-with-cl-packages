@@ -24,6 +24,14 @@ This build is kept current with the [`emacs-30`](https://github.com/emacs-mirror
 
 See the `emacs-mac-30_1_exp` branch and the file `README-mac` for compile instructions.  Briefly:
 
+## Install tooling
+
+Note: on Apple Silicon, `gcc` is `clang`, which is required as `gcc` cannot build for these architectures.
+
+```bash
+brew install gcc libgccjit
+```
+
 ### Install (optional) libraries
 
 If you like native-compilation, tree-sitter support, and RSVG (all recommended), try:
