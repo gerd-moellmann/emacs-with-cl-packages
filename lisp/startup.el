@@ -1143,6 +1143,45 @@ the `--debug-init' option to view a complete error backtrace."
 (defvar lisp-directory nil
   "Directory where Emacs's own *.el and *.elc Lisp files are installed.")
 
+(defvar load-path-filter--cache nil
+  "A cache used by `load-path-filter-cache-directory-files'.
+
+The value is an alist.  The car of each entry is a list of load suffixes,
+such as returned by `get-load-suffixes'.  The cdr of each entry is a
+cons whose car is an `regex-opt' optimized regex matching those suffixes
+at the end of a string, and whose cdr is a hash-table mapping directories
+to files in those directories which end with one of the suffixes.
+The hash-table uses `equal' as its key comparison function.")
+
+(defun load-path-filter-cache-directory-files (path file suffixes)
+  "Filter PATH to leave only directories which might contain FILE with SUFFIXES.
+
+PATH should be a list of directories such as `load-path'.
+Returns a copy of PATH with any directories that cannot contain FILE
+with SUFFIXES removed from it.
+Doesn't filter PATH if FILE is an absolute file name or if FILE is
+a relative file name with leading directories.
+
+Caches contents of directories in `load-path-filter--cache'.
+
+This function is called from `load' via `load-path-filter-function'."
+  (if (file-name-directory file)
+      ;; FILE has more than one component, don't bother filtering.
+      path
+    (seq-filter
+     (let ((rx-and-ht
+            (with-memoization (alist-get suffixes load-path-filter--cache nil nil #'equal)
+              (cons
+               (concat (regexp-opt suffixes) "\\'")
+               (make-hash-table :test #'equal)))))
+       (lambda (dir)
+         (when (file-directory-p dir)
+           (try-completion
+            file
+            (with-memoization (gethash dir (cdr rx-and-ht))
+              (directory-files dir nil (car rx-and-ht) t))))))
+     path)))
+
 (defun command-line ()
   "A subroutine of `normal-top-level'.
 Amongst another things, it parses the command-line arguments."

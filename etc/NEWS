@@ -389,6 +389,10 @@ Together with the new command 'tab-line-move-tab-backward'
 ('C-x M-<left>') it can be used to move the current tab
 on the tab line to a different position.
 
+---
+*** New command 'tab-line-close-other-tabs'.
+It's bound to the tab's context menu item "Close other tabs".
+
 ** Project
 
 ---
@@ -2212,6 +2216,13 @@ encoded by the underlying terminal.
 Like 'static-if', these macros evaluate their condition at
 macro-expansion time and are useful for writing code that can work
 across different Emacs versions.
+
++++
+** New feature to speed up repeated lookup of Lisp files in 'load-path'.
+If the new variable 'load-path-filter-function' is set to the new
+function 'load-path-filter-cache-directory-files', calling 'load' will
+cache the directories it scans and their files, and the following
+lookups should be faster.
 
 ** Lexical binding
 
