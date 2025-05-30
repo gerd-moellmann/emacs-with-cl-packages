@@ -30,7 +30,7 @@ See the `emacs-mac-30_1_exp` branch and the file `README-mac` for compile instru
 
 ### Install (optional) libraries
 
-If you like native-compilation, tree-sitter support, and RSVG (all recommended), first install those with:
+If you'd like to build with tree-sitter support, native-compilation, and RSVG (all recommended), first install the necessary libraries:
 
 ```bash
 brew install tree-sitter libgccjit librsvg
@@ -50,7 +50,7 @@ You'll find the app under `mac`.
 If you choose not to `make install`, you may need to:
 
 ```
-% cd emacs-mac/mac
+% cd mac
 % ln -s ../native-lisp Emacs.app/Contents/
 ```
 
