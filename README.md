@@ -45,7 +45,7 @@ make
 sudo make install  # optional, compresses EL files and installs some resources in /usr/local/share/emacs/30.1.50
 ```
 
-You'll find the app under `mac`.
+You'll find the app under the directory `mac/`.
 
 If you choose not to `make install`, you may need to:
 
@@ -54,11 +54,11 @@ If you choose not to `make install`, you may need to:
 % ln -s ../native-lisp Emacs.app/Contents/
 ```
 
-to associate the native lisp files.
+to associate the native lisp files with the application.
 
 ## Additions
 
-Additional features/fixes added on top of `emacs-mac` and Emacs proper:
+Several additional features and fixes have been added on top of `emacs-mac` and Emacs proper.
 
 ### Features
 
