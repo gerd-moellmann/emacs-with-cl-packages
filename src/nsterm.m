@@ -2773,7 +2773,10 @@ ns_clear_under_internal_border (struct frame *f)
 {
   NSTRACE ("ns_clear_under_internal_border");
 
-  if (FRAME_LIVE_P (f) && FRAME_INTERNAL_BORDER_WIDTH (f) > 0)
+  if (FRAME_LIVE_P (f)
+      && FRAME_INTERNAL_BORDER_WIDTH (f) > 0
+      // The below draws into the rounded corners.
+      && !FRAME_UNDECORATED_ROUND (f))
     {
       int border = FRAME_INTERNAL_BORDER_WIDTH (f);
       int width = FRAME_PIXEL_WIDTH (f);
