@@ -1755,6 +1755,14 @@ if `inhibit-field-text-motion' is non-nil."
 
 (define-obsolete-function-alias 'bindings--define-key #'define-key "31.1")
 
+;; Used to be in kmacro.el, see bug#78582
+(global-set-key "\C-x(" #'kmacro-start-macro)
+(global-set-key "\C-x)" #'kmacro-end-macro)
+(global-set-key "\C-xe" #'kmacro-end-and-call-macro)
+(global-set-key [f3] #'kmacro-start-macro-or-insert-counter)
+(global-set-key [f4] #'kmacro-end-or-call-macro)
+(global-set-key "\C-x\C-k" #'kmacro-keymap)
+
 ;; Don't look for autoload cookies in this file.
 ;; Local Variables:
 ;; no-update-autoloads: t
