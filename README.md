@@ -22,7 +22,7 @@ This build is kept current with the [`emacs-30`](https://github.com/emacs-mirror
 
 ## Install
 
-See the `emacs-mac-30_1_exp` branch and the file `README-mac` for compile instructions.  Briefly:
+See the `emacs-mac-30_1_exp` branch and the file `README-mac` for additional compile instructions.  Briefly:
 
 > [!NOTE]
 > On Apple, `gcc` is actually aliased to the `clang` compiler, which is required to build `emacs-mac`, as recent `gcc` versions either cannot build for the architecture (Apple Silicon) and/or do not support [blocks](https://en.wikipedia.org/wiki/Blocks_(C_language_extension)), which this build uses heavily.
@@ -36,25 +36,62 @@ If you'd like to build with tree-sitter support, native-compilation, and RSVG (a
 brew install tree-sitter libgccjit librsvg
 ```
 
-### Compile and install
+### Configure
+
+You can configure the app either as self-contained (all resources live within the app), or non-self-contained (the default).  A self-contained app is recommended.  The recommended configuration options are given below; see the file `README-mac` for others.
+
+#### Self-contained
+
+A _self-contained_ app by default will go into `/Applications/Emacs.app`.
 
 ```bash
 ./autogen.sh
-CFLAGS="-O3 -mcpu=native" ./configure --with-native-compilation --with-tree-sitter --enable-mac-app=yes  # tune config options to your liking
-make
-sudo make install  # optional, compresses EL files and installs some resources in /usr/local/share/emacs/30.1.50
+CFLAGS="-O3 -mcpu=native" ./configure --with-native-compilation --with-tree-sitter --enable-mac-app=yes --enable-mac-self-contained
 ```
 
-You'll find the app under the directory `mac/`.
+You can specify another build directory for the self-contained app using `--enable-mac-app=/path/to/dir`.
 
-If you choose not to `make install`, you may need to:
+#### Non self-contained
 
+```bash
+./autogen.sh
+CFLAGS="-O3 -mcpu=native" ./configure --with-native-compilation --with-tree-sitter  
 ```
-% cd mac
+
+### Build
+
+```bash
+make -j6 # or however many CPUs you want to use
+```
+
+You'll find the app under `mac/`.
+
+### Install
+
+This step compresses EL files and populates the app.
+
+#### Self-contained
+
+```bash
+make install # Installs all resources under /Applications/Emacs.app (or wherever your self-contained build is going)
+```
+
+#### Non self-contained
+
+```bash
+sudo make install  # installs resources in, e.g., /usr/local/share/emacs/30.1.50
+```
+
+#### No install, e.g. for debug
+
+If you choose not to `make install`, but instead want to run the application directly from the `mac/` sub-directory, you may need to:
+
+```bash
+% cd mac/
 % ln -s ../native-lisp Emacs.app/Contents/
 ```
 
-to associate the native lisp files with the application.
+to associate the native lisp files.  This is useful for debugging, to quickly rebuild and test, for example (saving the install step).  But a self-contained app build is easier.
 
 ## Additions
 
