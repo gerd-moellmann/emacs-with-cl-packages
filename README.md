@@ -114,6 +114,7 @@ If you get crashes or just want to help with debugging, it would be very useful 
    ```
     CFLAGS="-O0 -g3" ./configure --with-native-compilation --with-tree-sitter --enable-mac-app=yes
     ```
+2.  Link in the [native-lisp directory](#no-install-eg-for-debug).   
 2.  In an `~/.lldbinit` file, add `settings set target.load-cwd-lldbinit true`, so Emacs can read the custom lldb commands it has defined.
 3.  Start the emacs binary from the `src/` directory, like:
     ```bash
