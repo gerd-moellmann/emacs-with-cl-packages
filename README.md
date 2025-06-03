@@ -25,7 +25,7 @@ This build is kept current with the [`emacs-30`](https://github.com/emacs-mirror
 See the `emacs-mac-30_1_exp` branch and the file `README-mac` for additional compile instructions.  Briefly:
 
 > [!NOTE]
-> On Apple, `gcc` is actually aliased to the `clang` compiler, which is required to build `emacs-mac`, as recent `gcc` versions either cannot build for the architecture (Apple Silicon) and/or do not support [blocks](https://en.wikipedia.org/wiki/Blocks_(C_language_extension)), which this build uses heavily.
+> On MacOS, `gcc` is actually aliased to the `clang` compiler, which is required to build `emacs-mac`.  Recent `gcc` versions either cannot build for the architecture (e.g. Apple Silicon) and/or do not support [blocks](https://en.wikipedia.org/wiki/Blocks_(C_language_extension)), which this build uses heavily.
 
 
 ### Install (optional) libraries
