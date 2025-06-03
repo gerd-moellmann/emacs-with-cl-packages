@@ -64,11 +64,11 @@ CFLAGS="-O3 -mcpu=native" ./configure --with-native-compilation --with-tree-sitt
 make -j6 # or however many CPUs you want to use
 ```
 
-You'll find the app under `mac/`.
+You'll find the staging build of the app under `mac/`.
 
 ### Install
 
-This step compresses EL files and populates the app.
+This step compresses EL files and fully populates the app.
 
 #### Self-contained
 
@@ -91,7 +91,7 @@ If you choose not to `make install`, but instead want to run the application dir
 % ln -s ../native-lisp Emacs.app/Contents/
 ```
 
-to associate the native lisp files.  This is useful for debugging, to quickly rebuild and test, for example (saving the install step).  But a self-contained app build is easier.
+to associate the native lisp files.  This is useful for debugging, to quickly rebuild and test, for example (saving the install step).  But a [self-contained app](#Self-contained) build is easier.
 
 ## Additions
 
