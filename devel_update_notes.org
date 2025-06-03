@@ -56,7 +56,6 @@ After the merge, additional issues were uncovered that prevented compilation fro
 - From there, ~magit-blame~ can be used to quickly identify the recent commit which changed the calling convention, etc.
 - This commit often includes many examples of fixing code elsewhere to conform to the new conventions.  These can be used as a guide to update affected code (usually in ~macwin~, ~macterm~, etc).
 
-
 * Other notes
 
 ** SVG handling
@@ -98,3 +97,9 @@ To summarize:
 1. For file-based images (what you get if you just ~find-file~ on =.svg=), the JS+WKWebView route is used.
 2. For inline svg image (~:type svg~, as created with, e.g. with ~svg-image~), we can display /directly/, if =RSVG= is compiled and available.
 3. If =RSVG= is /not available/, =UTI_SVG= is returned from ~mac_get_uti_from_image_type~, indicating that emacs-mac can display them natively, using the ~image-io~ svg chicanery above.
+
+   
+** Fixing Bug #67604
+
+Compiled a debug build, using lldb to debug.  Found that a wide glyph on the first line has its ~pixel_width~ incorrectly reported (or not, just has issues with where the line is wrapped and is off by one char, which can be a wide glyph).
+
