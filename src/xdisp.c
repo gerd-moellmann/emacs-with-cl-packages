@@ -10171,10 +10171,6 @@ move_it_in_display_line_to (struct it *it,
 			 system frame.  */
 		      || (new_x == it->last_visible_x
 			  && FRAME_WINDOW_P (it->f)
-			  /* When word-wrapping, the last glyph fitting
-			     on the line is not meaningful if the next
-			     position cannot wrap */
-			  && (it->line_wrap != WORD_WRAP || may_wrap)
 			  && ((it->bidi_p && it->bidi_it.paragraph_dir == R2L)
 			      ? WINDOW_LEFT_FRINGE_WIDTH (it->w)
 			      : WINDOW_RIGHT_FRINGE_WIDTH (it->w))))
