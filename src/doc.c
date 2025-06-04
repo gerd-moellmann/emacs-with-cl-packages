@@ -380,6 +380,39 @@ string is passed through `substitute-command-keys'.  */)
   return doc;
 }
 
+DEFUN ("check-documentation", Fcheck_documentation, Scheck_documentation, 1, 1, 0,
+       doc: /* Check the documentation string of FUNCTION.  */)
+  (Lisp_Object function)
+{
+  if (SYMBOLP (function))
+    {
+      Lisp_Object tem = Fget (function, Qfunction_documentation);
+      if (!NILP (tem))
+	return Qt;
+    }
+
+  Lisp_Object fun = Findirect_function (function, Qnil);
+  if (NILP (fun))
+    return Qt;
+  if (CONSP (fun) && EQ (XCAR (fun), Qmacro))
+    fun = XCDR (fun);
+  Lisp_Object doc = calln (Qfunction_documentation, fun);
+
+  /* If DOC is 0, it's typically because of a dumped file missing
+     from the DOC file (bug in src/Makefile.in).  */
+  if (BASE_EQ (doc, make_fixnum (0)))
+    doc = Qnil;
+  if (FIXNUMP (doc) || (CONSP (doc) && FIXNUMP (XCDR (doc))))
+    {
+      Lisp_Object tem = get_doc_string (doc, 0);
+      if (NILP (tem))
+	return Qnil;
+      return Qt;
+    }
+
+  return Qt;
+}
+
 DEFUN ("internal-subr-documentation", Fsubr_documentation, Ssubr_documentation, 1, 1, 0,
        doc: /* Return the raw documentation info of a C primitive.  */)
   (Lisp_Object function)
@@ -714,6 +747,7 @@ compute the correct value for the current terminal in the nil case.  */);
 	       doc: /* If nil, a nil `text-quoting-style' is treated as `grave'.  */);
   /* Initialized by ‘main’.  */
 
+  defsubr (&Scheck_documentation);
   defsubr (&Sdocumentation_stringp);
   defsubr (&Sdocumentation);
   defsubr (&Ssubr_documentation);
