@@ -241,11 +241,11 @@ This is used for `treesit-simple-indent-standalone-predicate'."
              "ternary_expression")
       nil)
      ;; If there's only whitespace before node, consider
-     ;; this node standalone. To support function
+     ;; this node standalone.  To support function
      ;; chaining, allow a dot to be before the node.
      ((looking-back (rx bol (* whitespace) (? "."))
                     (line-beginning-position))
-      (if (looking-back "\\.")
+      (if (looking-back "\\." (max (point-min) (1- (point))))
           (1- (point))
         (point))))))
 
@@ -661,6 +661,7 @@ This mode is intended to be inherited by concrete major modes."
   :syntax-table typescript-ts-mode--syntax-table
 
   ;; Comments.
+  (c-ts-common-comment-setup)
   (setq-local comment-setup-function #'js--treesit-comment-setup)
 
   ;; Electric
