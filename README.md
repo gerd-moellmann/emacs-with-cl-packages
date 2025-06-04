@@ -118,11 +118,11 @@ If you get crashes or just want to help with debugging, it would be very useful 
 2.  In an `~/.lldbinit` file, add `settings set target.load-cwd-lldbinit true`, so Emacs can read the custom lldb commands it has defined.
 3.  Start the emacs binary from the `src/` directory, like:
     ```bash
-    %lldb ../mac/Emacs.app/Contents/MacOS/Emacs
+    %lldb ../mac/Emacs.app
     ```
     Then `run` (or better, `run -Q`).
 1. Now cause your crash to occur, go `up` to the frame of interest, and use `xprint`, `p`, etc. on the potentially problematic variables.
-2. You can also try `gui` which is a little curses-based terminal GUI inside lldb (slow for me though).
+2. You can also try `gui` which is a little curses-based terminal GUI inside lldb (slow for me though), or [`realgud-lldb`](https://github.com/realgud/realgud-lldb) which isn't very complete but can do some things.
 
 ## Notes
 
