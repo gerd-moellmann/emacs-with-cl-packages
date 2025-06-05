@@ -1169,7 +1169,7 @@ extern void ns_set_scroll_bar_default_height (struct frame *f);
 extern void ns_change_tab_bar_height (struct frame *f, int height);
 extern const char *ns_get_string_resource (void *_rdb,
                                            const char *name,
-                                           const char *class);
+                                           const char *cls);
 
 /* C access to ObjC functionality.  */
 extern void  ns_release_object (void *obj);

@@ -686,8 +686,8 @@ struct terminal
    position values).  It is -1 when calling from gui_set_frame_parameters,
    which means, do adjust for borders but don't change the gravity.  */
 
-  void (*set_frame_offset_hook) (struct frame *f, register int xoff,
-                                 register int yoff, int change_gravity);
+  void (*set_frame_offset_hook) (struct frame *f, int xoff,
+                                 int yoff, int change_gravity);
 
   /* This hook is called to set the frame's transparency.  */
   void (*set_frame_alpha_hook) (struct frame *f);
@@ -835,7 +835,7 @@ struct terminal
      database RDB. */
   const char * (*get_string_resource_hook) (void *rdb,
                                             const char *name,
-                                            const char *class);
+                                            const char *cls);
 
   /* Image hooks */
 #ifdef HAVE_WINDOW_SYSTEM

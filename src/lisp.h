@@ -51,7 +51,7 @@ union gc_header { };
 #endif
 
 #ifdef HAVE_MPS
-enum igc_obj_type;
+enum igc_obj_type : unsigned int;
 extern void gc_init_header (union gc_header *header, enum igc_obj_type type);
 extern void gc_init_header_bytes (union gc_header *header, enum igc_obj_type type, size_t bytes);
 #else
@@ -339,7 +339,7 @@ DEFINE_GDB_SYMBOL_END (VALMASK)
    struct Lisp_Symbol needs the check because of lispsym and struct
    Lisp_Cons needs it because of STACK_CONS.  */
 
-#define GCALIGNED_UNION_MEMBER char alignas (GCALIGNMENT) gcaligned;
+#define GCALIGNED_UNION_MEMBER alignas (GCALIGNMENT) char gcaligned;
 #if HAVE_STRUCT_ATTRIBUTE_ALIGNED
 # define GCALIGNED_STRUCT __attribute__ ((aligned (GCALIGNMENT)))
 #else
@@ -1178,7 +1178,7 @@ XBARE_SYMBOL (Lisp_Object a)
   intptr_t i = (intptr_t) XUNTAG (a, Lisp_Symbol, struct Lisp_Symbol);
   void *p = (char *) lispsym + i;
   igc_check_fwd (p, false);
-  return p;
+  return reinterpret_cast<struct Lisp_Symbol*>(p);
 }
 
 INLINE struct Lisp_Symbol * ATTRIBUTE_NO_SANITIZE_UNDEFINED
@@ -1746,9 +1746,9 @@ SREF (Lisp_Object string, ptrdiff_t index)
   return SDATA (string)[index];
 }
 INLINE void
-SSET (Lisp_Object string, ptrdiff_t index, unsigned char new)
+SSET (Lisp_Object string, ptrdiff_t index, unsigned char c)
 {
-  SDATA (string)[index] = new;
+  SDATA (string)[index] = c;
 }
 INLINE ptrdiff_t
 SCHARS (Lisp_Object string)
@@ -1873,7 +1873,7 @@ PSEUDOVECTOR_TYPE (const struct Lisp_Vector *v)
 {
   ptrdiff_t size = v->header.size;
   return (size & PSEUDOVECTOR_FLAG
-          ? (size & PVEC_TYPE_MASK) >> PSEUDOVECTOR_AREA_BITS
+          ? static_cast<enum pvec_type>((size & PVEC_TYPE_MASK) >> PSEUDOVECTOR_AREA_BITS)
           : PVEC_NORMAL_VECTOR);
 }
 
@@ -4230,9 +4230,9 @@ xvector_contents_addr (Lisp_Object a, ptrdiff_t i)
   /* This should return &XVECTOR (a)->contents[i], but that would run
      afoul of GCC bug 95072.  */
   void *v = XVECTOR (a);
-  char *p = v;
+  char *p = static_cast<char *>(v);
   void *w = p + header_size + i * word_size;
-  return w;
+  return static_cast<Lisp_Object*>(w);
 }
 
 /* Return the address of vector A's elements.  */
@@ -6027,11 +6027,11 @@ void igc_xfree (void *p);
 #define SAFE_NALLOCA(buf, multiplier, nitems)				\
   do {									\
     if ((nitems) <= sa_avail / sizeof *(buf) / (multiplier))		\
-      (buf) = AVAIL_ALLOCA (sizeof *(buf) * (multiplier) * (nitems));	\
+      (buf) = static_cast<decltype(buf)>(AVAIL_ALLOCA (sizeof *(buf) * (multiplier) * (nitems))); \
     else								\
       {									\
-	(buf) = igc_xnmalloc_ambig (nitems, sizeof *(buf) * (multiplier)); \
-	record_unwind_protect_ptr (igc_xfree, buf);			\
+	(buf) = static_cast<decltype(buf)>(igc_xnmalloc_ambig (nitems, sizeof *(buf) * (multiplier))); \
+	record_unwind_protect_ptr (igc_xfree, (void*)buf);		\
       }									\
   } while (false)
 
@@ -6058,7 +6058,7 @@ void igc_xfree (void *p);
    FIXME/igc: find a permanent fix for these bugs.  */
 #undef SAFE_ALLOCA
 #define SAFE_ALLOCA(size)				\
-  ({ char *buf = (void *)"";				\
+  ({ const char *buf = "";				\
      if ((size) != 0)					\
        SAFE_NALLOCA (buf, size, 1);			\
      (void *)buf; })
@@ -6068,7 +6068,8 @@ void igc_xfree (void *p);
 
 #define SAFE_ALLOCA_STRING(ptr, string)			\
   do {							\
-    (ptr) = SAFE_ALLOCA (SBYTES (string) + 1);		\
+    void *p_ = SAFE_ALLOCA (SBYTES (string) + 1);        \
+    (ptr) = static_cast<decltype(ptr)>(p_);              \
     memcpy (ptr, SDATA (string), SBYTES (string) + 1);	\
   } while (false)
 
@@ -6139,11 +6140,11 @@ safe_free_unbind_to (specpdl_ref count, specpdl_ref sa_count, Lisp_Object val)
 #define SAFE_ALLOCA_LISP(buf, nelt)				\
   do {								\
     ptrdiff_t alloca_nbytes;					\
-    if (ckd_mul (&alloca_nbytes, nelt, word_size)		\
+    if (ckd_mul (&alloca_nbytes, nelt, (int)word_size)		\
 	|| SIZE_MAX < alloca_nbytes)				\
       memory_full (SIZE_MAX);					\
     else if (alloca_nbytes <= sa_avail)				\
-      (buf) = AVAIL_ALLOCA (alloca_nbytes);			\
+      (buf) = static_cast<decltype(buf)>(AVAIL_ALLOCA (alloca_nbytes));	\
     else							\
       {								\
         (buf) = SAFE_ALLOCA_XZALLOC (nelt, alloca_nbytes);	\
@@ -6193,12 +6194,17 @@ enum { defined_GC_CHECK_STRING_BYTES = false };
    Otherwise, STACK_CONS would create heap-based cons cells that
    could point to stack-based strings, which is a no-no.  */
 
+#if 0
 enum
-  {
-    USE_STACK_CONS = USE_STACK_LISP_OBJECTS,
-    USE_STACK_STRING = (USE_STACK_CONS
-			&& !defined_GC_CHECK_STRING_BYTES)
-  };
+{
+  USE_STACK_CONS = USE_STACK_LISP_OBJECTS,
+  USE_STACK_STRING = (USE_STACK_CONS && !defined_GC_CHECK_STRING_BYTES)
+};
+#else
+
+constexpr bool USE_STACK_CONS = false;
+constexpr bool USE_STACK_STRING = false;
+# endif
 
 /* Auxiliary macros used for auto allocation of Lisp objects.  Please
    use these only in macros like AUTO_CONS that declare a local
@@ -6206,8 +6212,13 @@ enum
 #define STACK_CONS(a, b) \
   make_lisp_ptr (&((struct Lisp_Cons) { GC_HEADER_INIT { {  a, {b}}}}), \
 		 Lisp_Cons)
+#ifdef HAVE_MPS
+#define AUTO_CONS_EXPR(a, b) \
+  (Fcons (a, b))
+#else
 #define AUTO_CONS_EXPR(a, b) \
   (USE_STACK_CONS ? STACK_CONS (a, b) : Fcons (a, b))
+# endif
 
 /* Declare NAME as an auto Lisp cons or short list if possible, a
    GC-based one otherwise.  This is in the sense of the C keyword
@@ -6215,22 +6226,13 @@ enum
    The resulting object should not be made visible to user Lisp code.  */
 
 #define AUTO_CONS(name, a, b) Lisp_Object name = AUTO_CONS_EXPR (a, b)
-#define AUTO_LIST1(name, a)						\
-  Lisp_Object name = (USE_STACK_CONS ? STACK_CONS (a, Qnil) : list1 (a))
+#define AUTO_LIST1(name, a) Lisp_Object name = list1 (a)
 #define AUTO_LIST2(name, a, b)						\
-  Lisp_Object name = (USE_STACK_CONS					\
-		      ? STACK_CONS (a, STACK_CONS (b, Qnil))		\
-		      : list2 (a, b))
+  Lisp_Object name = list2 (a, b)
 #define AUTO_LIST3(name, a, b, c)					\
-  Lisp_Object name = (USE_STACK_CONS					\
-		      ? STACK_CONS (a, STACK_CONS (b, STACK_CONS (c, Qnil))) \
-		      : list3 (a, b, c))
+  Lisp_Object name = list3 (a, b, c)
 #define AUTO_LIST4(name, a, b, c, d)					\
-    Lisp_Object name							\
-      = (USE_STACK_CONS							\
-	 ? STACK_CONS (a, STACK_CONS (b, STACK_CONS (c,			\
-						     STACK_CONS (d, Qnil)))) \
-	 : list4 (a, b, c, d))
+    Lisp_Object name list4 (a, b, c, d))
 
 /* Declare NAME as an auto Lisp string if possible, a GC-based one if not.
    Take its unibyte value from the null-terminated string STR,
@@ -6249,6 +6251,10 @@ enum
    should not be modified or given text properties or made visible to
    user code.  */
 
+# ifdef HAVE_MPS
+#define AUTO_STRING_WITH_LEN(name, str, len)				\
+  Lisp_Object name = make_unibyte_string (str, len)
+#else
 #define AUTO_STRING_WITH_LEN(name, str, len)				\
   Lisp_Object name =							\
     (USE_STACK_STRING							\
@@ -6257,6 +6263,7 @@ enum
 	      {len, -1, 0, (unsigned char *) (str)}}}),			\
 	  Lisp_String))							\
      : make_unibyte_string (str, len))
+# endif
 
 /* The maximum length of "small" lists, as a heuristic.  These lists
    are so short that code need not check for cycles or quits while

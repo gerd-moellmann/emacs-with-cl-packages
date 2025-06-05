@@ -531,7 +531,7 @@ echo_add_key (Lisp_Object c)
 	{
 	  ptrdiff_t offset = ptr - buffer;
 	  size = max (2 * size, size + nbytes);
-	  buffer = SAFE_ALLOCA (size);
+	  buffer = static_cast<char*>(SAFE_ALLOCA (size));
 	  ptr = buffer + offset;
 	}
 
@@ -881,7 +881,7 @@ static struct kboard_stack *kboard_stack;
 void
 push_kboard (struct kboard *k)
 {
-  struct kboard_stack *p = xmalloc (sizeof *p);
+  struct kboard_stack *p = static_cast<struct kboard_stack*>(xmalloc (sizeof *p));
 
   p->next = kboard_stack;
   p->kboard = current_kboard;
@@ -990,7 +990,7 @@ cmd_error (Lisp_Object data)
       if (executing_kbd_macro_iterations == 1)
 	sprintf (macroerror, "After 1 kbd macro iteration: ");
       else
-	sprintf (macroerror, "After %"pI"d kbd macro iterations: ",
+	sprintf (macroerror, "After %" pI "d kbd macro iterations: ",
 		 executing_kbd_macro_iterations);
     }
   else
@@ -1168,7 +1168,7 @@ command_loop (void)
 Lisp_Object
 command_loop_2 (Lisp_Object handlers)
 {
-  register Lisp_Object val;
+  Lisp_Object val;
 
   do
     val = internal_condition_case (command_loop_1, handlers, cmd_error);
@@ -1449,6 +1449,7 @@ command_loop_1 (void)
 	return Qnil;		/* a kbd macro, at the end.  */
       /* -1 means read_key_sequence got a menu that was rejected.
 	 Just loop around and read another command.  */
+      ptrdiff_t last_pt = PT;
       if (i == -1)
 	{
 	  cancel_echoing ();
@@ -1488,7 +1489,6 @@ command_loop_1 (void)
       prev_buffer = current_buffer;
       prev_modiff = MODIFF;
       last_point_position = PT;
-      ptrdiff_t last_pt = PT;
 
       /* By default, we adjust point to a boundary of a region that
          has such a property that should be treated intangible
@@ -2138,22 +2138,22 @@ bind_polling_period (int n)
 #ifdef POLL_FOR_INPUT
   if (FIXNUMP (Vpolling_period))
     {
-      intmax_t new = XFIXNUM (Vpolling_period);
+      intmax_t newi = XFIXNUM (Vpolling_period);
 
-      if (n > new)
-	new = n;
+      if (n > newi)
+	newi = n;
 
       stop_other_atimers (poll_timer);
       stop_polling ();
-      specbind (Qpolling_period, make_int (new));
+      specbind (Qpolling_period, make_int (newi));
     }
   else if (FLOATP (Vpolling_period))
     {
-      double new = XFLOAT_DATA (Vpolling_period);
+      double newd = XFLOAT_DATA (Vpolling_period);
 
       stop_other_atimers (poll_timer);
       stop_polling ();
-      specbind (Qpolling_period, (n > new
+      specbind (Qpolling_period, (n > newd
 				  ? make_int (n)
 				  : Vpolling_period));
     }
@@ -2537,6 +2537,8 @@ read_char (int commandflag, Lisp_Object map,
   volatile bool reread, recorded;
   bool volatile polling_stopped_here = false;
   struct kboard *orig_kboard = current_kboard;
+  Lisp_Object volatile c_volatile;
+  specpdl_ref jmpcount;
 
   also_record = Qnil;
 
@@ -2652,6 +2654,7 @@ read_char (int commandflag, Lisp_Object map,
       goto from_macro;
     }
 
+  c_volatile = c;
   if (!NILP (unread_switch_frame))
     {
       c = unread_switch_frame;
@@ -2761,8 +2764,8 @@ read_char (int commandflag, Lisp_Object map,
      around any call to sit_for or kbd_buffer_get_event;
      it *must not* be in effect when we call redisplay.  */
 
-  specpdl_ref jmpcount = SPECPDL_INDEX ();
-  Lisp_Object volatile c_volatile = c;
+  jmpcount = SPECPDL_INDEX ();
+  c_volatile = c;
   if (sys_setjmp (local_getcjmp))
     {
       c = c_volatile;
@@ -3559,7 +3562,7 @@ record_char (Lisp_Object c)
 	  if (XUFIXNUM (c) < 0x100)
 	    putc (XUFIXNUM (c), dribble);
 	  else
-	    fprintf (dribble, " 0x%"pI"x", XUFIXNUM (c));
+	    fprintf (dribble, " 0x%" pI "x", XUFIXNUM (c));
 	}
       else
 	{
@@ -3720,7 +3723,7 @@ kbd_buffer_nr_stored (void)
 #endif	/* Store an event obtained at interrupt level into kbd_buffer, fifo */
 
 void
-kbd_buffer_store_event (register struct input_event *event)
+kbd_buffer_store_event (struct input_event *event)
 {
   kbd_buffer_store_event_hold (event, 0);
 }
@@ -7711,8 +7714,8 @@ modify_event_symbol (ptrdiff_t symbol_num, int modifiers, Lisp_Object symbol_kin
 	  ptrdiff_t len = (SBYTES (name_alist_or_stem)
 			   + sizeof "-" + INT_STRLEN_BOUND (EMACS_INT));
 	  USE_SAFE_ALLOCA;
-	  buf = SAFE_ALLOCA (len);
-	  esprintf (buf, "%s-%"pI"d", SDATA (name_alist_or_stem),
+	  buf = static_cast<char*>(SAFE_ALLOCA (len));
+	  esprintf (buf, "%s-%" pI "d", SDATA (name_alist_or_stem),
 		    XFIXNUM (symbol_int) + 1);
 	  value = intern (buf);
 	  SAFE_FREE ();
@@ -7732,7 +7735,7 @@ modify_event_symbol (ptrdiff_t symbol_num, int modifiers, Lisp_Object symbol_kin
       if (NILP (value))
 	{
 	  char buf[sizeof "key-" + INT_STRLEN_BOUND (EMACS_INT)];
-	  sprintf (buf, "key-%"pD"d", symbol_num);
+	  sprintf (buf, "key-%" pD "d", symbol_num);
 	  value = intern (buf);
 	}
 
@@ -7774,14 +7777,14 @@ character, are not returned verbatim.)  */)
   FOR_EACH_TAIL_SAFE (event_desc)
     {
       Lisp_Object elt = XCAR (event_desc);
-      int this = 0;
+      int ths = 0;
 
       /* Given a symbol, see if it is a modifier name.  */
       if (SYMBOLP (elt) && CONSP (XCDR (event_desc)))
-	this = parse_solitary_modifier (elt);
+	ths = parse_solitary_modifier (elt);
 
-      if (this != 0)
-	modifiers |= this;
+      if (ths != 0)
+	modifiers |= ths;
       else if (!NILP (base))
 	error ("Two bases given in one event");
       else
@@ -8396,7 +8399,7 @@ add_user_signal (int sig, const char *name)
       /* Already added.  */
       return;
 
-  p = xmalloc (sizeof *p);
+  p = static_cast<decltype(p)>(xmalloc (sizeof *p));
   p->sig = sig;
   p->name = xstrdup (name);
   p->npending = 0;
@@ -9892,7 +9895,7 @@ parse_tool_bar_item (Lisp_Object key, Lisp_Object item)
       const char *capt = STRINGP (tcapt) ? SSDATA (tcapt) : "";
       ptrdiff_t max_lbl_size =
 	2 * max (0, min (tool_bar_max_label_size, STRING_BYTES_BOUND / 2)) + 1;
-      char *buf = xmalloc (max_lbl_size);
+      char *buf = static_cast<decltype(buf)>(xmalloc (max_lbl_size));
       Lisp_Object new_lbl;
       ptrdiff_t caption_len = strnlen (capt, max_lbl_size);
 
@@ -12170,11 +12173,11 @@ void
 stuff_buffered_input (Lisp_Object stuffstring)
 {
 #ifdef SIGTSTP  /* stuff_char is defined if SIGTSTP.  */
-  register unsigned char *p;
+  unsigned char *p;
 
   if (STRINGP (stuffstring))
     {
-      register ptrdiff_t count;
+      ptrdiff_t count;
 
       p = SDATA (stuffstring);
       count = SBYTES (stuffstring);
@@ -12816,7 +12819,7 @@ KBOARD *
 allocate_kboard (Lisp_Object type)
 {
 #ifdef HAVE_MPS
-  KBOARD *kb = igc_xzalloc_ambig (sizeof *kb);
+  KBOARD *kb = static_cast<decltype(kb)>(igc_xzalloc_ambig (sizeof *kb));
 #else
   KBOARD *kb = xmalloc (sizeof *kb);
 #endif

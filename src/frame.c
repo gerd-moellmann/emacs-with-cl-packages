@@ -96,7 +96,7 @@ fset_minibuffer_window (struct frame *f, Lisp_Object val)
 }
 
 struct frame *
-decode_live_frame (register Lisp_Object frame)
+decode_live_frame (Lisp_Object frame)
 {
   if (NILP (frame))
     frame = selected_frame;
@@ -105,7 +105,7 @@ decode_live_frame (register Lisp_Object frame)
 }
 
 struct frame *
-decode_any_frame (register Lisp_Object frame)
+decode_any_frame (Lisp_Object frame)
 {
   if (NILP (frame))
     frame = selected_frame;
@@ -1250,9 +1250,9 @@ make_minibuffer_frame (void)
 {
   /* First make a frame containing just a root window, no minibuffer.  */
 
-  register struct frame *f = make_frame (0);
-  register Lisp_Object mini_window;
-  register Lisp_Object frame;
+  struct frame *f = make_frame (0);
+  Lisp_Object mini_window;
+  Lisp_Object frame;
 
   XSETFRAME (frame, f);
 
@@ -1428,7 +1428,7 @@ make_terminal_frame (struct terminal *terminal, Lisp_Object parent,
   XSETFRAME (frame, f);
   Vframe_list = Fcons (frame, Vframe_list);
 
-  fset_name (f, make_formatted_string ("F%"PRIdMAX, ++tty_frame_count));
+  fset_name (f, make_formatted_string ("F%" PRIdMAX, ++tty_frame_count));
 
   SET_FRAME_VISIBLE (f, true);
 
@@ -3653,7 +3653,7 @@ set_term_frame_name (struct frame *f, Lisp_Object name)
       if (frame_name_fnn_p (SSDATA (f->name), SBYTES (f->name)))
 	return;
 
-      name = make_formatted_string ("F%"PRIdMAX, ++tty_frame_count);
+      name = make_formatted_string ("F%" PRIdMAX, ++tty_frame_count);
     }
   else
     {
@@ -3676,7 +3676,7 @@ set_term_frame_name (struct frame *f, Lisp_Object name)
 void
 store_frame_param (struct frame *f, Lisp_Object prop, Lisp_Object val)
 {
-  register Lisp_Object old_alist_elt;
+  Lisp_Object old_alist_elt;
 
   if (EQ (prop, Qminibuffer))
     {
@@ -4449,7 +4449,7 @@ values depend on the underlying window system, and some systems add a
 constant offset to the values.  */)
      (Lisp_Object frame)
 {
-  register struct frame *f = decode_live_frame (frame);
+  struct frame *f = decode_live_frame (frame);
 
   return Fcons (make_fixnum (f->left_pos), make_fixnum (f->top_pos));
 }
@@ -5189,7 +5189,7 @@ gui_report_frame_params (struct frame *f, Lisp_Object *alistptr)
      warnings.  */
   w = (uintptr_t) FRAME_NATIVE_WINDOW (f);
   store_in_alist (alistptr, Qwindow_id,
-		  make_formatted_string ("%"PRIuMAX, w));
+		  make_formatted_string ("%" PRIuMAX, w));
 #ifdef HAVE_X_WINDOWS
 #ifdef USE_X_TOOLKIT
   /* Tooltip frame may not have this widget.  */
@@ -5548,10 +5548,10 @@ void
 gui_set_right_divider_width (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 {
   int old = FRAME_RIGHT_DIVIDER_WIDTH (f);
-  int new = check_int_nonnegative (arg);
-  if (new != old)
+  int newi = check_int_nonnegative (arg);
+  if (newi != old)
     {
-      f->right_divider_width = new;
+      f->right_divider_width = newi;
       adjust_frame_size (f, -1, -1, 4, 0, Qright_divider_width);
       adjust_frame_glyphs (f);
       SET_FRAME_GARBAGED (f);
@@ -5562,10 +5562,10 @@ void
 gui_set_bottom_divider_width (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 {
   int old = FRAME_BOTTOM_DIVIDER_WIDTH (f);
-  int new = check_int_nonnegative (arg);
-  if (new != old)
+  int newi = check_int_nonnegative (arg);
+  if (newi != old)
     {
-      f->bottom_divider_width = new;
+      f->bottom_divider_width = newi;
       adjust_frame_size (f, -1, -1, 4, 0, Qbottom_divider_width);
       adjust_frame_glyphs (f);
       SET_FRAME_GARBAGED (f);
@@ -5860,7 +5860,7 @@ validate_x_resource_name (void)
   ptrdiff_t good_count = 0;
   /* Number of invalid characters in the resource name.  */
   ptrdiff_t bad_count = 0;
-  Lisp_Object new;
+  Lisp_Object newo;
   ptrdiff_t i;
 
   if (!STRINGP (Vx_resource_class))
@@ -5905,16 +5905,16 @@ validate_x_resource_name (void)
   /* Name is partly valid.  Copy it and replace the invalid characters
      with underscores.  */
 
-  Vx_resource_name = new = Fcopy_sequence (Vx_resource_name);
+  Vx_resource_name = newo = Fcopy_sequence (Vx_resource_name);
 
   for (i = 0; i < len; i++)
     {
-      int c = SREF (new, i);
+      int c = SREF (newo, i);
       if (! ((c >= 'a' && c <= 'z')
 	     || (c >= 'A' && c <= 'Z')
 	     || (c >= '0' && c <= '9')
 	     || c == '-' || c == '_'))
-	SSET (new, i, '_');
+	SSET (newo, i, '_');
     }
 }
 
@@ -5923,11 +5923,11 @@ validate_x_resource_name (void)
 
 Lisp_Object
 gui_display_get_resource (Display_Info *dpyinfo, Lisp_Object attribute,
-                          Lisp_Object class, Lisp_Object component,
+                          Lisp_Object cls, Lisp_Object component,
                           Lisp_Object subclass)
 {
   CHECK_STRING (attribute);
-  CHECK_STRING (class);
+  CHECK_STRING (cls);
 
   if (!NILP (component))
     CHECK_STRING (component);
@@ -5947,12 +5947,12 @@ gui_display_get_resource (Display_Info *dpyinfo, Lisp_Object attribute,
 			    + 3);
 
   ptrdiff_t class_keysize = (SBYTES (Vx_resource_class)
-			     + SBYTES (class)
+			     + SBYTES (cls)
 			     + (STRINGP (subclass)
 				? SBYTES (subclass) : 0)
 			     + 3);
   USE_SAFE_ALLOCA;
-  char *name_key = SAFE_ALLOCA (name_keysize + class_keysize);
+  char *name_key = static_cast<char*>(SAFE_ALLOCA (name_keysize + class_keysize));
   char *class_key = name_key + name_keysize;
 
   /* Start with emacs.FRAMENAME for the name (the specific one)
@@ -5961,7 +5961,7 @@ gui_display_get_resource (Display_Info *dpyinfo, Lisp_Object attribute,
   char *cz = lispstpcpy (class_key, Vx_resource_class);
 
   *cz++ = '.';
-  cz = lispstpcpy (cz, class);
+  cz = lispstpcpy (cz, cls);
 
   if (!NILP (component))
     {
@@ -6005,13 +6005,13 @@ The optional arguments COMPONENT and SUBCLASS add to the key and the
 class, respectively.  You must specify both of them or neither.
 If you specify them, the key is `INSTANCE.COMPONENT.ATTRIBUTE'
 and the class is `Emacs.CLASS.SUBCLASS'.  */)
-  (Lisp_Object attribute, Lisp_Object class, Lisp_Object component,
+  (Lisp_Object attribute, Lisp_Object cls, Lisp_Object component,
    Lisp_Object subclass)
 {
   check_window_system (NULL);
 
   return gui_display_get_resource (check_x_display_info (Qnil),
-                                   attribute, class, component, subclass);
+                                   attribute, cls, component, subclass);
 }
 
 #if defined HAVE_X_WINDOWS && !defined USE_X_TOOLKIT && !defined USE_GTK
@@ -6056,7 +6056,7 @@ x_get_resource_string (const char *attribute, const char *class)
 
 Lisp_Object
 gui_display_get_arg (Display_Info *dpyinfo, Lisp_Object alist, Lisp_Object param,
-                     const char *attribute, const char *class,
+                     const char *attribute, const char *cls,
                      enum resource_types type)
 {
   Lisp_Object tem;
@@ -6086,7 +6086,7 @@ gui_display_get_arg (Display_Info *dpyinfo, Lisp_Object alist, Lisp_Object param
       if (attribute && dpyinfo)
 	{
 	  AUTO_STRING (at, attribute);
-	  AUTO_STRING (cl, class);
+	  AUTO_STRING (cl, cls);
 	  tem = gui_display_get_resource (dpyinfo, at, cl, Qnil, Qnil);
 
 	  if (NILP (tem))
@@ -6155,11 +6155,11 @@ gui_display_get_arg (Display_Info *dpyinfo, Lisp_Object alist, Lisp_Object param
 
 static Lisp_Object
 gui_frame_get_arg (struct frame *f, Lisp_Object alist, Lisp_Object param,
-                   const char *attribute, const char *class,
+                   const char *attribute, const char *cls,
                    enum resource_types type)
 {
   return gui_display_get_arg (FRAME_DISPLAY_INFO (f),
-                              alist, param, attribute, class, type);
+                              alist, param, attribute, cls, type);
 }
 
 /* Like gui_frame_get_arg, but also record the value in f->param_alist.  */
@@ -6167,13 +6167,13 @@ gui_frame_get_arg (struct frame *f, Lisp_Object alist, Lisp_Object param,
 Lisp_Object
 gui_frame_get_and_record_arg (struct frame *f, Lisp_Object alist,
                               Lisp_Object param,
-                              const char *attribute, const char *class,
+                              const char *attribute, const char *cls,
                               enum resource_types type)
 {
   Lisp_Object value;
 
   value = gui_display_get_arg (FRAME_DISPLAY_INFO (f), alist, param,
-                               attribute, class, type);
+                               attribute, cls, type);
   if (! NILP (value) && ! BASE_EQ (value, Qunbound))
     store_frame_param (f, param, value);
 

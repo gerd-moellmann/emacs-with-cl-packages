@@ -483,7 +483,7 @@ DEFUN ("get-buffer", Fget_buffer, Sget_buffer, 1, 1, 0,
 BUFFER-OR-NAME must be either a string or a buffer.  If BUFFER-OR-NAME
 is a string and there is no buffer with that name, return nil.  If
 BUFFER-OR-NAME is a buffer, return it as given.  */)
-  (register Lisp_Object buffer_or_name)
+  (Lisp_Object buffer_or_name)
 {
   if (BUFFERP (buffer_or_name))
     return buffer_or_name;
@@ -497,9 +497,9 @@ DEFUN ("get-file-buffer", Fget_file_buffer, Sget_file_buffer, 1, 1, 0,
 The buffer's `buffer-file-name' must match exactly the expansion of FILENAME.
 If there is no such live buffer, return nil.
 See also `find-buffer-visiting'.  */)
-  (register Lisp_Object filename)
+  (Lisp_Object filename)
 {
-  register Lisp_Object tail, buf, handler;
+  Lisp_Object tail, buf, handler;
 
   CHECK_STRING (filename);
   filename = Fexpand_file_name (filename, Qnil);
@@ -527,9 +527,9 @@ DEFUN ("get-truename-buffer", Fget_truename_buffer, Sget_truename_buffer, 1, 1, 
        doc: /* Return the buffer with `file-truename' equal to FILENAME (a string).
 If there is no such live buffer, return nil.
 See also `find-buffer-visiting'.  */)
-  (register Lisp_Object filename)
+  (Lisp_Object filename)
 {
-  register Lisp_Object tail, buf;
+  Lisp_Object tail, buf;
 
   FOR_EACH_LIVE_BUFFER (tail, buf)
     {
@@ -546,7 +546,7 @@ If there is no such live buffer, return nil.
 See also `find-buffer-visiting'.  */)
   (Lisp_Object variable, Lisp_Object value)
 {
-  register Lisp_Object tail, buf;
+  Lisp_Object tail, buf;
 
   FOR_EACH_LIVE_BUFFER (tail, buf)
     {
@@ -582,10 +582,10 @@ presented to users or passed on to other applications.
 
 If BUFFER-OR-NAME is a buffer instead of a string, return it as given,
 even if it is dead.  The return value is never nil.  */)
-  (register Lisp_Object buffer_or_name, Lisp_Object inhibit_buffer_hooks)
+  (Lisp_Object buffer_or_name, Lisp_Object inhibit_buffer_hooks)
 {
-  register Lisp_Object buffer, name;
-  register struct buffer *b;
+  Lisp_Object buffer, name;
+  struct buffer *b;
 
   buffer = Fget_buffer (buffer_or_name);
   if (!NILP (buffer))
@@ -1087,7 +1087,7 @@ set_overlays_multibyte (bool multibyte)
    claims it doesn't belong to it.  */
 
 void
-reset_buffer (register struct buffer *b)
+reset_buffer (struct buffer *b)
 {
   bset_filename (b, Qnil);
   bset_file_truename (b, Qnil);
@@ -1291,7 +1291,7 @@ is first appended to NAME, to speed up finding a non-existent buffer.  */)
     {
       char number[INT_BUFSIZE_BOUND (ptrdiff_t) + sizeof "<>"];
       AUTO_STRING_WITH_LEN (lnumber, number,
-			    sprintf (number, "<%"pD"d>", count));
+			    sprintf (number, "<%" pD "d>", count));
       Lisp_Object gentemp = concat2 (genbase, lnumber);
       if (!NILP (Fstring_equal (gentemp, ignore))
 	  || NILP (Fget_buffer (gentemp)))
@@ -1304,7 +1304,7 @@ DEFUN ("buffer-name", Fbuffer_name, Sbuffer_name, 0, 1, 0,
        doc: /* Return the name of BUFFER, as a string.
 BUFFER defaults to the current buffer.
 Return nil if BUFFER has been killed.  */)
-  (register Lisp_Object buffer)
+  (Lisp_Object buffer)
 {
   return BVAR (decode_buffer (buffer), name);
 }
@@ -1323,7 +1323,7 @@ immediately before it was killed.  */)
 DEFUN ("buffer-file-name", Fbuffer_file_name, Sbuffer_file_name, 0, 1, 0,
        doc: /* Return name of file BUFFER is visiting, or nil if none.
 No argument or nil as argument means use the current buffer.  */)
-  (register Lisp_Object buffer)
+  (Lisp_Object buffer)
 {
   return BVAR (decode_buffer (buffer), filename);
 }
@@ -1333,7 +1333,7 @@ DEFUN ("buffer-base-buffer", Fbuffer_base_buffer, Sbuffer_base_buffer,
        doc: /* Return the base buffer of indirect buffer BUFFER.
 If BUFFER is not indirect, return nil.
 BUFFER defaults to the current buffer.  */)
-  (register Lisp_Object buffer)
+  (Lisp_Object buffer)
 {
   struct buffer *base = decode_buffer (buffer)->base_buffer;
   return base ? (XSETBUFFER (buffer, base), buffer) : Qnil;
@@ -1344,9 +1344,9 @@ DEFUN ("buffer-local-value", Fbuffer_local_value,
        doc: /* Return the value of VARIABLE in BUFFER.
 If VARIABLE does not have a buffer-local binding in BUFFER, the value
 is the default binding of the variable.  */)
-  (register Lisp_Object variable, register Lisp_Object buffer)
+  (Lisp_Object variable, Lisp_Object buffer)
 {
-  register Lisp_Object result = buffer_local_value (variable, buffer);
+  Lisp_Object result = buffer_local_value (variable, buffer);
 
   if (BASE_EQ (result, Qunbound))
     xsignal1 (Qvoid_variable, variable);
@@ -1361,8 +1361,8 @@ is the default binding of the variable.  */)
 Lisp_Object
 buffer_local_value (Lisp_Object variable, Lisp_Object buffer)
 {
-  register struct buffer *buf;
-  register Lisp_Object result;
+  struct buffer *buf;
+  Lisp_Object result;
   struct Lisp_Symbol *sym;
 
   CHECK_SYMBOL (variable);
@@ -1687,9 +1687,9 @@ If UNIQUE is non-nil, come up with a new name using
 Interactively, you can set UNIQUE with a prefix argument.
 We return the name we actually gave the buffer.
 This does not change the name of the visited file (if any).  */)
-  (register Lisp_Object newname, Lisp_Object unique)
+  (Lisp_Object newname, Lisp_Object unique)
 {
-  register Lisp_Object tem, buf;
+  Lisp_Object tem, buf;
   Lisp_Object oldname = BVAR (current_buffer, name);
   Lisp_Object requestedname = newname;
 
@@ -1833,7 +1833,7 @@ DEFUN ("buffer-enable-undo", Fbuffer_enable_undo, Sbuffer_enable_undo,
        0, 1, "",
        doc: /* Start keeping undo information for buffer BUFFER.
 No argument or nil as argument means do this for the current buffer.  */)
-  (register Lisp_Object buffer)
+  (Lisp_Object buffer)
 {
   Lisp_Object real_buffer;
 
@@ -2188,7 +2188,7 @@ void
 record_buffer (Lisp_Object buffer)
 {
   Lisp_Object aelt, aelt_cons, tem;
-  register struct frame *f = XFRAME (selected_frame);
+  struct frame *f = XFRAME (selected_frame);
 
   CHECK_BUFFER (buffer);
 
@@ -2224,7 +2224,7 @@ DEFUN ("bury-buffer-internal", Fbury_buffer_internal, Sbury_buffer_internal,
   (Lisp_Object buffer)
 {
   Lisp_Object aelt, aelt_cons, tem;
-  register struct frame *f = XFRAME (selected_frame);
+  struct frame *f = XFRAME (selected_frame);
 
   CHECK_BUFFER (buffer);
 
@@ -2297,7 +2297,7 @@ DEFUN ("current-buffer", Fcurrent_buffer, Scurrent_buffer, 0, 0, 0,
        doc: /* Return the current buffer as a Lisp object.  */)
   (void)
 {
-  register Lisp_Object buf;
+  Lisp_Object buf;
   XSETBUFFER (buf, current_buffer);
   return buf;
 }
@@ -2306,7 +2306,7 @@ DEFUN ("current-buffer", Fcurrent_buffer, Scurrent_buffer, 0, 0, 0,
    This is used by redisplay.  */
 
 void
-set_buffer_internal_1 (register struct buffer *b)
+set_buffer_internal_1 (struct buffer *b)
 {
 #ifdef USE_MMAP_FOR_BUFFERS
   if (b->text->beg == NULL)
@@ -2322,10 +2322,10 @@ set_buffer_internal_1 (register struct buffer *b)
 /* Like set_buffer_internal_1, but doesn't check whether B is already
    the current buffer.  Called upon switch of the current thread, see
    post_acquire_global_lock.  */
-void set_buffer_internal_2 (register struct buffer *b)
+void set_buffer_internal_2 (struct buffer *b)
 {
-  register struct buffer *old_buf;
-  register Lisp_Object tail;
+  struct buffer *old_buf;
+  Lisp_Object tail;
 
   BUFFER_CHECK_INDIRECTION (b);
 
@@ -2380,7 +2380,7 @@ void set_buffer_internal_2 (register struct buffer *b)
 void
 set_buffer_temp (struct buffer *b)
 {
-  register struct buffer *old_buf;
+  struct buffer *old_buf;
 
   if (current_buffer == b)
     return;
@@ -2405,9 +2405,9 @@ temporarily.  This function does not display the buffer, so its effect
 ends when the current command terminates.  Use `switch-to-buffer' or
 `pop-to-buffer' to switch buffers permanently.
 The return value is the buffer made current.  */)
-  (register Lisp_Object buffer_or_name)
+  (Lisp_Object buffer_or_name)
 {
-  register Lisp_Object buffer;
+  Lisp_Object buffer;
   buffer = Fget_buffer (buffer_or_name);
   if (NILP (buffer))
     nsberror (buffer_or_name);
@@ -2535,7 +2535,7 @@ swap_buffer_overlays (struct buffer *buffer, struct buffer *other)
     XOVERLAY (node->data)->buffer = buffer;
 
   /* Swap the interval trees. */
-  void *tmp = buffer->overlays;
+  struct itree_tree *tmp = buffer->overlays;
   buffer->overlays = other->overlays;
   other->overlays = tmp;
 }
@@ -3090,8 +3090,8 @@ overlays_in (ptrdiff_t beg, ptrdiff_t end, bool extend,
       if (extend && idx == len)
         {
 #ifdef HAVE_MPS
-          vec = igc_xpalloc_ambig (vec, len_ptr, 1, OVERLAY_COUNT_MAX,
-				   sizeof *vec);
+          vec = static_cast<Lisp_Object *>(igc_xpalloc_ambig (vec, len_ptr, 1, OVERLAY_COUNT_MAX,
+							      sizeof *vec));
 #else
           vec = xpalloc (vec, len_ptr, 1, OVERLAY_COUNT_MAX,
                          sizeof *vec);
@@ -3233,8 +3233,8 @@ overlay_touches_p (ptrdiff_t pos)
 int
 compare_overlays (const void *v1, const void *v2)
 {
-  const struct sortvec *s1 = v1;
-  const struct sortvec *s2 = v2;
+  const struct sortvec *s1 = static_cast<const struct sortvec *>(v1);
+  const struct sortvec *s2 = static_cast<const struct sortvec *>(v2);
   /* Return 1 if s1 should take precedence, -1 if v2 should take precedence,
      and 0 if they're equal.  */
   if (s1->priority != s2->priority)
@@ -3360,8 +3360,8 @@ static ptrdiff_t overlay_str_len;
 static int
 cmp_for_strings (const void *as1, const void *as2)
 {
-  struct sortstr const *s1 = as1;
-  struct sortstr const *s2 = as2;
+  struct sortstr const *s1 = static_cast<struct sortstr const *>(as1);
+  struct sortstr const *s2 = static_cast<struct sortstr const *>(as2);
   if (s1->size != s2->size)
     return s2->size < s1->size ? -1 : 1;
   if (s1->priority != s2->priority)
@@ -3380,7 +3380,8 @@ record_overlay_string (struct sortstrlist *ssl, Lisp_Object str,
 #ifdef HAVE_MPS
       /* Never freed. */
       eassert (ssl == &overlay_heads || ssl == &overlay_tails);
-      ssl->buf = igc_xpalloc_ambig (ssl->buf, &ssl->size, 5, -1, sizeof *ssl->buf);
+      ssl->buf = static_cast<struct sortstr *>
+	(igc_xpalloc_ambig (ssl->buf, &ssl->size, 5, -1, sizeof *ssl->buf));
 #else
       ssl->buf = xpalloc (ssl->buf, &ssl->size, 5, -1, sizeof *ssl->buf);
 #endif
@@ -3488,8 +3489,9 @@ overlay_strings (ptrdiff_t pos, struct window *w, unsigned char **pstr)
       if (ckd_add (&total, overlay_heads.bytes, overlay_tails.bytes))
 	memory_full (SIZE_MAX);
       if (total > overlay_str_len)
-	overlay_str_buf = xpalloc (overlay_str_buf, &overlay_str_len,
-				   total - overlay_str_len, -1, 1);
+	overlay_str_buf = static_cast<unsigned char*>
+	  (xpalloc (overlay_str_buf, &overlay_str_len,
+		    total - overlay_str_len, -1, 1));
 
       p = overlay_str_buf;
       for (i = overlay_tails.used; --i >= 0;)
@@ -3881,7 +3883,8 @@ interest.  */)
   len = 10;
   /* We can't use alloca here because overlays_at can call xrealloc.  */
 #ifdef HAVE_MPS
-  overlay_vec = igc_xzalloc_ambig (len * sizeof *overlay_vec);
+  overlay_vec = static_cast<Lisp_Object*>
+    (igc_xzalloc_ambig (len * sizeof *overlay_vec));
 #else
   overlay_vec = xmalloc (len * sizeof *overlay_vec);
 #endif
@@ -3934,8 +3937,9 @@ The resulting list of overlays is in an arbitrary unpredictable order.  */)
     return Qnil;
 
   len = 10;
- #ifdef HAVE_MPS
-  overlay_vec = igc_xzalloc_ambig (len * sizeof *overlay_vec);
+#ifdef HAVE_MPS
+  overlay_vec = static_cast<Lisp_Object*>
+    (igc_xzalloc_ambig (len * sizeof *overlay_vec));
 #else
   overlay_vec = xmalloc (len * sizeof *overlay_vec);
 #endif
@@ -4608,7 +4612,7 @@ alloc_buffer_text (struct buffer *b, ptrdiff_t nbytes)
       memory_full (nbytes);
     }
 
-  b->text->beg = p;
+  b->text->beg = static_cast<unsigned char*>(p);
   unblock_input ();
 }
 
@@ -4650,7 +4654,7 @@ enlarge_buffer_text (struct buffer *b, ptrdiff_t delta)
   if (old_beg)
     memcpy (p, old_beg, min (old_nbytes, new_nbytes));
 
-  BUF_BEG_ADDR (b) = p;
+  BUF_BEG_ADDR (b) = static_cast<unsigned char*>(p);
   unblock_input ();
 }
 

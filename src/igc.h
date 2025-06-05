@@ -23,7 +23,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "config.h"
 #include "lisp.h"
 
-enum igc_obj_type
+enum igc_obj_type : unsigned int
 {
   IGC_OBJ_INVALID,
   IGC_OBJ_PAD,

@@ -1873,7 +1873,7 @@ extern void validate_x_resource_name (void);
 
 extern Lisp_Object gui_display_get_resource (Display_Info *,
                                              Lisp_Object attribute,
-                                             Lisp_Object class,
+                                             Lisp_Object cls,
                                              Lisp_Object component,
                                              Lisp_Object subclass);
 

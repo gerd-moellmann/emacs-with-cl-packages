@@ -486,7 +486,7 @@ bidi_pop_embedding_level (struct bidi_it *bidi_it)
       st = bidi_it->level_stack[bidi_it->stack_idx];
       if (isolate_status)
 	{
-	  bidi_dir_t sos = ((st.flags >> 3) & 1);
+	  bidi_dir_t sos = static_cast<bidi_dir_t>(((st.flags >> 3) & 1));
 	  /* PREV is used in W1 for resolving WEAK_NSM.  By the time
 	     we get to an NSM, we must have gotten past at least one
 	     character: the PDI that ends the isolate from which we
@@ -3696,7 +3696,7 @@ bidi_dump_cached_states (void)
       fputs ("The cache is empty.\n", stderr);
       return;
     }
-  fprintf (stderr, "Total of  %"pD"d state%s in cache:\n",
+  fprintf (stderr, "Total of  %" pD "d state%s in cache:\n",
 	   bidi_cache_idx, bidi_cache_idx == 1 ? "" : "s");
 
   for (i = bidi_cache[bidi_cache_idx - 1].charpos; i > 0; i /= 10)
@@ -3709,6 +3709,6 @@ bidi_dump_cached_states (void)
     fprintf (stderr, "%*d", ndigits, bidi_cache[i].resolved_level);
   fputs ("\npos ", stderr);
   for (i = 0; i < bidi_cache_idx; i++)
-    fprintf (stderr, "%*"pD"d", ndigits, bidi_cache[i].charpos);
+    fprintf (stderr, "%*" pD "d", ndigits, bidi_cache[i].charpos);
   putc ('\n', stderr);
 }

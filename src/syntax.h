@@ -127,7 +127,7 @@ SYNTAX_WITH_FLAGS (int c)
 INLINE enum syntaxcode
 syntax_property (int c, bool via_property)
 {
-  return syntax_property_with_flags (c, via_property) & 0xff;
+  return static_cast<enum syntaxcode>(syntax_property_with_flags (c, via_property) & 0xff);
 }
 INLINE enum syntaxcode
 SYNTAX (int c)
