@@ -483,6 +483,14 @@ setting is an alternative to 'help-at-pt-display-when-idle'.
 Customize this to nil to disable starting new asynchronous native
 compilations while AC power is not connected.
 
+** New user option 'show-paren-not-in-comments-or-strings'.
+If this option is non-nil, it tells 'show-paren-mode' not to highlight
+the parens that are inside comments and strings.  If set to 'all',
+'show-paren-mode' will never highlight parens that are inside comments
+or strings.  If set to 'on-mismatch', mismatched parens inside comments
+and strings will not be highlighted.  If set to nil (the default),
+highlight the parens wherever they are.
+
 
 * Editing Changes in Emacs 31.1
 
@@ -1809,6 +1817,12 @@ This replaces and generalizes the old 'vc-annotate-parent-rev'.
 ---
 *** vc-dav.el is now obsolete.
 
+---
+*** The 'log-incoming' and 'log-outgoing' functions are deprecated.
+Backend authors should implement the 'incoming-revision' and 'mergebase'
+backend functions instead.  These are jointly sufficient to support the
+'C-x v I' and 'C-x v O' commands.
+
 ** Diff mode
 
 +++
@@ -2050,6 +2064,13 @@ This option tells 'flash-face-bell-function' which faces should flash.
 This option tells 'flash-face-bell-function' and
 'flash-echo-area-bell-function' which face attributes should be used
 for flash.
+
++++
+*** 'face-all-attributes' now accepts an optional argument INHERIT.
+It has the same meaning as the INHERIT argument to 'face-attribute',
+which already takes this argument for a single attribute.  This is
+useful when you want the face attributes to be absolute and not
+'unspecified'.
 
 ---
 ** Flymake

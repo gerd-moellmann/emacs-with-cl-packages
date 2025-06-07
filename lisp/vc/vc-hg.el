@@ -1315,10 +1315,13 @@ REV is the revision to check out into WORKFILE."
 (defun vc-hg-revert (file &optional contents-done)
   (unless contents-done
     (with-temp-buffer
-      (apply #'vc-hg-command
-             t 0 file
-             "revert"
+      (apply #'vc-hg-command t 0 file "revert"
              (append (vc-switches 'hg 'revert))))))
+
+(defun vc-hg-revert-files (files)
+  (with-temp-buffer
+    (apply #'vc-hg-command t 0 files "revert"
+           (append (vc-switches 'hg 'revert)))))
 
 ;;; Hg specific functionality.
 
@@ -1458,6 +1461,7 @@ This runs the command \"hg summary\"."
          (nreverse result))
        "\n"))))
 
+;; FIXME: Resolve issue with `vc-hg-mergebase' and then delete this.
 (defun vc-hg-log-incoming (buffer remote-location)
   (vc-setup-buffer buffer)
   (vc-hg-command buffer 1 nil "incoming" "-n"
@@ -1475,11 +1479,22 @@ This runs the command \"hg summary\"."
     (and (not (string-empty-p output))
          output)))
 
+;; FIXME: Resolve issue with `vc-hg-mergebase' and then delete this.
 (defun vc-hg-log-outgoing (buffer remote-location)
   (vc-setup-buffer buffer)
   (vc-hg-command buffer 1 nil "outgoing" "-n"
                  (and (not (string-empty-p remote-location))
 		      remote-location)))
+
+;; FIXME: This works only when both rev1 and rev2 have already been pulled.
+;;        That means it can't do the work
+;;        `vc-default-log-incoming' and `vc-default-log-outgoing' need it to do.
+(defun vc-hg-mergebase (rev1 &optional rev2)
+  (or (vc-hg--run-log "{node}"
+                      (format "last(ancestors(%s) and ancestors(%s))"
+                              rev1 (or rev2 "tip"))
+                      nil)
+      (error "No common ancestor for merge base")))
 
 (defvar vc-hg-error-regexp-alist
   '(("^M \\(.+\\)" 1 nil nil 0))
