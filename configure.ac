@@ -4474,7 +4474,10 @@ if test "$with_xwidgets" != "no"; then
     dnl FIXME: Check framework WebKit2
     dnl WEBKIT_REQUIRED=M.m.p
     WEBKIT_LIBS="-Wl,-framework -Wl,WebKit"
-    WEBKIT_CFLAGS="-I/System/Library/Frameworks/WebKit.framework/Headers"
+    WEBKIT_CFLAGS=""
+    if test -f /System/Library/Frameworks/WebKit.framework/Headers; then
+       WEBKIT_CFLAGS="-I/System/Library/Frameworks/WebKit.framework/Headers"
+    fi
     HAVE_WEBKIT="yes"
     HAVE_XWIDGETS=$HAVE_WEBKIT
     XWIDGETS_OBJ="xwidget.o"
