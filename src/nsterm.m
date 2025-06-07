@@ -6183,6 +6183,7 @@ ns_term_shutdown (int sig)
 
   [super sendEvent:theEvent];
 
+#if 0
 #ifdef NS_IMPL_COCOA
   /* We have the problem that app-defined events get lost for an unknown
      reason. When that happens, Emacs still processes NS events, and no
@@ -6197,6 +6198,7 @@ ns_term_shutdown (int sig)
       count = 0;
       [self stop: self];
     }
+#endif
 #endif
 }
 
