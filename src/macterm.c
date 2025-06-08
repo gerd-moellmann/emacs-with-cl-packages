@@ -369,6 +369,8 @@ mac_draw_horizontal_wave (struct frame *f, GC gc, int x, int y,
 
     CGContextClipToRect (context, wave_clip);
     CGContextSetStrokeColorWithColor (context, gc->cg_fore_color);
+    if (FLOATP (Vmac_underwave_thickness))
+      CGContextSetLineWidth(context, XFLOAT_DATA (Vmac_underwave_thickness));
     CGContextMoveToPoint (context, gx1, gy1);
     while (gx1 <= gxmax)
       {
@@ -5953,6 +5955,13 @@ syms_of_macterm (void)
 	       doc: /* SKIP: real doc in xterm.c.  */);
   Vx_toolkit_scroll_bars = Qt;
 
+  DEFVAR_LISP("mac-underwave-thickness", Vmac_underwave_thickness,
+	      doc: /* The thickness of wavy underlines.  If nil, the
+default line thickness is used. Otherwise, a floating point number
+should be specified, where 1.0 is the default, with smaller values
+thinner, and larger values thicker. */);
+  Vmac_underwave_thickness = Qnil;
+  
   DEFVAR_BOOL ("mac-redisplay-dont-reset-vscroll", mac_redisplay_dont_reset_vscroll,
 	       doc: /* Non-nil means update doesn't reset vscroll.  */);
   mac_redisplay_dont_reset_vscroll = false;
