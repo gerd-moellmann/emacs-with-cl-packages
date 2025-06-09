@@ -51,6 +51,9 @@ CFLAGS="-O3 -mcpu=native" ./configure --with-native-compilation --with-tree-sitt
 
 You can specify another build directory for the self-contained app using `--enable-mac-app=/path/to/dir`.
 
+>[!NOTE]
+> Note the `yes` argument to `--enable-mac-app=yes`, which is required to build a self-contained app under `/Applications`.
+
 #### Non self-contained
 
 ```bash
