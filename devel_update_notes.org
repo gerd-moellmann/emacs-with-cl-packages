@@ -49,6 +49,62 @@ After the merge, additional issues were uncovered that prevented compilation fro
 - Some constants changed names, e.g. ~FACE_UNDERLINE_*~.
 - The compiler complained about a number of constants not being declared ~static~.
 
+* Differences from NS port
+
+From Dec, 2019 post to emacs-devel by Yamamoto-san:
+
+#+begin_quote
+NS port-specific Obj-C files and LOC (as of Emacs 26.3):
+
+    1514 nsfont.m
+     197 nsgui.h
+     513 nsimage.m
+    1893 nsmenu.m
+     511 nsselect.m
+    1323 nsterm.h
+    9460 nsterm.m
+   18754 total
+
+Mac port-specific C/Obj-C files and LOC (as of Emacs 26.3 Mac 7.8):
+
+    3237 mac.c
+    1436 macappkit.h
+   17097 macappkit.m
+    5434 macfns.c
+     279 macgui.h
+     896 macmenu.c
+    1141 macselect.c
+    6326 macterm.c
+     793 macterm.h
+   36639 total
+#+end_quote
+
+Currently (as of v30.1) this is quite similar:
+
+#+begin_quote
+    1765 nsfont.m
+     143 nsgui.h
+     610 nsimage.m
+    2039 nsmenu.m
+     825 nsselect.m
+    1387 nsterm.h
+   11261 nsterm.m
+   18030 total
+
+    3149 mac.c
+    1236 macappkit.h
+   17226 macappkit.m
+    5510 macfns.c
+     254 macgui.h
+     869 macmenu.c
+    1171 macselect.c
+    6242 macterm.c
+     819 macterm.h
+   36476 total
+#+end_quote
+
+
+
 * Tips
 
 - Invoke ~make~ via =M-x compile= so you can =C-x `= and directly visit errors.
