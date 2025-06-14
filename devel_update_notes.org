@@ -159,3 +159,10 @@ To summarize:
 
 Compiled a debug build, using lldb to debug.  Found that a wide glyph on the first line has its ~pixel_width~ incorrectly reported (or not, just has issues with where the line is wrapped and is off by one char, which can be a wide glyph).
 
+** MacOS Window Menu Bar
+In macOS 15, the Window menu allows MacOS keybindings for windows management to work in emacs. See https://support.apple.com/en-is/guide/mac-help/mchl9674d0b0/mac.
+
+To support this feature:
+
+In mac-win.el, we've added a "Window" menu-bar. This menu holds MacOS's native Windows Menu Items, along with all native tab commands. See ~mac-window-menu-map~.
+In macappkit.m, we look for the "Window" menu-item defined in mac-win.el and bind it to the mac app via ~[NSApp setWindowsMenu]~

@@ -91,6 +91,12 @@
 (defvar mac-ts-active-input-overlay)
 (defvar mac-frame-tabbing)
 
+
+;; Define the macos-specific Window menu and add it to the global menu-bar map
+(defvar-keymap mac-window-menu-map :name "Window")
+(bindings--define-key global-map [menu-bar window]
+  (cons "Window" mac-window-menu-map))
+
 
 ;;
 ;; Standard Mac cursor shapes
@@ -3087,22 +3093,29 @@ standard ones in `x-handle-args'."
                     :button (:toggle . (mac-frame-tab-group-property
                                         nil :overview-visible-p)))
         'mac-toggle-tab-bar))
-    (define-key-after global-buffers-menu-map [mac-separator-tab]
+    (define-key-after mac-window-menu-map [mac-separator-tab]
       menu-bar-separator)
-    (define-key-after global-buffers-menu-map [mac-next-tab]
+    (define-key-after mac-window-menu-map [mac-next-tab]
       '(menu-item "Show Next Tab" mac-next-tab-or-toggle-tab-bar
                   :enable (mac-frame-multiple-tabs-p)))
     (global-set-key [(control tab)] 'mac-next-tab-or-toggle-tab-bar)
-    (define-key-after global-buffers-menu-map [mac-previous-tab]
+    (define-key-after mac-window-menu-map [mac-previous-tab]
       '(menu-item "Show Previous Tab" mac-previous-tab-or-toggle-tab-bar
                   :enable (mac-frame-multiple-tabs-p)))
     (global-set-key [(control shift tab)] 'mac-previous-tab-or-toggle-tab-bar)
-    (define-key-after global-buffers-menu-map [mac-move-tab-to-new-frame]
+    (define-key-after mac-window-menu-map [mac-move-tab-to-new-frame]
       '(menu-item "Move Tab to New Frame" mac-move-tab-to-new-frame
                   :enable (mac-frame-multiple-tabs-p)))
-    (define-key-after global-buffers-menu-map [mac-merge-all-frame-tabs]
+    (define-key-after mac-window-menu-map [mac-merge-all-frame-tabs]
       '(menu-item "Merge All Frames" mac-merge-all-frame-tabs
-                  :enable (mac-send-action 'mergeAllWindows t))))
+                  :enable (mac-send-action 'mergeAllWindows t)))
+
+    ;; In the macos menubar "Window" always comes before "Help"...
+    ;; Configure menu-bar-final-items to insert window before help.
+    (unless (memq 'window menu-bar-final-items)
+      (let* ((post-help (memq 'help-menu menu-bar-final-items))
+             (pre-help (butlast menu-bar-final-items (length post-help))))
+        (setq menu-bar-final-items (append pre-help '(window) post-help)))))
 
   (setq mac-ts-active-input-overlay (make-overlay 1 1))
   (overlay-put mac-ts-active-input-overlay 'display "")

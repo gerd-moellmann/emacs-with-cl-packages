@@ -10647,7 +10647,7 @@ mac_font_dialog (struct frame *f)
 static void update_services_menu_types (void);
 static void mac_fake_menu_bar_click (EventPriority);
 
-static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp;
+static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp, *localizedMenuTitleForWindow;
 
 /* Maximum interval time in seconds between key down and modifier key
    release events when they are recognized part of a synthetic
@@ -11268,6 +11268,12 @@ init_menu_bar (void)
 			      action:nil keyEquivalent:@""]];
   [NSApp setMainMenu:mainMenu];
 
+  // Tell appkit to manage the Window menu named "Window"
+  [mainMenu setSubmenu:windowsMenu
+	       forItem:[mainMenu addItemWithTitle:@"Window"
+					   action:nil keyEquivalent:@""]];
+
+
   MRC_RELEASE (mainMenu);
   MRC_RELEASE (appleMenu);
   MRC_RELEASE (windowsMenu);
@@ -11279,6 +11285,10 @@ init_menu_bar (void)
   localizedMenuTitleForHelp =
     MRC_RETAIN (NSLocalizedStringFromTableInBundle (@"Help", @"HelpManager",
 						    appKitBundle, NULL));
+
+  localizedMenuTitleForWindow =
+    MRC_RETAIN (NSLocalizedStringFromTableInBundle (@"Window", @"MenuCommands",
+						    appKitBundle, NULL));
 }
 
 /* Fill menu bar with the items defined by FIRST_WV.  If DEEP_P,
@@ -11289,7 +11299,7 @@ void
 mac_fill_menubar (widget_value *first_wv, bool deep_p)
 {
   mac_within_gui (^{
-      NSMenu *newMenu, *mainMenu = [NSApp mainMenu], *helpMenu = nil;
+      NSMenu *newMenu, *mainMenu = [NSApp mainMenu], *helpMenu, *windowMenu = nil;
       NSInteger index = 1, nitems = [mainMenu numberOfItems];
       bool needs_update_p = deep_p;
 
@@ -11308,6 +11318,18 @@ mac_fill_menubar (widget_value *first_wv, bool deep_p)
 	     10.5.  */
 	  if ([title isEqualToString:@"Help"])
 	    title = localizedMenuTitleForHelp;
+
+          /* To make Input Manager add "Special Characters..." to the
+             "Edit" menu, we have to localize the menu title. */
+	  else if ([title isEqualToString:@"Edit"])
+	    title = localizedMenuTitleForEdit;
+
+          /* Localize Window Menu for consistency with AppKit provided
+             menu items. */
+	  else if ([title isEqualToString:@"Window"])
+	    title = localizedMenuTitleForWindow;
+
+
 	  if (!needs_update_p)
 	    {
 	      if (index >= nitems)
@@ -11323,12 +11345,10 @@ mac_fill_menubar (widget_value *first_wv, bool deep_p)
 	  submenu = [[NSMenu alloc] initWithTitle:title];
 	  [submenu setAutoenablesItems:NO];
 
-	  /* To make Input Manager add "Special Characters..." to the
-	     "Edit" menu, we have to localize the menu title.  */
-	  if ([title isEqualToString:@"Edit"])
-	    title = localizedMenuTitleForEdit;
-	  else if (title == localizedMenuTitleForHelp)
+	  if (title == localizedMenuTitleForHelp)
 	    helpMenu = submenu;
+	  else if (title == localizedMenuTitleForWindow)
+	    windowMenu = submenu;
 
 	  [newMenu setSubmenu:submenu
 		      forItem:[newMenu addItemWithTitle:title action:nil
@@ -11352,6 +11372,10 @@ mac_fill_menubar (widget_value *first_wv, bool deep_p)
 	  MRC_RELEASE (appleMenuItem);
 
 	  [NSApp setMainMenu:newMenu];
+
+	  if (windowMenu)
+	    [NSApp setWindowsMenu:windowMenu];
+
 	  if (helpMenu)
 	    [NSApp setHelpMenu:helpMenu];
 	}
