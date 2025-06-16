@@ -1,6 +1,6 @@
 # emacs-mac
 
-This is an experimental build of the [emacs-mac](https://bitbucket.org/mituharu/emacs-mac) (aka Carbon[^1] Emacs) port of emacs, updated for Emacs v30.1.
+This is an experimental build of the [emacs-mac](https://bitbucket.org/mituharu/emacs-mac) (aka Carbon[^1] Emacs) port of emacs, updated for Emacs HEAD.
 
 > [!WARNING]
 > This is an experimental build of `emacs-mac`; there will certainly be bugs. We are looking for feedback and testing from experienced users.  If you are familiar with or willing to learn about running new builds of Emacs under a debugger, perfect.  If you are a Mac developer familiar with ObjC or Mac Window frameworks, even better!  Other users should stick to the official NS build or recent v29.4 emacs-mac release for now.
@@ -18,11 +18,11 @@ Please see the [issues](../../issues) for advice on build configurations for you
 >[!IMPORTANT]
 > Please open an [issue](../../issues) to report your experiences, even if you encounter no problems.  Mention your OS version, CPU, and any other relevant details, including the build/configure flags you used.
 
-This build is kept current with the [`emacs-30`](https://github.com/emacs-mirror/emacs/tree/emacs-30) release branch.
+This build is kept current with the [`master`](https://github.com/emacs-mirror/emacs/tree/master) release branch.
 
 ## Install
 
-See the `emacs-mac-30_1_exp` branch and the file `README-mac` for additional compile instructions.  Briefly:
+See the `emacs-mac-gnu_master_exp` branch and the file `README-mac` for additional compile instructions.  Briefly:
 
 > [!NOTE]
 > On MacOS, `gcc` is actually aliased to the `clang` compiler, which is required to build `emacs-mac`.  Recent `gcc` versions either cannot build for the architecture (e.g. Apple Silicon) and/or do not support [blocks](https://en.wikipedia.org/wiki/Blocks_(C_language_extension)), which this build uses heavily.
@@ -82,7 +82,7 @@ make install # Installs all resources under /Applications/Emacs.app (or wherever
 #### Non self-contained
 
 ```bash
-sudo make install  # installs resources in, e.g., /usr/local/share/emacs/30.1.50
+sudo make install  # installs resources in, e.g., /usr/local/share/emacs/31.0.50
 ```
 
 #### No install, e.g. for debug
