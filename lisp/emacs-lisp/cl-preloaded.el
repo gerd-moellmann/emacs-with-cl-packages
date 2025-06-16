@@ -41,7 +41,7 @@
 
 ;; The `assert' macro from the cl package signals
 ;; `cl-assertion-failed' at runtime so always define it.
-(define-error 'cl-assertion-failed (purecopy "Assertion failed"))
+(define-error 'cl-assertion-failed "Assertion failed")
 
 (defun cl--assertion-failed (form &optional string sargs args)
   (if debug-on-error
@@ -161,7 +161,7 @@
                                   (car slot) (nth 1 slot)
                                   type props)))
                      (puthash (car slot) (+ i offset) index-table)
-                     (cl-incf i))
+                     (incf i))
                    v))
          (class (cl--struct-new-class
                  name docstring
@@ -183,20 +183,7 @@
     (add-to-list 'current-load-list `(define-type . ,name))
     (cl--struct-register-child parent-class tag)
     (unless (or (eq named t) (eq tag name))
-      ;; We used to use `defconst' instead of `set' but that
-      ;; has a side-effect of purecopying during the dump, so that the
-      ;; class object stored in the tag ends up being a *copy* of the
-      ;; one stored in the `cl--class' property!  We could have fixed
-      ;; this needless duplication by using the purecopied object, but
-      ;; that then breaks down a bit later when we modify the
-      ;; cl-structure-class class object to close the recursion
-      ;; between cl-structure-object and cl-structure-class (because
-      ;; modifying purecopied objects is not allowed.  Since this is
-      ;; done during dumping, we could relax this rule and allow the
-      ;; modification, but it's cumbersome).
-      ;; So in the end, it's easier to just avoid the duplication by
-      ;; avoiding the use of the purespace here.
-      (set tag class)
+      (eval `(defconst ,tag ',class) t)
       ;; In the cl-generic support, we need to be able to check
       ;; if a vector is a cl-struct object, without knowing its particular type.
       ;; So we use the (otherwise) unused function slots of the tag symbol
@@ -305,7 +292,13 @@
                (:include cl--class)
                (:noinline t)
                (:constructor nil)
-               (:constructor built-in-class--make (name docstring parents))
+               (:constructor built-in-class--make
+                (name docstring parent-types
+                      &aux (parents
+                            (mapcar (lambda (type)
+                                      (or (get type 'cl--class)
+                                          (error "Unknown type: %S" type)))
+                                    parent-types))))
                (:copier nil))
   "Type descriptors for built-in types.
 The `slots' (and hence `index-table') are currently unused."
@@ -335,13 +328,7 @@ The `slots' (and hence `index-table') are currently unused."
           ;; (message "Missing predicate for: %S" name)
           nil)
        (put ',name 'cl--class
-            (built-in-class--make ',name ,docstring
-                                  (mapcar (lambda (type)
-                                            (let ((class (get type 'cl--class)))
-                                              (unless class
-                                                (error "Unknown type: %S" type))
-                                              class))
-                                          ',parents))))))
+            (built-in-class--make ',name ,docstring ',parents)))))
 
 ;; FIXME: Our type DAG has various quirks:
 ;; - Some `keyword's are also `symbol-with-pos' but that's not reflected
@@ -477,6 +464,70 @@ The fields are used as follows:
   ;; Fix it now to close the recursion.
   (setf (cl--class-parents (cl--find-class 'cl-structure-object))
       (list (cl--find-class 'record))))
+
+;;;; Support for `cl-deftype'.
+
+(defvar cl--derived-type-list nil
+  "Precedence list of the defined cl-types.")
+
+;; FIXME: The `cl-deftype-handler' property should arguably be turned
+;; into a field of this struct (but it has performance and
+;; compatibility implications, so let's not make that change for now).
+(cl-defstruct
+    (cl-derived-type-class
+     (:include cl--class)
+     (:noinline t)
+     (:constructor nil)
+     (:constructor cl--derived-type-class-make
+                   (name
+                    docstring
+                    parent-types
+                    &aux (parents
+                          (mapcar
+                           (lambda (type)
+                             (or (cl--find-class type)
+                                 (error "Unknown type: %S" type)))
+                           parent-types))))
+     (:copier nil))
+  "Type descriptors for derived types, i.e. defined by `cl-deftype'.")
+
+(defun cl--define-derived-type (name expander predicate &optional parents)
+  "Register derived type with NAME for method dispatching.
+EXPANDER is the function that computes the type specifier from
+the arguments passed to the derived type.
+PREDICATE is the precomputed function to test this type when used as an
+atomic type, or nil if it cannot be used as an atomic type.
+PARENTS is a list of types NAME is a subtype of, or nil."
+  (let* ((class (cl--find-class name)))
+    (when class
+      (or (cl-derived-type-class-p class)
+          ;; FIXME: We have some uses `cl-deftype' in Emacs that
+          ;; "complement" another declaration of the same type,
+          ;; so maybe we should turn this into a warning (and
+          ;; not overwrite the `cl--find-class' in that case)?
+          (error "Type %S already in another class: %S" name (type-of class))))
+    ;; Setup a type descriptor for NAME.
+    (setf (cl--find-class name)
+          (cl--derived-type-class-make
+           name
+           (and (fboundp 'function-documentation) ;Bootstrap corner case.
+                (function-documentation expander))
+           parents))
+    (define-symbol-prop name 'cl-deftype-handler expander)
+    (when predicate
+      (define-symbol-prop name 'cl-deftype-satisfies predicate)
+      ;; If the type can be used without arguments, record it for
+      ;; use by `cl-types-of'.
+      ;; The order in `cl--derived-type-list' is important, but the
+      ;; constructor of the class `cl-type-class' already ensures that
+      ;; parent types must be defined before their "child" types
+      ;; (i.e. already added to the `cl--derived-type-list' for types
+      ;; defined with `cl-deftype').  So it is enough to simply push
+      ;; a new type at the beginning of the list.
+      ;; Redefinition is a can of worms anyway, so we don't try to be clever
+      ;; in that case.
+      (or (memq name cl--derived-type-list)
+          (push name cl--derived-type-list)))))
 
 ;; Make sure functions defined with cl-defsubst can be inlined even in
 ;; packages which do not require CL.  We don't put an autoload cookie

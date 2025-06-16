@@ -596,7 +596,7 @@ selected letter is returned, or nil if the question was not answered.
 Note that WORD is a string and LETTER is a character.  All LETTERs in
 the list should be unique."
   (let* ((prompt (concat
-		  (mapconcat (lambda (elt) (car elt)) alist ", ")
+                  (mapconcat #'car alist ", ")
 		  "? ("
 		  (mapconcat
 		   (lambda (elt) (char-to-string (cdr elt))) alist "/")
@@ -1244,9 +1244,7 @@ to the auto-selected attribution string."
 
 
 ;; ======================================================================
-;; filladapt hooks for supercite 3.1. you shouldn't need anything
-;; extra to make gin-mode understand supercited lines.  Even this
-;; stuff might not be entirely necessary...
+;; filladapt hooks for supercite 3.1.
 
 (defun sc-cite-regexp (&optional root-regexp)
   "Return a regexp describing a Supercited line.

@@ -33,6 +33,12 @@
 (declare-function treesit-node-start "treesit.c")
 (declare-function treesit-node-end "treesit.c")
 (declare-function treesit-node-type "treesit.c")
+(declare-function treesit-node-child-by-field-name "treesit.c")
+
+(add-to-list
+ 'treesit-language-source-alist
+ '(yaml "https://github.com/tree-sitter-grammars/tree-sitter-yaml" "v0.7.0")
+ t)
 
 (defvar yaml-ts-mode--syntax-table
   (let ((table (make-syntax-table)))
@@ -120,6 +126,13 @@
    '((ERROR) @font-lock-warning-face))
   "Tree-sitter font-lock settings for `yaml-ts-mode'.")
 
+(defvar yaml-ts-mode--font-lock-feature-list
+  '((comment)
+    (string type)
+    (constant escape-sequence number property)
+    (bracket delimiter error misc-punctuation))
+  "Tree-sitter font-lock feature list for `yaml-ts-mode'.")
+
 (defun yaml-ts-mode--fill-paragraph (&optional justify)
   "Fill paragraph.
 Behaves like `fill-paragraph', but respects block node
@@ -128,18 +141,38 @@ boundaries.  JUSTIFY is passed to `fill-paragraph'."
   (save-restriction
     (widen)
     (let ((node (treesit-node-at (point))))
-      (if (member (treesit-node-type node) '("block_scalar" "comment"))
-        (let* ((start (treesit-node-start node))
-               (end (treesit-node-end node))
-               (start-marker (point-marker))
-               (fill-paragraph-function nil))
-          (save-excursion
-            (goto-char start)
-            (forward-line)
-            (move-marker start-marker (point))
-            (narrow-to-region (point) end))
-          (fill-region start-marker end justify))
-        t))))
+      (pcase (treesit-node-type node)
+        ("block_scalar"
+         (let* ((start (treesit-node-start node))
+                (end (treesit-node-end node))
+                (start-marker (point-marker))
+                (fill-paragraph-function nil))
+           (save-excursion
+             (goto-char start)
+             (forward-line)
+             (move-marker start-marker (point))
+             (narrow-to-region (point) end))
+           (fill-region start-marker end justify)))
+        ("comment"
+         (fill-comment-paragraph justify))))
+    t))
+
+(defun yaml-ts-mode--defun-name (node)
+  "Return the defun name of NODE.
+Return nil if there is no name or if NODE is not a defun node."
+  (when (equal (treesit-node-type node) "block_mapping_pair")
+    (treesit-node-text (treesit-node-child-by-field-name
+                        node "key")
+                       t)))
+
+(defvar yaml-ts-mode--outline-nodes
+  (rx (or "block_mapping_pair" "block_sequence_item"))
+  "Node names for outline headings.")
+
+(defun yaml-ts-mode--outline-predicate (node)
+  "Limit outlines to top-level mappings."
+  (when (string-match-p yaml-ts-mode--outline-nodes (treesit-node-type node))
+    (not (treesit-node-top-level node yaml-ts-mode--outline-nodes))))
 
 ;;;###autoload
 (define-derived-mode yaml-ts-mode text-mode "YAML"
@@ -147,27 +180,49 @@ boundaries.  JUSTIFY is passed to `fill-paragraph'."
   :group 'yaml
   :syntax-table yaml-ts-mode--syntax-table
 
-  (when (treesit-ready-p 'yaml)
-    (treesit-parser-create 'yaml)
+  (when (treesit-ensure-installed 'yaml)
+    (setq treesit-primary-parser (treesit-parser-create 'yaml))
 
     ;; Comments.
     (setq-local comment-start "# ")
     (setq-local comment-end "")
+    (setq-local comment-start-skip "#+\\s-*")
 
     ;; Indentation.
     (setq-local indent-tabs-mode nil)
 
     ;; Font-lock.
     (setq-local treesit-font-lock-settings yaml-ts-mode--font-lock-settings)
-    (setq-local treesit-font-lock-feature-list
-                '((comment)
-                  (string type)
-                  (constant escape-sequence number property)
-                  (bracket delimiter error misc-punctuation)))
+    (setq-local treesit-font-lock-feature-list yaml-ts-mode--font-lock-feature-list)
 
     (setq-local fill-paragraph-function #'yaml-ts-mode--fill-paragraph)
 
-    (treesit-major-mode-setup)))
+    ;; Navigation.
+    (setq-local treesit-defun-type-regexp "block_mapping_pair")
+    (setq-local treesit-defun-name-function #'yaml-ts-mode--defun-name)
+    (setq-local treesit-defun-tactic 'top-level)
+
+    (setq-local treesit-thing-settings
+                `((yaml
+                   (list ,(rx (or "block_mapping_pair" "flow_sequence")))
+                   (sentence ,"block_mapping_pair"))))
+
+    ;; Imenu.
+    (setq-local treesit-simple-imenu-settings
+                '((nil "\\`block_mapping_pair\\'" nil nil)))
+
+    ;; Outline minor mode.
+    (setq-local treesit-outline-predicate #'yaml-ts-mode--outline-predicate)
+
+    (treesit-major-mode-setup)
+
+    ;; Use the `list' thing defined above to navigate only lists
+    ;; with `C-M-n', `C-M-p', `C-M-u', `C-M-d', but not sexps
+    ;; with `C-M-f', `C-M-b' neither adapt to 'show-paren-mode'
+    ;; that is problematic in languages without explicit
+    ;; opening/closing nodes.
+    (kill-local-variable 'forward-sexp-function)
+    (kill-local-variable 'show-paren-data-function)))
 
 (derived-mode-add-parents 'yaml-ts-mode '(yaml-mode))
 

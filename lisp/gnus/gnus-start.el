@@ -892,9 +892,9 @@ If REGEXP is given, lines that match it will be deleted."
 	(when (or (file-exists-p auto) (file-exists-p dribble-file))
 	  ;; Load whichever file is newest -- the auto save file
 	  ;; or the "real" file.
-	  (if (file-newer-than-file-p auto dribble-file)
-	      (nnheader-insert-file-contents auto)
-	    (nnheader-insert-file-contents dribble-file))
+	  (nnheader-insert-file-contents
+	   (if (file-newer-than-file-p auto dribble-file)
+	       auto dribble-file))
 	  (unless (zerop (buffer-size))
 	    (set-buffer-modified-p t))
 	  ;; Set the file modes to reflect the .newsrc file modes.
@@ -916,9 +916,10 @@ If REGEXP is given, lines that match it will be deleted."
 (defun gnus-dribble-eval-file ()
   (when gnus-dribble-eval-file
     (setq gnus-dribble-eval-file nil)
-    (let ((gnus-dribble-ignore t))
-      (with-current-buffer gnus-dribble-buffer
-	(eval-buffer (current-buffer))))))
+    (with-current-buffer gnus-dribble-buffer
+    (let ((gnus-dribble-ignore t)
+          (warning-inhibit-types '((files missing-lexbind-cookie))))
+      (eval-buffer (current-buffer))))))
 
 (defun gnus-dribble-delete-file ()
   (when (file-exists-p (gnus-dribble-file-name))
@@ -1205,14 +1206,14 @@ for new groups, and subscribe the new groups as zombies."
 	     (let ((do-sub (gnus-matches-options-n g-name)))
 	       (cond
 		((eq do-sub 'subscribe)
-		 (cl-incf groups)
+                 (incf groups)
 		 (puthash g-name nil gnus-killed-hashtb) ;; group
 		 (gnus-call-subscribe-functions
 		  gnus-subscribe-options-newsgroup-method g-name))
 		((eq do-sub 'ignore)
 		 nil)
 		(t
-		 (cl-incf groups)
+                 (incf groups)
 		 (puthash g-name nil gnus-killed-hashtb) ;; group
 		 (if gnus-subscribe-hierarchical-interactive
 		     (push g-name new-newsgroups)
@@ -1765,7 +1766,7 @@ backend check whether the group actually exists."
 	(cl-dolist (smethod gnus-secondary-select-methods)
 	  (when (equal method smethod)
 	    (cl-return i))
-	  (cl-incf i))
+          (incf i))
 	i)))
    ;; Just say that all foreign groups have the same rank.
    (t

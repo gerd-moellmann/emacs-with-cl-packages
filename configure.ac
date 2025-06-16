@@ -23,7 +23,7 @@ dnl  along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 AC_PREREQ([2.65])
 dnl Note this is parsed by (at least) make-dist and lisp/cedet/ede/emacs.el.
-AC_INIT([GNU Emacs], [30.1.90], [bug-gnu-emacs@gnu.org], [],
+AC_INIT([GNU Emacs], [31.0.50], [bug-gnu-emacs@gnu.org], [],
   [https://www.gnu.org/software/emacs/])
 
 if test "$XCONFIGURE" = "android"; then
@@ -49,6 +49,11 @@ if test "$XCONFIGURE" = "android"; then
     CFLAGS="$CFLAGS -D_FILE_OFFSET_BITS=32"
     enable_largefile=no
     enable_year2038=no])
+  # Gnulib should not attempt not to reimplement tzalloc, as strftime
+  # attempts to link with symbols that are only present in the Gnulib
+  # replacement.
+  AS_IF([test "$ANDROID_SDK" -ge "35"],
+    [gl_cv_onwards_func_tzalloc="future OS version"])
 fi
 
 dnl Set emacs_config_options to the options of 'configure', quoted for the shell,
@@ -197,11 +202,17 @@ AS_IF([test "$XCONFIGURE" = "android"],[
 
   AC_MSG_NOTICE([configuring in `exec'])
 
+  # Derive a name for a cache file for this configure script from the
+  # current, if specified.
+  exec_cache_file=
+  AS_CASE([$cache_file], [/dev/null | ""], [],
+    [[[\\/]* | ?:[\\/]*]], [exec_cache_file="--cache-file=$cache_file.2"],
+    [*], [exec_cache_file="--cache-file=../$cache_file.2"])
   OLDCWD=`pwd`
   cd exec
   $CONFIG_SHELL $emacs_srcdir/exec/configure		\
 		--host=$host "CC=$CC" "LD=$CC" "AS=$CC"	\
-		"AR=$AR" "CFLAGS=$CFLAGS"
+		"AR=$AR" "CFLAGS=$CFLAGS" $exec_cache_file
   emacs_val=$?
   cd $OLDCWD
 
@@ -438,28 +449,13 @@ this option's value should be 'yes' or 'no'.]) ;;
     ],
     [with_pdumper=auto])
 
-AC_ARG_WITH([unexec],
-  AS_HELP_STRING(
-    [--with-unexec=VALUE],
-    [enable unexec support unconditionally
-      ('yes', 'no', or 'auto': default 'auto')]),
-    [ case "${withval}" in
-        yes|no|auto) val=$withval ;;
-        *) AC_MSG_ERROR(
-           ['--with-unexec=$withval' is invalid;
-this option's value should be 'yes' or 'no'.]) ;;
-      esac
-      with_unexec=$val
-    ],
-    [with_unexec=auto])
-
 AC_ARG_WITH([dumping],[AS_HELP_STRING([--with-dumping=VALUE],
     [kind of dumping to use for initial Emacs build
-(VALUE one of: pdumper, unexec, none; default pdumper)])],
+(VALUE one of: pdumper, none; default pdumper)])],
     [ case "${withval}" in
-        pdumper|unexec|none) val=$withval ;;
+        pdumper|none) val=$withval ;;
         *) AC_MSG_ERROR(['--with-dumping=$withval is invalid;
-this option's value should be 'pdumper', 'unexec', or 'none'.])
+this option's value should be 'pdumper' or 'none'.])
         ;;
       esac
       with_dumping=$val
@@ -474,20 +470,8 @@ if test "$with_pdumper" = "auto"; then
   fi
 fi
 
-if test "$with_unexec" = "auto"; then
-  if test "$with_dumping" = "unexec"; then
-    with_unexec=yes
-  else
-    with_unexec=no
-  fi
-fi
-
 if test "$with_dumping" = "pdumper" && test "$with_pdumper" = "no"; then
   AC_MSG_ERROR(['--with-dumping=pdumper' requires pdumper support])
-fi
-
-if test "$with_dumping" = "unexec" && test "$with_unexec" = "no"; then
-  AC_MSG_ERROR(['--with-dumping=unexec' requires unexec support])
 fi
 
 if test "$with_pdumper" = "yes"; then
@@ -501,6 +485,24 @@ AC_SUBST([HAVE_PDUMPER])
 
 DUMPING=$with_dumping
 AC_SUBST([DUMPING])
+
+dnl Where the etc/emacs.service file is to be installed.
+dnl We use $(prefix)/lib/systemd/user as default, but this may not be
+dnl in systemd's search path when prefix is neither /usr nor /usr/local.
+dnl In that case (e.g. for non-root installs) the location can be
+dnl specified with the configure option.
+dnl See https://www.freedesktop.org/software/systemd/man/latest/systemd.unit.html#id-1.8.5
+dnl for documentation of systemd's unit file load path.
+AC_ARG_WITH([systemduserunitdir],
+  [AS_HELP_STRING([--with-systemduserunitdir=DIR],
+    [directory for systemd user unit file;
+    default 'PREFIX/usr/lib/systemd/user'])],
+  [systemduserunitdir=${withval}],
+  [systemduserunitdir='${prefix}/lib/systemd/user'])
+if test "${systemduserunitdir}" = "no"; then
+  systemduserunitdir=''
+fi
+AC_SUBST([systemduserunitdir])
 
 dnl FIXME currently it is not the last.
 dnl This should be the last --with option, because --with-x is
@@ -574,7 +576,7 @@ OPTION_DEFAULT_OFF([w32], [use native MS Windows GUI in a Cygwin build])
 OPTION_DEFAULT_OFF([pgtk], [use GTK to support window systems other than X])
 
 OPTION_DEFAULT_ON([gpm],[don't use -lgpm for mouse support on a GNU/Linux console])
-OPTION_DEFAULT_ON([dbus],[don't compile with D-Bus support])
+OPTION_DEFAULT_IFAVAILABLE([dbus],[compile with D-Bus support])
 AC_ARG_WITH([gconf],[AS_HELP_STRING([--with-gconf],
 [compile with Gconf support (Gsettings replaces this)])],[],
 [if test $with_features = yes; then
@@ -971,7 +973,7 @@ a valid path to android.jar.  See config.log for more details.])
   fi
 
   AC_CACHE_CHECK([whether android.jar is new enough],
-    [emacs_cv_android_u_or_later],
+    [emacs_cv_android_w_or_later],
     AS_IF([rm -f conftest.class
 cat << EOF > conftest.java
 
@@ -979,18 +981,18 @@ import android.os.Build;
 
 class conftest
 {
-  private static int test = Build.VERSION_CODES.UPSIDE_DOWN_CAKE;
+  private static int test = Build.VERSION_CODES.BAKLAVA;
 }
 
 EOF
 ("$JAVAC" -classpath "$with_android" -target 1.7 -source 1.7 conftest.java \
   -d . >&AS_MESSAGE_LOG_FD 2>&1) && test -s conftest.class && rm -f conftest.class],
-          [emacs_cv_android_u_or_later=yes],
-          [emacs_cv_android_u_or_later=no]))
+          [emacs_cv_android_w_or_later=yes],
+          [emacs_cv_android_w_or_later=no]))
 
-  if test "$emacs_cv_android_u_or_later" = "no"; then
+  if test "$emacs_cv_android_w_or_later" = "no"; then
     AC_MSG_ERROR([Emacs must be built with an android.jar file produced for \
-Android 14 (Upside Down Cake) or later.])
+Android 16 (BAKLAVA) or later.])
   fi
 
   dnl See if the Java compiler supports the `--release' option which
@@ -1199,6 +1201,10 @@ main (void)
    foo = "emacs_api_33";
 #elif __ANDROID_API__ < 35
    foo = "emacs_api_34";
+#elif __ANDROID_API__ < 36
+   foo = "emacs_api_35";
+#elif __ANDROID_API__ < 37
+   foo = "emacs_api_36";
 #else
    foo = "emacs_api_future";
 #endif
@@ -1286,6 +1292,11 @@ packages targeting Android 2.2.])])
   # Now pass through some checking-related options.
   emacs_val="--enable-check-lisp-object-type=$enable_check_lisp_object_type"
   passthrough="$passthrough $emacs_val"
+
+  # And derive a name for the recursive configure invocation's cache
+  # file if one should be specified for this.
+  AS_IF([test -n "$cache_file" && test "$cache_file" != "/dev/null"],
+    [passthrough="$passthrough --cache-file=$cache_file.1"])
 
   AS_IF([test "x$with_mailutils" = "xyes"], [emacs_use_mailutils=yes])
   AC_SUBST([emacs_use_mailutils])
@@ -1615,10 +1626,6 @@ ac_func_list=$funcs
 AC_DEFUN([gt_TYPE_WINT_T],
   [GNULIBHEADERS_OVERRIDE_WINT_T=0
    AC_SUBST([GNULIBHEADERS_OVERRIDE_WINT_T])])
-# Emacs does not need precise checks for the Solaris 10 MB_CUR_MAX bug.
-AC_DEFUN_ONCE([gl_STDLIB_H],
-  [AC_REQUIRE([gl_STDLIB_H_DEFAULTS])
-   gl_NEXT_HEADERS([stdlib.h])])
 # Emacs does not need to check for off64_t.
 AC_DEFUN([gl_TYPE_OFF64_T],
   [HAVE_OFF64_T=1
@@ -1810,7 +1817,6 @@ AS_IF([test $gl_gcc_warnings = no],
   nw="$nw -Wcast-align=strict"      # Emacs is tricky with pointers.
   nw="$nw -Wduplicated-branches"    # Too many false alarms
   nw="$nw -Wformat-overflow=2"      # False alarms due to GCC bug 110333
-  nw="$nw -Wsystem-headers"         # Don't let system headers trigger warnings
   nw="$nw -Woverlength-strings"     # Not a problem these days
   nw="$nw -Wvla"                    # Emacs uses <vla.h>.
   nw="$nw -Wunused-const-variable=2" # lisp.h declares const objects.
@@ -1865,6 +1871,7 @@ AS_IF([test $gl_gcc_warnings = no],
     gl_WARN_ADD([$w])
   done
   gl_WARN_ADD([-Wredundant-decls])     # Prefer this, as we don't use Bison.
+  gl_WARN_ADD([-Wtrailing-whitespace]) # This project's coding style
   gl_WARN_ADD([-Wno-missing-field-initializers]) # We need this one
   gl_WARN_ADD([-Wno-override-init])    # More trouble than it is worth
   gl_WARN_ADD([-Wno-sign-compare])     # Too many warnings for now
@@ -1878,6 +1885,7 @@ AS_IF([test $gl_gcc_warnings = no],
   # clang is unduly picky about some things.
   if test "$emacs_cv_clang" = yes; then
     gl_WARN_ADD([-Wno-bitwise-instead-of-logical])
+    gl_WARN_ADD([-Wno-format-signedness])
     gl_WARN_ADD([-Wno-missing-braces])
     gl_WARN_ADD([-Wno-null-pointer-arithmetic])
     gl_WARN_ADD([-Wno-implicit-const-int-float-conversion])
@@ -2009,6 +2017,8 @@ ARCH_INDEPENDENT_CONFIG_FILES([src/verbose.mk])
 
 dnl Some other nice autoconf tests.
 AC_PROG_INSTALL
+dnl use "gawk" where possible
+AC_PROG_AWK
 dnl These are commented out, since gl_EARLY and/or Autoconf already does them.
 dnl AC_PROG_MKDIR_P
 dnl if test "x$RANLIB" = x; then
@@ -2073,64 +2083,20 @@ AC_PATH_PROG([GZIP_PROG], [gzip])
 test $with_compress_install != yes && test -n "$GZIP_PROG" && \
    GZIP_PROG=" # $GZIP_PROG # (disabled by configure --without-compress-install)"
 
-if test "$with_dumping" = "unexec" && test "$opsys" = "nacl"; then
-  AC_MSG_ERROR([nacl is not compatible with --with-dumping=unexec])
-fi
-
 AC_CACHE_CHECK([for 'find' args to delete a file],
   [emacs_cv_find_delete],
   [if touch conftest.tmp && find conftest.tmp -delete 2>/dev/null &&
       test ! -f conftest.tmp
-   then emacs_cv_find_delete="-delete"
-   else emacs_cv_find_delete="-exec rm -f {} ';'"
+   then emacs_cv_find_delete="-delete" # GNU 'find'
+   elif find . -prune -name x -exec echo {} + 2>/dev/null
+   then emacs_cv_find_delete="-exec rm -f {} +" # POSIX 'find'
+   else emacs_cv_find_delete="-exec rm -f {} + -o -exec true {} +" # AIX 7.3
    fi])
 FIND_DELETE=$emacs_cv_find_delete
 AC_SUBST([FIND_DELETE])
 
 PAXCTL_dumped=
 PAXCTL_notdumped=
-if test $with_unexec = yes && test $opsys = gnu-linux; then
-  if test "${SETFATTR+set}" != set; then
-    AC_CACHE_CHECK([for setfattr],
-      [emacs_cv_prog_setfattr],
-      [touch conftest.tmp
-       if (setfattr -n user.pax.flags conftest.tmp) >/dev/null 2>&1; then
-	 emacs_cv_prog_setfattr=yes
-       else
-	 emacs_cv_prog_setfattr=no
-       fi])
-    if test "$emacs_cv_prog_setfattr" = yes; then
-      PAXCTL_notdumped='$(SETFATTR) -n user.pax.flags -v er'
-      SETFATTR=setfattr
-    else
-      SETFATTR=
-    fi
-  fi
-  case $opsys,$PAXCTL_notdumped,$emacs_uname_r in
-    gnu-linux,,* | netbsd,,[0-7].*)
-      AC_PATH_PROG([PAXCTL], [paxctl], [],
-	[$PATH$PATH_SEPARATOR/sbin$PATH_SEPARATOR/usr/sbin])
-      if test -n "$PAXCTL"; then
-	if test "$opsys" = netbsd; then
-	  PAXCTL_dumped='$(PAXCTL) +a'
-	  PAXCTL_notdumped=$PAXCTL_dumped
-	else
-	  AC_MSG_CHECKING([whether binaries have a PT_PAX_FLAGS header])
-	  AC_LINK_IFELSE([AC_LANG_PROGRAM([], [])],
-	    [if $PAXCTL -v conftest$EXEEXT >/dev/null 2>&1; then
-	       AC_MSG_RESULT([yes])
-	     else
-	       AC_MSG_RESULT([no])
-	       PAXCTL=
-	     fi])
-	  if test -n "$PAXCTL"; then
-	    PAXCTL_dumped='$(PAXCTL) -zex'
-	    PAXCTL_notdumped='$(PAXCTL) -r'
-	  fi
-	fi
-      fi;;
-  esac
-fi
 AC_SUBST([PAXCTL_dumped])
 AC_SUBST([PAXCTL_notdumped])
 AC_SUBST([SETFATTR])
@@ -2197,37 +2163,6 @@ else
     ac_link="$ac_link $NON_GCC_LINK_TEST_OPTIONS"
 fi
 
-dnl On some platforms using GNU ld, linking temacs needs -znocombreloc.
-dnl Although this has something to do with dumping, the details are unknown.
-dnl If the flag is used but not needed,
-dnl Emacs should still work (albeit a bit more slowly),
-dnl so use the flag everywhere that it is supported.
-dnl When testing whether the flag works, treat GCC specially
-dnl since it just gives a non-fatal 'unrecognized option'
-dnl if not built to support GNU ld.
-if test "$GCC" = yes; then
-  LDFLAGS_NOCOMBRELOC="-Wl,-znocombreloc"
-else
-  LDFLAGS_NOCOMBRELOC="-znocombreloc"
-fi
-
-AC_CACHE_CHECK([for -znocombreloc], [emacs_cv_znocombreloc],
-  [if test $with_unexec = no; then
-     emacs_cv_znocombreloc='not needed'
-   else
-     save_LDFLAGS=$LDFLAGS
-     LDFLAGS="$LDFLAGS $LDFLAGS_NOCOMBRELOC"
-     AC_LINK_IFELSE([AC_LANG_PROGRAM([], [])],
-       [emacs_cv_znocombreloc=yes], [emacs_cv_znocombreloc=no])
-     LDFLAGS=$save_LDFLAGS
-   fi])
-
-case $emacs_cv_znocombreloc in
-  no*)
-    LDFLAGS_NOCOMBRELOC= ;;
-esac
-
-
 AC_CACHE_CHECK([whether addresses are sanitized],
   [emacs_cv_sanitize_address],
   [AC_COMPILE_IFELSE(
@@ -2243,48 +2178,8 @@ AC_CACHE_CHECK([whether addresses are sanitized],
      [emacs_cv_sanitize_address=yes],
      [emacs_cv_sanitize_address=no])])
 
-if test $with_unexec = yes; then
-  AC_DEFINE([HAVE_UNEXEC], [1], [Define if Emacs supports unexec.])
-  if test "$emacs_cv_sanitize_address" = yes; then
-    AC_MSG_WARN([[Addresses are sanitized; suggest --without-unexec]])
-  fi
-fi
-
-
-UNEXEC_OBJ=
-test $with_unexec = yes &&
-case "$opsys" in
-  # MSDOS uses unexcoff.o
-  aix4-2)
-   UNEXEC_OBJ=unexaix.o
-   ;;
-  cygwin)
-   UNEXEC_OBJ=unexcw.o
-   ;;
-  darwin)
-   UNEXEC_OBJ=unexmacosx.o
-   ;;
-  hpux10-20 | hpux11)
-   UNEXEC_OBJ=unexhp9k800.o
-   ;;
-  mingw32)
-   UNEXEC_OBJ=unexw32.o
-   ;;
-  solaris)
-   # Use the Solaris dldump() function, called from unexsol.c, to dump
-   # emacs, instead of the generic ELF dump code found in unexelf.c.
-   # The resulting binary has a complete symbol table, and is better
-   # for debugging and other observability tools (debuggers, pstack, etc).
-   UNEXEC_OBJ=unexsol.o
-   ;;
-  *)
-   UNEXEC_OBJ=unexelf.o
-   ;;
-esac
-AC_SUBST([UNEXEC_OBJ])
-
 LD_SWITCH_SYSTEM=
-test "$with_unexec" = no || case "$opsys" in
+case "$opsys" in
   freebsd|dragonfly)
    ## Let 'ld' find image libs and similar things in /usr/local/lib.
    ## The system compiler, GCC, has apparently been modified to not
@@ -2306,9 +2201,7 @@ test "$with_unexec" = no || case "$opsys" in
    ;;
 
   openbsd)
-   ## Han Boetes <han@boetes.org> says this is necessary,
-   ## otherwise Emacs dumps core on elf systems.
-   LD_SWITCH_SYSTEM="-Z"
+      :
    ;;
 esac
 AC_SUBST([LD_SWITCH_SYSTEM])
@@ -2332,21 +2225,51 @@ esac
 
 C_SWITCH_MACHINE=
 
-test $with_unexec = yes &&
-case $canonical in
- alpha*)
-    ## With ELF, make sure that all common symbols get allocated to in the
-    ## data section.  Otherwise, the dump of temacs may miss variables in
-    ## the shared library that have been initialized.  For example, with
-    ## GNU libc, __malloc_initialized would normally be resolved to the
-    ## shared library's .bss section, which is fatal.
-    if test "x$GCC" = "xyes"; then
-      C_SWITCH_MACHINE="-fno-common"
-    else
-      AC_MSG_ERROR([Non-GCC compilers are not supported.])
-    fi
-  ;;
-esac
+AC_CACHE_CHECK([for flag to work around GCC bug 117423],
+  [emacs_cv_gcc_bug_117423_CFLAGS],
+  [emacs_cv_gcc_bug_117423_CFLAGS='none needed'
+   AS_IF([test "$GCC" = yes],
+     [old_CFLAGS=$CFLAGS
+      # If no flags are needed (e.g., not GCC 4+), don't use any.
+      # Otherwise, use -fno-tree-sra.
+      for emacs_cv_gcc_bug_117423_CFLAGS in \
+	  'none needed' -fno-tree-sra
+      do
+	AS_CASE([$emacs_cv_gcc_bug_117423_CFLAGS],
+	  ['none needed'], [],
+	  [-fno-tree-sra], [break],
+	  [CFLAGS="$old_CFLAGS $emacs_cv_gcc_bug_117423_CFLAGS"])
+	AC_COMPILE_IFELSE(
+	  [AC_LANG_DEFINES_PROVIDED
+	   [/* Work around GCC bug 117423 with unions containing holes:
+	       https://gcc.gnu.org/bugzilla/show_bug.cgi?id=117423
+	       https://gcc.gnu.org/bugzilla/show_bug.cgi?id=119085
+	       GCC bug 117423 is present even in GCC 15.1,
+	       the current version as of this writing; for now,
+	       assume it is present in all GCC versions starting with GCC 4.
+
+	       Working wround GCC bug 117423 also works around GCC bug 58416
+	       with double in unions on x86, where the generated insns
+	       copy non-floating-point data via fldl/fstpl instruction pairs.
+	       This can misbehave if the data's bit pattern looks like a NaN.
+	       See, e.g.:
+		 https://gcc.gnu.org/bugzilla/show_bug.cgi?id=58416#c10
+		 https://gcc.gnu.org/bugzilla/show_bug.cgi?id=71460
+		 https://gcc.gnu.org/bugzilla/show_bug.cgi?id=93271
+		 https://gcc.gnu.org/bugzilla/show_bug.cgi?id=114659
+	       Although GCC bug 58416 is fixed in GCC 15.1,
+	       GCC bug 117423 is still present there.  */
+	    #if 4 <= __GNUC__ && !defined __clang__
+	    # error "GCC bug 117423 possibly present"
+	    #endif
+	  ]],
+	  [break])
+      done
+      CFLAGS=$old_CFLAGS])])
+AS_CASE([$emacs_cv_gcc_bug_117423_CFLAGS],
+  [-*],
+    [C_SWITCH_MACHINE="$C_SWITCH_MACHINE $emacs_cv_gcc_bug_117423_CFLAGS"])
+
 AC_SUBST([C_SWITCH_MACHINE])
 
 C_SWITCH_SYSTEM=
@@ -3128,6 +3051,17 @@ if test "${opsys}" = "haiku" && test "${with_be_app}" = "yes"; then
                    [AC_MSG_ERROR([The Application Kit headers required for building
 with the Application Kit were not found or cannot be compiled. Either fix this, or
 re-configure with the option '--without-be-app'.])])
+   AC_CACHE_CHECK([whether BObjectList accepts ownership as a template parameter],
+     [emacs_cv_bobjectlist_ownership_is_template_parameter],
+     [AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+			   #include <support/ObjectList.h>
+			   #include <interface/StringItem.h>
+			   static BObjectList<BStringItem, true> test;]], [])],
+        [emacs_cv_bobjectlist_ownership_is_template_parameter=yes],
+	[emacs_cv_bobjectlist_ownership_is_template_parameter=no])])
+   AS_IF([test "x$emacs_cv_bobjectlist_ownership_is_template_parameter" = "xyes"],
+     [AC_DEFINE([BOBJECTLIST_OWNERSHIP_IS_TEMPLATE_PARAMETER], [1],
+       [Define to 1 if BObjectList ownership is defined as a template parameter.])])
    AC_LANG_POP([C++])
 fi
 
@@ -3171,7 +3105,6 @@ if test "${opsys}" = "mingw32"; then
   HAVE_W32=${emacs_cv_w32api}
 fi
 
-FIRSTFILE_OBJ=
 NTDIR=
 LIBS_ECLIENT=
 LIB_WSOCK32=
@@ -3185,7 +3118,7 @@ if test "${HAVE_W32}" = "yes"; then
   AC_CHECK_TOOL([WINDRES], [windres],
                 [AC_MSG_ERROR([No resource compiler found.])])
   W32_OBJ="w32fns.o w32menu.o w32reg.o w32font.o w32term.o"
-  W32_OBJ="$W32_OBJ w32xfns.o w32select.o w32uniscribe.o w32cygwinx.o"
+  W32_OBJ="$W32_OBJ w32xfns.o w32select.o w32uniscribe.o w32dwrite.o w32cygwinx.o"
   EMACSRES="emacs.res"
   case "$canonical" in
     x86_64-*-*) EMACS_MANIFEST="emacs-x64.manifest" ;;
@@ -3219,7 +3152,6 @@ if test "${HAVE_W32}" = "yes"; then
     W32_RES_LINK="\$(EMACSRES)"
     CLIENTRES="emacsclient.res"
     CLIENTW="emacsclientw\$(EXEEXT)"
-    FIRSTFILE_OBJ=firstfile.o
     NTDIR=nt
     CM_OBJ=
     LIBS_ECLIENT="-lcomctl32"
@@ -3241,7 +3173,6 @@ AC_SUBST([EMACS_MANIFEST])
 AC_SUBST([CLIENTRES])
 AC_SUBST([CLIENTW])
 AC_SUBST([W32_RES_LINK])
-AC_SUBST([FIRSTFILE_OBJ])
 AC_SUBST([NTDIR])
 AC_SUBST([CM_OBJ])
 AC_SUBST([LIBS_ECLIENT])
@@ -3382,36 +3313,78 @@ AC_CACHE_CHECK(
        [AC_LANG_PROGRAM(
 	  [[#include <malloc.h>
 	    static void hook (void) {}]],
-	  [[malloc_set_state (malloc_get_state ());
-	    __after_morecore_hook = hook;
+          [[__after_morecore_hook = hook;
 	    __malloc_initialize_hook = hook;]])],
        [emacs_cv_var_doug_lea_malloc=yes])
    fi])
 doug_lea_malloc=$emacs_cv_var_doug_lea_malloc
 
-hybrid_malloc=
+AC_CHECK_ALIGNOF([int])
+AC_CHECK_ALIGNOF([long])
+AC_CHECK_ALIGNOF([long long])
+AC_CHECK_SIZEOF([long])
+
+AC_CACHE_CHECK([for struct alignment],
+  [emacs_cv_struct_alignment],
+  [AC_COMPILE_IFELSE(
+     [AC_LANG_PROGRAM([[#include <stddef.h>
+			struct s { char c; } __attribute__ ((aligned (8)));
+			struct t { char c; struct s s; };
+			char verify[offsetof (struct t, s) == 8 ? 1 : -1];
+		      ]])],
+     [emacs_cv_struct_alignment=yes],
+     [emacs_cv_struct_alignment=no])])
+if test "$emacs_cv_struct_alignment" = yes; then
+  AC_DEFINE([HAVE_STRUCT_ATTRIBUTE_ALIGNED], [1],
+    [Define to 1 if 'struct __attribute__ ((aligned (N)))' aligns the
+     structure to an N-byte boundary.])
+fi
+
 system_malloc=yes
+
+# If it appears as if the system malloc can't be trusted to return
+# adequately positioned memory, enable the GNU malloc, which more
+# consistently provides allocations at low addresses, as is required for
+# the pdumper to load dump files at a representable location.
+AS_IF([test "$with_pdumper" = "yes" && test "$with_wide_int" != "yes"],
+  AC_CHECK_HEADERS([stdalign.h])
+  [AC_CACHE_CHECK([whether alignas is required yet unavailable],
+    [emacs_cv_alignas_unavailable],
+    [AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#ifdef HAVE_STDALIGN_H
+#include <stdalign.h>
+#endif
+      #include <limits.h>
+     ]], [[
+#define IDEAL_GCALIGNMENT 8
+#if INTPTR_MAX <= INT_MAX && !defined WIDE_EMACS_INT
+#  define ALIGNOF_EMACS_INT ALIGNOF_INT
+# elif INTPTR_MAX <= LONG_MAX && !defined WIDE_EMACS_INT
+#  define ALIGNOF_EMACS_INT ALIGNOF_LONG
+# elif INTPTR_MAX <= LLONG_MAX
+#  define ALIGNOF_EMACS_INT ALIGNOF_LONG_LONG
+# else
+# error "INTPTR_MAX too large"
+#endif
+
+#if (ALIGNOF_EMACS_INT < IDEAL_GCALIGNMENT && !defined alignas	\
+     && !defined HAVE_STRUCT_ATTRIBUTE_ALIGNED	       		\
+     && !defined __alignas_is_defined				\
+     && __STDC_VERSION__ < 202311 && __cplusplus < 201103)
+#error "!USE_LSB_TAG required"
+#endif
+   ]])], [emacs_cv_alignas_unavailable=no],
+        [emacs_cv_alignas_unavailable=yes])])
+   AS_IF([test "$emacs_cv_alignas_unavailable" = "yes"],
+     [system_malloc=no
+       AC_MSG_WARN([The GNU memory manager will be enabled as your system
+does not guarantee that the portable dumper can allocate memory at a suitably
+low address.])])])
 
 dnl This must be before the test of $ac_cv_func_sbrk below.
 AC_CHECK_FUNCS_ONCE([sbrk])
 
-test $with_unexec = yes &&
-case "$opsys" in
-  ## darwin ld insists on the use of malloc routines in the System framework.
-  darwin | mingw32 | nacl | solaris) ;;
-  cygwin | qnxnto | freebsd)
-	  hybrid_malloc=yes
-          system_malloc= ;;
-  *) test "$ac_cv_func_sbrk" = yes && system_malloc=$emacs_cv_sanitize_address;;
-esac
-
-if test "${system_malloc}" != yes && test "${doug_lea_malloc}" != yes \
-   && test "${UNEXEC_OBJ}" = unexelf.o; then
-  hybrid_malloc=yes
-fi
-
 GMALLOC_OBJ=
-HYBRID_MALLOC=
 if test "${system_malloc}" = "yes"; then
   AC_DEFINE([SYSTEM_MALLOC], [1],
     [Define to 1 to use the system memory allocator, even if it is not
@@ -3419,14 +3392,6 @@ if test "${system_malloc}" = "yes"; then
   GNU_MALLOC=no
   GNU_MALLOC_reason="
     (The GNU allocators don't work with this system configuration.)"
-  VMLIMIT_OBJ=
-elif test "$hybrid_malloc" = yes; then
-  AC_DEFINE([HYBRID_MALLOC], [1],
-    [Define to use gmalloc before dumping and the system malloc after.])
-  HYBRID_MALLOC=1
-  GNU_MALLOC=no
-  GNU_MALLOC_reason=" (only before dumping)"
-  GMALLOC_OBJ=gmalloc.o
   VMLIMIT_OBJ=
 else
   test "$doug_lea_malloc" != "yes" && GMALLOC_OBJ=gmalloc.o
@@ -3446,18 +3411,17 @@ else
        of the main data segment.])
   fi
 fi
-AC_SUBST([HYBRID_MALLOC])
 AC_SUBST([GMALLOC_OBJ])
 AC_SUBST([VMLIMIT_OBJ])
 
-if test "$doug_lea_malloc" = "yes" && test "$hybrid_malloc" != yes; then
+if test "$doug_lea_malloc" = "yes"; then
   if test "$GNU_MALLOC" = yes ; then
     GNU_MALLOC_reason="
       (Using Doug Lea's new malloc from the GNU C Library.)"
   fi
   AC_DEFINE([DOUG_LEA_MALLOC], [1],
     [Define to 1 if the system memory allocator is Doug Lea style,
-     with malloc hooks and malloc_set_state.])
+     with malloc hooks.])
 
   ## Use mmap directly for allocating larger buffers.
   ## FIXME this comes from src/s/{gnu,gnu-linux}.h:
@@ -3512,8 +3476,7 @@ if test "$ac_cv_header_pthread_h" && test "$opsys" != "mingw32"; then
 	      status += pthread_create (&th, 0, 0, 0);
 	      status += pthread_sigmask (SIG_BLOCK, &new_mask, &old_mask);
 	      status += pthread_kill (th, 0);
-	      #if ! (defined SYSTEM_MALLOC || defined HYBRID_MALLOC \
-		     || defined DOUG_LEA_MALLOC)
+	      #if ! (defined SYSTEM_MALLOC || defined DOUG_LEA_MALLOC)
 	      /* Test for pthread_atfork only if gmalloc uses it,
 		 as older-style hosts like MirBSD 10 lack it.  */
 	      status += pthread_atfork (noop, noop, noop);
@@ -3732,9 +3695,18 @@ if test "${with_sqlite3}" != "no"; then
        CFLAGS="$SAVE_CFLAGS"
      fi
    else
-     AC_CHECK_LIB([sqlite3], [sqlite3_open_v2],
-       [HAVE_SQLITE3=yes],
-       [HAVE_SQLITE3=no])
+     AC_CACHE_CHECK([for sqlite3],
+       [emacs_cv_have_sqlite3],
+       [OLIBS=$LIBS
+	LIBS="-lsqlite3 $LIBS"
+	AC_LINK_IFELSE(
+	  [AC_LANG_PROGRAM([[#include <sqlite3.h>
+			     sqlite3 *handle;]],
+			   [[return sqlite3_open_v2 ("", &handle, 0, "");]])],
+	  [emacs_cv_have_sqlite3=yes],
+	  [emacs_cv_have_sqlite3=no])
+	LIBS=$OLIBS])
+     HAVE_SQLITE3=$emacs_cv_have_sqlite3
      if test "$HAVE_SQLITE3" = "yes"; then
        SQLITE3_LIBS=-lsqlite3
        LIBS="$SQLITE3_LIBS $LIBS"
@@ -3985,13 +3957,15 @@ dnl D-Bus has been tested under GNU/Linux only.  Must be adapted for
 dnl other platforms.
 HAVE_DBUS=no
 DBUS_OBJ=
-if test "${with_dbus}" = "yes"; then
-   EMACS_CHECK_MODULES([DBUS], [dbus-1 >= 1.0])
+if test "${with_dbus}" != "no" ; then
+   EMACS_CHECK_MODULES([DBUS], [dbus-1 >= 1.0], [HAVE_DBUS=yes], [HAVE_DBUS=no])
    if test "$HAVE_DBUS" = yes; then
      AC_DEFINE([HAVE_DBUS], [1], [Define to 1 if using D-Bus.])
      dnl dbus_watch_get_unix_fd has been introduced in D-Bus 1.1.1.
      dnl dbus_type_is_valid and dbus_validate_* have been introduced in
      dnl D-Bus 1.5.12.
+     dnl dbus_message_set_allow_interactive_authorization was introduced
+     dnl in D-Bus 1.8.10.
      OLD_LIBS=$LIBS
      LIBS="$LIBS $DBUS_LIBS"
      AC_CHECK_FUNCS([dbus_watch_get_unix_fd \
@@ -3999,7 +3973,8 @@ if test "${with_dbus}" = "yes"; then
 		    dbus_validate_bus_name \
                     dbus_validate_path \
 		    dbus_validate_interface \
-		    dbus_validate_member])
+		    dbus_validate_member \
+                    dbus_message_set_allow_interactive_authorization])
      LIBS=$OLD_LIBS
      DBUS_OBJ=dbusbind.o
    fi
@@ -4621,6 +4596,7 @@ fi
 ### End of font-backend (under any platform) section.
 
 ### Start of font-backend (under X11) section.
+is_xft_version_outdated=no
 if test "${HAVE_X11}" = "yes"; then
   if test $HAVE_CAIRO = yes; then
     dnl Strict linkers fail with
@@ -4669,7 +4645,20 @@ if test "${HAVE_X11}" = "yes"; then
 
 	if test "${HAVE_XFT}" = "yes"; then
 	  AC_DEFINE([HAVE_XFT], [1], [Define to 1 if you have the Xft library.])
-	    AC_SUBST([XFT_LIBS])
+	  AC_SUBST([XFT_LIBS])
+	  AC_CACHE_CHECK([whether libXft is not recent enough to support color fonts],
+	    [emacs_cv_is_xft_version_outdated],
+	    [AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
+	      [[
+		#include <X11/Xlib.h>
+	        #include <X11/Xft/Xft.h>
+		#if XftVersion < 20306
+		#error "Xft < 2.3.6"
+		#endif /* XftVersion < 20306 */
+	      ]], [])],
+	      [emacs_cv_is_xft_version_outdated=no],
+	      [emacs_cv_is_xft_version_outdated=yes])])
+	  is_xft_version_outdated=$emacs_cv_is_xft_version_outdated
 	  C_SWITCH_X_SITE="$C_SWITCH_X_SITE $XFT_CFLAGS"
 	fi                        # "${HAVE_XFT}" = "yes"
 	CPPFLAGS=$OLD_CPPFLAGS
@@ -5058,22 +5047,29 @@ AC_SUBST([LCMS2_LIBS])
 
 HAVE_ZLIB=no
 LIBZ=
-if test "${with_zlib}" != "no"; then
-  OLIBS=$LIBS
-  AC_SEARCH_LIBS([inflateEnd], [z], [HAVE_ZLIB=yes])
-  LIBS=$OLIBS
-  case $ac_cv_search_inflateEnd in
-    -*) LIBZ=$ac_cv_search_inflateEnd ;;
-  esac
-fi
-if test "${HAVE_ZLIB}" = "yes"; then
-  AC_DEFINE([HAVE_ZLIB], [1],
-    [Define to 1 if you have the zlib library (-lz).])
-  ### mingw32 doesn't use -lz, since it loads the library dynamically.
-  if test "${opsys}" = "mingw32"; then
-     LIBZ=
-  fi
-fi
+AS_IF([test "${with_zlib}" != "no"],
+  [AC_CACHE_CHECK([for library containing inflateEnd],
+     [emacs_cv_libz],
+     [AC_LANG_CONFTEST([AC_LANG_PROGRAM([[#include <zlib.h>
+					  z_stream stream;]],
+					[[return inflateEnd (&stream);]])])
+      OLIBS=$LIBS
+      for emacs_cv_libz in '' -lz no; do
+	test "$emacs_cv_libz" = no && break
+	LIBS="$emacs_cv_libz $OLIBS"
+	AC_LINK_IFELSE([], [break])
+      done
+      LIBS=$OLIBS])
+
+   AS_CASE([$emacs_cv_libz],
+     [-* | ''],
+       [# mingw32 doesn't use -lz, since it loads the library dynamically.
+	AS_CASE([$opsys],
+	  [mingw32], [LIBZ=],
+	  [LIBZ=$emacs_cv_libz])
+	HAVE_ZLIB=yes
+	AC_DEFINE([HAVE_ZLIB], [1],
+	  [Define to 1 if you have the zlib library (-lz).])])])
 AC_SUBST([LIBZ])
 
 ### Dynamic library support
@@ -5153,12 +5149,14 @@ AC_SUBST_FILE([module_env_snippet_27])
 AC_SUBST_FILE([module_env_snippet_28])
 AC_SUBST_FILE([module_env_snippet_29])
 AC_SUBST_FILE([module_env_snippet_30])
+AC_SUBST_FILE([module_env_snippet_31])
 module_env_snippet_25="$srcdir/src/module-env-25.h"
 module_env_snippet_26="$srcdir/src/module-env-26.h"
 module_env_snippet_27="$srcdir/src/module-env-27.h"
 module_env_snippet_28="$srcdir/src/module-env-28.h"
 module_env_snippet_29="$srcdir/src/module-env-29.h"
 module_env_snippet_30="$srcdir/src/module-env-30.h"
+module_env_snippet_31="$srcdir/src/module-env-31.h"
 emacs_major_version=`AS_ECHO([$PACKAGE_VERSION]) | sed 's/[[.]].*//'`
 AC_SUBST([emacs_major_version])
 
@@ -5204,16 +5202,16 @@ AC_DEFUN([libgccjit_smoke_test], [
       }]])])
 
 AC_DEFUN([libgccjit_not_found_err], [
-  AC_MSG_ERROR([ELisp native compiler was requested, but libgccjit was not found.
+  AC_MSG_ERROR([Lisp native compiler was requested, but libgccjit was not found.
 Please try installing libgccjit or a similar package.
-If you are sure you want Emacs be compiled without ELisp native compiler,
+If you are sure you want Emacs be compiled without the Lisp native compiler,
 pass the --without-native-compilation option to configure.])])
 
 AC_DEFUN([libgccjit_dev_not_found_err], [
-  AC_MSG_ERROR([ELisp native compiler was requested, but libgccjit header files were
+  AC_MSG_ERROR([Lisp native compiler was requested, but libgccjit header files were
 not found.
 Please try installing libgccjit-dev or a similar package.
-If you are sure you want Emacs be compiled without ELisp native compiler,
+If you are sure you want Emacs be compiled without the Lisp native compiler,
 pass the --without-native-compilation option to configure.])])
 
 AC_DEFUN([libgccjit_broken_err], [
@@ -5288,15 +5286,9 @@ if test "${with_native_compilation}" = "default"; then
       # Check if libgccjit really works.
       AC_RUN_IFELSE([libgccjit_smoke_test], [], [libgccjit_broken])
     fi
-    if test "$with_unexec" = yes; then
-      with_native_compilation=no
-    fi
 fi
 
 if test "${with_native_compilation}" != "no"; then
-    if test "$with_unexec" = yes; then
-       AC_MSG_ERROR(['--with-native-compilation' is not compatible with unexec])
-    fi
     if test "${HAVE_ZLIB}" = no; then
        AC_MSG_ERROR(['--with-native-compilation' requires zlib])
     fi
@@ -5371,7 +5363,7 @@ if test "${with_native_compilation}" != "no"; then
     LIBS=$SAVE_LIBS
 fi
 AC_DEFINE_UNQUOTED([NATIVE_ELISP_SUFFIX], [".eln"],
-  [System extension for native compiled elisp])
+  [System extension for native-compiled elisp])
 AC_SUBST([HAVE_NATIVE_COMP])
 AC_SUBST([LIBGCCJIT_CFLAGS])
 AC_SUBST([LIBGCCJIT_LIBS])
@@ -5584,6 +5576,11 @@ if test "${HAVE_X11}" = "yes"; then
        WITH_IFAVAILABLE="$WITH_IFAVAILABLE --with-tiff=ifavailable";;
   esac
 fi
+case $with_dbus,$HAVE_DBUS in
+  no,* | ifavailable,* | *,yes) ;;
+  *) MISSING="$MISSING dbus-1"
+     WITH_IFAVAILABLE="$WITH_IFAVAILABLE --with-dbus=ifavailable";;
+esac
 case $with_gnutls,$HAVE_GNUTLS in
   no,* | ifavailable,* | *,yes) ;;
   *) MISSING="$MISSING gnutls"
@@ -6024,7 +6021,6 @@ AC_SUBST([HAVE_LIBSECCOMP])
 AC_SUBST([LIBSECCOMP_LIBS])
 AC_SUBST([LIBSECCOMP_CFLAGS])
 
-AC_CHECK_SIZEOF([long])
 SIZEOF_LONG="$ac_cv_sizeof_long"
 AC_SUBST([SIZEOF_LONG])
 
@@ -6033,7 +6029,7 @@ LIBS="$LIB_PTHREAD $LIB_MATH $LIBS"
 AC_CHECK_FUNCS([accept4 fchdir gethostname \
 getrusage get_current_dir_name \
 lrand48 random rint tcdrain trunc \
-select getpagesize setlocale newlocale \
+select getpagesize newlocale \
 getrlimit setrlimit shutdown \
 pthread_sigmask strsignal setitimer \
 sendto recvfrom getsockname getifaddrs freeifaddrs \
@@ -6118,19 +6114,6 @@ fi
 dnl No need to check for posix_memalign if aligned_alloc works.
 AC_CHECK_FUNCS([aligned_alloc posix_memalign], [break])
 AC_CHECK_DECLS([aligned_alloc], [], [], [[#include <stdlib.h>]])
-
-case $with_unexec,$canonical in
-  yes,alpha*)
-    AC_CHECK_DECL([__ELF__], [],
-      [AC_MSG_ERROR([Non-ELF systems are not supported on this platform.])]);;
-esac
-
-if test "$with_unexec" = yes && test "$opsys" = "haiku"; then
-  dnl A serious attempt was actually made to port unexec to Haiku.
-  dnl Something in libstdc++ seems to prevent it from working.
-  AC_MSG_ERROR([Haiku is not supported by the legacy unexec dumper.
-Please use the portable dumper instead.])
-fi
 
 # Dump loading.  Android lacks posix_madvise.
 AC_CHECK_FUNCS([posix_madvise madvise])
@@ -6463,10 +6446,10 @@ dnl posix_spawn.  The chdir and setsid functionality is relatively
 dnl recent, so we check for it specifically.
 AC_CHECK_HEADERS([spawn.h])
 AC_SUBST([HAVE_SPAWN_H])
-AC_CHECK_FUNCS([posix_spawn \
-                posix_spawn_file_actions_addchdir \
-                posix_spawn_file_actions_addchdir_np \
-                posix_spawnattr_setflags])
+gl_CHECK_FUNCS_ANDROID([posix_spawn], [#include <spawn.h>])
+gl_CHECK_FUNCS_ANDROID([posix_spawn_file_actions_addchdir], [#include <spawn.h>])
+gl_CHECK_FUNCS_ANDROID([posix_spawn_file_actions_addchdir_np], [#include <spawn.h>])
+gl_CHECK_FUNCS_ANDROID([posix_spawnattr_setflags], [#include <spawn.h>])
 AC_SUBST([HAVE_POSIX_SPAWN])
 AC_SUBST([HAVE_POSIX_SPAWN_FILE_ACTIONS_ADDCHDIR])
 AC_SUBST([HAVE_POSIX_SPAWN_FILE_ACTIONS_ADDCHDIR_NP])
@@ -7151,6 +7134,9 @@ AC_CACHE_CHECK([for usable FIONREAD], [emacs_cv_usable_FIONREAD],
 			    #ifdef USG5_4
 			    # include <sys/filio.h>
 			    #endif
+			    #ifdef HAVE_UNISTD_H
+			    # include <unistd.h> /* defines ioctl() on Solaris */
+			    #endif
 			  ]],
 			  [[int foo = ioctl (0, FIONREAD, &foo);]])],
 	 [emacs_cv_usable_FIONREAD=yes],
@@ -7403,22 +7389,6 @@ else
 fi
 AC_SUBST([LIBXMENU])
 
-AC_CACHE_CHECK([for struct alignment],
-  [emacs_cv_struct_alignment],
-  [AC_COMPILE_IFELSE(
-     [AC_LANG_PROGRAM([[#include <stddef.h>
-			struct s { char c; } __attribute__ ((aligned (8)));
-			struct t { char c; struct s s; };
-			char verify[offsetof (struct t, s) == 8 ? 1 : -1];
-		      ]])],
-     [emacs_cv_struct_alignment=yes],
-     [emacs_cv_struct_alignment=no])])
-if test "$emacs_cv_struct_alignment" = yes; then
-  AC_DEFINE([HAVE_STRUCT_ATTRIBUTE_ALIGNED], [1],
-    [Define to 1 if 'struct __attribute__ ((aligned (N)))' aligns the
-     structure to an N-byte boundary.])
-fi
-
 AC_C_RESTRICT
 AC_C_TYPEOF
 
@@ -7450,21 +7420,10 @@ AC_SUBST([RALLOC_OBJ])
 
 if test "$opsys" = "cygwin"; then
   CYGWIN_OBJ="cygw32.o"
-  ## Cygwin differs because of its unexec().
-  PRE_ALLOC_OBJ=
-  POST_ALLOC_OBJ=lastfile.o
-elif test "$opsys" = "mingw32"; then
-  CYGWIN_OBJ=
-  PRE_ALLOC_OBJ=
-  POST_ALLOC_OBJ=lastfile.o
 else
   CYGWIN_OBJ=
-  PRE_ALLOC_OBJ=lastfile.o
-  POST_ALLOC_OBJ=
 fi
 AC_SUBST([CYGWIN_OBJ])
-AC_SUBST([PRE_ALLOC_OBJ])
-AC_SUBST([POST_ALLOC_OBJ])
 
 dnl Call this 'FORTIFY_SOUR' so that it sorts before the 'FORTIFY_SOURCE'
 dnl verbatim defined above.  The tricky name is apropos, as this hack
@@ -7653,47 +7612,9 @@ fail;
      x86_64-*-*) LD_SWITCH_SYSTEM_TEMACS="-Wl,-stack,0x00800000 -Wl,-heap,0x00100000 -Wl,-image-base,0x400000000 -Wl,-entry,__start -Wl,-Map,./temacs.map" ;;
      *) LD_SWITCH_SYSTEM_TEMACS="-Wl,-stack,0x00800000 -Wl,-heap,0x00100000 -Wl,-image-base,0x01000000 -Wl,-entry,__start -Wl,-Map,./temacs.map" ;;
    esac
-   ## If they want unexec, disable Windows ASLR for the Emacs binary
-   if test "$with_dumping" = "unexec"; then
-      case "$canonical" in
-        x86_64-*-*) LD_SWITCH_SYSTEM_TEMACS="$LD_SWITCH_SYSTEM_TEMACS -Wl,-disable-dynamicbase -Wl,-disable-high-entropy-va -Wl,-default-image-base-low" ;;
-        *) LD_SWITCH_SYSTEM_TEMACS="$LD_SWITCH_SYSTEM_TEMACS -Wl,-disable-dynamicbase" ;;
-      esac
-   fi
    ;;
 
   *) LD_SWITCH_SYSTEM_TEMACS= ;;
-esac
-
-# -no-pie or -nopie fixes a temacs segfault on Gentoo, OpenBSD,
-# Ubuntu, and other systems with "hardened" GCC configurations for
-# some reason (Bug#18784).  We don't know why this works, but not
-# segfaulting is better than segfaulting.  Use ac_c_werror_flag=yes
-# when trying the option, otherwise clang keeps warning that it does
-# not understand it, and pre-4.6 GCC has a similar problem
-# (Bug#20338).  Prefer -no-pie to -nopie, as -no-pie is the
-# spelling used by GCC 6.1.0 and later (Bug#24682).
-AC_CACHE_CHECK(
-  [for $CC option to disable position independent executables],
-  [emacs_cv_prog_cc_no_pie],
-  [if test $with_unexec = no; then
-     emacs_cv_prog_cc_no_pie='not needed'
-   else
-     emacs_save_c_werror_flag=$ac_c_werror_flag
-     emacs_save_LDFLAGS=$LDFLAGS
-     ac_c_werror_flag=yes
-     for emacs_cv_prog_cc_no_pie in -no-pie -nopie no; do
-       test $emacs_cv_prog_cc_no_pie = no && break
-       LDFLAGS="$emacs_save_LDFLAGS $emacs_cv_prog_cc_no_pie"
-       AC_LINK_IFELSE([AC_LANG_PROGRAM([], [])], [break])
-     done
-     ac_c_werror_flag=$emacs_save_c_werror_flag
-     LDFLAGS=$emacs_save_LDFLAGS
-   fi])
-case $emacs_cv_prog_cc_no_pie in
-  -*)
-    LD_SWITCH_SYSTEM_TEMACS="$LD_SWITCH_SYSTEM_TEMACS $emacs_cv_prog_cc_no_pie"
-    ;;
 esac
 
 if test x$ac_enable_profiling != x ; then
@@ -7722,35 +7643,6 @@ if test "$window_system" != "none"; then
 fi
 
 AC_SUBST([WINDOW_SYSTEM_OBJ])
-
-# Some systems have MB_CUR_MAX defined to a call to
-# __ctype_get_mb_cur_max, but do not have __ctype_get_mb_cur_max in
-# libc.  Check for that situation and define MB_CUR_MAX to something
-# sane.
-
-AC_CHECK_FUNC([__ctype_get_mb_cur_max])
-
-AC_CACHE_CHECK([whether MB_CUR_MAX is defined to function that won't link],
-  [emacs_cv_broken_mb_cur_max],
-  [AC_EGREP_CPP(__ctype_get_mb_cur_max, [
-#include <stdlib.h>
-#ifndef MB_CUR_MAX
-#define MB_CUR_MAX -1
-#endif
-static int foo = MB_CUR_MAX;
-], [AS_IF([test "$ac_cv_func___ctype_get_mb_cur_max" = "yes"],
-     [emacs_cv_broken_mb_cur_max=no],
-     [emacs_cv_broken_mb_cur_max=yes])],
-  [emacs_cv_broken_mb_cur_max=no])])
-
-AS_IF([test "$emacs_cv_broken_mb_cur_max" = "yes"],
- # Define this to 4, which is right for Android.
- [AS_CASE([$opsys], [android],
-   [AC_DEFINE([REPLACEMENT_MB_CUR_MAX], [4],
-      [Define to MB_CUR_MAX if stdlib.h is broken.])],
-   [AC_MSG_ERROR([MB_CUR_MAX does not work on your system.
-Please modify configure.ac to set an appropriate value, then
-send your change to bug-gnu-emacs@gnu.org])])])
 
 AH_TOP([/* GNU Emacs site configuration template file.
 
@@ -7833,12 +7725,12 @@ for opt in ACL BE_APP CAIRO DBUS FREETYPE GCONF GIF GLIB GMP GNUTLS GPM GSETTING
  HARFBUZZ IMAGEMAGICK JPEG LCMS2 LIBOTF LIBSELINUX LIBSYSTEMD LIBXML2 \
  M17N_FLT MODULES NATIVE_COMP NOTIFY NS OLDXMENU PDUMPER PGTK PNG RSVG SECCOMP \
  SOUND SQLITE3 THREADS TIFF TOOLKIT_SCROLL_BARS TREE_SITTER \
- UNEXEC WEBP X11 XAW3D XDBE XFT XIM XINPUT2 XPM XWIDGETS X_TOOLKIT \
- ZLIB; do
+ UNEXEC WEBP X11 XAW3D XDBE XFT XIM XINERAMA XINPUT2 XPM XRANDR XWIDGETS \
+ X_TOOLKIT ZLIB; do
 
     case $opt in
       PDUMPER) val=${with_pdumper} ;;
-      UNEXEC) val=${with_unexec} ;;
+      UNEXEC) val=no ;;
       GLIB) val=${emacs_cv_links_glib} ;;
       NOTIFY|ACL) eval val=\${${opt}_SUMMARY} ;;
       TOOLKIT_SCROLL_BARS|X_TOOLKIT) eval val=\${USE_$opt} ;;
@@ -7914,7 +7806,6 @@ AS_ECHO(["  Does Emacs use -lXaw3d?                                 ${HAVE_XAW3D
   Does Emacs support Xwidgets?                            ${HAVE_XWIDGETS}
   Does Emacs have threading support in lisp?              ${threads_enabled}
   Does Emacs support the portable dumper?                 ${with_pdumper}
-  Does Emacs support legacy unexec dumping?               ${with_unexec}
   Which dumping strategy does Emacs use?                  ${with_dumping}
   Does Emacs have native lisp compiler?                   ${HAVE_NATIVE_COMP}
   Does Emacs use version 2 of the X Input Extension?      ${HAVE_XINPUT2}
@@ -8190,12 +8081,11 @@ you can continue to support by using '$0 --with-pop'.])
   esac
 fi
 
-if test "${HAVE_XFT}" = yes; then
-  AC_MSG_WARN([This configuration uses libXft, which has a number of
-    font rendering issues, and is being considered for removal in the
-    next release of Emacs.  Please consider using Cairo graphics +
-    HarfBuzz text shaping instead (they are auto-detected if the
-    relevant development headers are installed).])
+if test "${HAVE_XFT}" = yes && test "$is_xft_version_outdated" = "yes"; then
+  AC_MSG_WARN([This configuration uses a version of libXft earlier than 2.3.6,
+    which is impacted by a number of rendering issues up to and including
+    crashes.  Please consider using Cairo graphics instead (they are
+    auto-detected if the relevant development headers are installed).])
 fi
 
 if test "${HAVE_CAIRO}" = "yes" && test "${HAVE_HARFBUZZ}" = no; then

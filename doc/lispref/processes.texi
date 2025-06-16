@@ -186,7 +186,6 @@ the function returns just the value of the variable @code{exec-path}.
 @end defun
 
 @cindex programs distributed with Emacs, starting
-@vindex ctags-program-name
 @vindex etags-program-name
 @vindex hexl-program-name
 @vindex emacsclient-program-name
@@ -197,11 +196,11 @@ the function returns just the value of the variable @code{exec-path}.
 must take into account that the program may have been renamed in order
 to comply with executable naming restrictions present on the system.
 
-  Instead of starting @command{ctags}, for example, you should specify
-the value of @code{ctags-program-name} instead.  Likewise, instead of
+  Instead of starting @command{emacsclient}, for example, you should specify
+the value of @code{emacsclient-program-name} instead.  Likewise, instead of
 starting @command{movemail}, you must start
 @code{movemail-program-name}, and the same goes for @command{etags},
-@command{hexl}, @command{emacsclient}, @code{rcs2log}, and
+@command{hexl}, @code{rcs2log}, and
 @command{ebrowse}.
 
 @node Shell Arguments
@@ -3090,6 +3089,13 @@ listening on that port.  If @var{reuseaddr-flag} is @code{nil}, there
 may be a period of time after the last use of that port (by any
 process on the host) where it is not possible to make a new server on
 that port.
+
+@item :nodelay @var{nodelay-flag}
+If @var{nodelay-flag} is non-@code{nil}, the @code{TCP_NODELAY} option
+is enabled on the socket.  This disables the Nagle algorithm, meaning
+that network segments are sent as soon as possible, even when they
+contain little data.  This reduces network latency on the network
+connection, but can lead to many small packets being sent.
 @end table
 
 @defun set-network-process-option process option value &optional no-error

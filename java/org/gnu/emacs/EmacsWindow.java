@@ -58,6 +58,7 @@ import android.util.SparseArray;
 import android.util.Log;
 
 import android.os.Build;
+import android.os.SystemClock;
 
 /* This defines a window, which is a handle.  Windows represent a
    rectangular subset of the screen with their own contents.
@@ -353,7 +354,7 @@ public final class EmacsWindow extends EmacsHandleObject
     /* Otherwise accept the new position offered by the toolkit.  FIXME:
        isn't there a potential race condition here if the toolkit lays
        out EmacsView after a child frame's rect is set but before it
-       calls onLayout to read the modifies rect?  */
+       calls onLayout to read the modified rect?  */
     else
       {
 	rect.left = left;
@@ -888,6 +889,20 @@ public final class EmacsWindow extends EmacsHandleObject
   onActivityDetached ()
   {
     EmacsNative.sendWindowAction (this.handle, 0);
+  }
+
+  /* Dispatch a back gesture invocation as a KeyPress event.  Lamentably
+     the platform does not appear to support reporting keyboard
+     modifiers with these events.  */
+
+  public void
+  onBackInvoked ()
+  {
+    long time = SystemClock.uptimeMillis ();
+    EmacsNative.sendKeyPress (this.handle, time, 0,
+			      KeyEvent.KEYCODE_BACK, 0);
+    EmacsNative.sendKeyRelease (this.handle, time, 0,
+				KeyEvent.KEYCODE_BACK, 0);
   }
 
 

@@ -345,7 +345,7 @@
          (counter 0)
          (my-counter (lambda ()
                        (if (< counter 500)
-                           (cl-incf counter)
+                           (incf counter)
                          (setq counter 0)
                          (garbage-collect))))
          (rand 1)
@@ -1133,6 +1133,77 @@
   (should (not (proper-list-p (make-bool-vector 0 nil))))
   (should (not (proper-list-p (make-symbol "a")))))
 
+(ert-deftest test-hash-table ()
+  (let ((h (make-hash-table))
+        (val "anything"))
+    (puthash 123 val h)
+    (should (eq (gethash 123 h) val)))
+  (let ((h (make-hash-table :test 'equal))
+        (val "anything"))
+    (puthash '("hello" 123) val h)
+    (should (eq (gethash '("hello" 123) h) val))))
+
+(ert-deftest test-hash-table-wrong-keywords ()
+  (should (make-hash-table :purecopy t))      ; obsolete and ignored
+  (should (make-hash-table :rehash-size 123)) ; obsolete and ignored
+  (should (make-hash-table :rehash-threshold 123)) ; obsolete and ignored
+  (should-error (make-hash-table :some-random-keyword 123)))
+
+(ert-deftest test-remhash ()
+  (let ((h (make-hash-table))
+        (val "anything"))
+    (puthash 'foo val h)
+    (remhash 'foo h)
+    (should-not (gethash 'foo h))))
+
+(ert-deftest test-clrhash ()
+  (let ((h (make-hash-table)))
+    (puthash 'foo1 'bar1 h)
+    (puthash 'foo2 'bar2 h)
+    (puthash 'foo3 'bar3 h)
+    (puthash 'foo4 'bar4 h)
+    (clrhash h)
+    (should-not (gethash 'foo h))))
+
+(ert-deftest test-hash-table-p ()
+  (let ((h (make-hash-table)))
+    (should (hash-table-p h)))
+  (should-not (hash-table-p 123))
+  (should-not (hash-table-p "foo"))
+  (should-not (hash-table-p [foo]))
+  (should-not (hash-table-p (list 'foo))))
+
+(ert-deftest test-hash-table-count ()
+  (let ((h (make-hash-table)))
+    (puthash 'foo1 'bar1 h)
+    (should (= (hash-table-count h) 1))
+    (puthash 'foo2 'bar2 h)
+    (should (= (hash-table-count h) 2))
+    (puthash 'foo3 'bar3 h)
+    (should (= (hash-table-count h) 3))
+    (puthash 'foo4 'bar4 h)
+    (should (= (hash-table-count h) 4))
+    (clrhash h)
+    (should (= (hash-table-count h) 0))))
+
+(ert-deftest test-maphash ()
+  (let ((h (make-hash-table))
+        (sum 0))
+    (puthash 'foo1 1 h)
+    (puthash 'foo2 22 h)
+    (puthash 'foo3 333 h)
+    (puthash 'foo4 4444 h)
+    (maphash (lambda (_key value) (incf sum value)) h)
+    (should (= sum 4800))))
+
+(ert-deftest test-copy-hash-table ()
+  (let* ((h1 (make-hash-table))
+         h2)
+    (puthash 'foo '(bar baz) h1)
+    (setq h2 (copy-hash-table h1))
+    (should-not (eq h1 h2))
+    (should (equal (gethash 'foo h2) '(bar baz)))))
+
 (ert-deftest test-hash-function-that-mutates-hash-table ()
   (define-hash-table-test 'badeq 'eq 'bad-hash)
   (let ((h (make-hash-table :test 'badeq :size 1 :rehash-size 1)))
@@ -1606,6 +1677,13 @@
                    (1.5 . 1.6) (-1.3 . -1.2) (-13.0 . 12.0)
                    ;; floats/fixnums
                    (1 . 1.1) (1.9 . 2) (-2.0 . 1) (-2 . 1.0)
+                   ;; fixnums that can't be represented as floats
+                   (72057594037927935 . 72057594037927936.0)
+                   (72057594037927936.0 . 72057594037927937)
+                   (-72057594037927936.0 . -72057594037927935)
+                   (-72057594037927937 . -72057594037927936.0)
+                   (2305843009213693951 . 2305843009213693952.0)
+
                    ;; floats/bignums
                    (,big . ,(float (* 2 big))) (,(float big) . ,(* 2 big))
                    ;; symbols
@@ -1665,7 +1743,11 @@
             (should (value< x y))
             (should-not (value< y x))
             (should-not (value< x x))
-            (should-not (value< y y))))
+            (should-not (value< y y))
+            (should (value< (vector x 2) (vector y 1)))
+            (should-not (value< (vector y 1) (vector x 2)))
+            (should (value< (vector x 1) (vector x 2)))
+            (should (value< (vector y 1) (vector y 2)))))
 
       (delete-process proc2)
       (delete-process proc1)
@@ -1683,6 +1765,9 @@
                  ;; numbers
                  (0 . 0.0) (0 . -0.0) (0.0 . -0.0)
 
+                 (72057594037927936 . 72057594037927936.0)
+                 (1 . 0.0e+NaN)
+
                  ;; symbols
                  (a . #:a)
 
@@ -1697,7 +1782,9 @@
       (let ((x (car c))
             (y (cdr c)))
         (should-not (value< x y))
-        (should-not (value< y x))))))
+        (should-not (value< y x))
+        (should (value< (cons x 1) (cons y 2)))
+        (should-not (value< (cons x 2) (cons y 1)))))))
 
 (ert-deftest fns-value<-type-mismatch ()
   ;; values of disjoint (incomparable) types

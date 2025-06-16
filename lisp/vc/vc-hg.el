@@ -183,6 +183,16 @@ If `ask', you will be prompted for a branch type."
                  (const :tag "Ask" ask))
   :version "28.1")
 
+(defcustom vc-hg-resolve-conflicts 'default
+  "Whether to mark conflicted file as resolved upon saving.
+If this is t and there are no more conflict markers in the file,
+VC will mark the conflicts in the saved file as resolved.
+A value of `default' means to use the value of `vc-resolve-conflicts'."
+  :type '(choice (const :tag "Don't resolve" nil)
+                 (const :tag "Resolve" t)
+                 (const :tag "Use vc-resolve-conflicts" default))
+  :version "31.1")
+
 
 ;; Clear up the cache to force vc-call to check again and discover
 ;; new functions when we reload this file.
@@ -397,8 +407,11 @@ specific file to query."
 (defun vc-hg-print-log (files buffer &optional shortlog start-revision limit)
   "Print commit log associated with FILES into specified BUFFER.
 If SHORTLOG is non-nil, use a short format based on `vc-hg-root-log-format'.
-If START-REVISION is non-nil, it is the newest revision to show.
-If LIMIT is non-nil, show no more than this many entries."
+If LIMIT is a positive integer, show no more than that many entries.
+
+If START-REVISION is nil, print the commit log starting from the working
+directory parent (revset \".\").  If START-REVISION is a string, print
+the log starting from that revision."
   ;; `vc-do-command' creates the buffer, but we need it before running
   ;; the command.
   (vc-setup-buffer buffer)
@@ -408,8 +421,8 @@ If LIMIT is non-nil, show no more than this many entries."
     (with-current-buffer
 	buffer
       (apply #'vc-hg-command buffer 'async files "log"
+             (format "-r%s:0" (or start-revision "."))
 	     (nconc
-	      (when start-revision (list (format "-r%s:0" start-revision)))
 	      (when limit (list "-l" (format "%s" limit)))
               (when (eq vc-log-view-type 'with-diff)
                 (list "-p"))
@@ -512,7 +525,7 @@ This requires hg 4.4 or later, for the \"-L\" option of \"hg log\"."
               (cons 'vc-hg-region-history-font-lock-keywords
                     (cdr font-lock-defaults))))
 
-(defun vc-hg-diff (files &optional oldvers newvers buffer _async)
+(defun vc-hg-diff (files &optional oldvers newvers buffer async)
   "Get a difference report using hg between two revisions of FILES."
   (let* ((firstfile (car files))
          (working (and firstfile (vc-working-revision firstfile))))
@@ -522,7 +535,7 @@ This requires hg 4.4 or later, for the \"-L\" option of \"hg log\"."
       (setq oldvers working))
     (apply #'vc-hg-command
 	   (or buffer "*vc-diff*")
-           nil ; bug#21969
+           (if async 'async 1)
            files "diff"
            (append
             (vc-switches 'hg 'diff)
@@ -808,14 +821,14 @@ if we don't understand a construct, we signal
     (cl-macrolet ((peek () '(and (< i n) (aref glob i))))
       (while (< i n)
         (setf c (aref glob i))
-        (cl-incf i)
+        (incf i)
         (cond ((not (memq c '(?* ?? ?\[ ?\{ ?\} ?, ?\\)))
                (push (vc-hg--escape-for-pcre c) parts))
               ((eq c ?*)
                (cond ((eq (peek) ?*)
-                      (cl-incf i)
+                      (incf i)
                       (cond ((eq (peek) ?/)
-                             (cl-incf i)
+                             (incf i)
                              (push "(?:.*/)?" parts))
                             (t
                              (push ".*" parts))))
@@ -825,9 +838,9 @@ if we don't understand a construct, we signal
               ((eq c ?\[)
                (let ((j i))
                  (when (and (< j n) (memq (aref glob j) '(?! ?\])))
-                   (cl-incf j))
+                   (incf j))
                  (while (and (< j n) (not (eq (aref glob j) ?\])))
-                   (cl-incf j))
+                   (incf j))
                  (cond ((>= j n)
                         (push "\\[" parts))
                        (t
@@ -843,17 +856,17 @@ if we don't understand a construct, we signal
                           (push x parts)
                           (push ?\] parts))))))
               ((eq c ?\{)
-               (cl-incf group)
+               (incf group)
                (push "(?:" parts))
               ((eq c ?\})
                (push ?\) parts)
-               (cl-decf group))
+               (decf group))
               ((and (eq c ?,) (> group 0))
                (push ?| parts))
               ((eq c ?\\)
                (if (eq i n)
                    (push "\\\\" parts)
-                 (cl-incf i)
+                 (incf i)
                  (push ?\\ parts)
                  (push c parts)))
               (t
@@ -1168,25 +1181,52 @@ If toggling on, also insert its message into the buffer."
   "Major mode for editing Hg log messages.
 It is based on `log-edit-mode', and has Hg-specific extensions.")
 
+(autoload 'vc-wait-for-process-before-save "vc-dispatcher")
+
+(defalias 'vc-hg-async-checkins #'always)
+
 (defun vc-hg-checkin (files comment &optional _rev)
   "Hg-specific version of `vc-backend-checkin'.
 REV is ignored."
-  (apply #'vc-hg-command nil 0 files
-         (nconc (list "commit" "-m")
-                (vc-hg--extract-headers comment))))
+  (let ((parent (current-buffer))
+        (args (nconc (list "commit" "-m")
+                     (vc-hg--extract-headers comment))))
+    (if vc-async-checkin
+        (let ((buffer (vc-hg--async-buffer)))
+          (vc-wait-for-process-before-save
+           (apply #'vc-hg--async-command buffer (nconc args files))
+           "Finishing checking in files...")
+          (with-current-buffer buffer
+            (vc-run-delayed
+              (vc-compilation-mode 'hg)
+              (when (buffer-live-p parent)
+                (with-current-buffer parent
+                  (run-hooks 'vc-checkin-hook)))))
+          (vc-set-async-update buffer))
+      (apply #'vc-hg-command nil 0 files args))))
 
 (defun vc-hg-checkin-patch (patch-string comment)
-  (let ((patch-file (make-temp-file "hg-patch")))
+  (let ((parent (current-buffer))
+        (patch-file (make-temp-file "hg-patch")))
     (write-region patch-string nil patch-file)
     (unwind-protect
-        (progn
+        (let ((args (list "update"
+                          "--merge" "--tool" "internal:local"
+                          "tip")))
           (apply #'vc-hg-command nil 0 nil
                  (nconc (list "import" "--bypass" patch-file "-m")
                         (vc-hg--extract-headers comment)))
-          (vc-hg-command nil 0 nil
-                         "update"
-                         "--merge" "--tool" "internal:local"
-                         "tip"))
+          (if vc-async-checkin
+              (let ((buffer (vc-hg--async-buffer)))
+                (apply #'vc-hg--async-command buffer args)
+                (with-current-buffer buffer
+                  (vc-run-delayed
+                    (vc-compilation-mode 'hg)
+                    (when (buffer-live-p parent)
+                       (with-current-buffer parent
+                         (run-hooks 'vc-checkin-hook)))))
+                (vc-set-async-update buffer))
+            (apply #'vc-hg-command nil 0 nil args)))
       (delete-file patch-file))))
 
 (defun vc-hg--extract-headers (comment)
@@ -1260,7 +1300,10 @@ REV is the revision to check out into WORKFILE."
     ;; Hg may not recognize "conflict" as a state, but we can do better.
     (vc-file-setprop buffer-file-name 'vc-state 'conflict)
     (smerge-start-session)
-    (add-hook 'after-save-hook #'vc-hg-resolve-when-done nil t)
+    (when (or (eq vc-hg-resolve-conflicts t)
+              (and (eq vc-hg-resolve-conflicts 'default)
+                   vc-resolve-conflicts))
+      (add-hook 'after-save-hook #'vc-hg-resolve-when-done nil t))
     (vc-message-unresolved-conflicts buffer-file-name)))
 
 (defun vc-hg-clone (remote directory rev)
@@ -1274,10 +1317,13 @@ REV is the revision to check out into WORKFILE."
 (defun vc-hg-revert (file &optional contents-done)
   (unless contents-done
     (with-temp-buffer
-      (apply #'vc-hg-command
-             t 0 file
-             "revert"
+      (apply #'vc-hg-command t 0 file "revert"
              (append (vc-switches 'hg 'revert))))))
+
+(defun vc-hg-revert-files (files)
+  (with-temp-buffer
+    (apply #'vc-hg-command t 0 files "revert"
+           (append (vc-switches 'hg 'revert)))))
 
 ;;; Hg specific functionality.
 
@@ -1365,7 +1411,7 @@ REV is the revision to check out into WORKFILE."
 
 ;; Follows vc-hg-command (or vc-do-async-command), which uses vc-do-command
 ;; from vc-dispatcher.
-(declare-function vc-exec-after "vc-dispatcher" (code &optional success))
+(declare-function vc-exec-after "vc-dispatcher" (code &optional success proc))
 ;; Follows vc-exec-after.
 (declare-function vc-set-async-update "vc-dispatcher" (process-buffer))
 
@@ -1417,15 +1463,40 @@ This runs the command \"hg summary\"."
          (nreverse result))
        "\n"))))
 
+;; FIXME: Resolve issue with `vc-hg-mergebase' and then delete this.
 (defun vc-hg-log-incoming (buffer remote-location)
   (vc-setup-buffer buffer)
-  (vc-hg-command buffer 1 nil "incoming" "-n" (unless (string= remote-location "")
-						remote-location)))
+  (vc-hg-command buffer 1 nil "incoming" "-n"
+                 (and (not (string-empty-p remote-location))
+		      remote-location)))
 
+(defun vc-hg-incoming-revision (remote-location)
+  (let ((output (with-output-to-string
+                  ;; Exits 1 to mean nothing to pull.
+                  (vc-hg-command standard-output 1 nil
+                                 "incoming" "-qn" "--limit=1"
+                                 "--template={node}"
+                                 (and (not (string-empty-p remote-location))
+		                      remote-location)))))
+    (and (not (string-empty-p output))
+         output)))
+
+;; FIXME: Resolve issue with `vc-hg-mergebase' and then delete this.
 (defun vc-hg-log-outgoing (buffer remote-location)
   (vc-setup-buffer buffer)
-  (vc-hg-command buffer 1 nil "outgoing" "-n" (unless (string= remote-location "")
-						remote-location)))
+  (vc-hg-command buffer 1 nil "outgoing" "-n"
+                 (and (not (string-empty-p remote-location))
+		      remote-location)))
+
+;; FIXME: This works only when both rev1 and rev2 have already been pulled.
+;;        That means it can't do the work
+;;        `vc-default-log-incoming' and `vc-default-log-outgoing' need it to do.
+(defun vc-hg-mergebase (rev1 &optional rev2)
+  (or (vc-hg--run-log "{node}"
+                      (format "last(ancestors(%s) and ancestors(%s))"
+                              rev1 (or rev2 "tip"))
+                      nil)
+      (error "No common ancestor for merge base")))
 
 (defvar vc-hg-error-regexp-alist
   '(("^M \\(.+\\)" 1 nil nil 0))
@@ -1527,15 +1598,14 @@ call \"hg push -r REVS\" to push the specified revisions REVS."
 (defun vc-hg-merge-branch ()
   "Prompt for revision and merge it into working directory.
 This runs the command \"hg merge\"."
-  (let* ((root (vc-hg-root default-directory))
-	 (buffer (format "*vc-hg : %s*" (expand-file-name root)))
-         ;; Disable pager.
-         (process-environment (cons "HGPLAIN=1" process-environment))
-         (branch (vc-read-revision "Revision to merge: ")))
-    (apply #'vc-do-async-command buffer root vc-hg-program
+  (let ((buffer (vc-hg--async-buffer))
+        (branch (vc-read-revision "Revision to merge: ")))
+    (apply #'vc-hg--async-command buffer
            (append '("--config" "ui.report_untrusted=0" "merge")
-                   (unless (string= branch "") (list branch))))
-    (with-current-buffer buffer (vc-run-delayed (vc-compilation-mode 'hg)))
+                   (and (not (string-empty-p branch)) (list branch))))
+    (with-current-buffer buffer
+      (vc-run-delayed
+        (vc-compilation-mode 'hg)))
     (vc-set-async-update buffer)))
 
 (defun vc-hg-prepare-patch (rev)
@@ -1555,15 +1625,33 @@ This runs the command \"hg merge\"."
   "A wrapper around `vc-do-command' for use in vc-hg.el.
 This function differs from `vc-do-command' in that it invokes
 `vc-hg-program', and passes `vc-hg-global-switches' to it before FLAGS."
+  (vc-hg--command-1 #'vc-do-command
+                    (list (or buffer "*vc*")
+                          okstatus vc-hg-program file-or-list)
+                    flags))
+
+(defun vc-hg--async-command (buffer &rest args)
+  "Wrapper around `vc-do-async-command' like `vc-hg-command'."
+  (vc-hg--command-1 #'vc-do-async-command
+                    (list buffer (vc-hg-root default-directory)
+                          vc-hg-program)
+                    args))
+
+(defun vc-hg--async-buffer ()
+  "Buffer passed to `vc-do-async-command' by vg-hg.el commands.
+Intended for use via the `vc-hg--async-command' wrapper."
+  (format "*vc-hg : %s*"
+          (expand-file-name (vc-hg-root default-directory))))
+
+(defun vc-hg--command-1 (fun args flags)
   ;; Disable pager.
-  (let ((process-environment (cons "HGPLAIN=1" process-environment))
-        (flags (append '("--config" "ui.report_untrusted=0") flags)))
-    (apply #'vc-do-command (or buffer "*vc*")
-           okstatus vc-hg-program file-or-list
-           (if (stringp vc-hg-global-switches)
-               (cons vc-hg-global-switches flags)
-             (append vc-hg-global-switches
-                     flags)))))
+  (let ((process-environment (cons "HGPLAIN=1" process-environment)))
+    (apply fun (append args
+                       '("--config" "ui.report_untrusted=0")
+                       (if (stringp vc-hg-global-switches)
+                           (cons vc-hg-global-switches flags)
+                         (append vc-hg-global-switches
+                                 flags))))))
 
 (defun vc-hg-root (file)
   (vc-find-root file ".hg"))

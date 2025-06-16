@@ -291,7 +291,7 @@ According to the XDG Desktop Entry Specification version 0.5:
     colon-separated list of strings ... $XDG_CURRENT_DESKTOP
     should have been set by the login manager, according to the
     value of the DesktopNames found in the session file."
-  (when-let ((ret (getenv "XDG_CURRENT_DESKTOP")))
+  (when-let* ((ret (getenv "XDG_CURRENT_DESKTOP")))
     (string-split ret ":")))
 
 
@@ -384,9 +384,8 @@ Results are cached in `xdg-mime-table'."
         (setq xdg-mime-table nil)))
     (when (null (assoc type xdg-mime-table))
       (push (cons type (make-hash-table :test #'equal)) xdg-mime-table))
-    (if (let ((def (make-symbol "def"))
-              (table (cdr (assoc type xdg-mime-table))))
-          (not (eq (setq files (gethash subtype table def)) def)))
+    (if (let ((table (cdr (assoc type xdg-mime-table))))
+          (hash-table-contains-p subtype table))
         files
       (and files (setq files nil))
       (let ((dirs (mapcar (lambda (dir) (expand-file-name "applications" dir))

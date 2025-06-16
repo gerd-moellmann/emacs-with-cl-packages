@@ -66,7 +66,7 @@
       (background light))
      (:foreground "red3"))
     (t
-     (:italic t)))
+     (:slant italic)))
   "Face used for displaying output from commands."
   :group 'mime-display)
 
@@ -442,8 +442,9 @@ If not set, `default-directory' will be used."
   :type '(choice directory (const :tag "Default" nil))
   :group 'mime-display)
 
-(defcustom mm-attachment-file-modes 384
-  "Set the mode bits of saved attachments to this integer."
+(defcustom mm-attachment-file-modes #o600
+  "Set the mode bits of saved attachments to this integer.
+This is decimal, not octal.  The default is 384 (0600 in octal)."
   :version "22.1"
   :type 'integer
   :group 'mime-display)
@@ -535,13 +536,11 @@ result of the verification."
 		 (item :tag "ask" nil))
   :group 'mime-security)
 
-(defvar mm-viewer-completion-map
-  (let ((map (make-sparse-keymap 'mm-viewer-completion-map)))
-    (set-keymap-parent map minibuffer-local-completion-map)
-    ;; Should we bind other key to minibuffer-complete-word?
-    (define-key map " " 'self-insert-command)
-    map)
-  "Keymap for input viewer with completion.")
+(defvar-keymap mm-viewer-completion-map
+  :doc "Keymap for input viewer with completion."
+  :parent minibuffer-local-completion-map
+  ;; Should we bind other key to minibuffer-complete-word?
+  "SPC" #'self-insert-command)
 
 ;;; The functions.
 

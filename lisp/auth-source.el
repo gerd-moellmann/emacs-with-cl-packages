@@ -638,7 +638,7 @@ will ensure that any results will actually have a :secret
 property.
 
 :delete t means to delete any found entries.  nil by default.
-Use `auth-source-delete' in ELisp code instead of calling
+Use `auth-source-delete' in Lisp code instead of calling
 `auth-source-search' directly with this parameter.
 
 :type (X Y Z) will check only those backend types.  `netrc' and
@@ -708,7 +708,11 @@ must call it to obtain the actual value."
           (condition-case nil
               (unless (auth-source-search-collection
                        (plist-get spec key)
-                       (slot-value backend key))
+                       (slot-value
+                        backend
+                        (if (keywordp key)
+                            (intern-soft (substring (symbol-name key) 1))
+                          key)))
                 (setq filtered-backends (delq backend filtered-backends))
                 (cl-return))
             (invalid-slot-name nil))))
@@ -852,7 +856,7 @@ while \(:host t) would find all host entries."
                   (auth-source-specmatchp spec (cdr key)))
          ;; remove that key
          (password-cache-remove key)
-         (cl-incf count)))
+         (incf count)))
      password-data)
     count))
 
@@ -2391,21 +2395,21 @@ See `auth-source-search' for details on SPEC."
   :version "28.1")
 
 (defvar authinfo--keywords
-  '(("^#.*" . font-lock-comment-face)
+  '(("^#.*" (0 'font-lock-comment-face))
     ("^\\(machine\\)[ \t]+\\([^ \t\n]+\\)"
-     (1 font-lock-variable-name-face)
-     (2 font-lock-builtin-face))
+     (1 'font-lock-variable-name-face)
+     (2 'font-lock-builtin-face))
     ("\\(login\\)[ \t]+\\([^ \t\n]+\\)"
-     (1 font-lock-comment-delimiter-face)
-     (2 font-lock-keyword-face))
+     (1 'font-lock-comment-delimiter-face)
+     (2 'font-lock-keyword-face))
     ("\\(password\\)[ \t]+\\([^ \t\n]+\\)"
-     (1 font-lock-comment-delimiter-face)
-     (2 font-lock-doc-face))
+     (1 'font-lock-comment-delimiter-face)
+     (2 'font-lock-doc-face))
     ("\\(port\\)[ \t]+\\([^ \t\n]+\\)"
-     (1 font-lock-comment-delimiter-face)
-     (2 font-lock-type-face))
+     (1 'font-lock-comment-delimiter-face)
+     (2 'font-lock-type-face))
     ("\\([^ \t\n]+\\)[, \t]+\\([^ \t\n]+\\)"
-     (1 font-lock-constant-face)
+     (1 'font-lock-constant-face)
      (2 nil))))
 
 ;;;###autoload
@@ -2514,15 +2518,11 @@ Adapt also mode line."
         (force-mode-line-update 'all)
         (read-passwd--hide-password)))))
 
-(defvar read-passwd-map
-  ;; BEWARE: `defconst' would purecopy it, breaking the sharing with
-  ;; minibuffer-local-map along the way!
-  (let ((map (make-sparse-keymap)))
-    (set-keymap-parent map minibuffer-local-map)
-    (define-key map "\C-u" #'delete-minibuffer-contents) ;bug#12570
-    (define-key map "\t" #'read-passwd-toggle-visibility)
-    map)
-  "Keymap used while reading passwords.")
+(defvar-keymap read-passwd-map
+  :doc "Keymap used while reading passwords."
+  :parent minibuffer-local-map
+  "C-u" #'delete-minibuffer-contents ;bug#12570
+  "TAB" #'read-passwd-toggle-visibility)
 
 (define-minor-mode read-passwd-mode
   "Toggle visibility of password in minibuffer."

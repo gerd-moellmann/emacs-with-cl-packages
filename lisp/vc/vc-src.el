@@ -116,7 +116,7 @@ If nil, use the value of `vc-diff-switches'.  If t, use no switches."
 ;; for a registered backend without loading every backend.
 ;;;###autoload
 (defcustom vc-src-master-templates
-  (purecopy '("%s.src/%s,v"))
+  '("%s.src/%s,v")
   "Where to look for SRC master files.
 For a description of possible values, see `vc-check-master-templates'."
   :type '(choice (const :tag "Use standard SRC file names"
@@ -222,8 +222,9 @@ This function differs from `vc-do-command' in that it invokes `vc-src-program'."
 (defun vc-src-working-revision (file)
   "SRC-specific version of `vc-working-revision'."
   (let ((result (ignore-errors
-		  (with-output-to-string
-		    (vc-src-command standard-output file "list" "-f{1}" "@")))))
+                  (string-trim-right
+                   (with-output-to-string
+                     (vc-src-command standard-output file "list" "-f{1}" "@"))))))
     (if (zerop (length result)) "0" result)))
 
 ;;;

@@ -11,11 +11,12 @@ A few known problems with the build-aux/update-copyright script:
 
   . it doesn't update config.bat, msdos/depfiles.bat,
     nt/configure.bat, etc/tutorials/TUTORIAL.cn,
-    etc/tutorials/TUTORIAL.el_GR, and etc/tutorials/TUTORIAL.he
+    etc/tutorials/TUTORIAL.el_GR, etc/tutorials/TUTORIAL.he,
     because the "Copyright" statement begins in these files
     after a prefix that is more than 5 characters long
-  . it doesn't update etc/tutorials/TUTORIAL.nl and
-    etc/tutorials/TUTORIAL.ro for some reason
+  . it doesn't update etc/tutorials/TUTORIAL.nl,
+    etc/tutorials/TUTORIAL.ro, and msdos/autogen/Makefile.in,
+    for some reason
   . it doesn't update the second Copyright notice, the one that gets
     output into PDF and PS, in etc/refcards/ru-refcard.tex
   . it doesn't update etc/refcards/gnus-refcard.tex, doc/misc/org.org,

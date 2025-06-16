@@ -17,8 +17,6 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
-/* This should be the first include, as it may set up #defines affecting
-   interpretation of even the system includes.  */
 #include <config.h>
 
 #include "lisp.h"
@@ -56,6 +54,17 @@ static void lisp_data_to_selection_data (struct pgtk_display_info *, Lisp_Object
 					 struct selection_data *);
 static Lisp_Object pgtk_get_local_selection (Lisp_Object, Lisp_Object,
 					     bool, struct pgtk_display_info *);
+
+/* Allocate an array of NITEMS items, each of positive size ITEM_SIZE.
+   Make room for an extra byte at the end, as GDK sometimes needs that.  */
+
+static void *
+pgtk_nalloc (ptrdiff_t nitems, ptrdiff_t item_size)
+{
+  /* To pacify gcc --Wanalyzer-allocation-size, make room for an extra
+     item at the end instead of just the extra byte GDK sometimes needs.  */
+  return xnmalloc (nitems + 1, item_size);
+}
 
 /* From a Lisp_Object, return a suitable frame for selection
    operations.  OBJECT may be a frame, a terminal object, or nil
@@ -266,10 +275,8 @@ pgtk_get_local_selection (Lisp_Object selection_symbol, Lisp_Object target_type,
 	}
 
       if (!NILP (handler_fn))
-	value = call3 (handler_fn, selection_symbol,
-		       (local_request
-			? Qnil
-			: target_type),
+	value = calln (handler_fn, selection_symbol,
+		       (local_request ? Qnil : target_type),
 		       tem);
       else
 	value = Qnil;
@@ -1131,7 +1138,7 @@ pgtk_get_window_property (GdkWindow *window, unsigned char **data_ret,
       eassert (actual_format == 32);
 
       length = length / sizeof (GdkAtom);
-      xdata = xmalloc (sizeof (GdkAtom) * length + 1);
+      xdata = pgtk_nalloc (length, sizeof (GdkAtom));
       memcpy (xdata, data, 1 + length * sizeof (GdkAtom));
 
       g_free (data);
@@ -1147,10 +1154,7 @@ pgtk_get_window_property (GdkWindow *window, unsigned char **data_ret,
 
   element_size = pgtk_size_for_format (actual_format);
   length = length / element_size;
-
-  /* Add an extra byte on the end.  GDK guarantees that it is
-     NULL.  */
-  xdata = xmalloc (1 + element_size * length);
+  xdata = pgtk_nalloc (length, element_size);
   memcpy (xdata, data, 1 + element_size * length);
 
   if (actual_format == 32 && LONG_WIDTH > 32)
@@ -1439,7 +1443,7 @@ lisp_data_to_selection_data (struct pgtk_display_info *dpyinfo,
     }
   else if (SYMBOLP (obj))
     {
-      void *data = xmalloc (sizeof (GdkAtom) + 1);
+      void *data = pgtk_nalloc (1, sizeof (GdkAtom));
       GdkAtom *x_atom_ptr = data;
       cs->data = data;
       cs->format = 32;
@@ -1450,7 +1454,7 @@ lisp_data_to_selection_data (struct pgtk_display_info *dpyinfo,
     }
   else if (RANGED_FIXNUMP (SHRT_MIN, obj, SHRT_MAX))
     {
-      void *data = xmalloc (sizeof (short) + 1);
+      void *data = pgtk_nalloc (1, sizeof (short));
       short *short_ptr = data;
       cs->data = data;
       cs->format = 16;
@@ -1465,7 +1469,7 @@ lisp_data_to_selection_data (struct pgtk_display_info *dpyinfo,
 		   || (CONSP (XCDR (obj))
 		       && FIXNUMP (XCAR (XCDR (obj)))))))
     {
-      void *data = xmalloc (sizeof (unsigned long) + 1);
+      void *data = pgtk_nalloc (1, sizeof (unsigned long));
       unsigned long *x_long_ptr = data;
       cs->data = data;
       cs->format = 32;
@@ -1822,7 +1826,7 @@ targets) that can be dropped on top of FRAME.  */)
   CHECK_LIST (targets);
   length = list_length (targets);
   n = 0;
-  entries = SAFE_ALLOCA (sizeof *entries * length);
+  SAFE_NALLOCA (entries, 1, length);
   memset (entries, 0, sizeof *entries * length);
   tem = targets;
 

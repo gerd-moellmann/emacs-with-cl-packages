@@ -56,7 +56,7 @@ This is intended for debugging the compiler itself.
   "Primitive functions to exclude from trampoline optimization.
 
 Primitive functions included in this list will not be called
-directly by the natively-compiled code, which makes trampolines for
+directly by the native-compiled code, which makes trampolines for
 those primitives unnecessary in case of function redefinition/advice."
   :type '(repeat symbol)
   :version "30.1")
@@ -510,17 +510,17 @@ comes from `comp-primitive-type-specifiers' or the function type declaration
 itself."
   (let ((kind 'declared)
         type-spec)
-    (when-let ((res (assoc function comp-primitive-type-specifiers)))
+    (when-let* ((res (assoc function comp-primitive-type-specifiers)))
       ;; Declared primitive
       (setf type-spec (cadr res)))
     (let ((f (and (symbolp function)
                   (symbol-function function))))
       (when (and f (null type-spec))
-        (if-let ((delc-type (function-get function 'function-type)))
+        (if-let* ((delc-type (function-get function 'function-type)))
             ;; Declared Lisp function
             (setf type-spec delc-type)
           (when (native-comp-function-p f)
-            ;; Native compiled inferred
+            ;; Natively compiled inferred
             (setf kind 'inferred
                   type-spec (subr-type f))))))
     (when type-spec

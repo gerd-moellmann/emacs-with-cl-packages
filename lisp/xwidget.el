@@ -439,7 +439,7 @@ XWIDGET instance, XWIDGET-EVENT-TYPE depends on the originating xwidget."
     (cond ((eq xwidget-event-type 'load-changed)
            (let ((title (xwidget-webkit-title xwidget))
                  (uri (xwidget-webkit-uri xwidget)))
-             (when-let ((buffer (get-buffer "*Xwidget WebKit History*")))
+             (when-let* ((buffer (get-buffer "*Xwidget WebKit History*")))
                (with-current-buffer buffer
                  (revert-buffer)))
              (with-current-buffer (xwidget-buffer xwidget)
@@ -1090,7 +1090,7 @@ With argument, add COUNT copies of CHAR."
   (let ((i 0))
     (while (< i count)
       (xwidget-webkit-next-result (xwidget-webkit-current-session))
-      (cl-incf i)))
+      (incf i)))
   (xwidget-webkit-isearch--update t))
 
 (defun xwidget-webkit-isearch-backward (count)
@@ -1104,7 +1104,7 @@ With argument, add COUNT copies of CHAR."
   (let ((i 0))
     (while (< i count)
       (xwidget-webkit-previous-result (xwidget-webkit-current-session))
-      (cl-incf i)))
+      (incf i)))
   (xwidget-webkit-isearch--update t))
 
 (defun xwidget-webkit-isearch-exit ()

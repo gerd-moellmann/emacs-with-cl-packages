@@ -130,6 +130,7 @@ otherwise, use a different charset."
                      "abc\n")))
   (let ((standard-output
          (with-current-buffer (get-buffer-create "*terpri-test*")
+           (erase-buffer)
            (insert "--------")
            (point-max-marker))))
     (should     (terpri nil t))
@@ -338,7 +339,7 @@ otherwise, use a different charset."
 (print-tests--deftest print-circle ()
   (let ((x '(#1=(a . #1#) #1#)))
     (let ((print-circle nil))
-      (should (string-match "\\`((a . #[0-9]) (a . #[0-9]))\\'"
+      (should (string-match "\\`((a . #[0-9]+) (a . #[0-9]+))\\'"
                             (print-tests--prin1-to-string x))))
     (let ((print-circle t))
       (should (equal "(#1=(a . #1#) #1#)" (print-tests--prin1-to-string x))))))
@@ -414,8 +415,10 @@ otherwise, use a different charset."
 
 (ert-deftest test-dots ()
   (should (equal (prin1-to-string 'foo.bar) "foo.bar"))
-  (should (equal (prin1-to-string '.foo) "\\.foo"))
-  (should (equal (prin1-to-string '.foo.) "\\.foo."))
+  (should (equal (prin1-to-string '.foo) ".foo"))
+  (should (equal (prin1-to-string '.foo.) ".foo."))
+  (should (equal (prin1-to-string '.$) "\\.$"))
+  (should (equal (prin1-to-string '\.) "\\."))
   (should (equal (prin1-to-string 'bar?bar) "bar?bar"))
   (should (equal (prin1-to-string '\?bar) "\\?bar"))
   (should (equal (prin1-to-string '\?bar?) "\\?bar?")))
@@ -536,6 +539,24 @@ otherwise, use a different charset."
                   (prin1-to-string (make-marker))))))
       (should (eq callback-buffer buffer))
       (should (equal str "tata"))))
+
+(ert-deftest test-print-number-realloc ()
+  ;; Test for bug#78590.  Note that this may in rare cases crash unfixed
+  ;; Emacs versions.
+  (let ((print-circle t)
+        (print-number-table (make-hash-table))
+        (print-continuous-numbering t)
+        (str "yy")
+        (outstr ""))
+    (garbage-collect)
+    (ignore (make-string 100 ?a))
+    (puthash str (make-string 3 ?x) print-number-table)
+    (prin1 str
+           (lambda (c)
+             (setq outstr (concat outstr (string c)))
+             (garbage-collect)
+             (ignore (make-string 100 ?b))))
+    (should (equal outstr "xxx"))))
 
 (provide 'print-tests)
 ;;; print-tests.el ends here

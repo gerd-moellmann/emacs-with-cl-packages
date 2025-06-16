@@ -2375,14 +2375,8 @@ The following commands are available:
   (add-hook 'post-command-hook #'org-agenda-update-agenda-type nil 'local)
   (add-hook 'pre-command-hook #'org-unhighlight nil 'local)
   ;; Make sure properties are removed when copying text
-  (if (boundp 'filter-buffer-substring-functions)
-      (add-hook 'filter-buffer-substring-functions
-		(lambda (fun start end delete)
-                  (substring-no-properties (funcall fun start end delete)))
-		nil t)
-    ;; Emacs >= 24.4.
-    (add-function :filter-return (local 'filter-buffer-substring-function)
-                  #'substring-no-properties))
+  (add-function :filter-return (local 'filter-buffer-substring-function)
+                #'substring-no-properties)
   (unless org-agenda-keep-modes
     (setq org-agenda-follow-mode org-agenda-start-with-follow-mode
 	  org-agenda-entry-text-mode org-agenda-start-with-entry-text-mode
@@ -4609,10 +4603,10 @@ START-DAY is an absolute time value."
 	((eq span 'fortnight) 14)
 	((eq span 'month)
 	 (let ((date (calendar-gregorian-from-absolute start-day)))
-	   (calendar-last-day-of-month (car date) (cl-caddr date))))
+           (calendar-last-day-of-month (car date) (caddr date))))
 	((eq span 'year)
 	 (let ((date (calendar-gregorian-from-absolute start-day)))
-	   (if (calendar-leap-year-p (cl-caddr date)) 366 365)))))
+           (if (calendar-leap-year-p (caddr date)) 366 365)))))
 
 (defun org-agenda-span-name (span)
   "Return a SPAN name."
@@ -8192,7 +8186,7 @@ FLAG specifies the type of completion operation to perform.  This
 function is passed as a collection function to `completing-read',
 which see."
   (let ((completion-ignore-case t)	;tags are case-sensitive
-	(confirm (lambda (x) (stringp x)))
+        (confirm #'stringp)
 	(prefix "")
 	(operator "")
 	table

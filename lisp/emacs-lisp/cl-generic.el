@@ -509,7 +509,7 @@ Presumes point is at the end of the `cl-defmethod' symbol."
     (let ((n 2))
       (while (and (ignore-errors (forward-sexp 1) t)
                   (not (eq (char-before) ?\))))
-        (cl-incf n))
+        (incf n))
       n)))
 
 ;;;###autoload
@@ -644,26 +644,24 @@ The set of acceptable TYPEs (also called \"specializers\") is defined
           ;; FIXME: Try to avoid re-constructing a new function if the old one
           ;; is still valid (e.g. still empty method cache)?
           (gfun (cl--generic-make-function generic)))
-      (unless (symbol-function sym)
-        (defalias sym 'dummy))   ;Record definition into load-history.
       (cl-pushnew `(cl-defmethod . ,(cl--generic-load-hist-format
                                      (cl--generic-name generic)
                                      qualifiers specializers))
                   current-load-list :test #'equal)
       (let ((old-adv-cc (get-advertised-calling-convention
-                         (symbol-function sym)))
-            ;; Prevent `defalias' from recording this as the definition site of
-            ;; the generic function.
-            current-load-list
-            ;; BEWARE!  Don't purify this function definition, since that leads
-            ;; to memory corruption if the hash-tables it holds are modified
-            ;; (the GC doesn't trace those pointers).
-            (purify-flag nil))
+                         (symbol-function sym))))
         (when (listp old-adv-cc)
-          (set-advertised-calling-convention gfun old-adv-cc nil))
-        ;; But do use `defalias', so that it interacts properly with nadvice,
-        ;; e.g. for tracing/debug-on-entry.
-        (defalias sym gfun)))))
+          (set-advertised-calling-convention gfun old-adv-cc nil)))
+      (if (not (symbol-function sym))
+          ;; If this is the first definition, use it as "the definition site of
+          ;; the generic function" since we don't know if a `cl-defgeneric'
+          ;; will follow or not.
+          (defalias sym gfun)
+        ;; Prevent `defalias' from recording this as the definition site of
+        ;; the generic function.  But do use `defalias', so it interacts
+        ;; properly with nadvice, e.g. for ;; tracing/debug-on-entry.
+        (let (current-load-list)
+          (defalias sym gfun))))))
 
 (defvar cl--generic-dispatchers (make-hash-table :test #'equal))
 
@@ -1086,13 +1084,36 @@ MET-NAME is as returned by `cl--generic-load-hist-format'."
       nil t)
      (re-search-forward base-re nil t))))
 
-;; WORKAROUND: This can't be a defconst due to bug#21237.
-(defvar cl--generic-find-defgeneric-regexp "(\\(?:cl-\\)?defgeneric[ \t]+%s\\_>")
+(defun cl--generic-search-method-make-form-matcher (met-name)
+  (let ((name (car met-name))
+        (qualifiers (cadr met-name))
+        (specializers (cddr met-name)))
+    (lambda (form)
+      (pcase form
+        (`(cl-generic-define-method
+           (function ,(pred (eq name)))
+           (quote ,(and (pred listp) m-qualifiers))
+           (quote ,(and (pred listp) m-args))
+           ,_call-con
+           ,_function)
+          (ignore-errors
+            (let* ((m-spec-args (car (cl--generic-split-args m-args)))
+                   (m-specializers
+                    (mapcar (lambda (spec-arg)
+                              (if (eq '&context (car-safe (car spec-arg)))
+                                  spec-arg (cdr spec-arg)))
+                            m-spec-args)))
+              (and (equal qualifiers m-qualifiers)
+                   (equal specializers m-specializers)))))))))
+
+(defconst cl--generic-find-defgeneric-regexp "(\\(?:cl-\\)?defgeneric[ \t]+%s\\_>")
 
 (with-eval-after-load 'find-func
   (defvar find-function-regexp-alist)
   (add-to-list 'find-function-regexp-alist
-               `(cl-defmethod . ,#'cl--generic-search-method))
+               `(cl-defmethod
+                 . (,#'cl--generic-search-method
+                    . ,#'cl--generic-search-method-make-form-matcher)))
   (add-to-list 'find-function-regexp-alist
                '(cl-defgeneric . cl--generic-find-defgeneric-regexp)))
 
@@ -1421,6 +1442,7 @@ Used internally for the (major-mode MODE) context specializers."
    (cl-call-next-method)))
 
 (cl--generic-prefill-dispatchers 0 oclosure)
+(cl--generic-prefill-dispatchers 0 (eql 'x) oclosure integer)
 
 ;;; Support for unloading.
 

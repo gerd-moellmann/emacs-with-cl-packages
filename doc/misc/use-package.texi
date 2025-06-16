@@ -1171,6 +1171,35 @@ Specifying @code{:continue} @emph{forces} setting the
 @end group
 @end lisp
 
+@findex :continue-only@r{, inside} :repeat-map@r{ and} :bind
+@cindex binding commands that only continue repeat series
+Specifying @code{:continue-only} inside the scope of @code{:repeat-map}
+will make commands continue an active repeating sequence, but never
+initiate it.  This is done by setting the @code{repeat-continue}
+property of each command with the keymap, but not the @code{repeat-map}
+property.  This is useful for commands that should be available while
+repeating a sequence, but not initiate the repeat map themselves.
+Example:
+
+@lisp
+@group
+(use-package emacs
+  :bind
+  (:repeat-map
+   paragraph-repeat-map
+   ("@}" . forward-paragraph)
+   ("@{" . backward-paragraph)
+   ("]" . forward-paragraph)
+   ("[" . backward-paragraph)
+   :continue-only
+   ("h" . mark-paragraph)
+   ("w" . kill-region)
+   ("M-w" . kill-ring-save)
+   ("k" . kill-paragraph)
+   ("y" . yank)))
+@end group
+@end lisp
+
 @node Displaying keybindings
 @subsection Displaying personal keybindings
 @cindex display your keybindings
@@ -1452,7 +1481,7 @@ faces.  Example:
 (use-package example
   :custom-face
   (example-1-face ((t (:foreground "LightPink"))))
-  (example-2-face ((t (:foreground "LightGreen"))) face-defspec-spec))
+  (example-2-face ((t (:foreground "LightGreen")))))
 @end group
 
 @group
@@ -1466,6 +1495,11 @@ faces.  Example:
   (load-theme 'zenburn t))
 @end group
 @end lisp
+
+Similarly to @code{:custom} (@pxref{User options}), this allows
+configuring customizable faces outside of Customize (@pxref{Saving
+Customizations,,, emacs, GNU Emacs Manual}).  Using both systems to
+configure the same face can lead to confusing results.
 
 @node Hiding minor modes
 @section Hiding minor modes with diminish and delight

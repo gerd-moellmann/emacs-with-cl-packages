@@ -190,7 +190,6 @@
   "Test for https://debbugs.gnu.org/cgi/bugreport.cgi?bug=27243#28 ."
   (ert-with-temp-directory test-dir
     (let ((dired-auto-revert-buffer t)
-          (dired-free-space nil)
           buffers)
       ;; On MS-Windows, get rid of 8+3 short names in test-dir, if the
       ;; corresponding long file names exist, otherwise such names trip
@@ -216,7 +215,9 @@
             ;; Sanity check: point should now be back on the subdirectory.
             (should (eq (point) pt1))
             (push (dired test-dir) buffers)
-            (should (eq (point) pt1)))
+            (should (equal (dired-file-name-at-point)
+                           (concat (file-name-as-directory test-dir)
+                                   (file-name-as-directory "test-subdir")))))
         (dolist (buf buffers)
           (when (buffer-live-p buf) (kill-buffer buf)))))))
 
@@ -369,7 +370,7 @@
 
 (defmacro dired-test-with-temp-dirs (just-empty-dirs &rest body)
   "Helper macro for Bug#27940 test."
-  (declare (indent 1) (debug body))
+  (declare (indent 1) (debug (body)))
   (let ((dir (make-symbol "dir")))
     `(ert-with-temp-directory ,dir
        (let* ((dired-deletion-confirmer (lambda (_) "yes")) ; Suppress prompts.
@@ -523,6 +524,52 @@
                            testdir nil "[0-9]" t nil 50))))))
       (when (file-directory-p testdir)
         (delete-directory testdir t)))))
+
+(ert-deftest dired-test-hide-absolute-location-enabled ()
+  "Test for https://debbugs.gnu.org/72272 ."
+  (let* ((dired-hide-details-hide-absolute-location t)
+         (dir-name (expand-file-name "lisp" source-directory))
+         (buffer (prog1 (dired (list dir-name "dired.el" "play"))
+                   (dired-insert-subdir (file-name-concat default-directory
+                                                          "play")))))
+    (unwind-protect
+        (progn
+          (goto-char (point-min))
+          (re-search-forward dired-subdir-regexp)
+          (goto-char (match-beginning 1))
+          (should (equal "lisp" (file-name-nondirectory
+                                 (directory-file-name (dired-get-subdir)))))
+          (should (equal 'dired-hide-details-absolute-location
+                         (get-text-property (match-beginning 1) 'invisible)))
+          (re-search-forward dired-subdir-regexp)
+          (goto-char (match-beginning 1))
+          (should (equal "play" (file-name-nondirectory
+                                 (directory-file-name (dired-get-subdir)))))
+          (should (equal 'dired-hide-details-absolute-location
+                         (get-text-property (match-beginning 1) 'invisible))))
+      (kill-buffer buffer))))
+
+(ert-deftest dired-test-hide-absolute-location-disabled ()
+  "Test for https://debbugs.gnu.org/72272 ."
+  (let* ((dired-hide-details-hide-absolute-location nil)
+         (dir-name (expand-file-name "lisp" source-directory))
+         (buffer (prog1 (dired (list dir-name "dired.el" "play"))
+                   (dired-insert-subdir (file-name-concat default-directory
+                                                          "play")))))
+    (unwind-protect
+        (progn
+          (goto-char (point-min))
+          (re-search-forward dired-subdir-regexp)
+          (goto-char (match-beginning 1))
+          (should (equal "lisp" (file-name-nondirectory
+                                 (directory-file-name (dired-get-subdir)))))
+          (should-not (get-text-property (match-beginning 1) 'invisible))
+          (re-search-forward dired-subdir-regexp)
+          (goto-char (match-beginning 1))
+          (should (equal "play" (file-name-nondirectory
+                                 (directory-file-name (dired-get-subdir)))))
+          (should-not (get-text-property (match-beginning 1) 'invisible)))
+      (kill-buffer buffer))))
 
 ;; `dired-insert-directory' output tests.
 (let* ((data-dir "insert-directory")

@@ -444,7 +444,6 @@ be added."
     ;; Let mouse-1 follow the link.
     (define-key map [follow-link] 'mouse-face)
 
-    (define-key map [remap advertised-undo] #'archive-undo)
     (define-key map [remap undo] #'archive-undo)
 
     (define-key map [mouse-2] 'archive-extract)
@@ -793,7 +792,15 @@ archive.
   ;; The funny [] here make it unlikely that the .elc file will be treated
   ;; as an archive by other software.
   (let (case-fold-search)
-    (cond ((looking-at "\\(PK00\\)?[P]K\003\004") 'zip)
+    ;;       See APPNOTE.txt (version 6.3.10) from PKWARE for the zip
+    ;;       file signatures:
+    ;;       - PK\003\004 == 0x04034b50: local file header signature
+    ;;         (section 4.3.7)
+    ;;       - PK\007\010 == 0x08074b50 (followed by local header):
+    ;;         spanned/split archive signature (section 8.5.3)
+    ;;       - PK00 == 0x30304b50 (followed by local header): temporary
+    ;;         spanned/split archive signature (section 8.5.4)
+    (cond ((looking-at "\\(?:PK\007\010\\|PK00\\)?[P]K\003\004") 'zip)
 	  ((looking-at "..-l[hz][0-9ds]-") 'lzh)
 	  ((looking-at "....................[\334]\247\304\375") 'zoo)
 	  ((and (looking-at "\C-z")	; signature too simple, IMHO
@@ -1075,7 +1082,7 @@ return nil.  Otherwise point is returned."
     (while (and (not found)
                 (not (eobp)))
       (forward-line 1)
-      (when-let ((descr (archive-get-descr t)))
+      (when-let* ((descr (archive-get-descr t)))
         (when (equal (archive--file-desc-ext-file-name descr) file)
           (setq found t))))
     (if (not found)
@@ -1097,7 +1104,7 @@ return nil.  Otherwise point is returned."
                          (beginning-of-line)
                          (bobp)))))
       (archive-next-line n)
-      (when-let ((descr (archive-get-descr t)))
+      (when-let* ((descr (archive-get-descr t)))
         (let ((candidate (archive--file-desc-ext-file-name descr))
               (buffer (current-buffer)))
           (when (and candidate
@@ -1692,7 +1699,7 @@ This doesn't recover lost files, it just undoes changes in the buffer itself."
                        (t (+ (string-width uid) (string-width gid) 1)))))
             (if (> len maxidlen) (setq maxidlen len))))
         (let ((size (archive--file-desc-size desc)))
-          (cl-incf totalsize size)
+          (incf totalsize size)
           (if (> size maxsize) (setq maxsize size))))
       (let* ((sizelen (length (number-to-string maxsize)))
              (dash
@@ -2083,6 +2090,25 @@ This doesn't recover lost files, it just undoes changes in the buffer itself."
                           ;; an 8-byte uncompressed size.
                           (archive-l-e (+ p 46 fnlen 4) 8)
                         ucsize))
+             (up-len  (if (and (> exlen 9) ; 0x7075 Tag: 2 bytes,
+                                           ; TSize:      2 bytes,
+                                           ; Version:    1 byte,
+                                           ; CRC32:      4 bytes
+                               ;; UPath extension tag 0x7075 ("up")
+                               (eq (char-after (+ p 46 fnlen)) ?u)
+                               (eq (char-after (+ p 46 fnlen 1)) ?p))
+                          ;; Subtract 1 byte for version and 4 more
+                          ;; bytes for file-name's CRC-32
+                          (- (archive-l-e (+ p 46 fnlen 2) 2) 5)))
+             (upath   (if up-len
+                          ;; FIXME: Should verify UPath is up-to-date by
+                          ;; computing CRC-32 and comparing with the
+                          ;; value stored before UPath
+                          (decode-coding-region (+ p 46 fnlen 9)
+                                                (+ p 46 fnlen 9 up-len)
+                                                'utf-8-unix
+                                                t)))
+             (efnname (or upath efnname))
 	     (isdir   (and (= ucsize 0)
 			   (string= (file-name-nondirectory efnname) "")))
 	     (mode    (cond ((memq creator '(2 3)) ; Unix
@@ -2090,8 +2116,7 @@ This doesn't recover lost files, it just undoes changes in the buffer itself."
 			    ((memq creator '(0 5 6 7 10 11 15)) ; Dos etc.
 			     (logior ?\444
 				     (if isdir (logior 16384 ?\111) 0)
-				     (if (zerop
-					  (logand 1 (get-byte (+ p 38))))
+				     (if (evenp (get-byte (+ p 38)))
 					 ?\222 0)))
 			    (t nil)))
 	     (fiddle  (and archive-zip-case-fiddle

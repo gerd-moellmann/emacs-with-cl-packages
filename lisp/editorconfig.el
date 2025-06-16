@@ -277,22 +277,19 @@ a list of settings in the form (VARIABLE . VALUE)."
   :version "30.1"
   :risky t)
 
-(defcustom editorconfig-trim-whitespaces-mode nil
+(defcustom editorconfig-trim-whitespaces-mode #'delete-trailing-whitespace-mode
   "Buffer local minor-mode to use to trim trailing whitespaces.
 
 If set, enable that mode when `trim_trailing_whitespace` is set to true.
 Otherwise, use `delete-trailing-whitespace'."
   :version "30.1"
-  :type 'symbol)
+  :type 'function)
 
-(defvar editorconfig-properties-hash nil
+(defvar-local editorconfig-properties-hash nil
   "Hash object of EditorConfig properties that was enabled for current buffer.
 Set by `editorconfig-apply' and nil if that is not invoked in
 current buffer yet.")
-(make-variable-buffer-local 'editorconfig-properties-hash)
-(put 'editorconfig-properties-hash
-     'permanent-local
-     t)
+(put 'editorconfig-properties-hash 'permanent-local t)
 
 (defvar editorconfig-lisp-use-default-indent nil
   "Selectively ignore the value of indent_size for Lisp files.
@@ -476,9 +473,7 @@ heuristic for those modes not found there."
 
 (defvar-local editorconfig--apply-coding-system-currently nil
   "Used internally.")
-(put 'editorconfig--apply-coding-system-currently
-     'permanent-local
-     t)
+(put 'editorconfig--apply-coding-system-currently 'permanent-local t)
 
 (defun editorconfig-merge-coding-systems (end-of-line charset)
   "Return merged coding system symbol of END-OF-LINE and CHARSET."
@@ -547,33 +542,17 @@ This function will revert buffer when the coding-system has been changed."
   "Call `delete-trailing-whitespace' unless the buffer is read-only."
   (unless buffer-read-only (delete-trailing-whitespace)))
 
-;; Arrange for our (eval . (add-hook ...)) "local var" to be considered safe.
-(defun editorconfig--add-hook-safe-p (exp)
-  (equal exp '(add-hook 'before-save-hook
-                        #'editorconfig--delete-trailing-whitespace nil t)))
-(let ((predicates (get 'add-hook 'safe-local-eval-function)))
-  (when (functionp predicates)
-    (setq predicates (list predicates)))
-  (unless (memq #'editorconfig--add-hook-safe-p predicates)
-    (put 'add-hook 'safe-local-eval-function #'editorconfig--add-hook-safe-p)))
-
 (defun editorconfig--get-trailing-ws (props)
   "Get vars to trim of trailing whitespace according to PROPS."
-  (pcase (gethash 'trim_trailing_whitespace props)
-    ("true"
-     `((eval
-        . ,(if editorconfig-trim-whitespaces-mode
-               `(,editorconfig-trim-whitespaces-mode 1)
-             '(add-hook 'before-save-hook
-                        #'editorconfig--delete-trailing-whitespace nil t)))))
-    ("false"
-     ;; Just do it right away rather than return a (VAR . VAL), which
-     ;; would be probably more trouble than it's worth.
-     (when editorconfig-trim-whitespaces-mode
-       (funcall editorconfig-trim-whitespaces-mode 0))
-     (remove-hook 'before-save-hook
-                  #'editorconfig--delete-trailing-whitespace t)
-     nil)))
+  (let ((fun (or editorconfig-trim-whitespaces-mode
+                 #'delete-trailing-whitespace-mode)))
+    (pcase (gethash 'trim_trailing_whitespace props)
+      ("true" `((eval . (,fun 1))))
+      ("false"
+       ;; Just do it right away rather than return a (VAR . VAL), which
+       ;; would be probably more trouble than it's worth.
+       (funcall fun 0)
+       nil))))
 
 (defun editorconfig--get-line-length (props)
   "Get the max line length (`fill-column') to PROPS."
@@ -609,7 +588,7 @@ This function also removes `unset' properties and calls
 Every function is called with one argument, a hash-table indexed by
 EditorConfig settings represented as symbols and whose corresponding value
 is represented as a string.  It should return a list of (VAR . VAL) settings
-where VAR is an ELisp variable and VAL is the value to which it should be set.")
+where VAR is a Lisp variable and VAL is the value to which it should be set.")
 
 (defun editorconfig--get-local-variables (props)
   "Get variables settings according to EditorConfig PROPS."
@@ -730,7 +709,8 @@ Meant to be used on `auto-coding-functions'."
 Meant to be used on `hack-dir-local-get-variables-functions'."
   (when (stringp buffer-file-name)
     (let* ((props (editorconfig-call-get-properties-function buffer-file-name))
-           (alist (editorconfig--get-local-variables props)))
+           (alist (if (< 0 (hash-table-count props))
+                      (editorconfig--get-local-variables props))))
       ;; FIXME: If there's `/foo/.editorconfig', `/foo/bar/.dir-locals.el',
       ;; and `/foo/bar/baz/.editorconfig', it would be nice to return two
       ;; pairs here, so that hack-dir-local can give different priorities

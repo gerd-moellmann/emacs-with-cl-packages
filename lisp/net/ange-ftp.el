@@ -1004,7 +1004,7 @@ or nil meaning don't change it."
 
 (defun ange-ftp-hash-entry-exists-p (key tbl)
   "Return whether there is an association for KEY in table TBL."
-  (and tbl (not (eq (gethash key tbl 'unknown) 'unknown))))
+  (and tbl (hash-table-contains-p key tbl)))
 
 (defun ange-ftp-hash-table-keys (tbl)
   "Return a sorted list of all the active keys in table TBL, as strings."
@@ -1460,7 +1460,7 @@ only return the directory part of FILE."
 ;;;; ------------------------------------------------------------
 
 ;; (setq ange-ftp-tmp-keymap (make-sparse-keymap))
-;; (define-key ange-ftp-tmp-keymap "\C-m" 'exit-minibuffer)
+;; (keymap-set ange-ftp-tmp-keymap "C-m" 'exit-minibuffer)
 
 (defun ange-ftp-repaint-minibuffer ()
   "Clear any existing minibuffer message; let the minibuffer contents show."
@@ -4101,8 +4101,8 @@ E.g.,
 ;; Put these lines uncommented in your .emacs if you want C-r to refresh
 ;; ange-ftp's cache whilst doing filename completion.
 ;;
-;;(define-key minibuffer-local-completion-map "\C-r" 'ange-ftp-reread-dir)
-;;(define-key minibuffer-local-must-match-map "\C-r" 'ange-ftp-reread-dir)
+;;(keymap-set minibuffer-local-completion-map "C-r" 'ange-ftp-reread-dir)
+;;(keymap-set minibuffer-local-must-match-map "C-r" 'ange-ftp-reread-dir)
 
 ;;;###autoload
 (define-obsolete-function-alias 'ange-ftp-re-read-dir #'ange-ftp-reread-dir "29.1")

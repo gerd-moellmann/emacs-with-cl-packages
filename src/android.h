@@ -103,7 +103,7 @@ extern ssize_t android_readlinkat (int, const char *restrict, char *restrict,
 extern double android_pixel_density_x, android_pixel_density_y;
 extern double android_scaled_pixel_density;
 
-verify (sizeof (android_handle) == sizeof (jobject));
+static_assert (sizeof (android_handle) == sizeof (jobject));
 #define android_resolve_handle(handle) ((jobject) (handle))
 
 extern unsigned char *android_lock_bitmap (android_drawable,
@@ -244,6 +244,7 @@ extern void android_display_toast (const char *);
 
 /* Event loop functions.  */
 
+extern void android_before_select (void);
 extern void android_check_query (void);
 extern void android_check_query_urgent (void);
 extern int android_run_in_emacs_thread (void (*) (void *), void *);

@@ -175,6 +175,21 @@
     (should (string= (buffer-string) "éä\"ba÷"))
     (should (equal (transpose-test-get-byte-positions 7) '(1 3 5 6 7 8 10)))))
 
+(ert-deftest editfns-tests--transpose-equal-but-not ()
+  (with-temp-buffer
+    (let ((str1 (propertize "ab" 'my-prop 'ab))
+          (str2 (propertize "SPC" 'my-prop 'SPC))
+          (str3 (propertize "é" 'my-prop 'é)))
+      (insert " " str1 str2 str3 " ")
+      (transpose-regions (+ (point-min) 1) (+ (point-min) 3)
+                         (+ (point-min) 6) (+ (point-min) 7))
+      (should (equal-including-properties
+               str3 (buffer-substring (+ (point-min) 1) (+ (point-min) 2))))
+      (should (equal-including-properties
+               str2 (buffer-substring (+ (point-min) 2) (+ (point-min) 5))))
+      (should (equal-including-properties
+               str1 (buffer-substring (+ (point-min) 5) (+ (point-min) 7)))))))
+
 (ert-deftest format-c-float ()
   (should-error (format "%c" 0.5)))
 
@@ -265,23 +280,25 @@
 
 (ert-deftest replace-buffer-contents-1 ()
   (with-temp-buffer
-    (insert #("source" 2 4 (prop 7)))
+    (insert #("source " 2 4 (prop 7)))
     (let ((source (current-buffer)))
       (with-temp-buffer
         (insert "before dest after")
         (let ((marker (set-marker (make-marker) 14)))
           (save-restriction
-            (narrow-to-region 8 12)
-            (replace-buffer-contents source))
+            (narrow-to-region 8 13)
+            (goto-char 12)
+            (should (looking-at " \\'"))
+            (replace-region-contents (point-min) (point-max) source)
+            (should (looking-at " \\'")))
           (should (equal (marker-buffer marker) (current-buffer)))
           (should (equal (marker-position marker) 16)))
         (should (equal-including-properties
                  (buffer-string)
-                 #("before source after" 9 11 (prop 7))))
-        (should (equal (point) 9))))
+                 #("before source after" 9 11 (prop 7))))))
     (should (equal-including-properties
              (buffer-string)
-             #("source" 2 4 (prop 7))))))
+             #("source " 2 4 (prop 7))))))
 
 (ert-deftest replace-buffer-contents-2 ()
   (with-temp-buffer
@@ -289,7 +306,7 @@
     (let ((source (current-buffer)))
       (with-temp-buffer
         (insert "foo BAR baz qux")
-        (replace-buffer-contents source)
+        (replace-region-contents (point-min) (point-max) source)
         (should (equal-including-properties
                  (buffer-string)
                  "foo bar baz qux"))))))
@@ -301,9 +318,58 @@
   (switch-to-buffer "b")
   (insert-char (char-from-name "SMILE"))
   (insert "5678")
-  (replace-buffer-contents "a")
+  (replace-region-contents (point-min) (point-max) (get-buffer "a"))
   (should (equal (buffer-substring-no-properties (point-min) (point-max))
                  (concat (string (char-from-name "SMILE")) "1234"))))
+
+(ert-deftest editfns-tests--replace-region ()
+  ;; :expected-result :failed
+  (with-temp-buffer
+    (let ((tmpbuf (current-buffer)))
+      (insert "  be  ")
+      (narrow-to-region (+ (point-min) 2) (- (point-max) 2))
+      (dolist (args `((,tmpbuf)
+                      (,(vector tmpbuf (point-min) (point-max)))
+                      (,"be")
+                      (,(vector tmpbuf (point-min) (point-max)) 0)
+                      (,"be" 0)))
+        (with-temp-buffer
+          (insert "here is some text")
+          (let ((m5n (copy-marker (+ (point-min) 5)))
+                (m5a (copy-marker (+ (point-min) 5) t))
+                (m6n (copy-marker (+ (point-min) 6)))
+                (m6a (copy-marker (+ (point-min) 6) t))
+                (m7n (copy-marker (+ (point-min) 7)))
+                (m7a (copy-marker (+ (point-min) 7) t)))
+            (apply #'replace-region-contents
+                   (+ (point-min) 5) (+ (point-min) 7) args)
+            (should (equal (buffer-string) "here be some text"))
+            (should (equal (point) (point-max)))
+            ;; Markers before the replaced text stay before.
+            (should (= m5n (+ (point-min) 5)))
+            (should (= m5a (+ (point-min) 5)))
+            ;; Markers in the replaced text can end up at either end, depending
+            ;; on whether they're advance-after-insert or not.
+            (should (= m6n (+ (point-min) 5)))
+            (should (<= (+ (point-min) 5) m6a (+ (point-min) 7)))
+            ;; Markers after the replaced text stay after.
+            (should (= m7n (+ (point-min) 7)))
+            (should (= m7a (+ (point-min) 7)))))
+        (widen)))))
+
+(ert-deftest editfns-tests--insert-via-replace ()
+  (with-temp-buffer
+    (insert "bar")
+    (goto-char (point-min))
+    ;; Check that markers insertion type is respected when an insertion
+    ;; happens via a "replace" operation.
+    (let ((m1 (copy-marker (point) nil))
+          (m2 (copy-marker (point) t)))
+      (looking-at "\\(\\)")
+      (replace-match "foo")
+      (should (equal "foobar" (buffer-string)))
+      (should (= (point-min) m1))
+      (should (= (+ (point-min) 3) m2)))))
 
 (ert-deftest delete-region-undo-markers-1 ()
   "Make sure we don't end up with freed markers reachable from Lisp."
@@ -432,10 +498,10 @@
 (defvar sanity-check-change-functions-op nil)
 (defmacro sanity-check-change-functions-with-op (op &rest body)
   (declare (debug t) (indent 1))
-  `(let ((sanity-check-change-functions-op ,op))
-     (sanity-check--message "%S..." sanity-check-change-functions-op)
+  `(let ((sanity-check-change-functions-op (list ,op)))
+     (sanity-check--message "%S..." ,op)
      ,@body
-     (sanity-check--message "%S...done" sanity-check-change-functions-op)))
+     (sanity-check--message "%S...done" ,op)))
 
 (defun sanity-check--message (&rest args)
   (if sanity-check-change-functions-verbose (apply #'message args)))
@@ -464,6 +530,7 @@
     (setq sanity-check-change-functions-buffer-size (buffer-size)))))
 
 (defun sanity-check-change-functions-before (beg end)
+  (push `(BEFORE ,beg ,end) sanity-check-change-functions-op)
   (sanity-check--message "Before: %S %S" beg end)
   (unless (<= (point-min) beg end (point-max))
     (sanity-check-change-functions-error
@@ -474,6 +541,7 @@
   (setq sanity-check-change-functions-end end))
 
 (defun sanity-check-change-functions-after (beg end len)
+  (push `(AFTER ,beg ,end ,len) sanity-check-change-functions-op)
   (sanity-check--message "After : %S %S (%S)" beg end len)
   (unless (<= (point-min) beg end (point-max))
     (sanity-check-change-functions-error
@@ -499,11 +567,10 @@
 (defun sanity-check-change-functions-errors ()
   (sanity-check-change-functions-check-size)
   (if sanity-check-change-functions-errors
-      (cons sanity-check-change-functions-op
+      (cons (reverse sanity-check-change-functions-op)
             sanity-check-change-functions-errors)))
 
 (ert-deftest editfns-tests--before/after-change-functions ()
-  :expected-result :failed
   (with-temp-buffer
     (add-hook 'before-change-functions
               #'sanity-check-change-functions-before nil t)
@@ -526,6 +593,24 @@
         (decode-coding-region beg (point) 'utf-8)
         (should (null (sanity-check-change-functions-errors)))))
 
+    (let ((beg (point)))                ;bug#78042
+      (apply #'insert (make-list 5000 "hell\351 "))
+      (sanity-check-change-functions-with-op 'DECODE-CODING-LARGE-REGION
+        (decode-coding-region beg (point) 'windows-1252)
+        (should-not (sanity-check-change-functions-errors))))
+
+    (let ((beg (point)))                ;bug#78042
+      (sanity-check-change-functions-with-op 'DECODE-CODING-INSERT
+        ;; The `insert' calls make sure we track the buffer-size
+        ;; so as to detect if `decode-coding-string' fails to run the
+        ;; `*-change-functions'.
+        (insert "<")
+        (decode-coding-string "hell\351 " 'windows-1252 nil (current-buffer))
+        (forward-char 6)
+        (insert ">")
+        (should (equal "<hellé >" (buffer-substring beg (point))))
+        (should-not (sanity-check-change-functions-errors))))
+
     (sanity-check-change-functions-with-op 'ENCODE-CODING-STRING
       (encode-coding-string "ééé" 'utf-8 nil (current-buffer))
       (should (null (sanity-check-change-functions-errors))))
@@ -534,5 +619,15 @@
       (decode-coding-string "\303\251\303\251\303\251"
                             'utf-8 nil (current-buffer))
       (should (null (sanity-check-change-functions-errors))))))
+
+(ert-deftest editfns-tests-styled-print ()
+  "Test bug#75754."
+   (let* ((print-unreadable-function
+          (lambda (&rest _args)
+             (garbage-collect)
+             (make-string 100 ?Ā t)))
+          (str "\"[1] ĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀ\""))
+     (should (string= (format "%S" (format "%S %S" [1] (symbol-function '+)))
+                      str))))
 
 ;;; editfns-tests.el ends here

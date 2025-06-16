@@ -221,6 +221,10 @@ The macro should receive the name to be
 defined as the first argument.  That will help various tools find the
 definition automatically.  Avoid constructing the names in the macro
 itself, since that would confuse these tools.
+If your macro cannot be written in this style, the macro can still
+help these tools find the defining call by putting the property
+@code{definition-name} or @code{find-function-type-alist} on the name.
+@xref{Finding Definitions}.
 
 @item
 In some other systems there is a convention of choosing variable names
@@ -1153,8 +1157,8 @@ the place to write arbitrary keywords that describe their package,
 rather than just the relevant Finder keywords.
 
 @item URL
-@itemx Homepage
-These lines state the website of the library.
+This line states the website of the library.  @samp{Homepage} is a
+deprecated alternative to @samp{URL}.
 
 @item Package-Version
 If @samp{Version} is not suitable for use by the package manager, then

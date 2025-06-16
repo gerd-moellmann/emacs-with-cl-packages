@@ -177,7 +177,7 @@ encryption is used."
 			(nth 3 error)))
 	     (let ((exists (file-exists-p local-file)))
 	       (when exists
-                 (if-let ((wrong-password (epa--wrong-password-p context)))
+                 (if-let* ((wrong-password (epa--wrong-password-p context)))
                      ;; Don't display the *error* buffer if we just
                      ;; have a wrong password; let the later error
                      ;; handler notify the user.
@@ -250,8 +250,8 @@ encryption is used."
         (while (and (< p1 new-start)
                     (< p2 (point-max))
                     (eql (char-after p1) (char-after p2)))
-          (cl-incf p1)
-          (cl-incf p2))
+          (incf p1)
+          (incf p2))
         (delete-region new-start p2)
         (delete-region p1 new-start)))
     ;; Restore point, if possible.

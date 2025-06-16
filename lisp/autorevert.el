@@ -370,6 +370,9 @@ buffer.")
   "Non-nil when file has been modified on the file system.
 This has been reported by a file notification event.")
 
+(defvar-local auto-revert--last-time 0 ;; Epoch.
+  "The last time of buffer was reverted.")
+
 (defvar auto-revert-debug nil
   "Use for debug messages.")
 
@@ -640,10 +643,10 @@ will use an up-to-date value of `auto-revert-interval'."
 
 (defun auto-revert-notify-rm-watch ()
   "Disable file notification for current buffer's associated file."
-  (when-let ((desc
-              ;; Don't disable notifications if this is an indirect buffer.
-              (and (null (buffer-base-buffer))
-                   auto-revert-notify-watch-descriptor)))
+  (when-let* ((desc
+               ;; Don't disable notifications if this is an indirect buffer.
+               (and (null (buffer-base-buffer))
+                    auto-revert-notify-watch-descriptor)))
     (setq auto-revert--buffer-by-watch-descriptor
           (assoc-delete-all desc auto-revert--buffer-by-watch-descriptor))
     (ignore-errors
@@ -749,13 +752,16 @@ system.")
               ;; Mark buffer modified.
               (setq auto-revert-notify-modified-p t)
 
-              ;; Revert the buffer now if we're not locked out.
+              ;; Lock out the buffer.
               (unless auto-revert--lockout-timer
-                (auto-revert-handler)
                 (setq auto-revert--lockout-timer
                       (run-with-timer
                        auto-revert--lockout-interval nil
-                       #'auto-revert--end-lockout buffer))))))))))
+                       #'auto-revert--end-lockout buffer))
+                ;; Revert it when first entry or it was reverted intervals ago.
+                (when (> (float-time (time-since auto-revert--last-time))
+                         auto-revert--lockout-interval)
+                  (auto-revert-handler))))))))))
 
 (defun auto-revert--end-lockout (buffer)
   "End the lockout period after a notification.
@@ -766,11 +772,39 @@ If the buffer needs to be reverted, do it now."
       (when auto-revert-notify-modified-p
         (auto-revert-handler)))))
 
+;;;###autoload
+(progn
+  (defvar inhibit-auto-revert-buffers nil
+    "A list of buffers with suppressed auto-revert.")
+
+  (defmacro inhibit-auto-revert (&rest body)
+    "Deactivate auto-reverting of current buffer temporarily.
+Run BODY."
+    (declare (indent 0) (debug (body)))
+    (let ((buf (make-symbol "buf")))
+      `(progn
+         ;; Cleanup.
+         (dolist (,buf inhibit-auto-revert-buffers)
+           (unless (buffer-live-p ,buf)
+             (setq inhibit-auto-revert-buffers
+                   (delq ,buf inhibit-auto-revert-buffers))))
+         (let ((,buf
+                (and (not (memq (current-buffer) inhibit-auto-revert-buffers))
+                     (current-buffer))))
+           (unwind-protect
+               (progn
+                 (when ,buf (add-to-list 'inhibit-auto-revert-buffers ,buf))
+                 ,@body)
+             (when ,buf
+               (setq inhibit-auto-revert-buffers
+                     (delq ,buf inhibit-auto-revert-buffers)))))))))
+
 (defun auto-revert-active-p ()
   "Check if auto-revert is active in current buffer."
-  (or auto-revert-mode
-      auto-revert-tail-mode
-      auto-revert--global-mode))
+  (and (or auto-revert-mode
+           auto-revert-tail-mode
+           auto-revert--global-mode)
+       (not (memq (current-buffer) inhibit-auto-revert-buffers))))
 
 (defun auto-revert-handler ()
   "Revert current buffer, if appropriate.
@@ -786,6 +820,7 @@ This is an internal function used by Auto-Revert Mode."
                        (not (file-remote-p buffer-file-name)))
                    (or (not auto-revert-notify-watch-descriptor)
                        auto-revert-notify-modified-p)
+                   (not (memq (current-buffer) inhibit-auto-revert-buffers))
                    (if auto-revert-tail-mode
                        (and (file-readable-p buffer-file-name)
                             (/= auto-revert-tail-pos
@@ -797,11 +832,13 @@ This is an internal function used by Auto-Revert Mode."
                               t)))
             (and (or auto-revert-mode
                      global-auto-revert-non-file-buffers)
+                 (not (memq (current-buffer) inhibit-auto-revert-buffers))
                  (funcall (or buffer-stale-function
                               #'buffer-stale--default-function)
                           t))))
          eob eoblist)
-    (setq auto-revert-notify-modified-p nil)
+    (setq auto-revert-notify-modified-p nil
+          auto-revert--last-time (current-time))
     (when revert
       (when (and auto-revert-verbose
                  (not (eq revert 'fast)))
@@ -833,7 +870,7 @@ This is an internal function used by Auto-Revert Mode."
           (set-window-point window (point-max)))))
     ;; `preserve-modes' avoids changing the (minor) modes.  But we do
     ;; want to reset the mode for VC, so we do it manually.
-    (when (or revert auto-revert-check-vc-info)
+    (when (and (not auto-revert-tail-mode) (or revert auto-revert-check-vc-info))
       (let ((revert-buffer-in-progress-p t))
         (vc-refresh-state)))))
 

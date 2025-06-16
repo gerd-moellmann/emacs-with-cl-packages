@@ -76,7 +76,7 @@ struct.")
   "Remove DESCRIPTOR from `file-notify-descriptors'.
 DESCRIPTOR should be an object returned by `file-notify-add-watch'.
 If it is registered in `file-notify-descriptors', a `stopped' event is sent."
-  (when-let ((watch (gethash descriptor file-notify-descriptors)))
+  (when-let* ((watch (gethash descriptor file-notify-descriptors)))
     (unwind-protect
         ;; Send `stopped' event.
         (file-notify-handle-event
@@ -233,16 +233,18 @@ It is nil or a `file-notify--rename' defstruct where the cookie can be nil.")
          (and (stringp file1)
               (string-equal (file-notify--watch-filename watch)
                             (file-name-nondirectory file1))))
-    (when file-notify-debug
-      (message
-       "file-notify-callback %S %S %S %S %S %S %S"
-       desc action file file1 watch
-       (file-notify--watch-absolute-filename watch)
-       (file-notify--watch-directory watch)))
-    (funcall (file-notify--watch-callback watch)
-             (if file1
-                 (list desc action file file1)
-               (list desc action file)))))
+    ;; The callback could have removed in `file-notify--rm-descriptor'.
+    (when (file-notify--watch-callback watch)
+      (when file-notify-debug
+        (message
+         "file-notify-callback %S %S %S %S %S %S %S"
+         desc action file file1 watch
+         (file-notify--watch-absolute-filename watch)
+         (file-notify--watch-directory watch)))
+      (funcall (file-notify--watch-callback watch)
+               (if file1
+                   (list desc action file file1)
+                 (list desc action file))))))
 
 (defun file-notify--handle-event (desc actions file file1-or-cookie)
   "Handle an event returned from file notification.

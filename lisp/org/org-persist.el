@@ -594,7 +594,7 @@ MISC, if non-nil will be appended to the collection.  It must be a plist."
   (unless (and (listp container) (listp (car container)))
     (setq container (list container)))
   (setq associated (org-persist--normalize-associated associated))
-  (when (and misc (or (not (listp misc)) (= 1 (% (length misc) 2))))
+  (when (and misc (or (not (listp misc)) (cl-oddp (length misc))))
     (error "org-persist: Not a plist: %S" misc))
   (or (org-persist--find-index
        `( :container ,(org-persist--normalize-container container)
@@ -810,8 +810,8 @@ COLLECTION is the plist holding data collection."
   (let ((scope (nth 2 container)))
     (pcase scope
       ((pred stringp)
-       (when-let ((buf (or (get-buffer scope)
-                           (get-file-buffer scope))))
+       (when-let* ((buf (or (get-buffer scope)
+                            (get-file-buffer scope))))
          ;; FIXME: There is `buffer-local-boundp' introduced in Emacs 28.
          ;; Not using it yet to keep backward compatibility.
          (condition-case nil
@@ -821,8 +821,8 @@ COLLECTION is the plist holding data collection."
        (when (boundp (cadr container))
          (symbol-value (cadr container))))
       (`nil
-       (if-let ((buf (and (plist-get (plist-get collection :associated) :file)
-                          (get-file-buffer (plist-get (plist-get collection :associated) :file)))))
+       (if-let* ((buf (and (plist-get (plist-get collection :associated) :file)
+                           (get-file-buffer (plist-get (plist-get collection :associated) :file)))))
            ;; FIXME: There is `buffer-local-boundp' introduced in Emacs 28.
            ;; Not using it yet to keep backward compatibility.
            (condition-case nil

@@ -18,8 +18,6 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
-/* This should be the first include, as it may set up #defines affecting
-   interpretation of even the system includes. */
 #include <config.h>
 
 #include <math.h>
@@ -71,7 +69,7 @@ pgtk_get_monitor_scale_factor (const char *model)
   else if (FLOATP (cdr))
     return XFLOAT_DATA (cdr);
   else
-    error ("unknown type of scale-factor");
+    error ("Unknown type of scale-factor");
 }
 
 struct pgtk_display_info *
@@ -826,7 +824,7 @@ pgtk_set_scroll_bar_foreground (struct frame *f, Lisp_Object new_value,
       Emacs_Color rgb;
 
       if (!pgtk_parse_color (f, SSDATA (new_value), &rgb))
-	error ("Unknown color.");
+	error ("Unknown color");
 
       char css[64];
       sprintf (css, "scrollbar slider { background-color: #%06x; }",
@@ -836,7 +834,7 @@ pgtk_set_scroll_bar_foreground (struct frame *f, Lisp_Object new_value,
 
     }
   else
-    error ("Invalid scroll-bar-foreground.");
+    error ("Invalid scroll-bar-foreground");
 }
 
 static void
@@ -856,7 +854,7 @@ pgtk_set_scroll_bar_background (struct frame *f, Lisp_Object new_value,
       Emacs_Color rgb;
 
       if (!pgtk_parse_color (f, SSDATA (new_value), &rgb))
-	error ("Unknown color.");
+	error ("Unknown color");
 
       /* On pgtk, this frame parameter should be ignored, and honor
 	 gtk theme.  (It honors the GTK theme if not explicitly set, so
@@ -869,7 +867,7 @@ pgtk_set_scroll_bar_background (struct frame *f, Lisp_Object new_value,
 
     }
   else
-    error ("Invalid scroll-bar-background.");
+    error ("Invalid scroll-bar-background");
 }
 
 
@@ -879,15 +877,7 @@ pgtk_set_scroll_bar_background (struct frame *f, Lisp_Object new_value,
 
 
 DEFUN ("x-export-frames", Fx_export_frames, Sx_export_frames, 0, 2, 0,
-       doc: /* Return image data of FRAMES in TYPE format.
-FRAMES should be nil (the selected frame), a frame, or a list of
-frames (each of which corresponds to one page).  Each frame should be
-visible.  Optional arg TYPE should be either `pdf' (default), `png',
-`postscript', or `svg'.  Supported types are determined by the
-compile-time configuration of cairo.
-
-Note: Text drawn with the `x' font backend is shown with hollow boxes
-unless TYPE is `png'.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
      (Lisp_Object frames, Lisp_Object type)
 {
   Lisp_Object rest, tmp;
@@ -904,7 +894,7 @@ unless TYPE is `png'.  */)
 
       XSETFRAME (frame, f);
       if (!FRAME_VISIBLE_P (f))
-	error ("Frames to be exported must be visible.");
+	error ("Frames to be exported must be visible");
       tmp = Fcons (frame, tmp);
     }
   frames = Fnreverse (tmp);
@@ -918,7 +908,7 @@ unless TYPE is `png'.  */)
   if (EQ (type, Qpng))
     {
       if (!NILP (XCDR (frames)))
-	error ("PNG export cannot handle multiple frames.");
+	error ("PNG export cannot handle multiple frames");
       surface_type = CAIRO_SURFACE_TYPE_IMAGE;
     }
   else
@@ -933,7 +923,7 @@ unless TYPE is `png'.  */)
     {
       /* For now, we stick to SVG 1.1.  */
       if (!NILP (XCDR (frames)))
-	error ("SVG export cannot handle multiple frames.");
+	error ("SVG export cannot handle multiple frames");
       surface_type = CAIRO_SURFACE_TYPE_SVG;
     }
   else
@@ -1153,15 +1143,15 @@ scale factor.  */)
       if (FIXNUMP (scale_factor))
 	{
 	  if (XFIXNUM (scale_factor) <= 0)
-	    error ("scale factor must be > 0.");
+	    error ("Scale factor must be > 0");
 	}
       else if (FLOATP (scale_factor))
 	{
 	  if (XFLOAT_DATA (scale_factor) <= 0.0)
-	    error ("scale factor must be > 0.");
+	    error ("Scale factor must be > 0");
 	}
       else
-	error ("unknown type of scale-factor");
+	error ("Unknown type of scale-factor");
     }
 
   Lisp_Object tem = Fassoc (monitor_model, monitor_scale_factor_alist, Qnil);
@@ -1178,14 +1168,7 @@ scale factor.  */)
 }
 
 DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame, 1, 1, 0,
-       doc: /* Make a new X window, which is called a "frame" in Emacs terms.
-Return an Emacs frame object.  PARMS is an alist of frame parameters.
-If the parameters specify that the frame should not have a minibuffer,
-and do not specify a specific minibuffer window to use, then
-`default-minibuffer-frame' must be a frame whose minibuffer can be
-shared by the new frame.
-
-This function is an internal primitive--use `make-frame' instead.  */ )
+       doc: /* SKIP: real doc in xfns.c.  */ )
   (Lisp_Object parms)
 {
   struct frame *f;
@@ -1781,6 +1764,8 @@ Some window managers may refuse to restack windows.  */)
 #define SCHEMA_ID "org.gnu.emacs.defaults"
 #define PATH_FOR_CLASS_TYPE "/org/gnu/emacs/defaults-by-class/"
 #define PATH_PREFIX_FOR_NAME_TYPE "/org/gnu/emacs/defaults-by-name/"
+#define PATH_MAX_LEN \
+  (max (sizeof PATH_FOR_CLASS_TYPE, sizeof PATH_PREFIX_FOR_NAME_TYPE))
 
 static inline int
 pgtk_is_lower_char (int c)
@@ -1803,7 +1788,7 @@ pgtk_is_numeric_char (int c)
 static GSettings *
 parse_resource_key (const char *res_key, char *setting_key)
 {
-  char path[33 + RESOURCE_KEY_MAX_LEN];
+  char path[PATH_MAX_LEN + RESOURCE_KEY_MAX_LEN];
   const char *sp = res_key;
   char *dp;
 
@@ -1822,7 +1807,7 @@ parse_resource_key (const char *res_key, char *setting_key)
   /* generate path */
   if (pgtk_is_upper_char (*sp))
     {
-      /* First letter is upper case. It should be "Emacs",
+      /* First letter is upper case.  It should be "Emacs",
        * but don't care.
        */
       strcpy (path, PATH_FOR_CLASS_TYPE);
@@ -1901,19 +1886,23 @@ parse_resource_key (const char *res_key, char *setting_key)
   return gs;
 }
 
+static void
+pgtk_check_resource_key_length (const char *key)
+{
+  if (strnlen (key, RESOURCE_KEY_MAX_LEN) >= RESOURCE_KEY_MAX_LEN)
+    error ("Resource key too long");
+}
+
 const char *
 pgtk_get_defaults_value (const char *key)
 {
   char skey[(RESOURCE_KEY_MAX_LEN + 1) * 2];
 
-  if (strlen (key) >= RESOURCE_KEY_MAX_LEN)
-    error ("resource key too long.");
+  pgtk_check_resource_key_length (key);
 
   GSettings *gs = parse_resource_key (key, skey);
   if (gs == NULL)
-    {
-      return NULL;
-    }
+    return NULL;
 
   gchar *str = g_settings_get_string (gs, skey);
 
@@ -1936,21 +1925,16 @@ pgtk_set_defaults_value (const char *key, const char *value)
 {
   char skey[(RESOURCE_KEY_MAX_LEN + 1) * 2];
 
-  if (strlen (key) >= RESOURCE_KEY_MAX_LEN)
-    error ("resource key too long.");
+  pgtk_check_resource_key_length (key);
 
   GSettings *gs = parse_resource_key (key, skey);
   if (gs == NULL)
-    error ("unknown resource key.");
+    error ("Unknown resource key");
 
   if (value != NULL)
-    {
-      g_settings_set_string (gs, skey, value);
-    }
+    g_settings_set_string (gs, skey, value);
   else
-    {
-      g_settings_reset (gs, skey);
-    }
+    g_settings_reset (gs, skey);
 
   g_object_unref (gs);
 }
@@ -1959,6 +1943,7 @@ pgtk_set_defaults_value (const char *key, const char *value)
 #undef SCHEMA_ID
 #undef PATH_FOR_CLASS_TYPE
 #undef PATH_PREFIX_FOR_NAME_TYPE
+#undef PATH_MAX_LEN
 
 #else /* not HAVE_GSETTINGS */
 
@@ -1971,7 +1956,7 @@ pgtk_get_defaults_value (const char *key)
 static void
 pgtk_set_defaults_value (const char *key, const char *value)
 {
-  error ("gsettings not supported.");
+  error ("gsettings not supported");
 }
 
 #endif
@@ -2001,7 +1986,7 @@ DEFUN ("pgtk-set-resource", Fpgtk_set_resource, Spgtk_set_resource, 2, 2, 0,
 
 
 DEFUN ("x-server-max-request-size", Fx_server_max_request_size, Sx_server_max_request_size, 0, 1, 0,
-       doc: /* This function is a no-op.  It is only present for completeness.  */ )
+       doc: /* SKIP: real doc in xfns.c.  */ )
   (Lisp_Object terminal)
 {
   check_pgtk_display_info (terminal);
@@ -2012,13 +1997,7 @@ DEFUN ("x-server-max-request-size", Fx_server_max_request_size, Sx_server_max_re
 
 
 DEFUN ("x-display-screens", Fx_display_screens, Sx_display_screens, 0, 1, 0,
-       doc: /* Return the number of screens on the display server TERMINAL.
-The optional argument TERMINAL specifies which display to ask about.
-TERMINAL should be a terminal object, a frame or a display name (a string).
-If omitted or nil, that stands for the selected frame's display.
-
-Note: "screen" here is not in X11's.  For the number of physical monitors,
-use `(length \(display-monitor-attributes-list TERMINAL))' instead.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object terminal)
 {
   check_pgtk_display_info (terminal);
@@ -2027,14 +2006,7 @@ use `(length \(display-monitor-attributes-list TERMINAL))' instead.  */)
 
 
 DEFUN ("x-display-mm-height", Fx_display_mm_height, Sx_display_mm_height, 0, 1, 0,
-       doc: /* Return the height in millimeters of the display TERMINAL.
-The optional argument TERMINAL specifies which display to ask about.
-TERMINAL should be a terminal object, a frame or a display name (a string).
-If omitted or nil, that stands for the selected frame's display.
-
-On \"multi-monitor\" setups this refers to the height in millimeters for
-all physical monitors associated with TERMINAL.  To get information
-for each physical monitor, use `display-monitor-attributes-list'.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object terminal)
 {
   struct pgtk_display_info *dpyinfo = check_pgtk_display_info (terminal);
@@ -2068,14 +2040,7 @@ for each physical monitor, use `display-monitor-attributes-list'.  */)
 
 
 DEFUN ("x-display-mm-width", Fx_display_mm_width, Sx_display_mm_width, 0, 1, 0,
-       doc: /* Return the width in millimeters of the display TERMINAL.
-The optional argument TERMINAL specifies which display to ask about.
-TERMINAL should be a terminal object, a frame or a display name (a string).
-If omitted or nil, that stands for the selected frame's display.
-
-On \"multi-monitor\" setups this refers to the width in millimeters for
-all physical monitors associated with TERMINAL.  To get information
-for each physical monitor, use `display-monitor-attributes-list'.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object terminal)
 {
   struct pgtk_display_info *dpyinfo = check_pgtk_display_info (terminal);
@@ -2109,11 +2074,7 @@ for each physical monitor, use `display-monitor-attributes-list'.  */)
 
 
 DEFUN ("x-display-backing-store", Fx_display_backing_store, Sx_display_backing_store, 0, 1, 0,
-       doc: /* Return an indication of whether the display TERMINAL does backing store.
-The value may be `buffered', `retained', or `non-retained'.
-The optional argument TERMINAL specifies which display to ask about.
-TERMINAL should be a terminal object, a frame or a display name (a string).
-If omitted or nil, that stands for the selected frame's display.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object terminal)
 {
   check_pgtk_display_info (terminal);
@@ -2122,15 +2083,7 @@ If omitted or nil, that stands for the selected frame's display.  */)
 
 
 DEFUN ("x-display-visual-class", Fx_display_visual_class, Sx_display_visual_class, 0, 1, 0,
-       doc: /* Return the visual class of the display TERMINAL.
-The value is one of the symbols `static-gray', `gray-scale',
-`static-color', `pseudo-color', `true-color', or `direct-color'.
-
-The optional argument TERMINAL specifies which display to ask about.
-TERMINAL should a terminal object, a frame or a display name (a string).
-If omitted or nil, that stands for the selected frame's display.
-
-On PGTK, always return true-color.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object terminal)
 {
   return Qtrue_color;
@@ -2138,10 +2091,7 @@ On PGTK, always return true-color.  */)
 
 
 DEFUN ("x-display-save-under", Fx_display_save_under, Sx_display_save_under, 0, 1, 0,
-       doc: /* Return t if TERMINAL supports the save-under feature.
-The optional argument TERMINAL specifies which display to ask about.
-TERMINAL should be a terminal object, a frame or a display name (a string).
-If omitted or nil, that stands for the selected frame's display.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object terminal)
 {
   check_pgtk_display_info (terminal);
@@ -2150,11 +2100,7 @@ If omitted or nil, that stands for the selected frame's display.  */)
 
 
 DEFUN ("x-open-connection", Fx_open_connection, Sx_open_connection, 1, 3, 0,
-       doc: /* Open a connection to a display server.
-DISPLAY is the name of the display to connect to.
-Optional second arg XRM-STRING is a string of resources in xrdb format.
-If the optional third arg MUST-SUCCEED is non-nil,
-terminate Emacs if we can't open the connection.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object display, Lisp_Object resource_string, Lisp_Object must_succeed)
 {
   struct pgtk_display_info *dpyinfo;
@@ -2178,10 +2124,7 @@ terminate Emacs if we can't open the connection.  */)
 
 
 DEFUN ("x-close-connection", Fx_close_connection, Sx_close_connection, 1, 1, 0,
-       doc: /* Close the connection to TERMINAL's display server.
-For TERMINAL, specify a terminal object, a frame or a display name (a
-string).  If TERMINAL is nil, that stands for the selected frame's
-terminal.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object terminal)
 {
   struct pgtk_display_info *dpyinfo = check_pgtk_display_info (terminal);
@@ -2196,7 +2139,7 @@ terminal.  */)
 
 
 DEFUN ("x-display-list", Fx_display_list, Sx_display_list, 0, 0, 0,
-       doc: /* Return the list of display names that Emacs has connections to.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (void)
 {
   Lisp_Object result = Qnil;
@@ -2304,7 +2247,7 @@ pgtk_get_focus_frame (struct frame *frame)
 }
 
 DEFUN ("xw-color-defined-p", Fxw_color_defined_p, Sxw_color_defined_p, 1, 2, 0,
-       doc: /* Internal function called by `color-defined-p', which see.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object color, Lisp_Object frame)
 {
   Emacs_Color col;
@@ -2320,7 +2263,7 @@ DEFUN ("xw-color-defined-p", Fxw_color_defined_p, Sxw_color_defined_p, 1, 2, 0,
 
 
 DEFUN ("xw-color-values", Fxw_color_values, Sxw_color_values, 1, 2, 0,
-       doc: /* Internal function called by `color-values', which see.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object color, Lisp_Object frame)
 {
   Emacs_Color col;
@@ -2335,7 +2278,7 @@ DEFUN ("xw-color-values", Fxw_color_values, Sxw_color_values, 1, 2, 0,
 }
 
 DEFUN ("xw-display-color-p", Fxw_display_color_p, Sxw_display_color_p, 0, 1, 0,
-       doc: /* Internal function called by `display-color-p', which see.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object terminal)
 {
   check_pgtk_display_info (terminal);
@@ -2343,25 +2286,14 @@ DEFUN ("xw-display-color-p", Fxw_display_color_p, Sxw_display_color_p, 0, 1, 0,
 }
 
 DEFUN ("x-display-grayscale-p", Fx_display_grayscale_p, Sx_display_grayscale_p, 0, 1, 0,
-       doc: /* Return t if the display supports shades of gray.
-Note that color displays do support shades of gray.
-The optional argument TERMINAL specifies which display to ask about.
-TERMINAL should be a terminal object, a frame or a display name (a string).
-If omitted or nil, that stands for the selected frame's display.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object terminal)
 {
-  return Qnil;
+  return Qt;
 }
 
 DEFUN ("x-display-pixel-width", Fx_display_pixel_width, Sx_display_pixel_width, 0, 1, 0,
-       doc: /* Return the width in pixels of the display TERMINAL.
-The optional argument TERMINAL specifies which display to ask about.
-TERMINAL should be a terminal object, a frame or a display name (a string).
-If omitted or nil, that stands for the selected frame's display.
-
-On \"multi-monitor\" setups this refers to the pixel width for all
-physical monitors associated with TERMINAL.  To get information for
-each physical monitor, use `display-monitor-attributes-list'.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object terminal)
 {
   struct pgtk_display_info *dpyinfo = check_pgtk_display_info (terminal);
@@ -2399,14 +2331,7 @@ each physical monitor, use `display-monitor-attributes-list'.  */)
 }
 
 DEFUN ("x-display-pixel-height", Fx_display_pixel_height, Sx_display_pixel_height, 0, 1, 0,
-       doc: /* Return the height in pixels of the display TERMINAL.
-The optional argument TERMINAL specifies which display to ask about.
-TERMINAL should be a terminal object, a frame or a display name (a string).
-If omitted or nil, that stands for the selected frame's display.
-
-On \"multi-monitor\" setups this refers to the pixel height for all
-physical monitors associated with TERMINAL.  To get information for
-each physical monitor, use `display-monitor-attributes-list'.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object terminal)
 {
   struct pgtk_display_info *dpyinfo = check_pgtk_display_info (terminal);
@@ -2572,10 +2497,7 @@ pgtk_frame_scale_factor (struct frame *f)
 }
 
 DEFUN ("x-display-planes", Fx_display_planes, Sx_display_planes, 0, 1, 0,
-       doc: /* Return the number of bitplanes of the display TERMINAL.
-The optional argument TERMINAL specifies which display to ask about.
-TERMINAL should be a terminal object, a frame or a display name (a string).
-If omitted or nil, that stands for the selected frame's display.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object terminal)
 {
   check_pgtk_display_info (terminal);
@@ -2584,10 +2506,7 @@ If omitted or nil, that stands for the selected frame's display.  */)
 
 
 DEFUN ("x-display-color-cells", Fx_display_color_cells, Sx_display_color_cells, 0, 1, 0,
-       doc: /* Returns the number of color cells of the display TERMINAL.
-The optional argument TERMINAL specifies which display to ask about.
-TERMINAL should be a terminal object, a frame or a display name (a string).
-If omitted or nil, that stands for the selected frame's display.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object terminal)
 {
   struct pgtk_display_info *dpyinfo = check_pgtk_display_info (terminal);
@@ -2644,7 +2563,7 @@ unwind_create_tip_frame (Lisp_Object frame)
    when this happens.  */
 
 static Lisp_Object
-x_create_tip_frame (struct pgtk_display_info *dpyinfo, Lisp_Object parms, struct frame *p)
+pgtk_create_tip_frame (struct pgtk_display_info *dpyinfo, Lisp_Object parms, struct frame *p)
 {
   struct frame *f;
   Lisp_Object frame;
@@ -2846,7 +2765,7 @@ x_create_tip_frame (struct pgtk_display_info *dpyinfo, Lisp_Object parms, struct
   {
     Lisp_Object bg = Fframe_parameter (frame, Qbackground_color);
 
-    call2 (Qface_set_after_frame_default, frame, Qnil);
+    calln (Qface_set_after_frame_default, frame, Qnil);
 
     if (!EQ (bg, Fframe_parameter (frame, Qbackground_color)))
       {
@@ -2903,8 +2822,8 @@ compute_tip_xy (struct frame *f, Lisp_Object parms, Lisp_Object dx,
 
   /* Move the tooltip window where the mouse pointer is.  Resize and
      show it.  */
-  if ((!INTEGERP (left) && !INTEGERP (right))
-      || (!INTEGERP (top) && !INTEGERP (bottom)))
+  if ((!FIXNUMP (left) && !FIXNUMP (right))
+      || (!FIXNUMP (top) && !FIXNUMP (bottom)))
     {
       Lisp_Object frame, attributes, monitor, geometry;
       GdkSeat *seat =
@@ -2953,9 +2872,9 @@ compute_tip_xy (struct frame *f, Lisp_Object parms, Lisp_Object dx,
       max_y = pgtk_display_pixel_height (FRAME_DISPLAY_INFO (f));
     }
 
-  if (INTEGERP (top))
+  if (FIXNUMP (top))
     *root_y = XFIXNUM (top);
-  else if (INTEGERP (bottom))
+  else if (FIXNUMP (bottom))
     *root_y = XFIXNUM (bottom) - height;
   else if (*root_y + XFIXNUM (dy) <= min_y)
     *root_y = min_y;		/* Can happen for negative dy */
@@ -2969,9 +2888,9 @@ compute_tip_xy (struct frame *f, Lisp_Object parms, Lisp_Object dx,
     /* Put it on the top.  */
     *root_y = min_y;
 
-  if (INTEGERP (left))
+  if (FIXNUMP (left))
     *root_x = XFIXNUM (left);
-  else if (INTEGERP (right))
+  else if (FIXNUMP (right))
     *root_x = XFIXNUM (right) - width;
   else if (*root_x + XFIXNUM (dx) <= min_x)
     *root_x = 0;		/* Can happen for negative dx */
@@ -2993,7 +2912,7 @@ pgtk_hide_tip (bool delete)
 {
   if (!NILP (tip_timer))
     {
-      call1 (Qcancel_timer, tip_timer);
+      calln (Qcancel_timer, tip_timer);
       tip_timer = Qnil;
     }
 
@@ -3069,36 +2988,7 @@ pgtk_hide_tip (bool delete)
 }
 
 DEFUN ("x-show-tip", Fx_show_tip, Sx_show_tip, 1, 6, 0,
-       doc: /* Show STRING in a "tooltip" window on frame FRAME.
-A tooltip window is a small X window displaying a string.
-
-This is an internal function; Lisp code should call `tooltip-show'.
-
-FRAME nil or omitted means use the selected frame.
-
-PARMS is an optional list of frame parameters which can be used to
-change the tooltip's appearance.
-
-Automatically hide the tooltip after TIMEOUT seconds.  TIMEOUT nil
-means use the default timeout from the `x-show-tooltip-timeout'
-variable.
-
-If the list of frame parameters PARMS contains a `left' parameter,
-display the tooltip at that x-position.  If the list of frame parameters
-PARMS contains no `left' but a `right' parameter, display the tooltip
-right-adjusted at that x-position. Otherwise display it at the
-x-position of the mouse, with offset DX added (default is 5 if DX isn't
-specified).
-
-Likewise for the y-position: If a `top' frame parameter is specified, it
-determines the position of the upper edge of the tooltip window.  If a
-`bottom' parameter but no `top' frame parameter is specified, it
-determines the position of the lower edge of the tooltip window.
-Otherwise display the tooltip window at the y-position of the mouse,
-with offset DY added (default is -10).
-
-A tooltip's maximum size is specified by `x-max-tooltip-size'.
-Text larger than the specified size is clipped.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object string, Lisp_Object frame, Lisp_Object parms,
    Lisp_Object timeout, Lisp_Object dx, Lisp_Object dy)
 {
@@ -3172,7 +3062,7 @@ Text larger than the specified size is clipped.  */)
 	  tip_f = XFRAME (tip_frame);
 	  if (!NILP (tip_timer))
 	    {
-	      call1 (Qcancel_timer, tip_timer);
+	      calln (Qcancel_timer, tip_timer);
 	      tip_timer = Qnil;
 	    }
 
@@ -3210,11 +3100,11 @@ Text larger than the specified size is clipped.  */)
 		    }
 		  else
 		    tip_last_parms =
-		      call2 (Qassq_delete_all, parm, tip_last_parms);
+		      calln (Qassq_delete_all, parm, tip_last_parms);
 		}
 	      else
 		tip_last_parms =
-		  call2 (Qassq_delete_all, parm, tip_last_parms);
+		  calln (Qassq_delete_all, parm, tip_last_parms);
 	    }
 
 	  /* Now check if every parameter in what is left of
@@ -3262,10 +3152,13 @@ Text larger than the specified size is clipped.  */)
 
       /* Create a frame for the tooltip, and record it in the global
 	 variable tip_frame.  */
-      if (NILP (tip_frame = x_create_tip_frame (FRAME_DISPLAY_INFO (f), parms, f)))
+      if (NILP ((tip_frame = pgtk_create_tip_frame (FRAME_DISPLAY_INFO (f),
+						    parms, f))))
 	/* Creating the tip frame failed.  */
 	return unbind_to (count, Qnil);
     }
+  else
+    tip_window = FRAME_X_WINDOW (XFRAME (tip_frame));
 
   tip_f = XFRAME (tip_frame);
   window = FRAME_ROOT_WINDOW (tip_f);
@@ -3373,15 +3266,14 @@ Text larger than the specified size is clipped.  */)
 
  start_timer:
   /* Let the tip disappear after timeout seconds.  */
-  tip_timer = call3 (Qrun_at_time, timeout, Qnil, Qx_hide_tip);
+  tip_timer = calln (Qrun_at_time, timeout, Qnil, Qx_hide_tip);
 
   return unbind_to (count, Qnil);
 }
 
 
 DEFUN ("x-hide-tip", Fx_hide_tip, Sx_hide_tip, 0, 0, 0,
-       doc: /* Hide the current tooltip window, if there is any.
-Value is t if tooltip was open, nil otherwise.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (void)
 {
   return pgtk_hide_tip (!tooltip_reuse_hidden_frame);
@@ -3659,16 +3551,13 @@ visible.  */)
 
       XSETFRAME (frame, f);
       if (!FRAME_VISIBLE_P (f))
-	error ("Frames to be printed must be visible.");
+	error ("Frames to be printed must be visible");
       tmp = Fcons (frame, tmp);
     }
   frames = Fnreverse (tmp);
 
   /* Make sure the current matrices are up-to-date.  */
-  specpdl_ref count = SPECPDL_INDEX ();
-  specbind (Qredisplay_dont_pause, Qt);
   redisplay_preserve_echo_area (32);
-  unbind_to (count, Qnil);
 
   block_input ();
   xg_print_frames_dialog (frames);
@@ -3684,18 +3573,7 @@ clean_up_dialog (void)
 }
 
 DEFUN ("x-file-dialog", Fx_file_dialog, Sx_file_dialog, 2, 5, 0,
-       doc: /* Read file name, prompting with PROMPT in directory DIR.
-Use a file selection dialog.  Select DEFAULT-FILENAME in the dialog's file
-selection box, if specified.  If MUSTMATCH is non-nil, the returned file
-or directory must exist.
-
-This function is defined only on PGTK, NS, MS Windows, and X Windows with the
-Motif or Gtk toolkits.  With the Motif toolkit, ONLY-DIR-P is ignored.
-Otherwise, if ONLY-DIR-P is non-nil, the user can select only directories.
-On MS Windows 7 and later, the file selection dialog "remembers" the last
-directory where the user selected a file, and will open that directory
-instead of DIR on subsequent invocations of this function with the same
-value of DIR as in previous invocations; this is standard MS Windows behavior.  */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object prompt, Lisp_Object dir, Lisp_Object default_filename,
    Lisp_Object mustmatch, Lisp_Object only_dir_p)
 {
@@ -3761,10 +3639,7 @@ If omitted or nil, that stands for the selected frame's display.  */)
 }
 
 DEFUN ("x-select-font", Fx_select_font, Sx_select_font, 0, 2, 0,
-       doc: /* Read a font using a GTK dialog and return a font spec.
-
-FRAME is the frame on which to pop up the font chooser.  If omitted or
-nil, it defaults to the selected frame. */)
+       doc: /* SKIP: real doc in xfns.c.  */)
   (Lisp_Object frame, Lisp_Object ignored)
 {
   struct frame *f = decode_window_system_frame (frame);
@@ -3819,6 +3694,46 @@ DEFUN ("x-gtk-debug", Fx_gtk_debug, Sx_gtk_debug, 1, 1, 0,
   return NILP (enable) ? Qnil : Qt;
 }
 
+static void
+unwind_gerror_ptr (void* data)
+{
+  GError* error = *(GError**)data;
+  if (error)
+    g_error_free (error);
+}
+
+DEFUN ("x-gtk-launch-uri", Fx_gtk_launch_uri, Sx_gtk_launch_uri, 2, 2, 0,
+       doc: /* Tell GTK to launch the default application to show given URI.
+
+This function is only available on PGTK.  */)
+  (Lisp_Object frame, Lisp_Object uri)
+{
+  CHECK_FRAME (frame);
+
+  if (!FRAME_LIVE_P (XFRAME (frame)) ||
+      !FRAME_PGTK_P (XFRAME (frame)) ||
+      !FRAME_GTK_OUTER_WIDGET (XFRAME (frame)))
+    error ("GTK URI launch not available for this frame");
+
+  CHECK_STRING (uri);
+  guint32 timestamp = gtk_get_current_event_time ();
+
+  GError *err = NULL;
+  specpdl_ref count = SPECPDL_INDEX ();
+
+  record_unwind_protect_ptr (unwind_gerror_ptr, &err);
+
+  gtk_show_uri_on_window (GTK_WINDOW (FRAME_GTK_OUTER_WIDGET (XFRAME (frame))),
+			  SSDATA (uri),
+			  timestamp,
+			  &err);
+
+  if (err)
+    error ("Failed to launch URI via GTK: %s", err->message);
+
+  return unbind_to (count, Qnil);
+}
+
 void
 syms_of_pgtkfns (void)
 {
@@ -3844,7 +3759,7 @@ syms_of_pgtkfns (void)
 				 GTK_MAJOR_VERSION, GTK_MINOR_VERSION,
 				 GTK_MICRO_VERSION);
     int len = strlen (ver);
-    Vgtk_version_string = make_pure_string (ver, len, len, false);
+    Vgtk_version_string = make_specified_string (ver, len, len, false);
     g_free (ver);
   }
 
@@ -3858,7 +3773,7 @@ syms_of_pgtkfns (void)
 				 CAIRO_VERSION_MAJOR, CAIRO_VERSION_MINOR,
 				 CAIRO_VERSION_MICRO);
     int len = strlen (ver);
-    Vcairo_version_string = make_pure_string (ver, len, len, false);
+    Vcairo_version_string = make_specified_string (ver, len, len, false);
     g_free (ver);
   }
 
@@ -3890,6 +3805,7 @@ syms_of_pgtkfns (void)
   defsubr (&Sx_close_connection);
   defsubr (&Sx_display_list);
   defsubr (&Sx_gtk_debug);
+  defsubr (&Sx_gtk_launch_uri);
 
   defsubr (&Sx_show_tip);
   defsubr (&Sx_hide_tip);

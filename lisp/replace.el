@@ -352,7 +352,7 @@ should a regexp."
        to))
    regexp-flag))
 
-(defun query-replace-read-args (prompt regexp-flag &optional noerror)
+(defun query-replace-read-args (prompt regexp-flag &optional noerror no-highlight)
   (unless noerror
     (barf-if-buffer-read-only))
   (save-mark-and-excursion
@@ -364,7 +364,7 @@ should a regexp."
                       :filter (when (use-region-p)
                                 (replace--region-filter
                                  (funcall region-extract-function 'bounds)))
-                      :highlight query-replace-lazy-highlight
+                      :highlight (and query-replace-lazy-highlight (not no-highlight))
                       :regexp regexp-flag
                       :regexp-function (or replace-regexp-function
                                            delimited-flag
@@ -1315,7 +1315,7 @@ a previously found match."
     (define-key map "r" 'occur-rename-buffer)
     (define-key map "c" 'clone-buffer)
     (define-key map "\C-c\C-f" 'next-error-follow-minor-mode)
-    (bindings--define-key map [menu-bar occur] (cons "Occur" occur-menu-map))
+    (define-key map [menu-bar occur] (cons "Occur" occur-menu-map))
     map)
   "Keymap for `occur-mode'.")
 
@@ -1368,7 +1368,7 @@ Alternatively, click \\[occur-mode-mouse-goto] on an item to go to it.
     (define-key map "\C-c\C-c" 'occur-cease-edit)
     (define-key map "\C-o" 'occur-mode-display-occurrence)
     (define-key map "\C-c\C-f" 'next-error-follow-minor-mode)
-    (bindings--define-key map [menu-bar occur] (cons "Occur" occur-menu-map))
+    (define-key map [menu-bar occur] (cons "Occur" occur-menu-map))
     map)
   "Keymap for `occur-edit-mode'.")
 
@@ -2517,19 +2517,17 @@ The valid answers include `act', `skip', `act-and-show',
 
 This keymap is used by `y-or-n-p' as well as `query-replace'.")
 
-(defvar multi-query-replace-map
-  (let ((map (make-sparse-keymap)))
-    (set-keymap-parent map query-replace-map)
-    (define-key map "Y" 'automatic-all)
-    (define-key map "N" 'exit-current)
-    map)
-  "Keymap that defines additional bindings for multi-buffer replacements.
+(defvar-keymap multi-query-replace-map
+  :doc "Keymap that defines additional bindings for multi-buffer replacements.
 It extends its parent map `query-replace-map' with new bindings to
 operate on a set of buffers/files.  The difference with its parent map
 is the additional answers `automatic-all' to replace all remaining
 matches in all remaining buffers with no more questions, and
 `exit-current' to skip remaining matches in the current buffer
-and to continue with the next buffer in the sequence.")
+and to continue with the next buffer in the sequence."
+  :parent query-replace-map
+  "Y" 'automatic-all
+  "N" 'exit-current)
 
 (defun replace-match-string-symbols (n)
   "Process a list (and any sub-lists), expanding certain symbols.
@@ -2815,6 +2813,8 @@ and END."
                     (<= end   (cdr bounds))))
                  region-bounds)))))
 
+(defvar overriding-text-conversion-style)
+
 (defun perform-replace (from-string replacements
 		        query-flag regexp-flag delimited-flag
 			&optional repeat-count map start end backward region-noncontiguous-p)
@@ -2877,10 +2877,14 @@ characters."
          (limit nil)
          (region-filter nil)
 
+         ;; Disable text conversion during the replacement operation.
+         (old-text-conversion-style (and (boundp 'overriding-text-conversion-style)
+                                         overriding-text-conversion-style))
+         overriding-text-conversion-style
+
          ;; Data for the next match.  If a cons, it has the same format as
          ;; (match-data); otherwise it is t if a match is possible at point.
          (match-again t)
-
          (message
           (if query-flag
               (apply #'propertize
@@ -2935,6 +2939,9 @@ characters."
 
     (push-mark)
     (undo-boundary)
+    (when (and query-flag (fboundp 'set-text-conversion-style))
+      (setq overriding-text-conversion-style nil)
+      (set-text-conversion-style text-conversion-style))
     (unwind-protect
 	;; Loop finding occurrences that perhaps should be replaced.
 	(while (and keep-going
@@ -3082,20 +3089,21 @@ characters."
                            (set-match-data real-match-data)
                            (match-substitute-replacement
                             next-replacement nocasify literal))))
-		  ;; Bind message-log-max so we don't fill up the
-		  ;; message log with a bunch of identical messages.
-		  (let ((message-log-max nil)
-			(replacement-presentation
-			 (if query-replace-show-replacement
-			     (save-match-data
-			       (set-match-data real-match-data)
-			       (match-substitute-replacement next-replacement
-							     nocasify literal))
-			   next-replacement)))
-		    (message message
-                             (query-replace-descr from-string)
-                             (query-replace-descr replacement-presentation)))
-		  (setq key (read-event))
+		  (let* ((replacement-presentation
+			  (if query-replace-show-replacement
+			      (save-match-data
+			        (set-match-data real-match-data)
+			        (match-substitute-replacement next-replacement
+							      nocasify literal))
+			    next-replacement))
+			 (prompt
+			  (format message
+                                  (query-replace-descr from-string)
+                                  (query-replace-descr
+                                   replacement-presentation))))
+                    ;; Use `read-key' so that escape sequences on TTYs
+                    ;; are properly mapped back to the intended key.
+		    (setq key (read-key prompt)))
 		  ;; Necessary in case something happens during
 		  ;; read-event that clobbers the match data.
 		  (set-match-data real-match-data)
@@ -3352,7 +3360,12 @@ characters."
                       last-was-act-and-show     nil))))))
       (replace-dehighlight)
       (when region-filter
-        (remove-function isearch-filter-predicate region-filter)))
+        (remove-function isearch-filter-predicate region-filter))
+      (when (and query-flag (fboundp 'set-text-conversion-style))
+        ;; Resume text conversion.
+        (setq overriding-text-conversion-style
+              old-text-conversion-style)
+        (set-text-conversion-style text-conversion-style)))
     (or unread-command-events
 	(message (ngettext "Replaced %d occurrence%s"
 			   "Replaced %d occurrences%s"

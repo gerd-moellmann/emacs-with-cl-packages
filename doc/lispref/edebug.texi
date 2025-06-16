@@ -85,8 +85,8 @@ start using it.
   To debug a Lisp program with Edebug, you must first @dfn{instrument}
 the Lisp code that you want to debug.  A simple way to do this is to
 first move point into the definition of a function or macro and then do
-@kbd{C-u C-M-x} (@code{eval-defun} with a prefix argument).  See
-@ref{Instrumenting}, for alternative ways to instrument code.
+@kbd{C-u C-M-x} (@code{eval-defun} with a prefix argument).
+@xref{Instrumenting}, for alternative ways to instrument code.
 
   Once a function is instrumented, any call to the function activates
 Edebug.  Depending on which Edebug execution mode you have selected,
@@ -721,13 +721,6 @@ Evaluate the expression before point, in the context outside of Edebug
 lists).  Any other prefix will result in the value being
 pretty-printed in a separate buffer.
 @end table
-
-@cindex lexical binding (Edebug)
-  Edebug supports evaluation of expressions containing references to
-lexically bound symbols created by the following constructs in
-@file{cl.el}: @code{lexical-let}, @code{macrolet}, and
-@code{symbol-macrolet}.
-@c FIXME?  What about lexical-binding = t?
 
 @node Eval List
 @subsection Evaluation List Buffer
@@ -1369,8 +1362,8 @@ specifications and the backquote example.
 @cindex preventing backtracking
 No argument is matched but backtracking through the gate is disabled
 while matching the remainder of the specifications at this level.  This
-is primarily used to generate more specific syntax error messages.  See
-@ref{Backtracking}, for more details.  Also see the @code{let} example.
+is primarily used to generate more specific syntax error messages.
+@xref{Backtracking}, for more details.  Also see the @code{let} example.
 
 @item &error
 @code{&error} should be followed by a string, an error message, in the

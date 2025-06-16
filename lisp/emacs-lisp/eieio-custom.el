@@ -31,6 +31,7 @@
 ;; `:custom'.
 
 (require 'eieio)
+(require 'eieio-base) ;; For `eieio-named's slot.
 (require 'widget)
 (require 'wid-edit)
 
@@ -75,7 +76,7 @@ of these.")
 				      (((class color)
 					(background light))
 				       (:foreground "blue"))
-				      (t (:italic t)))
+				      (t (:slant italic)))
   "Face used for unpushable variable tags."
   :group 'custom-faces)
 

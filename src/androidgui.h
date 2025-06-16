@@ -216,8 +216,6 @@ struct android_swap_info
 };
 
 #define NativeRectangle			Emacs_Rectangle
-#define CONVERT_TO_NATIVE_RECT(xr, nr)	((xr) = (nr))
-#define CONVERT_FROM_EMACS_RECT(xr, nr) ((nr) = (xr))
 
 #define STORE_NATIVE_RECT(nr, rx, ry, rwidth, rheight)	\
   ((nr).x = (rx), (nr).y = (ry),			\
@@ -290,6 +288,7 @@ enum android_event_type
     ANDROID_DND_TEXT_EVENT,
     ANDROID_NOTIFICATION_DELETED,
     ANDROID_NOTIFICATION_ACTION,
+    ANDROID_CONFIGURATION_CHANGED,
   };
 
 struct android_any_event
@@ -597,6 +596,26 @@ struct android_notification_event
   size_t length;
 };
 
+struct android_configuration_changed_event
+{
+  /* Type of the event.  */
+  enum android_event_type type;
+
+  /* The event serial.  */
+  unsigned long serial;
+
+  /* The window that gave rise to the event (None).  */
+  android_window window;
+
+  /* The density of the display along the horizontal and vertical
+     axes.  */
+  double dpi_x, dpi_y;
+
+  /* The density to take into account when converting between point and
+     pixel dimensions.  */
+  double dpi_scaled;
+};
+
 union android_event
 {
   enum android_event_type type;
@@ -637,6 +656,11 @@ union android_event
   /* X provides no equivalent interface for displaying
      notifications.  */
   struct android_notification_event notification;
+
+  /* The equivalent under X is provided through XSettings, which is a
+     byzantine protocol that extends client messages and is therefore
+     not worthwhile to emulate.  */
+  struct android_configuration_changed_event config;
 };
 
 enum

@@ -1445,7 +1445,7 @@ This excludes `dired-guess-shell-alist-user' and
    ((executable-find "run-mailcap")
     "run-mailcap"))
   "A shell command to open a file externally."
-  :type 'string
+  :type '(choice (const :tag "None" nil) string)
   :group 'dired
   :version "30.1")
 
@@ -1454,6 +1454,34 @@ This excludes `dired-guess-shell-alist-user' and
   (append (ensure-list shell-command-guess-open) commands))
 
 (declare-function w32-shell-execute "w32fns.c")
+
+;;;###autoload
+(defun shell-command-do-open (files)
+  "Open each of FILES using an external program.
+This \"opens\" the file(s) using the external command that is most
+appropriate for the file(s) according to the system conventions."
+  (let ((command shell-command-guess-open))
+    (when (and (memq system-type '(windows-nt))
+               (equal command "start"))
+      (setq command "open"))
+    (if command
+        (cond
+         ((memq system-type '(ms-dos))
+          (dolist (file files)
+            (shell-command (concat command " " (shell-quote-argument file)))))
+         ((memq system-type '(windows-nt))
+          (dolist (file files)
+            (w32-shell-execute command (convert-standard-filename file))))
+         ((memq system-type '(cygwin))
+          (dolist (file files)
+            (call-process command nil nil nil file)))
+         ((memq system-type '(darwin))
+          (dolist (file files)
+            (start-process (concat command " " file) nil command file)))
+         (t
+          (dolist (file files)
+            (call-process command nil 0 nil file))))
+      (error "Open not supported on this system"))))
 
 ;;;###autoload
 (defun dired-do-open (&optional arg)
@@ -1465,30 +1493,11 @@ run it on the next ARG files, or on the file at mouse-click, or on the
 file at point.  The appropriate command to \"open\" a file on each
 system is determined by `shell-command-guess-open'."
   (interactive "P" dired-mode)
-  (let ((files (if (mouse-event-p last-nonmenu-event)
-                   (save-excursion
-                     (mouse-set-point last-nonmenu-event)
-                     (dired-get-marked-files nil arg))
-                 (dired-get-marked-files nil arg)))
-        (command shell-command-guess-open))
-    (when (and (memq system-type '(windows-nt))
-               (equal command "start"))
-      (setq command "open"))
-    (when command
-      (dolist (file files)
-        (cond
-         ((memq system-type '(gnu/linux))
-          (call-process command nil 0 nil file))
-         ((memq system-type '(ms-dos))
-          (shell-command (concat command " " (shell-quote-argument file))))
-         ((memq system-type '(windows-nt))
-          (w32-shell-execute command (convert-standard-filename file)))
-         ((memq system-type '(cygwin))
-          (call-process command nil nil nil file))
-         ((memq system-type '(darwin))
-          (start-process (concat command " " file) nil command file))
-         (t
-          (error "Open not supported on this system")))))))
+  (shell-command-do-open (if (mouse-event-p last-nonmenu-event)
+                             (save-excursion
+                               (mouse-set-point last-nonmenu-event)
+                               (dired-get-marked-files nil arg))
+                           (dired-get-marked-files nil arg))))
 
 
 ;;; Commands that delete or redisplay part of the dired buffer
@@ -1908,7 +1917,7 @@ return t; if SYM is q or ESC, return nil."
 		 (concat (apply #'format-message prompt args)
 			 (if help-form
 			     (format " [Type yn!q or %s] "
-				     (key-description (vector help-char)))
+                                     (help-key))
 			   " [Type y, n, q or !] ")))
 	   (set sym (setq char (read-char-choice prompt char-choices)))
 	   (if (memq char '(?y ?\s ?!)) t)))))
@@ -2863,13 +2872,33 @@ If DIRECTORY already exists, signal an error."
       (dired-add-file new)
       (dired-move-to-filename))))
 
+(defcustom dired-create-empty-file-in-current-directory nil
+  "Whether `dired-create-empty-file' acts on the current directory.
+If non-nil, `dired-create-empty-file' creates a new empty file and adds
+an entry for it (or its topmost new parent directory if created) under
+the current subdirectory in the Dired buffer by default (otherwise, it
+adds the new file (and new subdirectories if provided) to whichever
+directory the user enters at the prompt).  If nil,
+`dired-create-empty-file' acts on the default directory by default."
+  :type 'boolean
+  :group 'dired
+  :version "31.1")
+
 ;;;###autoload
 (defun dired-create-empty-file (file)
   "Create an empty file called FILE.
-Add a new entry for the new file in the Dired buffer.
 Parent directories of FILE are created as needed.
+Add an entry in the Dired buffer for the topmost new parent
+directory of FILE, if created, otherwise for the new file.
+If user option `dired-create-empty-file-in-current-directory' is
+non-nil, act on the current subdirectory by default, otherwise act on
+the default directory by default.
 If FILE already exists, signal an error."
-  (interactive (list (read-file-name "Create empty file: ")) dired-mode)
+  (interactive
+   (list (read-file-name "Create empty file: "
+                         (and dired-create-empty-file-in-current-directory
+                              (dired-current-directory))))
+   dired-mode)
   (let* ((expanded (expand-file-name file))
          new)
     (if (file-exists-p expanded)
@@ -3808,7 +3837,7 @@ resume the query replace with the command \\[fileloop-continue]."
   (interactive
    (let ((common
 	  (query-replace-read-args
-	   "Query replace regexp in marked files" t t)))
+	   "Query replace regexp in marked files" t t t)))
      (list (nth 0 common) (nth 1 common) (nth 2 common)))
    dired-mode)
   (dolist (file (dired-get-marked-files nil nil #'dired-nondirectory-p nil t))
@@ -3832,7 +3861,7 @@ you can later apply as a patch after reviewing the changes."
   (interactive
    (let ((common
           (query-replace-read-args
-           "Replace regexp as diff in marked files" t t)))
+           "Replace regexp as diff in marked files" t t t)))
      (list (nth 0 common) (nth 1 common) (nth 2 common))))
   (dired-post-do-command)
   (multi-file-replace-regexp-as-diff
@@ -3908,7 +3937,7 @@ function works."
   (interactive
    (let ((common
           (query-replace-read-args
-           "Query replace regexp in marked files" t t)))
+           "Query replace regexp in marked files" t t t)))
      (list (nth 0 common) (nth 1 common)))
    dired-mode)
   (require 'xref)
@@ -3959,12 +3988,12 @@ If only regular files are in the fileset, call `vc-next-action' with
 the same value of the VERBOSE argument (interactively, the prefix
 argument).
 
-If one or more directories are in the fileset, start `vc-dir' in the root
-directory of the repository that includes the current directory, with
-the same files/directories marked in the VC-Directory buffer that were
-marked in the original Dired buffer.  If the current directory doesn't
-belong to a VCS repository, prompt for a repository directory.  In this
-case, the VERBOSE argument is ignored."
+If one or more directories are in the fileset, start `vc-dir' in the
+root directory of the repository that includes the current directory,
+with all directories in the fileset marked in the VC-Directory buffer
+that were marked in the original Dired buffer.  If the current directory
+doesn't belong to a VCS repository, prompt for a repository directory.
+In this case, the VERBOSE argument is ignored."
   (interactive "P" dired-mode)
   (let* ((marked-files
           (dired-get-marked-files nil nil nil nil t))
@@ -3988,31 +4017,25 @@ case, the VERBOSE argument is ignored."
           (add-hook 'vc-dir-refresh-hook transient-hook nil t))
       (vc-next-action verbose))))
 
-(declare-function vc-compatible-state "vc")
+(declare-function vc-only-files-state-and-model "vc")
 
 ;;;###autoload
-(defun dired-vc-deduce-fileset (&optional state-model-only-files not-state-changing)
+(defun dired-vc-deduce-fileset
+    (&optional state-model-only-files not-state-changing)
   (let ((backend (vc-responsible-backend default-directory))
-        (files (dired-get-marked-files nil nil nil nil t))
-        only-files-list
-        state
-        model)
-    (when (and (not not-state-changing) (cl-some #'file-directory-p files))
-      (user-error "State changing VC operations on directories supported only in `vc-dir'"))
-
-    (when state-model-only-files
-      (setq only-files-list (mapcar (lambda (file) (cons file (vc-state file))) files))
-      (setq state (cdar only-files-list))
-      ;; Check that all files are in a consistent state, since we use that
-      ;; state to decide which operation to perform.
-      (dolist (crt (cdr only-files-list))
-        (unless (vc-compatible-state (cdr crt) state)
-          (error "When applying VC operations to multiple files, the files are required\nto  be in similar VC states.\n%s in state %s clashes with %s in state %s"
-                 (car crt) (cdr crt) (caar only-files-list) state)))
-      (setq only-files-list (mapcar 'car only-files-list))
-      (when (and state (not (eq state 'unregistered)))
-        (setq model (vc-checkout-model backend only-files-list))))
-    (list backend files only-files-list state model)))
+        (files (dired-get-marked-files nil nil nil nil t)))
+    (when (and (not not-state-changing)
+               (cl-some #'file-directory-p files))
+      (user-error "\
+State-changing VC operations on directories supported only from VC-Dir"))
+    (if state-model-only-files
+        (let ((only-files-list (mapcar (lambda (file)
+                                         (cons file (vc-state file)))
+                                       files)))
+          (cl-list* backend files
+                    (vc-only-files-state-and-model only-files-list
+                                                   backend)))
+      (list backend files))))
 
 
 (provide 'dired-aux)

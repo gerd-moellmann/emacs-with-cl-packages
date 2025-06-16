@@ -54,8 +54,8 @@
 ;; correctly if `repeat' is invoked through a rebinding to a single keystroke
 ;; and the global variable repeat-on-final-keystroke is set to a value
 ;; that doesn't include that keystroke.  For example, the lines
-;;   (global-set-key "\C-z" 'repeat)
-;;   (setq repeat-on-final-keystroke "z")
+;;   (keymap-global-set "C-z" #'repeat)
+;;   (setopt repeat-on-final-keystroke "z")
 ;; in your .emacs would allow `edit-kbd-macro' to work correctly when C-z was
 ;; used in a keyboard macro to invoke `repeat', but would still allow C-x z
 ;; to be used for `repeat' elsewhere.  The real reason for documenting this
@@ -86,6 +86,8 @@
 ;;         C-x }    enlarge-window-horizontally
 
 ;;; Code:
+
+(require 'cl-lib)
 
 ;;;;; ************************* USER OPTIONS ************************** ;;;;;
 
@@ -425,9 +427,18 @@ the map can't be set on the command symbol property `repeat-map'.")
 When Repeat mode is enabled, certain commands bound to multi-key
 sequences can be repeated by typing a single key, after typing the
 full key sequence once.
-The commands which can be repeated like that are those whose symbol
- has the property `repeat-map' which specifies a keymap of single
-keys for repeating.
+
+The commands that can be repeated in this way are those whose symbols
+have the `repeat-map' property, which specifies a keymap of single keys
+for repeating.
+
+Normally, invoking a command outside that keymap terminates the
+repeating sequence.  However, if the command's `repeat-continue'
+property is non-nil, it may instead continue the current repeating
+sequence: if the property is a list of keymaps, then the command
+continues when the current repeat map is in the list; if the property is
+t, the command always continues the sequence.
+
 See `describe-repeat-maps' for a list of all repeatable commands."
   :global t :group 'repeat
   (if (not repeat-mode)
@@ -453,14 +464,24 @@ See `describe-repeat-maps' for a list of all repeatable commands."
       (and (symbolp real-this-command)
            (get real-this-command property))))
 
-(defun repeat-get-map ()
-  "Return a transient map for keys repeatable after the current command."
+(defun repeat-get-map-sym ()
+  "Return a transient map possibly as a symbol."
   (when repeat-mode
-    (let ((rep-map (or repeat-map (repeat--command-property 'repeat-map))))
-      (when rep-map
-        (when (and (symbolp rep-map) (boundp rep-map))
-          (setq rep-map (symbol-value rep-map)))
-        rep-map))))
+    (let ((map-sym (or repeat-map (repeat--command-property 'repeat-map)))
+          (continue (repeat--command-property 'repeat-continue)))
+      (when (and repeat-in-progress
+                 (or (eq continue t)
+                     (and (consp continue)
+                          (memq repeat-in-progress continue))))
+        (setq map-sym repeat-in-progress))
+      map-sym)))
+
+(defun repeat-get-map (map)
+  "Return a transient map for keys repeatable after the current command."
+  (when map
+    (when (and (symbolp map) (boundp map))
+      (setq map (symbol-value map)))
+    map))
 
 (defun repeat-check-key (key map)
   "Check if the last KEY is suitable for activating the repeating MAP."
@@ -482,50 +503,53 @@ See `describe-repeat-maps' for a list of all repeatable commands."
        ;; in the middle of repeating sequence (bug#47566).
        (or (< (minibuffer-depth) (car repeat--prev-mb))
            (eq current-minibuffer-command (cdr repeat--prev-mb)))
-       (repeat-check-key last-command-event map)
+       (or (eq (repeat--command-property 'repeat-continue) t)
+           (repeat-check-key last-command-event map))
        t))
 
 (defun repeat-pre-hook ()
   "Function run before commands to handle repeatable keys."
   (when (and repeat-mode repeat-keep-prefix repeat-in-progress
              (not prefix-arg) current-prefix-arg)
-    (let ((map (repeat-get-map)))
+    (let* ((map-sym (repeat-get-map-sym))
+           (map (repeat-get-map map-sym)))
       ;; Only when repeat-post-hook will activate the same map
       (when (repeat-check-map map)
         ;; Optimize to use less logic in the function `repeat-get-map'
         ;; for the next call: when called again from `repeat-post-hook'
         ;; it will use the variable `repeat-map'.
-        (setq repeat-map map)
+        (setq repeat-map map-sym)
         ;; Preserve universal argument
         (setq prefix-arg current-prefix-arg)))))
 
 (defun repeat-post-hook ()
   "Function run after commands to set transient keymap for repeatable keys."
-  (let ((was-in-progress repeat-in-progress))
+  (let* ((was-in-progress repeat-in-progress)
+         (map-sym (repeat-get-map-sym))
+         (map (repeat-get-map map-sym)))
     (setq repeat-in-progress nil)
-    (let ((map (repeat-get-map)))
-      (when (repeat-check-map map)
-        ;; Messaging
-        (funcall repeat-echo-function map)
+    (when (repeat-check-map map)
+      ;; Messaging
+      (funcall repeat-echo-function map)
 
-        ;; Adding an exit key
-        (when repeat-exit-key
-          (setq map (copy-keymap map))
-          (define-key map (if (key-valid-p repeat-exit-key)
-                              (kbd repeat-exit-key)
-                            repeat-exit-key)
-                      'ignore))
+      ;; Adding an exit key
+      (when repeat-exit-key
+        (setq map (copy-keymap map))
+        (define-key map (if (key-valid-p repeat-exit-key)
+                            (kbd repeat-exit-key)
+                          repeat-exit-key)
+                    'ignore))
 
-        (setq repeat-in-progress t)
-        (repeat--clear-prev)
-        (let ((exitfun (set-transient-map map)))
-          (setq repeat--transient-exitfun exitfun)
+      (setq repeat-in-progress map-sym)
+      (repeat--clear-prev)
+      (let ((exitfun (set-transient-map map)))
+        (setq repeat--transient-exitfun exitfun)
 
-          (let* ((prop (repeat--command-property 'repeat-exit-timeout))
-                 (timeout (unless (eq prop 'no) (or prop repeat-exit-timeout))))
-            (when timeout
-              (setq repeat-exit-timer
-                    (run-with-idle-timer timeout nil #'repeat-exit)))))))
+        (let* ((prop (repeat--command-property 'repeat-exit-timeout))
+               (timeout (unless (eq prop 'no) (or prop repeat-exit-timeout))))
+          (when timeout
+            (setq repeat-exit-timer
+                  (run-with-idle-timer timeout nil #'repeat-exit))))))
 
     (setq repeat-map nil)
     (setq repeat--prev-mb (cons (minibuffer-depth) current-minibuffer-command))
@@ -553,18 +577,19 @@ This function can be used to force exit of repetition while it's active."
 (defun repeat-echo-message-string (keymap)
   "Return a string with the list of repeating keys in KEYMAP."
   (let (keys)
-    (map-keymap (lambda (key cmd) (and cmd (push (cons key cmd) keys)))
-                keymap)
+    (cl--map-keymap-recursively
+     (lambda (key cmd) (and cmd (push (cons (copy-sequence key) cmd) keys)))
+     keymap)
     (format-message
      "Repeat with %s%s"
      (mapconcat (lambda (key-cmd)
                   (let ((key (car key-cmd))
                         (cmd (cdr key-cmd)))
-                    (if-let ((hint (and (symbolp cmd)
-                                        (get cmd 'repeat-hint))))
+                    (if-let* ((hint (and (symbolp cmd)
+                                         (get cmd 'repeat-hint))))
                         ;; Reuse `read-multiple-choice' formatting.
                         (cdr (rmc--add-key-description (list key hint)))
-                      (propertize (key-description (vector key))
+                      (propertize (key-description key)
                                   'face 'read-multiple-choice-face))))
                 keys ", ")
      (if repeat-exit-key
@@ -645,15 +670,23 @@ Click on a keymap to see the commands repeatable by the keymap.\n")
                             (symbol-value (car keymap))
                           (car keymap)))
                    (repeat-commands (cdr keymap))
-                   map-commands commands-enter commands-exit)
-              (map-keymap (lambda (_key cmd)
-                            (when (symbolp cmd) (push cmd map-commands)))
-                          map)
+                   map-commands commands-enter commands-exit commands-continue)
+              (cl--map-keymap-recursively
+               (lambda (_key cmd)
+                 (when (symbolp cmd) (push cmd map-commands)))
+               map)
               (setq map-commands (seq-uniq map-commands))
-              (setq commands-enter (seq-difference repeat-commands map-commands))
-              (setq commands-exit  (seq-difference map-commands repeat-commands))
+              (setq commands-continue
+                    (seq-filter (lambda (s) (memq (car keymap)
+                                                  (get s 'repeat-continue)))
+                                map-commands))
+              (setq commands-enter
+                    (seq-difference repeat-commands map-commands))
+              (setq commands-exit
+                    (seq-difference (seq-difference map-commands repeat-commands)
+                                    commands-continue))
 
-              (when (or commands-enter commands-exit)
+              (when (or commands-enter commands-exit commands-continue)
                 (when commands-enter
                   (insert "\n** Entered with:\n\n")
                   (fill-region-as-paragraph
@@ -662,6 +695,17 @@ Click on a keymap to see the commands repeatable by the keymap.\n")
                      (insert (mapconcat (lambda (cmd)
                                           (format-message "`%s'" cmd))
                                         (sort commands-enter #'string<)
+                                        ", "))
+                     (point)))
+                  (insert "\n"))
+                (when commands-continue
+                  (insert "\n** Continued only with:\n\n")
+                  (fill-region-as-paragraph
+                   (point)
+                   (progn
+                     (insert (mapconcat (lambda (cmd)
+                                          (format-message "`%s'" cmd))
+                                        (sort commands-continue #'string<)
                                         ", "))
                      (point)))
                   (insert "\n"))
@@ -680,7 +724,7 @@ Click on a keymap to see the commands repeatable by the keymap.\n")
           ;; Hide ^Ls.
           (goto-char (point-min))
           (while (search-forward "\n\f\n" nil t)
-	    (put-text-property (1+ (match-beginning 0)) (1- (match-end 0))
+            (put-text-property (1+ (match-beginning 0)) (1- (match-end 0))
                                'invisible t)))))))
 
 (provide 'repeat)

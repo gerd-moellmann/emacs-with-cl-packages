@@ -125,22 +125,39 @@ android_show_hourglass (struct frame *f)
 
   x->hourglass = true;
 
-  if (!f->pointer_invisible)
-    android_define_cursor (FRAME_ANDROID_WINDOW (f),
-			   x->hourglass_cursor);
+  /* An hourglass cursor ought to be visible whether or not the standard
+     cursor is invisible.  */
+  android_define_cursor (FRAME_ANDROID_WINDOW (f),
+			 x->hourglass_cursor);
+}
+
+static android_cursor
+make_invisible_cursor (struct android_display_info *dpyinfo)
+{
+  return android_create_font_cursor (ANDROID_XC_NULL);
 }
 
 static void
 android_hide_hourglass (struct frame *f)
 {
   struct android_output *x;
+  struct android_display_info *dpyinfo;
 
   x = FRAME_ANDROID_OUTPUT (f);
+  dpyinfo = FRAME_DISPLAY_INFO (f);
   x->hourglass = false;
 
   if (!f->pointer_invisible)
     android_define_cursor (FRAME_ANDROID_WINDOW (f),
 			   x->current_cursor);
+  else
+    {
+      if (!dpyinfo->invisible_cursor)
+	dpyinfo->invisible_cursor = make_invisible_cursor (dpyinfo);
+
+      android_define_cursor (FRAME_ANDROID_WINDOW (f),
+			     dpyinfo->invisible_cursor);
+    }
 }
 
 static void
@@ -259,18 +276,16 @@ android_ring_bell (struct frame *f)
     }
 }
 
-static android_cursor
-make_invisible_cursor (struct android_display_info *dpyinfo)
-{
-  return android_create_font_cursor (ANDROID_XC_NULL);
-}
-
 static void
 android_toggle_visible_pointer (struct frame *f, bool invisible)
 {
   struct android_display_info *dpyinfo;
 
   dpyinfo = FRAME_DISPLAY_INFO (f);
+
+  /* An hourglass cursor overrides invisibility.  */
+  if (FRAME_ANDROID_OUTPUT (f)->hourglass)
+    goto set_invisibility;
 
   if (!dpyinfo->invisible_cursor)
     dpyinfo->invisible_cursor = make_invisible_cursor (dpyinfo);
@@ -280,10 +295,9 @@ android_toggle_visible_pointer (struct frame *f, bool invisible)
 			   dpyinfo->invisible_cursor);
   else
     android_define_cursor (FRAME_ANDROID_WINDOW (f),
-			   (FRAME_ANDROID_OUTPUT (f)->hourglass
-			    ? f->output_data.android->hourglass_cursor
-			    : f->output_data.android->current_cursor));
+			   f->output_data.android->current_cursor);
 
+ set_invisibility:
   f->pointer_invisible = invisible;
 }
 
@@ -943,9 +957,9 @@ handle_one_android_event (struct android_display_info *dpyinfo,
       /* If mouse-highlight is an integer, input clears out
 	 mouse highlighting.  */
       if (!hlinfo->mouse_face_hidden && FIXNUMP (Vmouse_highlight)
-	  && (any == 0
-	      || !EQ (any->tool_bar_window, hlinfo->mouse_face_window)
-	      || !EQ (any->tab_bar_window, hlinfo->mouse_face_window)))
+	  && (any == NULL
+	      || (!EQ (any->tool_bar_window, hlinfo->mouse_face_window)
+		  && !EQ (any->tab_bar_window, hlinfo->mouse_face_window))))
         {
 	  mouse_frame = hlinfo->mouse_face_mouse_frame;
 
@@ -1179,7 +1193,6 @@ handle_one_android_event (struct android_display_info *dpyinfo,
 	      && (f == XFRAME (selected_frame)
 		  || !NILP (focus_follows_mouse)))
 	    {
-	      static Lisp_Object last_mouse_window;
 	      Lisp_Object window
 		= window_from_coordinates (f, event->xmotion.x,
 					   event->xmotion.y, 0,
@@ -1811,6 +1824,22 @@ handle_one_android_event (struct android_display_info *dpyinfo,
       free (event->notification.action);
       goto OTHER;
 
+    case ANDROID_CONFIGURATION_CHANGED:
+      /* Update the display configuration from the event.  */
+      dpyinfo->resx = event->config.dpi_x;
+      dpyinfo->resy = event->config.dpi_y;
+      dpyinfo->font_resolution = event->config.dpi_scaled;
+#ifdef notdef
+      __android_log_print (ANDROID_LOG_VERBOSE, __func__,
+			   "New display configuration: "
+			   "resx = %.2f resy = %.2f font_resolution = %.2f",
+			   dpyinfo->resx, dpyinfo->resy, dpyinfo->font_resolution);
+#endif /* notdef */
+      inev.ie.kind = CONFIG_CHANGED_EVENT;
+      inev.ie.frame_or_window = XCAR (dpyinfo->name_list_element);
+      inev.ie.arg = Qfont_render;
+      goto OTHER;
+
     default:
       goto OTHER;
     }
@@ -2292,6 +2321,81 @@ android_set_window_size (struct frame *f, bool change_gravity,
   do_pending_window_change (false);
 }
 
+/* Calculate the absolute position in frame F
+   from its current recorded position values and gravity.  */
+
+static void
+android_calc_absolute_position (struct frame *f)
+{
+  int flags = f->size_hint_flags;
+  struct frame *p = FRAME_PARENT_FRAME (f);
+
+  /* We have nothing to do if the current position
+     is already for the top-left corner.  */
+  if (!((flags & XNegative) || (flags & YNegative)))
+    return;
+
+  /* Treat negative positions as relative to the leftmost bottommost
+     position that fits on the screen.  */
+  if (flags & XNegative)
+    {
+      int width = FRAME_PIXEL_WIDTH (f);
+
+      /* A frame that has been visible at least once should have outer
+	 edges.  */
+      if (f->output_data.android->has_been_visible && !p)
+	{
+	  Lisp_Object frame;
+	  Lisp_Object edges = Qnil;
+
+	  XSETFRAME (frame, f);
+	  edges = Fandroid_frame_edges (frame, Qouter_edges);
+	  if (!NILP (edges))
+	    width = (XFIXNUM (Fnth (make_fixnum (2), edges))
+		     - XFIXNUM (Fnth (make_fixnum (0), edges)));
+	}
+
+      if (p)
+	f->left_pos = (FRAME_PIXEL_WIDTH (p) - width - 2 * f->border_width
+		       + f->left_pos);
+      else
+	/* Not that this is of much significance, for Android programs
+	   cannot position their windows at absolute positions in the
+	   screen.  */
+	f->left_pos = (android_get_screen_width () - width + f->left_pos);
+
+    }
+
+  if (flags & YNegative)
+    {
+      int height = FRAME_PIXEL_HEIGHT (f);
+
+      if (f->output_data.android->has_been_visible && !p)
+	{
+	  Lisp_Object frame;
+	  Lisp_Object edges = Qnil;
+
+	  XSETFRAME (frame, f);
+	  if (NILP (edges))
+	    edges = Fandroid_frame_edges (frame, Qouter_edges);
+	  if (!NILP (edges))
+	    height = (XFIXNUM (Fnth (make_fixnum (3), edges))
+		      - XFIXNUM (Fnth (make_fixnum (1), edges)));
+	}
+
+      if (p)
+	f->top_pos = (FRAME_PIXEL_HEIGHT (p) - height - 2 * f->border_width
+		       + f->top_pos);
+      else
+	f->top_pos = (android_get_screen_height () - height + f->top_pos);
+  }
+
+  /* The left_pos and top_pos
+     are now relative to the top and left screen edges,
+     so the flags should correspond.  */
+  f->size_hint_flags &= ~(XNegative | YNegative);
+}
+
 static void
 android_set_offset (struct frame *f, int xoff, int yoff,
 		    int change_gravity)
@@ -2308,7 +2412,9 @@ android_set_offset (struct frame *f, int xoff, int yoff,
       f->win_gravity = NorthWestGravity;
     }
 
-  android_move_window (FRAME_ANDROID_WINDOW (f), xoff, yoff);
+  android_calc_absolute_position (f);
+  android_move_window (FRAME_ANDROID_WINDOW (f), f->left_pos,
+		       f->top_pos);
 }
 
 static void
@@ -6632,7 +6738,7 @@ android_term_init (void)
   x_display_list = dpyinfo;
 
   dpyinfo->name_list_element
-    = Fcons (build_pure_c_string ("android"), Qnil);
+    = Fcons (build_string ("android"), Qnil);
 
   color_file = Fexpand_file_name (build_string ("rgb.txt"),
 				  Vdata_directory);
@@ -6924,6 +7030,11 @@ for instance, `early-init.el', or they will be of no effect.  */);
   /* Key symbols.  */
   DEFSYM (Qselect, "select");
   DEFSYM (Qreturn, "return");
+
+  /* Display configuration updates.  */
+  DEFSYM (Qfont_render, "font-render");
+  DEFSYM (Qdynamic_setting, "dynamic-setting");
+  Fprovide (Qdynamic_setting, Qnil);
 }
 
 void

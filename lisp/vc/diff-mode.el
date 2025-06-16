@@ -174,15 +174,16 @@ The default \"-b\" means to ignore whitespace-only changes,
 (defvar-local diff-default-directory nil
   "The default directory where the current Diff buffer was created.")
 
-(defvar diff-outline-regexp
-  "\\([*+][*+][*+] [^0-9]\\|@@ ...\\|\\*\\*\\* [0-9].\\|--- [0-9]..\\)")
 
 ;;;;
 ;;;; keymap, menu, ...
 ;;;;
 
 (defvar-keymap diff-mode-shared-map
-  :parent special-mode-map
+  :doc "Additional bindings for read-only `diff-mode' buffers.
+These bindings are also available with an ESC prefix
+(i.e. a \\=`M-' prefix) in read-write `diff-mode' buffers,
+and with a `diff-minor-mode-prefix' prefix in `diff-minor-mode'."
   "n" #'diff-hunk-next
   "N" #'diff-file-next
   "p" #'diff-hunk-prev
@@ -196,6 +197,7 @@ The default \"-b\" means to ignore whitespace-only changes,
   "RET" #'diff-goto-source
   "<mouse-2>" #'diff-goto-source
   "W" #'widen
+  "w" #'diff-kill-ring-save
   "o" #'diff-goto-source                ; other-window
   "A" #'diff-ediff-patch
   "r" #'diff-restrict-view
@@ -208,7 +210,7 @@ The default \"-b\" means to ignore whitespace-only changes,
           ;; We want to inherit most bindings from
           ;; `diff-mode-shared-map', but not all since they may hide
           ;; useful `M-<foo>' global bindings when editing.
-          (dolist (key '("A" "r" "R" "g" "q" "W" "z"))
+          (dolist (key '("A" "r" "R" "W" "w"))
             (keymap-set map key nil))
           map)
   ;; From compilation-minor-mode.
@@ -217,7 +219,9 @@ The default \"-b\" means to ignore whitespace-only changes,
   "C-x 4 A" #'diff-add-change-log-entries-other-window
   ;; Misc operations.
   "C-c C-a" #'diff-apply-hunk
+  "C-c M-r" #'diff-revert-and-kill-hunk
   "C-c C-m a" #'diff-apply-buffer
+  "C-c C-m n" #'diff-delete-other-hunks
   "C-c C-e" #'diff-ediff-patch
   "C-c C-n" #'diff-restrict-view
   "C-c C-s" #'diff-split-hunk
@@ -241,6 +245,8 @@ The default \"-b\" means to ignore whitespace-only changes,
      :help "Apply the current hunk to the source file and go to the next"]
     ["Test applying hunk"	diff-test-hunk
      :help "See whether it's possible to apply the current hunk"]
+    ["Revert and kill hunk"     diff-revert-and-kill-hunk
+     :help "Reverse-apply and then kill the current hunk."]
     ["Apply all hunks"		diff-apply-buffer
      :help "Apply all hunks in the current diff buffer"]
     ["Apply diff with Ediff"	diff-ediff-patch
@@ -274,6 +280,8 @@ The default \"-b\" means to ignore whitespace-only changes,
      :help "Kill current hunk"]
     ["Kill current file's hunks" diff-file-kill
      :help "Kill all current file's hunks"]
+    ["Delete other hunks"       diff-delete-other-hunks
+     :help "Delete hunks other than the current hunk"]
     "-----"
     ["Previous Hunk"		diff-hunk-prev
      :help "Go to the previous count'th hunk"]
@@ -474,6 +482,59 @@ If non-nil, use the face `diff-changed-unspecified'.  Otherwise,
 use the face `diff-removed' for removed lines, and the face
 `diff-added' for added lines.")
 
+(defvar diff-buffer-type nil)
+
+(defvar diff--indicator-added-re
+  (rx bol
+      (group (any "+>"))
+      (group (zero-or-more nonl) "\n")))
+
+(defvar diff--indicator-removed-re
+  (rx bol
+      (group (any "<-"))
+      (group (zero-or-more nonl) "\n")))
+
+(defun diff--git-preamble-end ()
+  (save-excursion
+    (goto-char (point-min))
+    (re-search-forward "^diff --git .+ .+$" nil t)
+    (forward-line 2)
+    (point)))
+
+(defun diff--git-footer-start ()
+  (save-excursion
+    (goto-char (point-max))
+    (re-search-backward "^-- $" nil t)
+    (point)))
+
+(defun diff--indicator-matcher-helper (limit regexp)
+  "Fontify added/removed lines from point to LIMIT using REGEXP.
+
+If this is a Git patch, don't fontify lines before the first hunk, or in
+the email signature at the end."
+  (catch 'return
+    (when (eq diff-buffer-type 'git)
+      (let ((preamble-end (diff--git-preamble-end))
+            (footer-start (diff--git-footer-start))
+            (beg (point))
+            (end limit))
+        (cond ((or (<= end preamble-end)
+                   (>= beg footer-start))
+               (throw 'return nil))
+              ;; end is after preamble, adjust beg:
+              ((< beg preamble-end)
+               (goto-char preamble-end))
+              ;; beg is before footer, adjust end:
+              ((> end footer-start)
+               (setq limit footer-start)))))
+    (re-search-forward regexp limit t)))
+
+(defun diff--indicator-added-matcher (limit)
+  (diff--indicator-matcher-helper limit diff--indicator-added-re))
+
+(defun diff--indicator-removed-matcher (limit)
+  (diff--indicator-matcher-helper limit diff--indicator-removed-re))
+
 (defvar diff-font-lock-keywords
   `((,(concat "\\(" diff-hunk-header-re-unified "\\)\\(.*\\)$")
      (1 'diff-hunk-header) (6 'diff-function))
@@ -488,9 +549,9 @@ use the face `diff-removed' for removed lines, and the face
     ("^\\(---\\|\\+\\+\\+\\|\\*\\*\\*\\) \\([^\t\n]+?\\)\\(?:\t.*\\| \\(\\*\\*\\*\\*\\|----\\)\\)?\n"
      (0 'diff-header)
      (2 (if (not (match-end 3)) 'diff-file-header) prepend))
-    ("^\\([-<]\\)\\(.*\n\\)"
+    (diff--indicator-removed-matcher
      (1 diff-indicator-removed-face) (2 'diff-removed))
-    ("^\\([+>]\\)\\(.*\n\\)"
+    (diff--indicator-added-matcher
      (1 diff-indicator-added-face) (2 'diff-added))
     ("^\\(!\\)\\(.*\n\\)"
      (1 (if diff-use-changed-face
@@ -554,8 +615,10 @@ See https://lists.gnu.org/r/emacs-devel/2007-11/msg01990.html")
 
 (defconst diff-separator-re "^--+ ?$")
 
+(defvar diff-outline-regexp
+  (concat "\\(^diff.*\\|" diff-hunk-header-re "\\)"))
+
 (defvar diff-narrowed-to nil)
-(defvar diff-buffer-type nil)
 
 (defun diff-hunk-style (&optional style)
   (when (looking-at diff-hunk-header-re)
@@ -810,6 +873,39 @@ If the prefix ARG is given, restrict the view to the current file instead."
       (goto-char (car bounds))
       (ignore-errors (diff-beginning-of-hunk t)))))
 
+;; This is not `diff-kill-other-hunks' because we might need to make
+;; copies of file headers in order to ensure the new kill ring entry
+;; would be a patch with the same meaning.  That is not implemented
+;; because it does not seem like it would be useful.
+(defun diff-delete-other-hunks (&optional beg end)
+  "Delete hunks other than the current one.
+Interactively, if the region is active, delete all hunks that the region
+overlaps; otherwise delete all hunks except the current one.
+When calling from Lisp, pass BEG and END as the bounds of the region in
+which to delete hunks; BEG and END omitted or nil means to delete all
+the hunks but the one which contains point."
+  (interactive (list (use-region-beginning) (use-region-end)))
+  (when (buffer-narrowed-p)
+    (user-error "Command is not safe in a narrowed buffer"))
+  (let ((inhibit-read-only t))
+    (save-excursion
+      (cond ((xor beg end)
+             (error "Require exactly zero or two arguments"))
+            (beg
+             (goto-char beg)
+             (setq beg (car (diff-bounds-of-hunk)))
+             (goto-char end)
+             (setq end (cadr (diff-bounds-of-hunk))))
+            (t
+             (pcase-setq `(,beg ,end) (diff-bounds-of-hunk))))
+      (delete-region end (point-max))
+      (goto-char beg)
+      (diff-beginning-of-file)
+      (diff-hunk-next)
+      (delete-region (point) beg)
+      (diff-beginning-of-file-and-junk)
+      (delete-region (point-min) (point)))))
+
 (defun diff-beginning-of-file-and-junk ()
   "Go to the beginning of file-related diff-info.
 This is like `diff-beginning-of-file' except it tries to skip back over leading
@@ -886,7 +982,7 @@ data such as \"Index: ...\" and such."
   (save-excursion
     (let ((n 0))
       (goto-char start)
-      (while (re-search-forward re end t) (cl-incf n))
+      (while (re-search-forward re end t) (incf n))
       n)))
 
 (defun diff-splittable-p ()
@@ -1051,13 +1147,24 @@ PREFIX is only used internally: don't use it."
 	      (diff-find-file-name old noprompt (match-string 1)))
          ;; if all else fails, ask the user
          (unless noprompt
-           (let ((file (expand-file-name (or (car fs) ""))))
+           (let ((file (or (car fs) ""))
+                 (creation (equal null-device
+                                  (car (diff-hunk-file-names (not old))))))
+             (when (and (memq diff-buffer-type '(git hg))
+                        (string-match "/" file))
+               ;; Strip the dst prefix (like b/) if diff is from Git/Hg.
+               (setq file (substring file (match-end 0))))
+             (setq file (expand-file-name file))
 	     (setq file
 		   (read-file-name (format "Use file %s: " file)
-				   (file-name-directory file) file t
+				   (file-name-directory file) file
+                                   ;; Allow non-matching for creation.
+                                   (not creation)
 				   (file-name-nondirectory file)))
-             (setq-local diff-remembered-files-alist
-                         (cons (cons fs file) diff-remembered-files-alist))
+             (when (or (not creation) (file-exists-p file))
+               ;; Only remember files that exist. User might have mistyped.
+               (setq-local diff-remembered-files-alist
+                           (cons (cons fs file) diff-remembered-files-alist)))
              file)))))))
 
 
@@ -1380,17 +1487,17 @@ else cover the whole buffer."
 			    "\\|[-*][-*][-*] [0-9,]+ [-*][-*][-*][-*]$"
 			    "\\|--- .+\n\\+\\+\\+ ")))
 	      (pcase (char-after)
-		(?\s (cl-incf space))
-		(?+ (cl-incf plus))
+                (?\s (incf space))
+                (?+ (incf plus))
 		(?- (unless ;; In git format-patch "^-- $" signifies
                             ;; the end of the patch.
 			(and (eq diff-buffer-type 'git)
 			     (looking-at "^-- $"))
-		      (cl-incf minus)))
-		(?! (cl-incf bang))
+                      (incf minus)))
+                (?! (incf bang))
 		((or ?\\ ?#) nil)
 		(?\n (if diff-valid-unified-empty-line
-			 (cl-incf space)
+                         (incf space)
 		       (setq space 0 plus 0 minus 0 bang 0)))
 		(_  (setq space 0 plus 0 minus 0 bang 0)))
 	    (cond
@@ -1494,11 +1601,17 @@ else cover the whole buffer."
 ;; It should be lower than `outline-minor-mode' and `view-mode'.
 (or (assq 'diff-mode-read-only minor-mode-map-alist)
     (nconc minor-mode-map-alist
-           (list (cons 'diff-mode-read-only diff-mode-shared-map))))
+           (list (cons 'diff-mode-read-only
+                       (make-composed-keymap diff-mode-shared-map
+                                             special-mode-map)))))
 
 (defvar whitespace-style)
 (defvar whitespace-trailing-regexp)
 
+;; Prevent applying `view-read-only' to diff-mode buffers (bug#75993).
+;; We don't derive from `special-mode' because that would inhibit the
+;; `self-insert-command' binding of normal keys.
+(put 'diff-mode 'mode-class 'special)
 ;;;###autoload
 (define-derived-mode diff-mode fundamental-mode "Diff"
   "Major mode for viewing/editing context diffs.
@@ -1569,15 +1682,16 @@ a diff with \\[diff-reverse-direction].
 \\{diff-minor-mode-map}"
   :group 'diff-mode :lighter " Diff"
   ;; FIXME: setup font-lock
-  (when diff--track-changes (track-changes-unregister diff--track-changes))
+  (when diff--track-changes
+    (track-changes-unregister diff--track-changes)
+    (setq diff--track-changes nil))
   (remove-hook 'write-contents-functions #'diff-write-contents-hooks t)
   (when diff-minor-mode
     (if (not diff-update-on-the-fly)
         (add-hook 'write-contents-functions #'diff-write-contents-hooks nil t)
-      (unless diff--track-changes
-        (setq diff--track-changes
-              (track-changes-register #'diff--track-changes-signal
-                                      :nobefore t))))))
+      (setq diff--track-changes
+            (track-changes-register #'diff--track-changes-signal
+                                    :nobefore t)))))
 
 ;;; Handy hook functions ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -1607,9 +1721,11 @@ modified lines of the diff."
     (setq-local diff-buffer-type
                 (if (re-search-forward "^diff --git" nil t)
                     'git
-                  nil)))
+                  (if (re-search-forward "^diff -r.*-r" nil t)
+                      'hg
+                    nil))))
   (when (eq diff-buffer-type 'git)
-    (setq diff-outline-regexp
+    (setq-local diff-outline-regexp
           (concat "\\(^diff --git.*\\|" diff-hunk-header-re "\\)")))
   (setq-local outline-level #'diff--outline-level)
   (setq-local outline-regexp diff-outline-regexp))
@@ -1655,7 +1771,7 @@ Only works for unified diffs."
         (cond
          ((and (memq (char-after) '(?\s ?! ?+ ?-))
                (memq (char-after (1+ (point))) '(?\s ?\t)))
-          (cl-decf count) t)
+          (decf count) t)
          ((or (zerop count) (= count lines)) nil)
          ((memq (char-after) '(?! ?+ ?-))
           (if (not (and (eq (char-after (1+ (point))) ?\n)
@@ -1707,7 +1823,7 @@ Only works for unified diffs."
             (forward-line)
             (while
                 (pcase (char-after)
-                  (?\s (cl-decf before) (cl-decf after) t)
+                  (?\s (decf before) (decf after) t)
                   (?-
                    (cond
                     ((and (looking-at diff-separator-re)
@@ -1722,15 +1838,15 @@ Only works for unified diffs."
                      ;; will not get confused.
                      (save-excursion (insert "\n")) nil)
                     (t
-                     (cl-decf before) t)))
-                  (?+ (cl-decf after) t)
+                     (decf before) t)))
+                  (?+ (decf after) t)
                   (_
                    (cond
                     ((and diff-valid-unified-empty-line
                           ;; Not just (eolp) so we don't infloop at eob.
                           (eq (char-after) ?\n)
                           (> before 0) (> after 0))
-                     (cl-decf before) (cl-decf after) t)
+                     (decf before) (decf after) t)
                     ((and (zerop before) (zerop after)) nil)
                     ((or (< before 0) (< after 0))
                      (error (if (or (zerop before) (zerop after))
@@ -1938,9 +2054,11 @@ SWITCHED is non-nil if the patch is already applied."
         (goto-char (point-min)) (forward-line (1- (string-to-number line)))
 	(let* ((orig-pos (point))
 	       (switched nil)
-	       ;; FIXME: Check for case where both OLD and NEW are found.
-	       (pos (or (diff-find-text (car old))
-			(progn (setq switched t) (diff-find-text (car new)))
+	       (maybe-old (diff-find-text (car old)))
+	       (maybe-new (diff-find-text (car new)))
+	       (pos (or (and maybe-new maybe-old (null reverse) (setq switched t) maybe-new)
+			maybe-old
+			(progn (setq switched t) maybe-new)
 			(progn (setq switched nil)
 			       (condition-case nil
 				   (diff-find-approx-text (car old))
@@ -1980,7 +2098,11 @@ the value of this variable when given an appropriate prefix argument).
 With a prefix argument, REVERSE the hunk."
   (interactive "P")
   (diff-beginning-of-hunk t)
-  (pcase-let ((`(,buf ,line-offset ,pos ,old ,new ,switched)
+  (pcase-let* (;; Do not accept BUFFER.REV buffers as source location.
+               (diff-vc-backend nil)
+               ;; When we detect deletion, we will use the old file name.
+               (deletion (equal null-device (car (diff-hunk-file-names reverse))))
+               (`(,buf ,line-offset ,pos ,old ,new ,switched)
                ;; Sometimes we'd like to have the following behavior: if
                ;; REVERSE go to the new file, otherwise go to the old.
                ;; But that means that by default we use the old file, which is
@@ -1990,7 +2112,7 @@ With a prefix argument, REVERSE the hunk."
                ;; TODO: make it possible to ask explicitly for this behavior.
                ;;
                ;; This is duplicated in diff-test-hunk.
-               (diff-find-source-location nil reverse)))
+               (diff-find-source-location (xor deletion reverse) reverse)))
     (cond
      ((null line-offset)
       (user-error "Can't find the text to patch"))
@@ -2016,6 +2138,10 @@ With a prefix argument, REVERSE the hunk."
 		       "Hunk hasn't been applied yet; apply it now? "
 		     "Hunk has already been applied; undo it? ")))))
       (message "(Nothing done)"))
+     ((and deletion (not switched))
+      (when (y-or-n-p (format-message "Delete file `%s'?" (buffer-file-name buf)))
+        (delete-file (buffer-file-name buf) delete-by-moving-to-trash)
+        (kill-buffer buf)))
      (t
       ;; Apply the hunk
       (with-current-buffer buf
@@ -2049,24 +2175,59 @@ With a prefix argument, try to REVERSE the hunk."
           (diff-hunk-kill)
         (diff-hunk-next)))))
 
-(defun diff-apply-buffer ()
-  "Apply the diff in the entire diff buffer.
-When applying all hunks was successful, then save the changed buffers."
+(defcustom diff-ask-before-revert-and-kill-hunk t
+  "If non-nil, `diff-revert-and-kill-hunk' will ask for confirmation."
+  :type 'boolean
+  :version "31.1")
+
+(defun diff-revert-and-kill-hunk ()
+  "Reverse-apply and then kill the hunk at point.  Save changed buffer.
+
+This command is useful in buffers generated by \\[vc-diff] and \\[vc-root-diff],
+especially when preparing to commit the patch with \\[vc-next-action].
+You can use \\<diff-mode-map>\\[diff-hunk-kill] to temporarily remove changes that you intend to
+include in a separate commit or commits, and you can use this command
+to permanently drop changes you didn't intend, or no longer want.
+
+This is a destructive operation, so by default, this command asks you to
+confirm you really want to reverse-apply and kill the hunk.  You can
+customize `diff-ask-before-revert-and-kill-hunk' to control that."
   (interactive)
+  (when (or (not diff-ask-before-revert-and-kill-hunk)
+            (yes-or-no-p "Really reverse-apply and kill this hunk?"))
+    (cl-destructuring-bind (beg end) (diff-bounds-of-hunk)
+      (when (null (diff-apply-buffer beg end t))
+        (diff-hunk-kill)))))
+
+(defun diff-apply-buffer (&optional beg end reverse)
+  "Apply the diff in the entire diff buffer.
+Interactively, if the region is active, apply all hunks that the region
+overlaps; otherwise, apply all hunks.
+With a prefix argument, reverse-apply the hunks.
+If applying all hunks succeeds, save the changed buffers.
+
+When called from Lisp with optional arguments, restrict the application
+to hunks lying between BEG and END, and reverse-apply them when REVERSE
+is non-nil.  Returns nil if buffers were successfully modified and
+saved, or the number of failed hunk applications otherwise."
+  (interactive (list (use-region-beginning)
+                     (use-region-end)
+                     current-prefix-arg))
   (let ((buffer-edits nil)
         (failures 0)
         (diff-refine nil))
     (save-excursion
-      (goto-char (point-min))
+      (goto-char (or beg (point-min)))
       (diff-beginning-of-hunk t)
       (while (pcase-let ((`(,buf ,line-offset ,pos ,_src ,dst ,switched)
-                          (diff-find-source-location nil nil)))
+                          (diff-find-source-location nil reverse)))
                (cond ((and line-offset (not switched))
                       (push (cons pos dst)
                             (alist-get buf buffer-edits)))
                      (t (setq failures (1+ failures))))
                (and (not (eq (prog1 (point) (ignore-errors (diff-hunk-next)))
                              (point)))
+                    (or (not end) (< (point) end))
                     (looking-at-p diff-hunk-header-re)))))
     (cond ((zerop failures)
            (dolist (buf-edits (reverse buffer-edits))
@@ -2079,9 +2240,14 @@ When applying all hunks was successful, then save the changed buffers."
                    (delete-region (car pos) (cdr pos))
                    (insert (car dst))))
                (save-buffer)))
-           (message "Saved %d buffers" (length buffer-edits)))
+           (message "Saved %d buffers" (length buffer-edits))
+           nil)
           (t
-           (message "%d hunks failed; no buffers changed" failures)))))
+           (message (ngettext "%d hunk failed; no buffers changed"
+                              "%d hunks failed; no buffers changed"
+                              failures)
+                    failures)
+           failures))))
 
 (defalias 'diff-mouse-goto-source #'diff-goto-source)
 
@@ -2108,6 +2274,55 @@ revision of the file otherwise."
       (goto-char (+ (car pos) (cdr src)))
       (when buffer (next-error-found buffer (current-buffer))))))
 
+(defun diff-kill-ring-save (beg end &optional reverse)
+  "Save to `kill-ring' the result of applying diffs in region between BEG and END.
+By default the command will copy the text that applying the diff would
+produce, along with the text between hunks.  If REVERSE is non-nil, or
+the command was invoked with a prefix argument, copy the lines that the
+diff would remove (beginning with \"+\" or \"<\")."
+  (interactive
+   (append (if (use-region-p)
+               (list (region-beginning) (region-end))
+             (save-excursion
+               (list (diff-beginning-of-hunk)
+                     (diff-end-of-hunk))))
+           (list current-prefix-arg)))
+  (unless (derived-mode-p 'diff-mode)
+    (user-error "Command can only be invoked in a diff-buffer"))
+  (let ((parts '()))
+    (save-excursion
+      (goto-char beg)
+      (catch 'break
+        (while t
+          (let ((hunk (diff-hunk-text
+                       (buffer-substring
+                        (save-excursion (diff-beginning-of-hunk))
+                        (save-excursion (min (diff-end-of-hunk) end)))
+                       (not reverse)
+                       (save-excursion
+                         (- (point) (diff-beginning-of-hunk))))))
+            (push (substring (car hunk) (cdr hunk))
+                  parts))
+          ;; check if we have copied everything
+          (diff-end-of-hunk)
+          (when (<= end (point)) (throw 'break t))
+          ;; copy the text between hunks
+          (let ((inhibit-message t) start)
+            (save-window-excursion
+              (save-excursion
+                (forward-line -1)
+                ;; FIXME: Detect if the line we jump to doesn't match
+                ;; the line in the diff.
+                (diff-goto-source t)
+                (forward-line +1)
+                (setq start (point))))
+            (save-window-excursion
+              (diff-goto-source t)
+              (push (buffer-substring start (point))
+                    parts))))))
+    (kill-new (string-join (nreverse parts)))
+    (setq deactivate-mark t)
+    (message (if reverse "Copied original text" "Copied modified text"))))
 
 (defun diff-current-defun ()
   "Find the name of function at point.
@@ -2514,7 +2729,8 @@ are relative to the root directory of the VC repository."
                         (if other-buf (set-buffer other-buf)
                           (set-buffer (generate-new-buffer " *diff-other-text*"))
                           (insert (if applied old-text new-text))
-                          (funcall (buffer-local-value 'major-mode buf))
+                          (let ((delay-mode-hooks t))
+                            (funcall (buffer-local-value 'major-mode buf)))
                           (setq other-buf (current-buffer)))
                         (goto-char (point-min))
                         (forward-line (+ =lines -1
@@ -2543,9 +2759,9 @@ are relative to the root directory of the VC repository."
                             (< (point) hunk-end))
                 (let ((patch-char (char-after)))
                   (pcase patch-char
-                    (?+ (cl-incf +lines))
-                    (?- (cl-incf -lines))
-                    (?\s (cl-incf =lines)))
+                    (?+ (incf +lines))
+                    (?- (incf -lines))
+                    (?\s (incf =lines)))
                   (save-current-buffer
                     (funcall =ck-eodefun)
                     (funcall +ck-eodefun)
@@ -2971,7 +3187,8 @@ When OLD is non-nil, highlight the hunk from the old source."
               ((memq diff-font-lock-syntax '(hunk-also hunk-only))
                (with-temp-buffer
                  (insert text)
-                 (diff-syntax-fontify-props file text line-nb t))))))))
+                 (with-demoted-errors "%S"
+                   (diff-syntax-fontify-props file text line-nb t)))))))))
 
     ;; Put properties over the hunk text
     (goto-char beg)
@@ -3033,7 +3250,12 @@ hunk text is not found in the source file."
     (cl-assert (null buffer-file-name))
     ;; Use `:safe' to find `mode:'.  In case of hunk-only, use nil because
     ;; Local Variables list might be incomplete when context is truncated.
-    (let ((enable-local-variables (unless hunk-only :safe))
+    (let ((enable-local-variables
+           (unless hunk-only
+             (if (memq enable-local-variables '(:safe :all nil))
+                 enable-local-variables
+               ;; Ignore other values that query.
+               :safe)))
           (buffer-file-name file))
       ;; Don't run hooks that might assume buffer-file-name
       ;; really associates buffer with a file (bug#39190).
@@ -3082,6 +3304,17 @@ hunk text is not found in the source file."
 
 ;;;###autoload
 (defun diff-vc-deduce-fileset ()
+  (when (buffer-narrowed-p)
+    ;; If user used `diff-restrict-view' then we may not have the
+    ;; file header, and the commit will not succeed (bug#73387).
+    (user-error "Cannot commit patch when narrowed; consider %s"
+                (mapconcat (lambda (c)
+                             (key-description
+                              (where-is-internal c nil t)))
+                           '(widen
+                             diff-delete-other-hunks
+                             vc-next-action)
+                           " ")))
   (let ((backend (vc-responsible-backend default-directory))
         files)
     (save-excursion

@@ -209,7 +209,7 @@ It must be supported by libarchive(3).")
 
 (defconst tramp-archive-all-gvfs-methods
   (cons tramp-archive-method
-	(let ((values (cdr (cadr (get 'tramp-gvfs-methods 'custom-type)))))
+	(let ((values (cdadr (get 'tramp-gvfs-methods 'custom-type))))
 	  (setq values (mapcar #'last values)
 		values (mapcar #'car values))))
   "List of all methods `tramp-gvfs-methods' offers.")
@@ -609,7 +609,7 @@ offered."
 (defun tramp-archive-handle-directory-file-name (directory)
   "Like `directory-file-name' for file archives."
   (with-parsed-tramp-archive-file-name directory nil
-    (if (and (tramp-compat-length> localname 0)
+    (if (and (length> localname 0)
 	     (eq (aref localname (1- (length localname))) ?/)
 	     (not (string= localname "/")))
 	(substring directory 0 -1)

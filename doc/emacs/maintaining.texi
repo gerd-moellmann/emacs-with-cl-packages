@@ -190,8 +190,8 @@ which it refers to as @dfn{back ends}:
 @item
 Git is a decentralized version control system originally invented by
 Linus Torvalds to support development of Linux (his kernel).  VC
-supports many common Git operations, but others, such as repository
-syncing, must be done from the command line.
+supports all the common Git operations, but notably, Git rebases other
+than simply to edit a commit message must be done from the command line.
 
 @cindex CVS
 @item
@@ -235,8 +235,7 @@ everything you can do with RCS can be done through VC.
 @cindex Mercurial
 @item
 Mercurial (hg) is a decentralized version control system broadly
-resembling Git.  VC supports most Mercurial commands, with the
-exception of repository sync operations.
+resembling Git.  VC supports most Mercurial commands.
 
 @cindex bzr
 @cindex Bazaar
@@ -542,11 +541,10 @@ or Dired buffer:
 @itemize @bullet
 @item
 If there is more than one file in the VC fileset and the files have
-inconsistent version control statuses, signal an error.  (Note,
-however, that a fileset is allowed to include both newly-added files
-and modified files; @pxref{Registering}.)  Also signal an error if the
-files in the fileset are missing (removed from the filesystem, but
-still tracked by version control), or are ignored by version control.
+inconsistent version control statuses, signal an error.  (Note, however,
+that a fileset is allowed to include both newly-added files, removed
+files and modified files; @pxref{Registering}.)  Also signal an error if
+any files in the fileset are ignored by version control.
 
 @item
 If every file in the VC fileset is registered and unchanged with
@@ -613,8 +611,7 @@ its default mode), @kbd{C-x v v} does the following:
 @item
 If there is more than one file in the VC fileset and the files have
 inconsistent version control statuses, signal an error.  Also signal
-an error if the files in the fileset are missing (removed from the
-filesystem, but still tracked by version control).
+an error if any files in the fileset are ignored by version control.
 
 @item
 If each file in the VC fileset is not registered with a version
@@ -1783,20 +1780,18 @@ more programs.  Files that belong to a project are typically stored in
 a hierarchy of directories; the top-level directory of the hierarchy
 is known as the @dfn{project root}.
 
-@cindex project back-end
+@cindex project backend
   Whether a given directory is a root of some project is determined by
-the project-specific infrastructure, known as @dfn{project back-end}.
-Emacs currently supports two such back-ends: VC-aware (@pxref{Version
+the project-specific infrastructure, known as @dfn{project backend}.
+Emacs currently supports two such backends: VC-aware (@pxref{Version
 Control}), whereby a VCS repository is considered a project; and EDE
 (@pxref{EDE}).  This is expected to be extended in the future to
 support additional types of projects.
 
   Which files do or don't belong to a project is also determined by
-the project back-end.  For example, the VC-aware back-end doesn't
+the project backend.  For example, the VC-aware backend doesn't
 consider ``ignored'' files (@pxref{VC Ignore}) to be part of the
-project.  Also, the VC-aware Project back-end considers ``untracked''
-files by default.  That behavior is controllable with the variable
-@code{project-vc-include-untracked}.
+project.  See its entry below for description and related options.
 
 @cindex current project name on mode line
 @defopt project-mode-line
@@ -1811,6 +1806,7 @@ The default value is @code{nil}.
 * Project Buffer Commands:: Commands for handling project buffers.
 * Switching Projects::      Switching between projects.
 * Managing Projects::       Managing the project list file.
+* VC-Aware Project Backend:: Default project backend.
 @end menu
 
 @node Project File Commands
@@ -2040,6 +2036,60 @@ Remove a known project from the @code{project-list-file}.
 the available projects.  @kbd{M-x project-forget-project}
 prompts you to choose one of the available projects, and then removes
 it from the file.
+
+@vindex project-list-exclude
+  The user option @code{project-list-exclude} may be set to always
+ignore certain projects from being remembered and saved to
+@code{project-list-file}.  It is a list of regular expressions and
+predicate functions for project roots and objects.  The regexp is
+matched against the project root, and the predicate should take the
+project object as the only argument and return non-@code{nil} if the
+project should @emph{not} be saved to @code{project-list-file}.
+
+@node VC-Aware Project Backend
+@subsection VC-Aware Project Backend
+@cindex VC-aware project backend
+@cindex project backend, VC-aware
+This backend is part of Emacs and is enabled by default.  (Other
+backends may need installation of add-on packages and their proper
+configuration.)
+
+It determines the contents of the project based on the VCS repository's
+configuration (if any), excluding the ``ignored'' files from the output.
+
+It has some performance optimizations for listing the files with some of
+the popular VCS systems (currently Git and Mercurial).
+
+@defopt project-vc-include-untracked
+By default, files which are neither registered with nor ignored by the
+VCS are considered part of the project.  Customize this variable to nil
+to change that.
+@end defopt
+
+@defopt project-vc-ignores
+Using this variable you can add more ignore patterns to the project, to
+exclude more files from the project's file listing.  The value is a list
+of glob strings.  They can match both regular files and directories.  To
+anchor an entry to the project root, start it with @code{./}.  To match
+directories only, end it with @code{/}.
+@end defopt
+
+@defopt project-vc-name
+This variable allows you to change the automatically detected name of
+the project to a string of your choice.  By default the name is the base
+name of its root directory.
+@end defopt
+
+@defopt project-vc-extra-root-markers
+This variable allows you to set up detection of non-VC projects in this
+backend, and also to have some subdirectories detected as separate
+projects.  The value is a list.
+
+Each element is either a base file name or a glob pattern for such.
+
+Example values: @file{.dir-locals.el}, @file{package.json},
+@file{requirements.txt}, @file{*.gemspec}.
+@end defopt
 
 @node Change Log
 @section Change Logs
@@ -2550,6 +2600,15 @@ identifier, showing the file name and the line where the identifier is
 referenced.  The XREF mode commands are available in this buffer, see
 @ref{Xref Commands}.
 
+When invoked in a buffer whose major mode uses the @code{etags} backend,
+@kbd{M-?} searches files and buffers whose major mode matches that of
+the original buffer.  It guesses that mode from file extensions, so if
+@kbd{M-?} seems to be skipping relevant buffers or files, try
+customizing either the variable @code{semantic-symref-filepattern-alist}
+(if your buffer's major mode already has an entry in it), or
+@code{auto-mode-alist} (if not), thereby informing @code{xref} of the
+missing extensions (@pxref{Choosing Modes}).
+
 @vindex xref-auto-jump-to-first-xref
   If the value of the variable @code{xref-auto-jump-to-first-xref} is
 @code{t}, @code{xref-find-references} automatically jumps to the first
@@ -2767,10 +2826,32 @@ Tags for variables and functions in classes are named
 @item
 In @LaTeX{} documents, the arguments for @code{\chapter},
 @code{\section}, @code{\subsection}, @code{\subsubsection},
-@code{\eqno}, @code{\label}, @code{\ref}, @code{\cite},
-@code{\bibitem}, @code{\part}, @code{\appendix}, @code{\entry},
-@code{\index}, @code{\def}, @code{\newcommand}, @code{\renewcommand},
-@code{\newenvironment} and @code{\renewenvironment} are tags.
+@code{\eqno}, @code{\label}, @code{\ref}, @code{\Ref}, @code{\footref},
+@code{\cite}, @code{\bibitem}, @code{\part}, @code{\appendix},
+@code{\entry}, @code{\index}, @code{\def}, @code{\edef}, @code{\gdef},
+@code{\xdef}, @code{\newcommand}, @code{\renewcommand},
+@code{\newenvironment}, @code{\renewenvironment},
+@code{\DeclareRobustCommand}, @code{\newrobustcmd},
+@code{\renewrobustcmd}, @code{\providecommand},
+@code{\providerobustcmd}, @code{\NewDocumentCommand},
+@code{\RenewDocumentCommand}, @code{\ProvideDocumentCommand},
+@code{\DeclareDocumentCommand}, @code{\NewExpandableDocumentCommand},
+@code{\RenewExpandableDocumentCommand},
+@code{\ProvideExpandableDocumentCommand},
+@code{\DeclareExpandableDocumentCommand},
+@code{\NewDocumentEnvironment}, @code{\RenewDocumentEnvironment},
+@code{\ProvideDocumentEnvironment}, @code{\DeclareDocumentEnvironment},
+@code{\csdef}, @code{\csedef}, @code{\csgdef}, @code{\csxdef},
+@code{\csletcs}, @code{\cslet}, @code{\letcs}, @code{\let},
+@code{\cs_new_protected_nopar}, @code{\cs_new_protected},
+@code{\cs_new_nopar}, @code{\cs_new_eq}, @code{\cs_new},
+@code{\cs_set_protected_nopar}, @code{\cs_set_protected},
+@code{\cs_set_nopar}, @code{\cs_set_eq}, @code{\cs_set},
+@code{\cs_gset_protected_nopar}, @code{\cs_gset_protected},
+@code{\cs_gset_nopar}, @code{\cs_gset_eq}, @code{\cs_gset},
+@code{\cs_generate_from_arg_count}, and @code{\cs_generate_variant} are
+tags.  So too are the arguments of any starred variants of these
+commands.
 
 Other commands can make tags as well, if you specify them in the
 environment variable @env{TEXTAGS} before invoking @command{etags}.  The
@@ -3018,6 +3099,10 @@ language not yet supported by @command{etags}, and you want to avoid
 having @command{etags} fall back on Fortran and C as the default
 languages.
 
+  You can also prevent @command{etags} from falling back on Fortran and
+C if you specify the @samp{--no-fallback-lang} option.  The option
+@samp{--fallback-lang} countermands that.
+
   The option @samp{--parse-stdin=@var{file}} is mostly useful when
 calling @command{etags} from programs.  It can be used (only once) in
 place of a file name on the command line.  @command{etags} will read from
@@ -3037,6 +3122,15 @@ a list of all the available @command{etags} options, together with a short
 explanation.  If followed by one or more @samp{--language=@var{lang}}
 options, it outputs detailed information about how tags are generated for
 @var{lang}.
+
+  By default, @command{etags} includes in the tags table it produces all
+the files it scans, including files where it found no tags at all.
+Specify @samp{--no-empty-file-entries} to prevent that; then files with
+no tags will not be mentioned in the tags table.  However, note that
+commands which process files mentioned in the tags table, such as
+@code{tags-search} (@pxref{Identifier Search}), will process files which
+were thus omitted from the tags table.  The option
+@samp{--empty-file-entries} countermands that.
 
 @findex etags-regen-mode
   Instead of creating and updating the tags table by manually invoking

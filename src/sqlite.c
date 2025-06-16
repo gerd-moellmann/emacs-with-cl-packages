@@ -277,18 +277,28 @@ check_sqlite (Lisp_Object db, bool is_statement)
 
 static int db_count = 0;
 
-DEFUN ("sqlite-open", Fsqlite_open, Ssqlite_open, 0, 1, 0,
+DEFUN ("sqlite-open", Fsqlite_open, Ssqlite_open, 0, 3, 0,
        doc: /* Open FILE as an sqlite database.
-If FILE is nil, an in-memory database will be opened instead.  */)
-  (Lisp_Object file)
+If FILE is nil or omitted, an in-memory database will be opened instead.
+If READONLY is non-nil or omitted, open the database in read-only mode,
+otherwise open it in read-write mode.
+By default, file:// URIs are automatically recognized, unless
+DISABLE-URI is non-nil.  */)
+  (Lisp_Object file, Lisp_Object readonly, Lisp_Object disable_uri)
 {
   Lisp_Object name;
-  int flags = (SQLITE_OPEN_CREATE  | SQLITE_OPEN_READWRITE);
+  int flags;
+
+  if (!NILP (readonly))
+    flags = SQLITE_OPEN_READONLY;
+  else
+    flags = (SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE);
 #ifdef SQLITE_OPEN_FULLMUTEX
   flags |= SQLITE_OPEN_FULLMUTEX;
 #endif
 #ifdef SQLITE_OPEN_URI
-  flags |= SQLITE_OPEN_URI;
+  if (NILP (disable_uri))
+    flags |= SQLITE_OPEN_URI;
 #endif
 
   if (!init_sqlite_functions ())
@@ -899,15 +909,15 @@ syms_of_sqlite (void)
 
   DEFSYM (Qsqlite_error, "sqlite-error");
   Fput (Qsqlite_error, Qerror_conditions,
-	Fpurecopy (list2 (Qsqlite_error, Qerror)));
+	list2 (Qsqlite_error, Qerror));
   Fput (Qsqlite_error, Qerror_message,
-	build_pure_c_string ("Database error"));
+	build_string ("Database error"));
 
   DEFSYM (Qsqlite_locked_error, "sqlite-locked-error");
   Fput (Qsqlite_locked_error, Qerror_conditions,
-	Fpurecopy (list3 (Qsqlite_locked_error, Qsqlite_error, Qerror)));
+	list3 (Qsqlite_locked_error, Qsqlite_error, Qerror));
   Fput (Qsqlite_locked_error, Qerror_message,
-	build_pure_c_string ("Database locked"));
+	build_string ("Database locked"));
 
   DEFSYM (Qsqlitep, "sqlitep");
   DEFSYM (Qfalse, "false");

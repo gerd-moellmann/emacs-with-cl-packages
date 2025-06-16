@@ -96,7 +96,7 @@ to use --brief and sets this variable to remember whether it worked."
 ;; for a registered backend without loading every backend.
 ;;;###autoload
 (defcustom vc-rcs-master-templates
-  (purecopy '("%sRCS/%s,v" "%s%s,v" "%sRCS/%s"))
+  '("%sRCS/%s,v" "%s%s,v" "%sRCS/%s")
   "Where to look for RCS master files.
 For a description of possible values, see `vc-check-master-templates'."
   :type '(choice (const :tag "Use standard RCS file names"
@@ -554,11 +554,10 @@ files beneath it."
     (vc-rcs-print-log-cleanup))
   (when limit 'limit-unsupported))
 
-(defun vc-rcs-diff (files &optional oldvers newvers buffer _async)
+(defun vc-rcs-diff (files &optional oldvers newvers buffer async)
   "Get a difference report using RCS between two sets of files."
   (apply #'vc-do-command (or buffer "*vc-diff*")
-	 ;; The repo is local, so this is fast anyway.
-	 1 ; bug#21969
+         (if async 'async 1)
 	 "rcsdiff" (vc-expand-dirs files 'RCS)
          (append (list "-q"
                        (and oldvers (concat "-r" oldvers))

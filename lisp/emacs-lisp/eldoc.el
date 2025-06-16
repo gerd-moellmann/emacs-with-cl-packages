@@ -78,7 +78,7 @@ If nil, truncated messages will just have \"...\" to indicate truncation."
   :version "28.1")
 
 ;;;###autoload
-(defcustom eldoc-minor-mode-string (purecopy " ElDoc")
+(defcustom eldoc-minor-mode-string " ElDoc"
   "String to display in mode line when ElDoc Mode is enabled; nil for none."
   :type '(choice string (const :tag "None" nil)))
 
@@ -138,6 +138,14 @@ is only skipped if the documentation needs to be truncated there."
                  (const :tag "Skip echo area if truncating" maybe))
   :version "28.1")
 
+(defcustom eldoc-help-at-pt nil
+  "If non-nil, show `help-at-pt-kbd-string' at point via Eldoc.
+This setting is an alternative to `help-at-pt-display-when-idle'.  If
+the value is non-nil, `eldoc-show-help-at-pt' will show help-at-point
+via Eldoc."
+  :type 'boolean
+  :version "31.1")
+
 (defface eldoc-highlight-function-argument
   '((t (:inherit bold)))
   "Face used for the argument at point in a function's argument list.
@@ -154,7 +162,6 @@ this file since the obarray is initialized at load time.
 Remember to keep it a prime number to improve hash performance.")
 
 (defvar eldoc-message-commands
-  ;; Don't define as `defconst' since it would then go to (read-only) purespace.
   (obarray-make eldoc-message-commands-table-size)
   "Commands after which it is appropriate to print in the echo area.
 ElDoc does not try to print function arglists, etc., after just any command,
@@ -166,7 +173,6 @@ directly.  Instead, use `eldoc-add-command' and `eldoc-remove-command'.")
 
 ;; Not a constant.
 (defvar eldoc-last-data (make-vector 3 nil)
-  ;; Don't define as `defconst' since it would then go to (read-only) purespace.
   "Bookkeeping; elements are as follows:
   0 - contains the last symbol read from the buffer.
   1 - contains the string last displayed in the echo area for variables,
@@ -269,6 +275,14 @@ See `eldoc-documentation-strategy' for more detail."
     (eldoc-mode 1)))
 
 
+(defun eldoc--update ()
+  (when (or eldoc-mode
+            (and global-eldoc-mode
+                 (eldoc--supported-p)))
+    ;; Don't ignore, but also don't full-on signal errors
+    (with-demoted-errors "eldoc error: %s"
+      (eldoc-print-current-symbol-info)) ))
+
 (defun eldoc-schedule-timer ()
   "Ensure `eldoc-timer' is running.
 
@@ -279,13 +293,7 @@ reflect the change."
       (setq eldoc-timer
             (run-with-idle-timer
 	     eldoc-idle-delay nil
-	     (lambda ()
-               (when (or eldoc-mode
-                         (and global-eldoc-mode
-                              (eldoc--supported-p)))
-                 ;; Don't ignore, but also don't full-on signal errors
-                 (with-demoted-errors "eldoc error: %s"
-                   (eldoc-print-current-symbol-info)) )))))
+             #'eldoc--update)))
 
   ;; If user has changed the idle delay, update the timer.
   (cond ((not (= eldoc-idle-delay eldoc-current-idle-delay))
@@ -410,7 +418,7 @@ Also store it in `eldoc-last-message' and return that value."
                       (overlay-end show-paren--overlay)))))))
 
 
-(defvar eldoc-documentation-functions nil
+(defvar eldoc-documentation-functions (list #'eldoc-show-help-at-pt)
   "Hook of functions that produce doc strings.
 
 A doc string is typically relevant if point is on a function-like
@@ -957,6 +965,12 @@ the docstrings eventually produced, using
              (setq eldoc--last-request-state token)
              (eldoc--invoke-strategy nil))))))
 
+(defun eldoc-show-help-at-pt (&rest _)
+  "Show help at point via Eldoc if `eldoc-help-at-pt' is non-nil.
+Intended for `eldoc-documentation-functions' (which see)."
+  (when-let* ((help (and eldoc-help-at-pt (help-at-pt-kbd-string))))
+    (format "Help: %s" (substitute-command-keys help))))
+
 
 ;; This section only affects ElDoc output to the echo area, as in
 ;; `eldoc-display-in-echo-area'.
@@ -994,7 +1008,7 @@ the docstrings eventually produced, using
 
 ;; Prime the command list.
 (eldoc-add-command-completions
- "back-to-indentation"
+ "comment-indent-new-line" "delete-char" "back-to-indentation"
  "backward-" "beginning-of-" "delete-other-windows" "delete-window"
  "down-list" "end-of-" "exchange-point-and-mark" "forward-" "goto-"
  "handle-select-window" "indent-for-tab-command" "left-" "mark-page"

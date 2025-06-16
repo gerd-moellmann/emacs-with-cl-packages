@@ -870,7 +870,7 @@ guess will be made."
 		 (default-directory
 		  (cond
 		   ((not dir) default-directory)
-                   ((when-let ((session (org-babel-session-buffer info)))
+                   ((when-let* ((session (org-babel-session-buffer info)))
                       (buffer-local-value 'default-directory (get-buffer session))))
 		   ((member mkdirp '("no" "nil" nil))
 		    (file-name-as-directory (expand-file-name dir)))
@@ -1822,7 +1822,7 @@ HEADER-ARGUMENTS is an alist of all the arguments."
       (cons :colname-names (or (cdr (assq :colname-names params))
 			       (cadr  vars-and-names)))
       (cons :rowname-names (or (cdr (assq :rowname-names params))
-			       (cl-caddr vars-and-names)))
+                               (caddr vars-and-names)))
       (cons :result-params result-params)
       (cons :result-type  (cond ((member "output" result-params) 'output)
 				((member "value" result-params) 'value)

@@ -24,12 +24,24 @@
 
 #include <time.h>
 
+#if HAVE_UTIMENS || HAVE_LUTIMENS
+# include <sys/stat.h>
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 int fdutimens (int, char const *, struct timespec const [2]);
+
+#if HAVE_UTIMENS
+# define utimens rpl_utimens
+#endif
 int utimens (char const *, struct timespec const [2]);
+
+#if HAVE_LUTIMENS
+# define lutimens rpl_lutimens
+#endif
 int lutimens (char const *, struct timespec const [2]);
 
 #ifdef __cplusplus

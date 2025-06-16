@@ -813,8 +813,8 @@ but `diary-date-forms' (which see)."
 (defcustom diary-european-date-forms
   '((day "/" month "[^/0-9]")
     (day "/" month "/" year "[^0-9]")
-    (backup day " *" monthname "\\W+\\<\\([^*0-9]\\|\\([0-9]+[:aApP]\\)\\)")
-    (day " *" monthname " *" year "[^0-9:aApP]")
+    (backup day " *" monthname "\\W+\\<\\([^*0-9]\\|\\([0-9]+[:.aApP]\\)\\)")
+    (day " *" monthname " *" year "[^0-9:.aApP]")
     (dayname "\\W"))
   "List of pseudo-patterns describing the European style of dates.
 The defaults are: DAY/MONTH; DAY/MONTH/YEAR; DAY MONTHNAME;
@@ -829,7 +829,8 @@ DAY MONTHNAME YEAR; DAYNAME.  Normally you should not customize this, but
                          (repeat (list :inline t :format "%v"
                                        (symbol :tag "Keyword")
                                        (choice symbol regexp)))))
-  :group 'diary)
+  :group 'diary
+  :version "31.1")
 
 (defvar diary-font-lock-keywords)
 
@@ -1586,16 +1587,25 @@ Otherwise, use the selected window of EVENT's frame."
       (define-key map (vector 'remap c) 'calendar-not-implemented))
     (define-key map "<"     'calendar-scroll-right)
     (define-key map "\C-x<" 'calendar-scroll-right)
+    (define-key map [S-wheel-up] 'calendar-scroll-right)
     (define-key map [prior] 'calendar-scroll-right-three-months)
     (define-key map "\ev"   'calendar-scroll-right-three-months)
+    (define-key map [wheel-up] 'calendar-scroll-right-three-months)
+    (define-key map [M-wheel-up] 'calendar-backward-year)
     (define-key map ">"     'calendar-scroll-left)
     (define-key map "\C-x>" 'calendar-scroll-left)
+    (define-key map [S-wheel-down] 'calendar-scroll-left)
     (define-key map [next]  'calendar-scroll-left-three-months)
     (define-key map "\C-v"  'calendar-scroll-left-three-months)
+    (define-key map [wheel-down] 'calendar-scroll-left-three-months)
+    (define-key map [M-wheel-down] 'calendar-forward-year)
+    (define-key map "\C-l"  'calendar-recenter)
     (define-key map "\C-b"  'calendar-backward-day)
     (define-key map "\C-p"  'calendar-backward-week)
     (define-key map "\e{"   'calendar-backward-month)
+    (define-key map "{"   'calendar-backward-month)
     (define-key map "\C-x[" 'calendar-backward-year)
+    (define-key map "[" 'calendar-backward-year)
     (define-key map "\C-f"  'calendar-forward-day)
     (define-key map "\C-n"  'calendar-forward-week)
     (define-key map [left]  'calendar-backward-day)
@@ -1603,7 +1613,9 @@ Otherwise, use the selected window of EVENT's frame."
     (define-key map [right] 'calendar-forward-day)
     (define-key map [down]  'calendar-forward-week)
     (define-key map "\e}"   'calendar-forward-month)
+    (define-key map "}"   'calendar-forward-month)
     (define-key map "\C-x]" 'calendar-forward-year)
+    (define-key map "]" 'calendar-forward-year)
     (define-key map "\C-a"  'calendar-beginning-of-week)
     (define-key map "\C-e"  'calendar-end-of-week)
     (define-key map "\ea"   'calendar-beginning-of-month)
@@ -2348,14 +2360,15 @@ returned is (month year)."
                                    defyear))
          (month-array calendar-month-name-array)
          (defmon (aref month-array (1- (calendar-extract-month default-date))))
-         (completion-ignore-case t)
          (month (cdr (assoc-string
-                      (let ((completion-extra-properties
-                             '(:category calendar-month)))
-                        (completing-read
-                         (format-prompt "Month name" defmon)
-                         (append month-array nil)
-                         nil t nil nil defmon))
+                      (completing-read
+                       (format-prompt "Month name" defmon)
+                       (completion-table-with-metadata
+                        (completion-table-case-fold
+                         (append month-array nil))
+                        `((category . calendar-month)
+                          (display-sort-function . identity)))
+                       nil t nil nil defmon)
                       (calendar-make-alist month-array 1) t)))
          (defday (calendar-extract-day default-date))
          (last (calendar-last-day-of-month month year)))
@@ -2472,19 +2485,22 @@ Returns the corresponding Gregorian date."
 
 (defun calendar-date-is-valid-p (date)
   "Return t if DATE is a valid date."
-  (let ((month (calendar-extract-month date))
-        (day (calendar-extract-day date))
-        (year (calendar-extract-year date)))
-    (and (<= 1 month) (<= month 12)
-         ;; (calendar-read-date t) used to return a date with day = nil.
-         ;; Should not be valid (?), since many funcs prob assume integer.
-         ;; (calendar-read-date 'noday) returns (month year), which
-         ;; currently results in calendar-extract-year returning nil.
-         day year (<= 1 day) (<= day (calendar-last-day-of-month month year))
-         ;; BC dates left as non-valid, to suppress errors from
-         ;; complex holiday algorithms not suitable for years BC.
-         ;; Note there are side effects on calendar navigation.
-         (<= 1 year))))
+  (when (and (listp date)
+             (length= date 3))
+    (let ((month (calendar-extract-month date))
+          (day (calendar-extract-day date))
+          (year (calendar-extract-year date)))
+      (and (integerp month) (integerp day) (integerp year)
+           (<= 1 month) (<= month 12)
+           ;; (calendar-read-date t) used to return a date with day = nil.
+           ;; Should not be valid (?), since many funcs prob assume integer.
+           ;; (calendar-read-date 'noday) returns (month year), which
+           ;; currently results in calendar-extract-year returning nil.
+           day year (<= 1 day) (<= day (calendar-last-day-of-month month year))
+           ;; BC dates left as non-valid, to suppress errors from
+           ;; complex holiday algorithms not suitable for years BC.
+           ;; Note there are side effects on calendar navigation.
+           (<= 1 year)))))
 
 (defun calendar-date-equal (date1 date2)
   "Return t if the DATE1 and DATE2 are the same."
@@ -2510,9 +2526,9 @@ ATTRLIST is a list with elements of the form :face face :foreground color."
     (if (not faceinfo)
         ;; No attributes to apply, so just use an existing-face.
         face
-      ;; FIXME should we be using numbered temp-faces, reusing where poss?
+      ;; Compute temp face name.
       (setq temp-face
-            (make-symbol
+            (intern
              (concat ":caltemp"
                      (mapconcat (lambda (sym)
                                   (cond
@@ -2520,10 +2536,12 @@ ATTRLIST is a list with elements of the form :face face :foreground color."
                                    ((numberp sym) (number-to-string sym))
                                    (t sym)))
                                 attrlist ""))))
-      (make-face temp-face)
-      (copy-face face temp-face)
-      ;; Apply the font aspects.
-      (apply #'set-face-attribute temp-face nil (nreverse faceinfo))
+      ;; Create this new face if it does not already exist.
+      (unless (member temp-face (face-list))
+        (make-face temp-face)
+        (copy-face face temp-face)
+        ;; Apply the font aspects.
+        (apply #'set-face-attribute temp-face nil (nreverse faceinfo)))
       temp-face)))
 
 (defun calendar-mark-visible-date (date &optional mark)

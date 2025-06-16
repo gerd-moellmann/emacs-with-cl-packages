@@ -1,9 +1,10 @@
 # manywarnings.m4
-# serial 26
+# serial 29
 dnl Copyright (C) 2008-2025 Free Software Foundation, Inc.
 dnl This file is free software; the Free Software Foundation
 dnl gives unlimited permission to copy and/or distribute it,
 dnl with or without modifications, as long as this notice is preserved.
+dnl This file is offered as-is, without any warranty.
 
 dnl From Simon Josefsson
 
@@ -93,10 +94,10 @@ AC_DEFUN([gl_MANYWARN_ALL_GCC(C)],
   # List all gcc warning categories.
   # To compare this list to your installed GCC's, run this Bash command:
   #
-  # comm -3 \
+  # export LC_ALL=C && comm -3 \
   #  <((sed -n 's/^  *\(-[^ 0-9][^ ]*\).*/\1/p' manywarnings.m4; \
   #     awk '/^[^#]/ {print $1}' ../build-aux/gcc-warning.spec) | sort) \
-  #  <(LC_ALL=C gcc --help=warnings | sed -n 's/^  \(-[^ ]*\) .*/\1/p' | sort)
+  #  <(gcc --help=warnings | sed -n 's/^  \(-[^ ]*\) .*/\1/p' | sort)
 
   $1=
   for gl_manywarn_item in -fanalyzer -fstrict-flex-arrays \
@@ -105,7 +106,6 @@ AC_DEFUN([gl_MANYWARN_ALL_GCC(C)],
     -Wbad-function-cast \
     -Wcast-align=strict \
     -Wdate-time \
-    -Wdisabled-optimization \
     -Wdouble-promotion \
     -Wduplicated-branches \
     -Wduplicated-cond \
@@ -141,7 +141,6 @@ AC_DEFUN([gl_MANYWARN_ALL_GCC(C)],
     -Wsuggest-final-methods \
     -Wsuggest-final-types \
     -Wsync-nand \
-    -Wsystem-headers \
     -Wtrampolines \
     -Wuninitialized \
     -Wunknown-pragmas \
@@ -185,6 +184,9 @@ AC_DEFUN([gl_MANYWARN_ALL_GCC(C)],
           ;;
     esac
   fi
+
+  # These options are not supported by gcc, but are useful with clang.
+  AS_VAR_APPEND([$1], [' -Wthread-safety'])
 
   # Disable specific options as needed.
   if test "$gl_cv_cc_nomfi_needed" = yes; then

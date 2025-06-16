@@ -1,6 +1,6 @@
 ;;; modus-operandi-deuteranopia-theme.el --- Deuteranopia-optimized theme with a white background -*- lexical-binding:t -*-
 
-;; Copyright (C) 2019-2025 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2025  Free Software Foundation, Inc.
 
 ;; Author: Protesilaos Stavrou <info@protesilaos.com>
 ;; Maintainer: Protesilaos Stavrou <info@protesilaos.com>
@@ -134,22 +134,30 @@ standard)."
       (bg-magenta-nuanced "#f8e6f5")
       (bg-cyan-nuanced    "#e0f2fa")
 
-;;; Uncommon accent backgrounds
+;;; Uncommon accent background and foreground pairs
 
-      (bg-ochre    "#f0e0cc")
-      (bg-lavender "#dfdbfa")
+      (bg-clay     "#f1c8b5")
+      (fg-clay     "#63192a")
+
+      (bg-ochre    "#f0e3c0")
+      (fg-ochre    "#573a30")
+
+      (bg-lavender "#dfcdfa")
+      (fg-lavender "#443379")
+
       (bg-sage     "#c0e7d4")
+      (fg-sage     "#124b41")
 
 ;;; Graphs
 
       (bg-graph-red-0     "#d0b029")
       (bg-graph-red-1     "#e0cab4")
-      (bg-graph-green-0   "#8ad080")
+      (bg-graph-green-0   "#8ac050")
       (bg-graph-green-1   "#afdfa5")
       (bg-graph-yellow-0  "#ffcf00")
       (bg-graph-yellow-1  "#f9ff00")
       (bg-graph-blue-0    "#7f9fff")
-      (bg-graph-blue-1    "#9fc6ff")
+      (bg-graph-blue-1    "#afd0ff")
       (bg-graph-magenta-0 "#b0b0d0")
       (bg-graph-magenta-1 "#d0dfdf")
       (bg-graph-cyan-0    "#6faad9")
@@ -159,14 +167,10 @@ standard)."
 
       (bg-completion       "#c0deff")
       (bg-hover            "#b2e4dc")
-      (bg-hover-secondary  "#f5d0a0")
+      (bg-hover-secondary  "#e5d7a0")
       (bg-hl-line          "#dae5ec")
       (bg-region           "#bdbdbd")
       (fg-region           "#000000")
-
-      (bg-char-0 "#7feaff")
-      (bg-char-1 "#ffaaff")
-      (bg-char-2 "#dff000")
 
       (bg-mode-line-active        "#d0d6ff")
       (fg-mode-line-active        "#0f0f0f")
@@ -248,26 +252,32 @@ standard)."
 
 ;;;; Code mappings
 
-      (builtin magenta-warmer)
+      (bracket fg-main)
+      (builtin yellow)
       (comment yellow-cooler)
-      (constant blue-cooler)
-      (docstring green-faint)
+      (constant blue-faint)
+      (delimiter fg-main)
       (docmarkup magenta-faint)
-      (fnname magenta)
-      (keyword magenta-cooler)
-      (preprocessor red-cooler)
+      (docstring green-faint)
+      (fnname yellow-warmer)
+      (keyword blue-cooler)
+      (number fg-main)
+      (operator fg-main)
+      (preprocessor magenta-cooler)
+      (property cyan)
+      (punctuation fg-main)
+      (rx-backslash blue-cooler)
+      (rx-construct yellow-cooler)
       (string blue-warmer)
       (type cyan-cooler)
       (variable cyan)
-      (rx-construct yellow-cooler)
-      (rx-backslash blue-cooler)
 
 ;;;; Accent mappings
 
-      (accent-0 blue)
+      (accent-0 blue-warmer)
       (accent-1 yellow-warmer)
       (accent-2 cyan)
-      (accent-3 magenta-cooler)
+      (accent-3 yellow-cooler)
 
 ;;;; Button mappings
 
@@ -278,10 +288,10 @@ standard)."
 
 ;;;; Completion mappings
 
-      (fg-completion-match-0 blue)
+      (fg-completion-match-0 blue-warmer)
       (fg-completion-match-1 yellow-warmer)
       (fg-completion-match-2 cyan)
-      (fg-completion-match-3 magenta-cooler)
+      (fg-completion-match-3 yellow-cooler)
       (bg-completion-match-0 unspecified)
       (bg-completion-match-1 unspecified)
       (bg-completion-match-2 unspecified)
@@ -291,14 +301,16 @@ standard)."
 
       (date-common cyan)
       (date-deadline yellow-warmer)
+      (date-deadline-subtle red-faint)
       (date-event fg-alt)
       (date-holiday yellow-warmer)
       (date-holiday-other blue)
       (date-now fg-main)
       (date-range fg-alt)
       (date-scheduled yellow-cooler)
+      (date-scheduled-subtle yellow-faint)
       (date-weekday cyan)
-      (date-weekend yellow-faint)
+      (date-weekend blue-cooler)
 
 ;;;; Line number mappings
 
@@ -359,7 +371,7 @@ standard)."
       (fg-prose-macro magenta-cooler)
 
       (bg-prose-verbatim unspecified)
-      (fg-prose-verbatim magenta-warmer)
+      (fg-prose-verbatim yellow)
 
       (prose-done blue)
       (prose-todo yellow-warmer)
@@ -370,7 +382,7 @@ standard)."
       (prose-table fg-alt)
       (prose-table-formula yellow-warmer)
 
-      (prose-tag magenta-faint)
+      (prose-tag fg-alt)
 
 ;;;; Rainbow mappings
 
@@ -388,7 +400,7 @@ standard)."
 
       (bg-search-current bg-yellow-intense)
       (bg-search-lazy bg-blue-intense)
-      (bg-search-replace bg-magenta-intense)
+      (bg-search-replace bg-yellow-intense)
 
       (bg-search-rx-group-0 bg-cyan-intense)
       (bg-search-rx-group-1 bg-magenta-intense)
@@ -448,11 +460,11 @@ standard)."
       (fg-heading-0 cyan-cooler)
       (fg-heading-1 fg-main)
       (fg-heading-2 yellow-faint)
-      (fg-heading-3 fg-alt)
-      (fg-heading-4 magenta)
-      (fg-heading-5 green-faint)
-      (fg-heading-6 red-faint)
-      (fg-heading-7 cyan-warmer)
+      (fg-heading-3 blue-faint)
+      (fg-heading-4 green-faint)
+      (fg-heading-5 magenta-cooler)
+      (fg-heading-6 yellow-cooler)
+      (fg-heading-7 cyan)
       (fg-heading-8 fg-dim)
 
       (bg-heading-0 unspecified)
@@ -482,6 +494,19 @@ as a symbol and the latter as a string.
 Semantic color mappings have the form (MAPPING-NAME COLOR-NAME)
 with both as symbols.  The latter is a named color that already
 exists in the palette and is associated with a HEX-VALUE.")
+
+  (defcustom modus-operandi-deuteranopia-palette-user nil
+    "Like the `modus-operandi-deuteranopia-palette' for user-defined entries.
+This is meant to extend the palette with custom named colors and/or
+semantic palette mappings.  Those may then be used in combination with
+palette overrides (also see `modus-themes-common-palette-overrides' and
+`modus-operandi-deuteranopia-palette-overrides')."
+    :group 'modus-themes
+    :package-version '(modus-themes . "4.5.0")
+    :type '(repeat (list symbol (choice symbol string)))
+    :set #'modus-themes--set-option
+    :initialize #'custom-initialize-default
+    :link '(info-link "(modus-themes) Option to extend the palette for use with overrides"))
 
   (defcustom modus-operandi-deuteranopia-palette-overrides nil
     "Overrides for `modus-operandi-deuteranopia-palette'.

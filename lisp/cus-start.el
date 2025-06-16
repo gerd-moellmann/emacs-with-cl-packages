@@ -102,9 +102,9 @@
 	     (word-wrap display boolean)
              (word-wrap-by-category
               display boolean "28.1"
-              :set (lambda (symbol value)
-                     (set-default symbol value)
-                     (when value (require 'kinsoku))))
+              :set ,(lambda (symbol value)
+                      (set-default symbol value)
+                      (when value (require 'kinsoku))))
 	     (selective-display-ellipses display boolean)
 	     (indicate-empty-lines fringe boolean)
 	     (indicate-buffer-boundaries
@@ -157,9 +157,9 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 	     (cursor-in-non-selected-windows
 	      cursor ,cursor-type-types nil
 	      :tag "Cursor In Non-selected Windows"
-	      :set (lambda (symbol value)
-		     (set-default symbol value)
-		     (force-mode-line-update t)))
+	      :set ,(lambda (symbol value)
+		      (set-default symbol value)
+		      (force-mode-line-update t)))
 	     (transient-mark-mode editing-basics boolean nil
 				  :standard (not noninteractive)
 				  :initialize custom-initialize-delay
@@ -220,8 +220,8 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 			    (coding-system
 			     :tag "Single coding system"
 			     :value undecided
-			     :match (lambda (widget value)
-				      (and value (not (functionp value)))))
+			     :match ,(lambda (_widget value)
+				       (and value (not (functionp value)))))
 			    (function :value ignore))))
 	     ;; dired.c
 	     (completion-ignored-extensions dired
@@ -310,17 +310,21 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
               frames (choice
                       (const :tag "Off" :value nil)
                       (const :tag "On" :value t)
-                      (const :tag "Auto-raise" :value auto-raise)) "26.1")
+                      (const :tag "Auto-raise" :value auto-raise))
+              "26.1")
              (yes-or-no-prompt menu string "30.1")
 	     ;; fontset.c
 	     ;; FIXME nil is the initial value, fontset.el setqs it.
 	     (vertical-centering-font-regexp display
 					     (choice (const nil) regexp))
 	     ;; frame.c
-	     (default-frame-alist frames
-	       (repeat (cons :format "%v"
-			     (symbol :tag "Parameter")
-			     (sexp :tag "Value"))))
+             (default-frame-alist
+              frames
+              (repeat (cons :format "%v"
+                            (symbol :tag "Parameter"
+                                    :completions ,frame--special-parameters)
+                            (sexp :tag "Value"
+                                  :complete frame--complete-parameter-value))))
 	     (mouse-highlight mouse (choice (const :tag "disabled" nil)
 					    (const :tag "always shown" t)
 					    (other :tag "hidden by keypress" 1))
@@ -347,8 +351,9 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 					   (choice
 					    (const :tag "Never" nil)
 					    (const :tag "Always" t)
+					    (const :tag "Force" force)
 					    (repeat (symbol :tag "Parameter")))
-					   "27.1")
+					   "31.1")
 	     (iconify-child-frame frames
 				  (choice
 				   (const :tag "Do nothing" nil)
@@ -804,6 +809,12 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
              (ns-use-fullscreen-animation ns boolean "25.1")
              (ns-use-srgb-colorspace ns boolean "24.4")
              (ns-scroll-event-delta-factor ns float "29.1")
+
+             (ns-click-through
+	      ns (choice (const :tag "Never (nil)" :value nil)
+                  (const :tag "Always (t)" :value t))
+              "31.1")
+
 	     ;; process.c
 	     (delete-exited-processes processes-basics boolean)
              (process-error-pause-time processes-basics integer "29.1")
@@ -916,26 +927,28 @@ since it could result in memory overflow and make Emacs crash."
 	      display (choice
 		       (const :tag "Off" :value nil)
 		       (const :tag "Immediate" :value t)
-		       (number :tag "Delay by secs" :value 0.5)) "22.1")
+		       (number :tag "Delay by secs" :value 0.5))
+              "22.1")
              (tool-bar-style
 	      frames (choice
 		      (const :tag "Images" :value image)
 		      (const :tag "Text" :value text)
-		      (const :tag "Both" :value both)
-		      (const :tag "Both-horiz" :value both-horiz)
-		      (const :tag "Text-image-horiz" :value text-image-horiz)
-		      (const :tag "System default" :value nil)) "24.1")
+		      (const :tag "Both, text below image" :value both)
+		      (const :tag "Both, text to right of image" :value both-horiz)
+		      (const :tag "Both, text to left of image" :value text-image-horiz)
+		      (const :tag "System default" :value nil))
+              "24.1")
              (tool-bar-max-label-size frames integer "24.1")
              (tab-bar-position
               tab-bar (choice
                        (const :tag "Tab bar above tool bar" nil)
                        (const :tag "Tab bar below tool bar" t))
               "27.1"
-              :set (lambda (sym val)
-                     (set-default sym val)
-                     ;; Redraw the bars:
-                     (tab-bar-mode -1)
-                     (tab-bar-mode 1)))
+              :set ,(lambda (sym val)
+                      (set-default sym val)
+                      ;; Redraw the bars:
+                      (tab-bar-mode -1)
+                      (tab-bar-mode 1)))
 	     (auto-hscroll-mode scrolling
                                 (choice
                                  (const :tag "Don't scroll automatically"
@@ -1030,7 +1043,7 @@ since it could result in memory overflow and make Emacs crash."
                       :format "%v")
                integer)
               "27.1"
-              :safe (lambda (value) (or (booleanp value) (integerp value))))
+              :safe ,(lambda (value) (or (booleanp value) (integerp value))))
              (display-fill-column-indicator-character
               display-fill-column-indicator
               (choice
@@ -1042,7 +1055,7 @@ since it could result in memory overflow and make Emacs crash."
                       :value nil)
                character)
               "27.1"
-              :safe (lambda (value) (or (characterp value) (null value))))
+              :safe ,(lambda (value) (or (characterp value) (null value))))
              (composition-break-at-point display boolean "29.1")
 	     ;; xfaces.c
 	     (scalable-fonts-allowed

@@ -1406,9 +1406,9 @@ x_set_mouse_color (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
       if (cursor_data.error_cursor >= 0)
 	bad_cursor_name = mouse_cursor_types[cursor_data.error_cursor].name;
       if (bad_cursor_name)
-	error ("bad %s pointer cursor: %s", bad_cursor_name, xmessage);
+	error ("Bad %s pointer cursor: %s", bad_cursor_name, xmessage);
       else
-	error ("can't set cursor shape: %s", xmessage);
+	error ("Can't set cursor shape: %s", xmessage);
     }
 
   x_uncatch_errors_after_check ();
@@ -4251,37 +4251,42 @@ x_window (struct frame *f, long window_prompting)
        Note that we do not specify here whether the position
        is a user-specified or program-specified one.
        We pass that information later, in x_wm_set_size_hint.  */
-    {
-      int left = f->left_pos;
-      bool xneg = (window_prompting & XNegative) != 0;
-      int top = f->top_pos;
-      bool yneg = (window_prompting & YNegative) != 0;
-      if (xneg)
-	left = -left;
-      if (yneg)
-	top = -top;
+    bool xneg = (window_prompting & XNegative) != 0;
+    bool yneg = (window_prompting & YNegative) != 0;
 
-      if (window_prompting & USPosition)
-	sprintf (f->shell_position, "=%dx%d%c%d%c%d",
+    if (FRAME_PARENT_FRAME (f))
+      {
+	if (window_prompting & XNegative)
+	  f->left_pos = (FRAME_PIXEL_WIDTH (FRAME_PARENT_FRAME (f))
+			 - FRAME_PIXEL_WIDTH (f) + f->left_pos);
+
+	if (window_prompting & YNegative)
+	  f->top_pos = (FRAME_PIXEL_HEIGHT (FRAME_PARENT_FRAME (f))
+			- FRAME_PIXEL_HEIGHT (f) + f->top_pos);
+
+	window_prompting &= ~ (XNegative | YNegative);
+      }
+
+    if (window_prompting & USPosition)
+      sprintf (f->shell_position, "=%dx%d%c%d%c%d",
+	       FRAME_PIXEL_WIDTH (f) + extra_borders,
+	       FRAME_PIXEL_HEIGHT (f) + menubar_size + extra_borders,
+	       (xneg ? '-' : '+'), f->left_pos,
+	       (yneg ? '-' : '+'), f->top_pos);
+    else
+      {
+	sprintf (f->shell_position, "=%dx%d",
 		 FRAME_PIXEL_WIDTH (f) + extra_borders,
-		 FRAME_PIXEL_HEIGHT (f) + menubar_size + extra_borders,
-		 (xneg ? '-' : '+'), left,
-		 (yneg ? '-' : '+'), top);
-      else
-        {
-          sprintf (f->shell_position, "=%dx%d",
-                   FRAME_PIXEL_WIDTH (f) + extra_borders,
-                   FRAME_PIXEL_HEIGHT (f) + menubar_size + extra_borders);
+		 FRAME_PIXEL_HEIGHT (f) + menubar_size + extra_borders);
 
-          /* Setting x and y when the position is not specified in
-             the geometry string will set program position in the WM hints.
-             If Emacs had just one program position, we could set it in
-             fallback resources, but since each make-frame call can specify
-             different program positions, this is easier.  */
-          XtSetArg (gal[gac], XtNx, left); gac++;
-          XtSetArg (gal[gac], XtNy, top); gac++;
-        }
-    }
+	/* Setting x and y when the position is not specified in
+	   the geometry string will set program position in the WM hints.
+	   If Emacs had just one program position, we could set it in
+	   fallback resources, but since each make-frame call can specify
+	   different program positions, this is easier.  */
+	XtSetArg (gal[gac], XtNx, f->left_pos); gac++;
+	XtSetArg (gal[gac], XtNy, f->top_pos); gac++;
+      }
 
     XtSetArg (gal[gac], XtNgeometry, f->shell_position); gac++;
     XtSetValues (shell_widget, gal, gac);
@@ -4459,6 +4464,19 @@ x_window (struct frame *f)
   attributes.override_redirect = FRAME_OVERRIDE_REDIRECT (f);
   attribute_mask = (CWBackPixel | CWBorderPixel | CWBitGravity | CWEventMask
 		    | CWOverrideRedirect | CWColormap);
+
+  if (FRAME_PARENT_FRAME (f))
+    {
+      if (f->size_hint_flags & XNegative)
+	f->left_pos = (FRAME_PIXEL_WIDTH (FRAME_PARENT_FRAME (f))
+		       - FRAME_PIXEL_WIDTH (f) + f->left_pos);
+
+      if (f->size_hint_flags & YNegative)
+	f->top_pos = (FRAME_PIXEL_HEIGHT (FRAME_PARENT_FRAME (f))
+		      - FRAME_PIXEL_HEIGHT (f) + f->top_pos);
+
+      f->size_hint_flags &= ~ (XNegative | YNegative);
+    }
 
   block_input ();
   FRAME_X_WINDOW (f)
@@ -5697,7 +5715,7 @@ TERMINAL should be a terminal object, a frame or a display name (a string).
 If omitted or nil, that stands for the selected frame's display.
 
 On MS Windows, this function just returns 1.
-On Nextstep, this function just returns nil.  */)
+On Nextstep and PGTK, this function just returns nil.  */)
   (Lisp_Object terminal)
 {
   struct x_display_info *dpyinfo = check_x_display_info (terminal);
@@ -5782,8 +5800,11 @@ The optional argument TERMINAL specifies which display to ask about.
 TERMINAL should be a terminal object, a frame or a display name (a string).
 If omitted or nil, that stands for the selected frame's display.
 
+On PGTK and Nextstep, "screen" is in X terminology, not that of Wayland
+and Nextstep, respectively.
+
 On MS Windows, this function just returns 1.
-On Nextstep, "screen" is in X terminology, not that of Nextstep.
+
 For the number of physical monitors, use `(length
 \(display-monitor-attributes-list TERMINAL))' instead.  */)
   (Lisp_Object terminal)
@@ -5841,7 +5862,10 @@ TERMINAL should be a terminal object, a frame or a display name (a string).
 If omitted or nil, that stands for the selected frame's display.
 
 The value may be `always', `when-mapped', or `not-useful'.
-On Nextstep, the value may be `buffered', `retained', or `non-retained'.
+
+On Nextstep and PGTK, the value may be `buffered', `retained', or
+`non-retained'.
+
 On MS Windows, this returns nothing useful.  */)
   (Lisp_Object terminal)
 {
@@ -5879,7 +5903,9 @@ The value is one of the symbols `static-gray', `gray-scale',
 The optional argument TERMINAL specifies which display to ask about.
 TERMINAL should a terminal object, a frame or a display name (a string).
 If omitted or nil, that stands for the selected frame's display.
-\(On MS Windows, this function does not accept terminal objects.)  */)
+\(On MS Windows, this function does not accept terminal objects.)
+
+On PGTK, always return `true-color'.  */)
   (Lisp_Object terminal)
 {
   struct x_display_info *dpyinfo = check_x_display_info (terminal);
@@ -7361,7 +7387,7 @@ that mouse buttons are being held down, such as immediately after a
   else
     signal_error ("Invalid drag-and-drop action", action);
 
-  target_atoms = SAFE_ALLOCA (ntargets * sizeof *target_atoms);
+  SAFE_NALLOCA (target_atoms, 1, ntargets);
 
   /* Catch errors since interning lots of targets can potentially
      generate a BadAlloc error.  */
@@ -8672,7 +8698,7 @@ x_create_tip_frame (struct x_display_info *dpyinfo, Lisp_Object parms)
   {
     Lisp_Object bg = Fframe_parameter (frame, Qbackground_color);
 
-    call2 (Qface_set_after_frame_default, frame, Qnil);
+    calln (Qface_set_after_frame_default, frame, Qnil);
 
     if (!EQ (bg, Fframe_parameter (frame, Qbackground_color)))
       {
@@ -8844,7 +8870,7 @@ x_hide_tip (bool delete)
 {
   if (!NILP (tip_timer))
     {
-      call1 (Qcancel_timer, tip_timer);
+      calln (Qcancel_timer, tip_timer);
       tip_timer = Qnil;
     }
 
@@ -9071,7 +9097,7 @@ Text larger than the specified size is clipped.  */)
 	  tip_f = XFRAME (tip_frame);
 	  if (!NILP (tip_timer))
 	    {
-	      call1 (Qcancel_timer, tip_timer);
+	      calln (Qcancel_timer, tip_timer);
 	      tip_timer = Qnil;
 	    }
 
@@ -9109,12 +9135,12 @@ Text larger than the specified size is clipped.  */)
 		      break;
 		    }
 		  else
-		    tip_last_parms =
-		      call2 (Qassq_delete_all, parm, tip_last_parms);
+		    tip_last_parms
+		      = calln (Qassq_delete_all, parm, tip_last_parms);
 		}
 	      else
-		tip_last_parms =
-		  call2 (Qassq_delete_all, parm, tip_last_parms);
+		tip_last_parms
+		  = calln (Qassq_delete_all, parm, tip_last_parms);
 	    }
 
 	  /* Now check if every parameter in what is left of
@@ -9166,6 +9192,9 @@ Text larger than the specified size is clipped.  */)
 	/* Creating the tip frame failed.  */
 	return unbind_to (count, Qnil);
     }
+  else
+    /* Required by X11 drag and drop.  */
+    tip_window = FRAME_X_WINDOW (XFRAME (tip_frame));
 
   tip_f = XFRAME (tip_frame);
   window = FRAME_ROOT_WINDOW (tip_f);
@@ -9296,8 +9325,7 @@ Text larger than the specified size is clipped.  */)
 
  start_timer:
   /* Let the tip disappear after timeout seconds.  */
-  tip_timer = call3 (Qrun_at_time, timeout, Qnil,
-		     Qx_hide_tip);
+  tip_timer = calln (Qrun_at_time, timeout, Qnil, Qx_hide_tip);
 
   return unbind_to (count, Qnil);
 }
@@ -9604,9 +9632,10 @@ Use a file selection dialog.  Select DEFAULT-FILENAME in the dialog's file
 selection box, if specified.  If MUSTMATCH is non-nil, the returned file
 or directory must exist.
 
-This function is defined only on NS, Haiku, MS Windows, and X Windows with the
-Motif or Gtk toolkits.  With the Motif toolkit, ONLY-DIR-P is ignored.
+This function is defined only on PGTK, NS, Haiku, MS Windows, and X Windows with
+the Motif or Gtk toolkits.  With the Motif toolkit, ONLY-DIR-P is ignored.
 Otherwise, if ONLY-DIR-P is non-nil, the user can select only directories.
+
 On MS Windows 7 and later, the file selection dialog "remembers" the last
 directory where the user selected a file, and will open that directory
 instead of DIR on subsequent invocations of this function with the same
@@ -9854,7 +9883,7 @@ unless TYPE is `png'.  */)
 
       XSETFRAME (frame, f);
       if (!FRAME_VISIBLE_P (f))
-	error ("Frames to be exported must be visible.");
+	error ("Frames to be exported must be visible");
       tmp = Fcons (frame, tmp);
     }
   frames = Fnreverse (tmp);
@@ -9868,7 +9897,7 @@ unless TYPE is `png'.  */)
   if (EQ (type, Qpng))
     {
       if (!NILP (XCDR (frames)))
-	error ("PNG export cannot handle multiple frames.");
+	error ("PNG export cannot handle multiple frames");
       surface_type = CAIRO_SURFACE_TYPE_IMAGE;
     }
   else
@@ -9883,7 +9912,7 @@ unless TYPE is `png'.  */)
     {
       /* For now, we stick to SVG 1.1.  */
       if (!NILP (XCDR (frames)))
-	error ("SVG export cannot handle multiple frames.");
+	error ("SVG export cannot handle multiple frames");
       surface_type = CAIRO_SURFACE_TYPE_SVG;
     }
   else
@@ -9957,16 +9986,13 @@ Note: Text drawn with the `x' font backend is shown with hollow boxes.  */)
 
       XSETFRAME (frame, f);
       if (!FRAME_VISIBLE_P (f))
-	error ("Frames to be printed must be visible.");
+	error ("Frames to be printed must be visible");
       tmp = Fcons (frame, tmp);
     }
   frames = Fnreverse (tmp);
 
   /* Make sure the current matrices are up-to-date.  */
-  specpdl_ref count = SPECPDL_INDEX ();
-  specbind (Qredisplay_dont_pause, Qt);
   redisplay_preserve_echo_area (32);
-  unbind_to (count, Qnil);
 
   block_input ();
   xg_print_frames_dialog (frames);
@@ -10257,9 +10283,9 @@ syms_of_xfns (void)
   DEFSYM (QXdndActionPrivate, "XdndActionPrivate");
 
   Fput (Qundefined_color, Qerror_conditions,
-	pure_list (Qundefined_color, Qerror));
+	list (Qundefined_color, Qerror));
   Fput (Qundefined_color, Qerror_message,
-	build_pure_c_string ("Undefined color"));
+	build_string ("Undefined color"));
 
   DEFVAR_LISP ("x-pointer-shape", Vx_pointer_shape,
     doc: /* The shape of the pointer when over text.
@@ -10486,7 +10512,7 @@ eliminated in future versions of Emacs.  */);
     char gtk_version[sizeof ".." + 3 * INT_STRLEN_BOUND (int)];
     int len = sprintf (gtk_version, "%d.%d.%d",
 		       GTK_MAJOR_VERSION, GTK_MINOR_VERSION, GTK_MICRO_VERSION);
-    Vgtk_version_string = make_pure_string (gtk_version, len, len, false);
+    Vgtk_version_string = make_specified_string (gtk_version, len, len, false);
   }
 #endif /* USE_GTK */
 
@@ -10500,7 +10526,8 @@ eliminated in future versions of Emacs.  */);
     int len = sprintf (cairo_version, "%d.%d.%d",
 		       CAIRO_VERSION_MAJOR, CAIRO_VERSION_MINOR,
                        CAIRO_VERSION_MICRO);
-    Vcairo_version_string = make_pure_string (cairo_version, len, len, false);
+    Vcairo_version_string = make_specified_string (cairo_version, len, len,
+						   false);
   }
 #endif
 

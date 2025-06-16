@@ -106,13 +106,15 @@
               outline-minor-mode-use-buttons 'in-margins)
   (outline-minor-mode)
   (setq-local imenu-generic-expression outline-imenu-generic-expression)
+  ;; This is so 'C-h o' picks up correctly symbols quoted 'like this'.
+  (modify-syntax-entry ?' "\"")
   (emacs-etc--hide-local-variables))
 
 ;;;###autoload
 (define-derived-mode emacs-news-mode text-mode "NEWS"
   "Major mode for editing the Emacs NEWS file."
   ;; Disable buttons.
-  (button-mode nil)
+  (button-mode -1)
   ;; And make the buffer writable.  This is used when toggling
   ;; emacs-news-mode.
   (setq buffer-read-only nil)
@@ -245,7 +247,7 @@ untagged NEWS entry."
         (while (re-search-forward "'\\([^-][^ \t\n]+\\)'" nil t)
           ;; Filter out references to key sequences.
           (let ((string (match-string 1)))
-            (when-let ((symbol (intern-soft string)))
+            (when-let* ((symbol (intern-soft string)))
               (when (or (boundp symbol)
                         (fboundp symbol))
                 (buttonize-region (match-beginning 1) (match-end 1)
@@ -258,7 +260,7 @@ untagged NEWS entry."
         (while (re-search-forward "\"\\(([a-z0-9-]+)[ \n][^\"]\\{1,80\\}\\)\""
                                   nil t)
           (buttonize-region (match-beginning 1) (match-end 1)
-                            (lambda (node) (info node))
+                            #'info
                             (match-string 1)))))))
 
 (defun emacs-news--sections (regexp)

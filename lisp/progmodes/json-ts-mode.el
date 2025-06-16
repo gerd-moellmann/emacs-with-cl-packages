@@ -22,6 +22,15 @@
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
+;;; Tree-sitter language versions
+;;
+;; json-ts-mode is known to work with the following languages and version:
+;; - tree-sitter-json: v0.24.8-1-g4d770d3
+;;
+;; We try our best to make builtin modes work with latest grammar
+;; versions, so a more recent grammar version has a good chance to work.
+;; Send us a bug report if it doesn't.
+
 ;;; Commentary:
 ;;
 
@@ -29,13 +38,12 @@
 
 (require 'treesit)
 (require 'rx)
+(treesit-declare-unavailable-functions)
 
-(declare-function treesit-parser-create "treesit.c")
-(declare-function treesit-induce-sparse-tree "treesit.c")
-(declare-function treesit-node-start "treesit.c")
-(declare-function treesit-node-type "treesit.c")
-(declare-function treesit-node-child-by-field-name "treesit.c")
-
+(add-to-list
+ 'treesit-language-source-alist
+ '(json "https://github.com/tree-sitter/tree-sitter-json" "v0.24.8")
+ t)
 
 (defcustom json-ts-mode-indent-offset 2
   "Number of spaces for each indentation step in `json-ts-mode'."
@@ -125,10 +133,10 @@ Return nil if there is no name or if NODE is not a defun node."
   :group 'json
   :syntax-table json-ts-mode--syntax-table
 
-  (unless (treesit-ready-p 'json)
+  (unless (treesit-ensure-installed 'json)
     (error "Tree-sitter for JSON isn't available"))
 
-  (treesit-parser-create 'json)
+  (setq treesit-primary-parser (treesit-parser-create 'json))
 
   ;; Comments.
   (setq-local comment-start "// ")
@@ -149,6 +157,7 @@ Return nil if there is no name or if NODE is not a defun node."
 
   (setq-local treesit-thing-settings
               `((json
+                 (list ,(rx (or "object" "array")))
                  (sentence "pair"))))
 
   ;; Font-lock.
@@ -162,7 +171,12 @@ Return nil if there is no name or if NODE is not a defun node."
   (setq-local treesit-simple-imenu-settings
               '((nil "\\`pair\\'" nil nil)))
 
-  (treesit-major-mode-setup))
+  (treesit-major-mode-setup)
+
+  ;; Disable outlines since they are created for 'pair' from
+  ;; 'treesit-simple-imenu-settings' almost on every line:
+  (kill-local-variable 'outline-search-function)
+  (kill-local-variable 'outline-level))
 
 (derived-mode-add-parents 'json-ts-mode '(json-mode))
 

@@ -116,7 +116,7 @@ mac_own_selection (Lisp_Object selection_name, Lisp_Object selection_value,
 	    }
 
 	  if (!NILP (handler_fn))
-	    value = call3 (handler_fn, selection_name, target_type, tem);
+	    value = calln (handler_fn, selection_name, target_type, tem);
 	  else
 	    value = Qnil;
 
@@ -193,6 +193,10 @@ mac_get_local_selection (Lisp_Object selection_symbol, Lisp_Object target_type,
   Lisp_Object local_value, tem;
   Lisp_Object handler_fn, value, type, check;
 
+  if (EQ (selection_symbol, QCLIPBOARD)
+      && EQ (target_type, QTARGETS))
+    return Qnil;
+
   if (!mac_selection_owner_p (selection_symbol, dpyinfo))
     return Qnil;
 
@@ -230,7 +234,7 @@ mac_get_local_selection (Lisp_Object selection_symbol, Lisp_Object target_type,
 	}
 
       if (!NILP (handler_fn))
-	value = call3 (handler_fn,
+	value = calln (handler_fn,
 		       selection_symbol, (local_request ? Qnil : target_type),
 		       tem);
       else
@@ -1147,6 +1151,7 @@ The types are chosen in the order they appear in the list.  */);
   DEFSYM (QSECONDARY, "SECONDARY");
   DEFSYM (QTIMESTAMP, "TIMESTAMP");
   DEFSYM (QTARGETS, "TARGETS");
+  DEFSYM (QCLIPBOARD, "CLIPBOARD");
   DEFSYM (Qforeign_selection, "foreign-selection");
   DEFSYM (Qx_lost_selection_functions, "x-lost-selection-functions");
 

@@ -1,6 +1,6 @@
 ;;; modus-vivendi-tinted-theme.el --- Elegant, highly legible theme with a night sky background -*- lexical-binding:t -*-
 
-;; Copyright (C) 2019-2025 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2025  Free Software Foundation, Inc.
 
 ;; Author: Protesilaos Stavrou <info@protesilaos.com>
 ;; Maintainer: Protesilaos Stavrou <info@protesilaos.com>
@@ -70,12 +70,12 @@ which corresponds to a minimum contrast in relative luminance of
 
       (red             "#ff5f59")
       (red-warmer      "#ff6b55")
-      (red-cooler      "#ff7f9f")
-      (red-faint       "#ff9f80")
+      (red-cooler      "#ff7f86")
+      (red-faint       "#ef8386")
       (red-intense     "#ff5f5f")
       (green           "#44bc44")
-      (green-warmer    "#70b900")
-      (green-cooler    "#00c06f")
+      (green-warmer    "#75c13e")
+      (green-cooler    "#11c777")
       (green-faint     "#88ca9f")
       (green-intense   "#44df44")
       (yellow          "#d0bc00")
@@ -132,11 +132,19 @@ which corresponds to a minimum contrast in relative luminance of
       (bg-magenta-nuanced "#2f0c3f")
       (bg-cyan-nuanced    "#042837")
 
-;;; Uncommon accent backgrounds
+;;; Uncommon accent background and foreground pairs
 
-      (bg-ochre    "#442c2f")
+      (bg-clay     "#49191a")
+      (fg-clay     "#f1b090")
+
+      (bg-ochre    "#462f20")
+      (fg-ochre    "#e0d09c")
+
       (bg-lavender "#38325c")
-      (bg-sage     "#0f3d30")
+      (fg-lavender "#dfc0f0")
+
+      (bg-sage     "#143e32")
+      (fg-sage     "#c3e7d4")
 
 ;;; Graphs
 
@@ -157,14 +165,10 @@ which corresponds to a minimum contrast in relative luminance of
 
       (bg-completion       "#483d8a")
       (bg-hover            "#45605e")
-      (bg-hover-secondary  "#654a39")
+      (bg-hover-secondary  "#64404f")
       (bg-hl-line          "#303a6f")
       (bg-region           "#555a66")
       (fg-region           "#ffffff")
-
-      (bg-char-0 "#0050af")
-      (bg-char-1 "#7f1f7f")
-      (bg-char-2 "#625a00")
 
       (bg-mode-line-active        "#484d67")
       (fg-mode-line-active        "#ffffff")
@@ -208,7 +212,7 @@ which corresponds to a minimum contrast in relative luminance of
 
 ;;; Paren match
 
-      (bg-paren-match        "#5f789f")
+      (bg-paren-match        "#4f7f9f")
       (fg-paren-match        fg-main)
       (bg-paren-expression   "#453040")
       (underline-paren-match unspecified)
@@ -225,8 +229,8 @@ which corresponds to a minimum contrast in relative luminance of
       (identifier yellow-faint)
 
       (err red)
-      (warning yellow-warmer)
-      (info cyan-cooler)
+      (warning yellow)
+      (info green-cooler)
 
       (underline-err red-intense)
       (underline-warning yellow)
@@ -246,26 +250,32 @@ which corresponds to a minimum contrast in relative luminance of
 
 ;;;; Code mappings
 
-      (builtin magenta-warmer)
+      (bracket fg-main)
+      (builtin magenta)
       (comment red-faint)
-      (constant blue-cooler)
-      (docstring cyan-faint)
+      (constant magenta-cooler)
+      (delimiter fg-main)
       (docmarkup magenta-faint)
-      (fnname magenta)
-      (keyword magenta-cooler)
+      (docstring cyan-faint)
+      (fnname magenta-warmer)
+      (keyword blue-warmer)
+      (number fg-main)
+      (operator fg-main)
       (preprocessor red-cooler)
-      (string blue-warmer)
-      (type cyan-cooler)
-      (variable cyan)
-      (rx-construct green-cooler)
-      (rx-backslash magenta)
+      (property cyan-warmer)
+      (punctuation fg-main)
+      (rx-backslash magenta-warmer)
+      (rx-construct magenta-cooler)
+      (string blue)
+      (type green-cooler)
+      (variable cyan-warmer)
 
 ;;;; Accent mappings
 
-      (accent-0 blue-cooler)
-      (accent-1 magenta-warmer)
-      (accent-2 cyan-cooler)
-      (accent-3 yellow)
+      (accent-0 magenta-cooler)
+      (accent-1 cyan)
+      (accent-2 magenta-warmer)
+      (accent-3 yellow-warmer)
 
 ;;;; Button mappings
 
@@ -288,15 +298,17 @@ which corresponds to a minimum contrast in relative luminance of
 ;;;; Date mappings
 
       (date-common cyan)
-      (date-deadline red)
+      (date-deadline red-cooler)
+      (date-deadline-subtle red-faint)
       (date-event fg-alt)
-      (date-holiday red-cooler)
+      (date-holiday magenta-warmer)
       (date-holiday-other blue)
       (date-now fg-main)
       (date-range fg-alt)
-      (date-scheduled yellow-warmer)
+      (date-scheduled yellow-cooler)
+      (date-scheduled-subtle yellow-faint)
       (date-weekday cyan)
-      (date-weekend red-faint)
+      (date-weekend magenta)
 
 ;;;; Line number mappings
 
@@ -321,14 +333,14 @@ which corresponds to a minimum contrast in relative luminance of
 
 ;;;; Mail mappings
 
-      (mail-cite-0 blue-warmer)
+      (mail-cite-0 blue-faint)
       (mail-cite-1 yellow-cooler)
       (mail-cite-2 cyan-cooler)
       (mail-cite-3 red-cooler)
       (mail-part blue)
-      (mail-recipient magenta-cooler)
+      (mail-recipient blue-warmer)
       (mail-subject magenta-warmer)
-      (mail-other magenta-faint)
+      (mail-other magenta)
 
 ;;;; Mark mappings
 
@@ -341,7 +353,7 @@ which corresponds to a minimum contrast in relative luminance of
 
 ;;;; Prompt mappings
 
-      (fg-prompt cyan-cooler)
+      (fg-prompt cyan-warmer)
       (bg-prompt unspecified)
 
 ;;;; Prose mappings
@@ -480,6 +492,19 @@ as a symbol and the latter as a string.
 Semantic color mappings have the form (MAPPING-NAME COLOR-NAME)
 with both as symbols.  The latter is a named color that already
 exists in the palette and is associated with a HEX-VALUE.")
+
+  (defcustom modus-vivendi-tinted-palette-user nil
+    "Like the `modus-vivendi-tinted-palette' for user-defined entries.
+This is meant to extend the palette with custom named colors and/or
+semantic palette mappings.  Those may then be used in combination with
+palette overrides (also see `modus-themes-common-palette-overrides' and
+`modus-vivendi-tinted-palette-overrides')."
+    :group 'modus-themes
+    :package-version '(modus-themes . "4.5.0")
+    :type '(repeat (list symbol (choice symbol string)))
+    :set #'modus-themes--set-option
+    :initialize #'custom-initialize-default
+    :link '(info-link "(modus-themes) Option to extend the palette for use with overrides"))
 
   (defcustom modus-vivendi-tinted-palette-overrides nil
     "Overrides for `modus-vivendi-tinted-palette'.

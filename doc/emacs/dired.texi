@@ -460,6 +460,15 @@ View the file described on the current line, with View mode
 (@code{dired-view-file}).  View mode provides convenient commands to
 navigate the buffer but forbids changing it; @xref{View Mode}.
 
+@item @@
+@kindex @@ @r{(Dired)}
+@findex tramp-dired-find-file-with-sudo
+Open the file described on the current line, with superuser, or root,
+permissions (@code{tramp-dired-find-file-with-sudo}).  If called with a
+@kbd{C-u} prefix argument, it prompts for another Tramp method to use
+other than the default, @option{sudo}.  @xref{Ad-hoc multi-hops, Tramp,,
+tramp, The Tramp Manual}.
+
 @item ^
 @kindex ^ @r{(Dired)}
 @findex dired-up-directory
@@ -1817,6 +1826,16 @@ the files in the current directory as well as the available disk
 space.  If you set this to @code{nil}, the available disk space
 information will not be displayed at all.
 
+@vindex dired-check-symlinks
+  Dired fontifies the items in the Dired buffer.  If the
+@code{default-directory} of that buffer is remote, this might be
+expensive for symbolic links, because their @code{file-truename} needs
+to be accessed.  To avoid slowdown in Dired due to this, set user option
+@code{dired-check-symlinks} to @code{nil} for remote directories which
+suffer from a slow connection.  It can be declared as connection-local
+variable to match how a remote system is connectable (@pxref{Connection
+Variables}).
+
 @kindex + @r{(Dired)}
 @findex dired-create-directory
   The command @kbd{+} (@code{dired-create-directory}) reads a
@@ -1850,8 +1869,9 @@ names of the marked (or next @var{n}) files into the kill ring, as if
 you had killed them with @kbd{C-w}.  The names are separated by a
 space.
 
-  With a zero prefix argument, this uses the absolute file name of
-each marked file.  With just @kbd{C-u} as the prefix argument, it uses
+  With a zero prefix argument, this uses the absolute file name of each
+marked file.  With prefix value 1, it uses names relative to the
+project root.  With just @kbd{C-u} as the prefix argument, it uses
 file names relative to the Dired buffer's default directory.  (This
 can still contain slashes if in a subdirectory.)  As a special case,
 if point is on a directory header line, @kbd{w} gives you the absolute

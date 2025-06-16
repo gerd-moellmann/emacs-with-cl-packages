@@ -50,6 +50,10 @@
     "Enter encryption key: (repeat) " ; ccrypt
     "Enter Auth Password:" ; OpenVPN (Bug#35724)
     "Verify password: "    ; zip -e zipfile.zip ... (Bug#47209)
+    "Vault password: "     ; ansible-playbook --ask-vault-pass ... (Bug#78442)
+    "Vault password (dev): " ; ansible-playbook --vault-id dev@prompt ... (Bug#78442)
+    "SSH password: "       ; ansible-playbook --ask-pass playbook.yml ... (Bug#78442)
+    "BECOME password: "    ; ansible-playbook --ask-become-pass ... (Bug#78442)
     "Mot de Passe :" ; localized (Bug#29729)
     "Passwort:") ; localized
   "List of strings that should match `comint-password-prompt-regexp'.")
@@ -73,9 +77,9 @@ happen to lurk on PATH when running the test suite."
 
 (defun comint-tests/test-password-function (password-function)
   "PASSWORD-FUNCTION can return nil or a string."
-  (when-let ((cat (if (eq system-type 'windows-nt)
-                      (w32-native-executable-find "cat")
-                    (executable-find "cat"))))
+  (when-let* ((cat (if (eq system-type 'windows-nt)
+                       (w32-native-executable-find "cat")
+                     (executable-find "cat"))))
     (let ((comint-password-function password-function))
       (cl-letf (((symbol-function 'read-passwd)
                  (lambda (&rest _args) "non-nil")))

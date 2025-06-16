@@ -396,6 +396,7 @@ Return a bovination list to use."
          )))
   defstruct
   cl-defstruct
+  oclosure-define
   )
 
 (semantic-elisp-setup-form-parser
@@ -765,7 +766,7 @@ In Emacs Lisp this is easily defined by parenthesis bounding."
 		  (forward-comment 1)
 		  (setq start (point))
 		  (forward-sexp 1)
-		  (if (= (% count 2) 1)
+		  (if (oddp count)
 		      (setq lastodd
 			    (buffer-substring-no-properties start (point))))
 		  )
@@ -926,7 +927,7 @@ See `semantic-format-tag-prototype' for Emacs Lisp for more details."
 (defvar-mode-local emacs-lisp-mode semantic-stickyfunc-sticky-classes
   '(function type variable)
   "Add variables.
-ELisp variables can be pretty long, so track this one too.")
+Elisp variable names can be pretty long, so track this one too.")
 
 (with-suppressed-warnings ((obsolete define-child-mode))
   ;; FIXME: We should handle this some other way!

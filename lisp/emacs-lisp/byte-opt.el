@@ -172,7 +172,7 @@ Earlier variables shadow later ones with the same name.")
        ;; When the function comes from another file, we byte-compile
        ;; the inlined function first, and then inline its byte-code.
        ;; This also has the advantage that the final code does not
-       ;; depend on the order of compilation of ELisp files, making
+       ;; depend on the order of compilation of Elisp files, making
        ;; the build more reproducible.
        (if (eq fn localfn)
            ;; From the same file => same mode.
@@ -483,7 +483,7 @@ There can be multiple entries for the same NAME if it has several aliases.")
          `(,fn ,name . ,optimized-rest)))
 
       ((guard (when for-effect
-		(if-let ((tmp (byte-opt--fget fn 'side-effect-free)))
+		(if-let* ((tmp (byte-opt--fget fn 'side-effect-free)))
 		    (or byte-compile-delete-errors
 		        (eq tmp 'error-free)))))
        (byte-compile-log "  %s called for effect; deleted" fn)
@@ -1789,6 +1789,8 @@ See Info node `(elisp) Integer Basics'."
          tool-bar-pixel-width window-system
          ;; fringe.c
          fringe-bitmaps-at-pos
+         ;; json.c
+         json-serialize json-parse-string
          ;; keyboard.c
          posn-at-point posn-at-x-y
          ;; keymap.c
@@ -1859,7 +1861,7 @@ See Info node `(elisp) Integer Basics'."
       (side-effect-and-error-free-fns
        '(
          ;; alloc.c
-         bool-vector cons list make-marker purecopy record vector
+         bool-vector cons list make-marker record vector
          ;; buffer.c
          buffer-list buffer-live-p current-buffer overlay-lists overlayp
          ;; casetab.c
@@ -1979,6 +1981,8 @@ See Info node `(elisp) Integer Basics'."
          length> member memq memql nth nthcdr proper-list-p rassoc rassq
          safe-length string-bytes string-distance string-equal string-lessp
          string-search string-version-lessp take value<
+         ;; json.c
+         json-serialize json-parse-string
          ;; search.c
          regexp-quote
          ;; syntax.c

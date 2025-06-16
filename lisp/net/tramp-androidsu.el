@@ -111,7 +111,7 @@ multibyte mode and waits for the shell prompt to appear."
 
   (with-tramp-debug-message vec "Opening connection"
     (let ((p (tramp-get-connection-process vec))
-	  (process-name (tramp-get-connection-property vec "process-name"))
+	  (process-name (tramp-get-connection-property vec " process-name"))
 	  (process-environment (copy-sequence process-environment)))
       ;; Open a new connection.
       (condition-case err
@@ -304,15 +304,14 @@ FUNCTION."
   "Like `tramp-handle-make-process', but modified for Android."
   (tramp-skeleton-make-process args nil nil
     (let* ((env (mapcar
-		 (lambda (elt)
-		   (when (tramp-compat-string-search "=" elt) elt))
+		 (lambda (elt) (when (string-search "=" elt) elt))
 		 tramp-remote-process-environment))
 	   ;; We use as environment the difference to toplevel
 	   ;; `process-environment'.
 	   (env (dolist (elt process-environment env)
 		  (when
 		      (and
-		       (tramp-compat-string-search "=" elt)
+		       (string-search "=" elt)
 		       (not
 			(member
 			 elt (default-toplevel-value 'process-environment))))
@@ -376,7 +375,6 @@ FUNCTION."
       ;; so we reset it.
       (set-process-query-on-exit-flag p (null noquery))
       (process-put p 'remote-command orig-command)
-      (tramp-set-connection-property p "remote-command" orig-command)
       (when (bufferp stderr)
 	(tramp-taint-remote-process-buffer stderr))
       p)))

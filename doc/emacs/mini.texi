@@ -1,4 +1,3 @@
-@c -*- coding: utf-8 -*-
 @c This is part of the Emacs manual.
 @c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2025 Free Software
 @c Foundation, Inc.
@@ -564,8 +563,14 @@ falls back on the next style.
 
 @vindex completion-styles
   The list variable @code{completion-styles} specifies the completion
-styles to use.  Each list element is the name of a completion style (a
-Lisp symbol).  The available style symbols are stored in the variable
+styles to use.  Each list element is either the name of a completion
+style (a Lisp symbol) or a list starting with the name of a completion
+style followed by @code{let}-style list of bindings which will be in
+effect for that completion style.  Multiple elements of
+@code{completion-styles} can name the same completion style with
+different variable bindings.
+
+The available style symbols are stored in the variable
 @code{completion-styles-alist} (@pxref{Completion Variables,,, elisp,
 The Emacs Lisp Reference Manual}).  The default completion styles are
 (in order):
@@ -589,6 +594,12 @@ separately.  (For example, when completing command names,
 Furthermore, a @samp{*} in the minibuffer text is treated as a
 @dfn{wildcard}---it matches any string of characters at the
 corresponding position in the completion alternative.
+
+@vindex completion-pcm-leading-wildcard
+If @code{completion-pcm-leading-wildcard} is set to @code{t}, this style
+always acts as if a @dfn{wildcard} is present at the start of each word
+in the minibuffer text, similar to the @code{substring} style.  For
+example, @samp{l-ode} will complete to @samp{emacs-lisp-mode}.
 
 @item emacs22
 @cindex @code{emacs22}, completion style
@@ -1015,7 +1026,7 @@ and delivers the response.  For example, if you type @kbd{C-x C-w}
 file, Emacs issues a prompt like this:
 
 @smallexample
-File ‘foo.el’ exists; overwrite? (y or n)
+File `foo.el' exists; overwrite? (y or n)
 @end smallexample
 
 @cindex yes or no prompt

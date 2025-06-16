@@ -1,4 +1,4 @@
-@c -*- mode: texinfo; coding: utf-8 -*-
+@c -*- mode: texinfo -*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
 @c Copyright (C) 1990--1994, 1998--2025 Free Software Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
@@ -688,7 +688,8 @@ following values are available:
 This means all the commands in the keymap are repeatable, and is the
 most common usage.
 
-@item (:enter (commands ...) :exit (commands ...) :hints ((command . "hint") ...))
+@item (:enter (commands ...) :exit (commands ...)
+@itemx :continue (commands ...) :hints ((command . "hint") ...))
 This specifies that the commands in the @code{:enter} list enter
 @code{repeat-mode}, and the commands in the @code{:exit} list exit
 repeat mode.
@@ -702,6 +703,10 @@ If the @code{:exit} list is empty then no commands in the map exit
 @code{repeat-mode}.  Specifying one or more commands in this list is
 useful if the keymap being defined contains a command that should not
 have the @code{repeat-map} property.
+
+The @code{:continue} list specifies the commands that should not
+enter @code{repeat-mode}.  These command should only continue the
+already activated repeating sequence.
 
 The @code{:hints} list can contain cons pairs where the @sc{car} is
 a command and the @sc{cdr} is a string that is displayed alongside of
@@ -1249,8 +1254,8 @@ When more than one minor mode keymap is active, the earlier one in
 minor modes so that they don't interfere with each other.  If you do
 this properly, the order will not matter.
 
-See @ref{Keymaps and Minor Modes}, for more information about minor
-modes.  See also @code{minor-mode-key-binding} (@pxref{Functions for Key
+@xref{Keymaps and Minor Modes}, for more information about minor modes.
+See also @code{minor-mode-key-binding} (@pxref{Functions for Key
 Lookup}).
 @end defvar
 
@@ -1407,7 +1412,7 @@ and @var{command} is its binding.  @xref{What Is a Function}.
 @cindex string in keymap
 The array (either a string or a vector) is a keyboard macro.  The events
 used so far in the lookup form a complete key, and the array is its
-binding.  See @ref{Keyboard Macros}, for more information.
+binding.  @xref{Keyboard Macros}, for more information.
 
 @item @var{keymap}
 @cindex keymap in keymap
@@ -2122,7 +2127,7 @@ they usually will be in a Lisp file (@pxref{Loading Non-ASCII}), you
 must type the keys as multibyte too.  For instance, if you use this:
 
 @smallexample
-(keymap-global-set "ö" 'my-function) ; bind o-umlaut
+(keymap-global-set "@"o" 'my-function) ; bind o-umlaut
 @end smallexample
 
 @noindent
@@ -2471,6 +2476,7 @@ is on that item in the same way as @code{help-echo} text properties
   If @var{real-binding} is @code{nil}, then @var{item-string} appears in
 the menu but cannot be selected.
 
+@cindex @code{menu-enable} (symbol property)
   If @var{real-binding} is a symbol and has a non-@code{nil}
 @code{menu-enable} property, that property is an expression that
 controls whether the menu item is enabled.  Every time the keymap is
@@ -2714,6 +2720,7 @@ items.  Here's an example that makes two aliases for
 (put 'make-writable 'menu-enable 'buffer-read-only)
 @end example
 
+@cindex @code{menu-alias} (symbol property)
 When using aliases in menus, often it is useful to display the
 equivalent key bindings for the real command name, not the aliases
 (which typically don't have any key bindings except for the menu
@@ -3054,7 +3061,7 @@ By default, the global map binds @code{[tool-bar]} as follows:
 
 @example
 (keymap-global-set "<tool-bar>"
-                   `(menu-item ,(purecopy "tool bar") ignore
+                   '(menu-item "tool bar" ignore
                                :filter tool-bar-make-keymap))
 @end example
 

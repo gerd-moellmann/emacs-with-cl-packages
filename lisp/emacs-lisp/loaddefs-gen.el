@@ -2,6 +2,7 @@
 
 ;; Copyright (C) 2022-2025 Free Software Foundation, Inc.
 
+;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: maint
 ;; Package: emacs
 
@@ -197,11 +198,14 @@ expression, in which case we want to handle forms differently."
           (when exps (cons 'progn exps)))))
 
      ;; For complex cases, try again on the macro-expansion.
-     ((and (memq car '(easy-mmode-define-global-mode define-global-minor-mode
-                       define-globalized-minor-mode defun defmacro
-		       easy-mmode-define-minor-mode define-minor-mode
-                       define-inline cl-defun cl-defmacro cl-defgeneric
-                       cl-defstruct pcase-defmacro iter-defun cl-iter-defun))
+     ((and (memq car '( define-globalized-minor-mode defun defmacro
+                        define-minor-mode define-inline
+                        cl-defun cl-defmacro cl-defgeneric
+                        cl-defstruct pcase-defmacro iter-defun cl-iter-defun
+                        ;; Obsolete; keep until the alias is removed.
+                        easy-mmode-define-global-mode
+                        easy-mmode-define-minor-mode
+                        define-global-minor-mode))
            (macrop car)
 	   (setq expand (let ((load-true-file-name file)
                               (load-file-name file))
@@ -211,15 +215,18 @@ expression, in which case we want to handle forms differently."
       (loaddefs-generate--make-autoload expand file 'expansion))
 
      ;; For special function-like operators, use the `autoload' function.
-     ((memq car '(define-skeleton define-derived-mode
+     ((memq car '( define-skeleton define-derived-mode
                    define-compilation-mode define-generic-mode
-		   easy-mmode-define-global-mode define-global-minor-mode
-		   define-globalized-minor-mode
-		   easy-mmode-define-minor-mode define-minor-mode
+                   define-globalized-minor-mode
+                   define-minor-mode
 		   cl-defun defun* cl-defmacro defmacro*
                    define-overloadable-function
                    transient-define-prefix transient-define-suffix
-                   transient-define-infix transient-define-argument))
+                   transient-define-infix transient-define-argument
+                   ;; Obsolete; keep until the alias is removed.
+                   easy-mmode-define-global-mode
+                   easy-mmode-define-minor-mode
+                   define-global-minor-mode))
       (let* ((macrop (memq car '(defmacro cl-defmacro defmacro*)))
 	     (name (nth 1 form))
 	     (args (pcase car
@@ -243,17 +250,18 @@ expression, in which case we want to handle forms differently."
         (loaddefs-generate--shorten-autoload
          `(autoload ,(if (listp name) name (list 'quote name))
             ,file ,doc
-            ,(or (and (memq car '(define-skeleton define-derived-mode
+            ,(or (and (memq car '( define-skeleton define-derived-mode
                                    define-generic-mode
-                                   easy-mmode-define-global-mode
-                                   define-global-minor-mode
                                    define-globalized-minor-mode
-                                   easy-mmode-define-minor-mode
                                    define-minor-mode
                                    transient-define-prefix
                                    transient-define-suffix
                                    transient-define-infix
-                                   transient-define-argument))
+                                   transient-define-argument
+                                   ;; Obsolete; keep until the alias is removed.
+                                   easy-mmode-define-global-mode
+                                   easy-mmode-define-minor-mode
+                                   define-global-minor-mode))
                       t)
                  (and (eq (car-safe (car body)) 'interactive)
                       ;; List of modes or just t.
@@ -295,7 +303,7 @@ expression, in which case we want to handle forms differently."
                                  (null (plist-get props :set))
                                (error nil)))
            ;; Propagate the :safe property to the loaddefs file.
-           ,@(when-let ((safe (plist-get props :safe)))
+           ,@(when-let* ((safe (plist-get props :safe)))
                `((put ',varname 'safe-local-variable ,safe))))))
 
      ;; Extract theme properties.
@@ -413,8 +421,8 @@ don't include."
         (save-excursion
           ;; Since we're "open-coding", we have to repeat more
           ;; complicated logic in `hack-local-variables'.
-          (when-let ((beg
-                      (re-search-forward "read-symbol-shorthands: *" nil t)))
+          (when-let* ((beg
+                       (re-search-forward "read-symbol-shorthands: *" nil t)))
             ;; `read-symbol-shorthands' alist ends with two parens.
             (let* ((end (re-search-forward ")[;\n\s]*)"))
                    (commentless (replace-regexp-in-string
@@ -441,7 +449,7 @@ don't include."
                                        (file-name-sans-extension
                                         (file-name-nondirectory file)))))
             (push (list (or local-outfile main-outfile) file
-                        `(push (purecopy ',(cons (intern package) version))
+                        `(push ',(cons (intern package) version)
                                package--builtin-versions))
                   defs))))
 
@@ -499,7 +507,7 @@ don't include."
         (when (and autoload-compute-prefixes
                    compute-prefixes)
           (with-demoted-errors "%S"
-            (when-let
+            (when-let*
                 ((form (loaddefs-generate--compute-prefixes load-name)))
               ;; This output needs to always go in the main loaddefs.el,
               ;; regardless of `generated-autoload-file'.

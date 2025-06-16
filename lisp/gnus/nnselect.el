@@ -736,7 +736,7 @@ group info."
                    (push (1+ seq) old-arts)
                  (setq gnus-newsgroup-selection
                        (vconcat gnus-newsgroup-selection (vector article)))
-                 (cl-incf last)))
+                 (incf last)))
              (gnus-search-run-query
               (list (cons 'search-query-spec query-spec)
                     (cons 'search-group-spec group-spec))))
@@ -1029,7 +1029,7 @@ article came from is also searched."
             (let ((i 5))
               (while (and (> i 2)
                           (not (nth i group-info)))
-                (when (nthcdr (cl-decf i) group-info)
+                (when (nthcdr (decf i) group-info)
                   (setcdr (nthcdr i group-info) nil))))
 
             ;; update read and unread

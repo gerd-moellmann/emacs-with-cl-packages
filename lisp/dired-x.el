@@ -218,7 +218,7 @@ toggle between those two."
 
 ;;; Menu bindings
 
-(when-let ((menu (lookup-key dired-mode-map [menu-bar])))
+(when-let* ((menu (lookup-key dired-mode-map [menu-bar])))
   (easy-menu-add-item menu '("Operate")
                       ["Find Files" dired-do-find-marked-files
                        :help "Find current or marked files"]
@@ -498,8 +498,10 @@ status message."
                                nil
                                (if dired-omit-verbose
                                    (format "Omitted %%d line%%s in %s"
-                                           (abbreviate-file-name
-                                            dired-directory))
+                                           (replace-regexp-in-string
+                                            "%" "%%"
+                                            (abbreviate-file-name
+                                             dired-directory)))
                                  "")
                                init-count)))
               (force-mode-line-update))))

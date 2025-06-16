@@ -1,4 +1,4 @@
-@c This is part of the Emacs manual.  -*- coding: utf-8 -*-
+@c This is part of the Emacs manual.
 @c Copyright (C) 1985--1987, 1993--1995, 1997, 2000--2025 Free Software
 @c Foundation, Inc.
 @c See file emacs.texi for copying conditions.
@@ -84,12 +84,16 @@ Move point one week forward (@code{calendar-forward-week}).
 @item C-p
 Move point one week backward (@code{calendar-backward-week}).
 @item M-@}
+@itemx @}
 Move point one month forward (@code{calendar-forward-month}).
 @item M-@{
+@itemx @{
 Move point one month backward (@code{calendar-backward-month}).
 @item C-x ]
+@itemx ]
 Move point one year forward (@code{calendar-forward-year}).
 @item C-x [
+@itemx [
 Move point one year backward (@code{calendar-backward-year}).
 @end table
 
@@ -114,12 +118,16 @@ week.  @kbd{C-f} (@code{calendar-forward-day}) and @kbd{C-b}
 @kbd{C-p}, just as they normally are in other modes.
 
 @kindex M-@} @r{(Calendar mode)}
+@kindex @} @r{(Calendar mode)}
 @findex calendar-forward-month
 @kindex M-@{ @r{(Calendar mode)}
+@kindex @{ @r{(Calendar mode)}
 @findex calendar-backward-month
 @kindex C-x ] @r{(Calendar mode)}
+@kindex ] @r{(Calendar mode)}
 @findex calendar-forward-year
 @kindex C-x [ @r{(Calendar mode)}
+@kindex [ @r{(Calendar mode)}
 @findex calendar-backward-year
   The commands for motion by months and years work like those for
 weeks, but move a larger distance.  The month commands @kbd{M-@}}
@@ -136,6 +144,9 @@ for movement through text: the ordinary Emacs paragraph commands move
 to the beginning or end of a paragraph, whereas these month and year
 commands move by an entire month or an entire year, keeping the same
 date within the month or year.
+
+  You can also use the simpler to type keystrokes @kbd{@}} and @kbd{@{}
+to navigate by month, and @kbd{]} and @kbd{[} to navigate by year.
 
   All these commands accept a numeric argument as a repeat count.
 For convenience, the digit keys and the minus sign specify numeric
@@ -258,6 +269,8 @@ Scroll forward by three months (@code{calendar-scroll-left-three-months}).
 @itemx @key{PageUp}
 @itemx @key{prior}
 Scroll backward by three months (@code{calendar-scroll-right-three-months}).
+@item C-l
+Recenter the date at point.
 @end table
 
 @kindex > @r{(Calendar mode)}
@@ -292,6 +305,15 @@ calendar backward by a year.
   The function keys @key{PageDown} (or @key{next}) and @key{PageUp}
 (or @key{prior}) are equivalent to @kbd{C-v} and @kbd{M-v}, just as
 they are in other modes.
+
+@kindex C-l @r{(Calendar mode)}
+@findex calendar-recenter
+  The command @kbd{C-l} (@code{calendar-recenter}) scrolls the calendar
+on display so that the month of the date at point is centered
+horizontally.  Next invocation of this command puts that month on the
+leftmost position, and another invocation puts it on the rightmost
+position.  Subsequent invocations reuse the same order in a cyclical
+manner.
 
 @node Counting Days
 @section Counting Days
@@ -552,7 +574,7 @@ holidays centered around a different month, use @kbd{C-u M-x
 holidays}, which prompts for the month and year.
 
   The holidays known to Emacs include United States holidays and the
-major Bahá'í, Chinese, Christian, Islamic, and Jewish
+major Bah@'a'@'i, Chinese, Christian, Islamic, and Jewish
 holidays; also the solstices and equinoxes.
 
 @findex list-holidays
@@ -803,8 +825,8 @@ days are named by combining one of ten @dfn{celestial stems} with one of
 twelve @dfn{terrestrial branches} for a total of sixty names that are
 repeated in a cycle of sixty.
 
-@cindex Bahá'í calendar
-  The Bahá'í calendar system is based on a solar cycle of 19 months with
+@cindex Bah@'a'@'i calendar
+  The Bah@'a'@'i calendar system is based on a solar cycle of 19 months with
 19 days each.  The four remaining intercalary days are placed
 between the 18th and 19th months.
 
@@ -844,7 +866,7 @@ Display French Revolutionary date for selected day
 (@code{calendar-french-print-date}).
 @findex calendar-bahai-print-date
 @item p b
-Display Bahá'í date for selected day
+Display Bah@'a'@'i date for selected day
 (@code{calendar-bahai-print-date}).
 @findex calendar-chinese-print-date
 @item p C
@@ -911,7 +933,7 @@ Move to a date specified in the Julian calendar
 Move to a date specified with an astronomical (Julian) day number
 (@code{calendar-astro-goto-day-number}).
 @item g b
-Move to a date specified in the Bahá'í calendar
+Move to a date specified in the Bah@'a'@'i calendar
 (@code{calendar-bahai-goto-date}).
 @item g h
 Move to a date specified in the Hebrew calendar

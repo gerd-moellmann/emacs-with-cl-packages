@@ -582,7 +582,7 @@ Returns the filename, expanded."
      (read-file-name
       "File: "
       (cond (dir)
-            ((when-let ((proj (and (featurep 'project) (project-current))))
+            ((when-let* ((proj (and (featurep 'project) (project-current))))
                (project-root proj))))
       nil
       (lambda (fname)
@@ -814,8 +814,8 @@ whose elements are of the form (VAR . VALUE).
 Unlike `connection-local-set-profile-variables' (which see), this
 function preserves the values of any existing variable
 definitions that aren't listed in VARIABLES."
-  (when-let ((existing-variables
-              (nreverse (connection-local-get-profile-variables profile))))
+  (when-let* ((existing-variables
+               (nreverse (connection-local-get-profile-variables profile))))
     (dolist (var variables)
       (setf (alist-get (car var) existing-variables) (cdr var)))
     (setq variables (nreverse existing-variables)))
@@ -936,7 +936,7 @@ earlier in the `setq-connection-local'.  The return value of the
 
 \(fn [VARIABLE VALUE]...)"
   (declare (debug setq))
-  (unless (zerop (mod (length pairs) 2))
+  (unless (evenp (length pairs))
     (error "PAIRS must have an even number of variable/value members"))
   (let ((set-expr nil)
         (profile-vars nil))
@@ -989,7 +989,7 @@ value is the default binding of the variable."
      (if (not criteria)
          ,variable
        (hack-connection-local-variables criteria)
-       (if-let ((result (assq ',variable connection-local-variables-alist)))
+       (if-let* ((result (assq ',variable connection-local-variables-alist)))
            (cdr result)
          ,variable))))
 

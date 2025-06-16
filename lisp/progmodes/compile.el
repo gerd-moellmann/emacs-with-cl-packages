@@ -85,14 +85,18 @@ Similarly, to remove a prefix \"bar/\", use:
                               (string :tag "Replace matched filename with"))))
   :version "27.1")
 
-(defvar compilation-filter-hook nil
+(defcustom compilation-filter-hook nil
   "Hook run after `compilation-filter' has inserted a string into the buffer.
 It is called with the variable `compilation-filter-start' bound
 to the position of the start of the inserted text, and point at
 its end.
 
 If Emacs lacks asynchronous process support, this hook is run
-after `call-process' inserts the grep output into the buffer.")
+after `call-process' inserts the grep output into the buffer."
+  :type 'hook
+  :options '(ansi-color-compilation-filter
+             ansi-osc-compilation-filter)
+  :version "31.1")
 
 (defvar compilation-filter-start nil
   "Position of the start of the text inserted by `compilation-filter'.
@@ -561,6 +565,19 @@ during global destruction\\.$\\)" 1 2)
      "\\(?:Parse\\|Fatal\\) error: \\(.*\\) in \\(.*\\) on line \\([0-9]+\\)"
      2 3 nil nil)
 
+    (rust
+     ,(rx bol (or (group-n 1 "error") (group-n 2 "warning") (group-n 3 "note"))
+          (? "[" (+ (in "A-Z" "0-9")) "]") ":" (* nonl)
+          "\n" (+ " ") "-->"
+          " " (group-n 4 (+ nonl))        ; file
+          ":" (group-n 5 (+ (in "0-9")))  ; line
+          ":" (group-n 6 (+ (in "0-9")))) ; column
+     4 5 6 (2 . 3)
+     nil
+     (1 compilation-error-face)
+     (2 compilation-warning-face)
+     (3 compilation-info-face))
+
     (rxp
      "^\\(?:Error\\|Warnin\\(g\\)\\):.*\n.* line \\([0-9]+\\) char\
  \\([0-9]+\\) of file://\\(.+\\)"
@@ -937,7 +954,7 @@ The value nil as an element means to try the default directory."
 			 (string :tag "Directory"))))
 
 ;;;###autoload
-(defcustom compile-command (purecopy "make -k ")
+(defcustom compile-command "make -k "
   "Last shell command used to do a compilation; default for next compilation.
 
 Sometimes it is useful for files to supply local values for this variable.
@@ -1421,12 +1438,12 @@ POS and RES.")
 		       2)))
     ;; Remove matches like /bin/sh and do other file name transforms.
     (save-match-data
-      (when-let ((file-name
-                  (and (consp file)
-                       (not (bufferp (car file)))
-                       (if (cdr file)
-                           (expand-file-name (car file) (cdr file))
-                         (car file)))))
+      (when-let* ((file-name
+                   (and (consp file)
+                        (not (bufferp (car file)))
+                        (if (cdr file)
+                            (expand-file-name (car file) (cdr file))
+                          (car file)))))
         (cl-loop for (regexp replacement)
                  in compilation-transform-file-match-alist
                  when (string-match regexp file-name)
@@ -1641,9 +1658,9 @@ RULE is the name (symbol) of the rule used or nil if anonymous.
   "Note that a new message with severity TYPE was seen.
 This updates the appropriate variable used by the mode-line."
   (cl-case type
-    (0 (cl-incf compilation-num-infos-found))
-    (1 (cl-incf compilation-num-warnings-found))
-    (2 (cl-incf compilation-num-errors-found))))
+    (0 (incf compilation-num-infos-found))
+    (1 (incf compilation-num-warnings-found))
+    (2 (incf compilation-num-errors-found))))
 
 (defun compilation-parse-errors (start end &rest rules)
   "Parse errors between START and END.
@@ -1848,6 +1865,7 @@ to a function that generates a unique name."
   (compilation-start command comint))
 
 ;; run compile with the default command line
+;;;###autoload
 (defun recompile (&optional edit-command)
   "Re-compile the program including the current buffer.
 If this is run in a Compilation mode buffer, reuse the arguments from the
@@ -2871,6 +2889,53 @@ as a last resort."
       (current-buffer)
     (next-error-find-buffer avoid-current 'compilation-buffer-internal-p)))
 
+(defun compilation--update-markers (loc marker screen-columns first-column)
+  "Update markers in LOC, and set MARKER to location pointed by LOC.
+SCREEN-COLUMNS and FIRST-COLUMN are the value of
+`compilation-error-screen-columns' and `compilation-first-column' to use
+if they are not set buffer-locally in the target buffer."
+  (with-current-buffer
+      (if (bufferp (caar (compilation--loc->file-struct loc)))
+          (caar (compilation--loc->file-struct loc))
+        (apply #'compilation-find-file
+               marker
+               (caar (compilation--loc->file-struct loc))
+               (cadr (car (compilation--loc->file-struct loc)))
+               (compilation--file-struct->formats
+                (compilation--loc->file-struct loc))))
+    (let ((screen-columns
+           ;; Obey the compilation-error-screen-columns of the target
+           ;; buffer if its major mode set it buffer-locally.
+           (if (local-variable-p 'compilation-error-screen-columns)
+               compilation-error-screen-columns screen-columns))
+          (compilation-first-column
+           (if (local-variable-p 'compilation-first-column)
+               compilation-first-column first-column))
+          (last 1))
+      (save-restriction
+        (widen)
+        (goto-char (point-min))
+        ;; Treat file's found lines in forward order, 1 by 1.
+        (dolist (line (reverse (cddr (compilation--loc->file-struct loc))))
+          (when (car line)     ; else this is a filename without a line#
+            (compilation-beginning-of-line (- (car line) last -1))
+            (setq last (car line)))
+          ;; Treat line's found columns and store/update a marker for each.
+          (dolist (col (cdr line))
+            (if (compilation--loc->col col)
+                (if (eq (compilation--loc->col col) -1)
+                    ;; Special case for range end.
+                    (end-of-line)
+                  (compilation-move-to-column (compilation--loc->col col)
+                                              screen-columns))
+              (beginning-of-line)
+              (skip-chars-forward " \t"))
+            (if (compilation--loc->marker col)
+                (set-marker (compilation--loc->marker col) (point))
+              (setf (compilation--loc->marker col) (point-marker)))
+            ;; (setf (compilation--loc->timestamp col) timestamp)
+            ))))))
+
 ;;;###autoload
 (defun compilation-next-error-function (n &optional reset)
   "Advance to the next error message and visit the file where the error was.
@@ -2880,7 +2945,6 @@ This is the value of `next-error-function' in Compilation buffers."
     (setq compilation-current-error nil))
   (let* ((screen-columns compilation-error-screen-columns)
 	 (first-column compilation-first-column)
-	 (last 1)
 	 (msg (compilation-next-error (or n 1) nil
 				      (or compilation-current-error
 					  compilation-messages-start
@@ -2892,9 +2956,9 @@ This is the value of `next-error-function' in Compilation buffers."
       (user-error "No next error"))
     (setq compilation-current-error (point-marker)
 	  overlay-arrow-position
-	    (if (bolp)
-		compilation-current-error
-	      (copy-marker (line-beginning-position))))
+	  (if (bolp)
+	      compilation-current-error
+	    (copy-marker (line-beginning-position))))
     ;; If loc contains no marker, no error in that file has been visited.
     ;; If the marker is invalid the buffer has been killed.
     ;; So, recalculate all markers for that file.
@@ -2911,46 +2975,7 @@ This is the value of `next-error-function' in Compilation buffers."
                  ;;     (equal (compilation--loc->timestamp loc)
                  ;;            (setq timestamp compilation-buffer-modtime)))
                  )
-      (with-current-buffer
-          (if (bufferp (caar (compilation--loc->file-struct loc)))
-              (caar (compilation--loc->file-struct loc))
-            (apply #'compilation-find-file
-                   marker
-                   (caar (compilation--loc->file-struct loc))
-                   (cadr (car (compilation--loc->file-struct loc)))
-                   (compilation--file-struct->formats
-                    (compilation--loc->file-struct loc))))
-        (let ((screen-columns
-               ;; Obey the compilation-error-screen-columns of the target
-               ;; buffer if its major mode set it buffer-locally.
-               (if (local-variable-p 'compilation-error-screen-columns)
-                   compilation-error-screen-columns screen-columns))
-              (compilation-first-column
-               (if (local-variable-p 'compilation-first-column)
-                   compilation-first-column first-column)))
-          (save-restriction
-            (widen)
-            (goto-char (point-min))
-            ;; Treat file's found lines in forward order, 1 by 1.
-            (dolist (line (reverse (cddr (compilation--loc->file-struct loc))))
-              (when (car line)		; else this is a filename without a line#
-                (compilation-beginning-of-line (- (car line) last -1))
-                (setq last (car line)))
-              ;; Treat line's found columns and store/update a marker for each.
-              (dolist (col (cdr line))
-                (if (compilation--loc->col col)
-                    (if (eq (compilation--loc->col col) -1)
-                        ;; Special case for range end.
-                        (end-of-line)
-                      (compilation-move-to-column (compilation--loc->col col)
-                                                  screen-columns))
-                  (beginning-of-line)
-                  (skip-chars-forward " \t"))
-                (if (compilation--loc->marker col)
-                    (set-marker (compilation--loc->marker col) (point))
-                  (setf (compilation--loc->marker col) (point-marker)))
-                ;; (setf (compilation--loc->timestamp col) timestamp)
-                ))))))
+      (compilation--update-markers loc marker screen-columns first-column))
     (compilation-goto-locus marker (compilation--loc->marker loc)
                             (compilation--loc->marker end-loc))
     (setf (compilation--loc->visited loc) t)))
@@ -3239,7 +3264,7 @@ we try to avoid if possible."
       (with-current-buffer (marker-buffer marker)
         (save-excursion
           (goto-char (marker-position marker))
-          (when-let ((prev (compilation--previous-directory (point))))
+          (when-let* ((prev (compilation--previous-directory (point))))
             (goto-char prev))
           (setq dirs (cdr (or (get-text-property
                                (1- (point)) 'compilation-directory)

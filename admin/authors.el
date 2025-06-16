@@ -298,6 +298,7 @@ files.")
     (nil "vjoki@")
     (nil "whatacold@gmail\\.com")
     ("William M. Perry" "Bill Perry")
+    ("William O'Brien" "will\\.08rien@gmail.com")
     ("Włodzimierz Bzyl" "W.*dek Bzyl")
     (nil "xyblor")
     ("Yilkal Argaw" "yilkalargaw" "yilkalargawworkneh@gmail\\.com")
@@ -380,7 +381,6 @@ If REALNAME is nil, ignore that author.")
     "nnmaildir\\.el"
     "nnil\\.el"
     "b2m\\.c"
-    "unexhp9k800\\.c"
     "emacsclient\\.1"
     "check-doc-strings")
   "List of regexps matching files for which the FSF doesn't need papers.")
@@ -1471,7 +1471,6 @@ in the repository.")
     ("org/COPYRIGHT-AND-LICENSE" . "org/README")
     ("lisp/net/idna.el" . "puny.el")
     ;; Moved to different directories.
-    ("ctags.1" . "ctags.1")
     ("etags.1" . "etags.1")
     ("emacs.1" . "emacs.1")
     ("emacsclient.1" . "emacsclient.1")

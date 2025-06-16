@@ -46,7 +46,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <c-ctype.h>
 #include <intprops.h>
 #include <stdlib.h>
-#include <verify.h>
 
 #include "composite.h"
 #include "intervals.h"
@@ -55,6 +54,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "buffer.h"
 #include "window.h"
 #include "blockinput.h"
+#include "coding.h"
 
 #ifdef WINDOWSNT
 # include "w32common.h"
@@ -1920,15 +1920,24 @@ static bool compareseq_early_abort (struct context *);
 #include "minmax.h"
 #include "diffseq.h"
 
-DEFUN ("replace-buffer-contents", Freplace_buffer_contents,
-       Sreplace_buffer_contents, 1, 3, "bSource buffer: ",
-       doc: /* Replace accessible portion of current buffer with that of SOURCE.
-SOURCE can be a buffer or a string that names a buffer.
-Interactively, prompt for SOURCE.
+DEFUN ("replace-region-contents", Freplace_region_contents,
+       Sreplace_region_contents, 3, 6,
+       "(list (if (use-region-p) (region-beginning) (point-min)) \
+              (if (use-region-p) (region-end) (point-max)) 	 \
+              (get-buffer (read-buffer-to-switch \"Source buffer: \")))",
+       doc: /* Replace the region between BEG and END with that of SOURCE.
+SOURCE can be a buffer, a string, or a vector [SBUF SBEG SEND]
+denoting the subtring SBEG..SEND of buffer SBUF.
+
+If optional argument INHERIT is non-nil, the inserted text will inherit
+properties from adjoining text.
 
 As far as possible the replacement is non-destructive, i.e. existing
-buffer contents, markers, properties, and overlays in the current
-buffer stay intact.
+buffer contents, markers, point, properties, and overlays in the current
+buffer stay intact.  Point is treated like an "insert before" marker:
+if point starts at END, it will always be at the end of the replacement
+when this function returns, whereas if point starts at BEG it will
+remain at BEG only if the replaced text is not empty.
 
 Because this function can be very slow if there is a large number of
 differences between the two buffers, there are two optional arguments
@@ -1939,25 +1948,99 @@ for comparing the buffers.  If it takes longer than MAX-SECS, the
 function falls back to a plain `delete-region' and
 `insert-buffer-substring'.  (Note that the checks are not performed
 too evenly over time, so in some cases it may run a bit longer than
-allowed).
+allowed).  In partricular, passing zero as the value of MAX-SECS
+disables the comparison step, so this function immediately falls
+back to a plain delete/insert method.
 
 The optional argument MAX-COSTS defines the quality of the difference
 computation.  If the actual costs exceed this limit, heuristics are
 used to provide a faster but suboptimal solution.  The default value
 is 1000000.
 
+Note: If the replacement is a string, it'll usually be placed internally
+in a temporary buffer.  Therefore, all else being equal, it is preferable
+to pass a buffer rather than a string as SOURCE argument.
+
 This function returns t if a non-destructive replacement could be
 performed.  Otherwise, i.e., if MAX-SECS was exceeded, it returns
-nil.  */)
-  (Lisp_Object source, Lisp_Object max_secs, Lisp_Object max_costs)
+nil.
+
+SOURCE can also be a function that will be called with no arguments
+and with current buffer narrowed to BEG..END, and should return
+a buffer or a string.  But this is deprecated.  */)
+  (Lisp_Object beg, Lisp_Object end, Lisp_Object source,
+   Lisp_Object max_secs, Lisp_Object max_costs, Lisp_Object inherit)
 {
-  struct buffer *a = current_buffer;
-  Lisp_Object source_buffer = Fget_buffer (source);
-  if (NILP (source_buffer))
-    nsberror (source);
-  struct buffer *b = XBUFFER (source_buffer);
-  if (! BUFFER_LIVE_P (b))
+  validate_region (&beg, &end);
+  ptrdiff_t min_a = XFIXNUM (beg);
+  ptrdiff_t size_a = XFIXNUM (end) - min_a;
+  eassume (size_a >= 0);
+  bool a_empty = size_a == 0;
+  bool inh = !NILP (inherit);
+
+  if (FUNCTIONP (source))
+    {
+      specpdl_ref count = SPECPDL_INDEX ();
+      record_unwind_protect_excursion ();
+      record_unwind_protect (save_restriction_restore,
+			     save_restriction_save ());
+      Fnarrow_to_region (beg, end);
+      source = calln (source);
+      unbind_to (count, Qnil);
+    }
+  ptrdiff_t min_b, size_b;
+  struct buffer *b;
+  if (STRINGP (source))
+    {
+      b = NULL;
+      min_b = BEG;		/* Assuming we'll copy it into a buffer.  */
+      /* Like 'size_b = SCHARS (source);', except inline to pacify -Wclobbered
+	 with gcc 14.2.1 20250110 (Red Hat 14.2.1-7) x86-64 -O2; see
+	 <https://gcc.gnu.org/bugzilla/show_bug.cgi?id=21161>.  */
+      size_b = XSTRING (source)->u.s.size;
+    }
+  else if (BUFFERP (source))
+    {
+      b = XBUFFER (source);
+      min_b = BUF_BEGV (b);
+      size_b = BUF_ZV (b) - min_b;
+    }
+  else
+    {
+      CHECK_TYPE (VECTORP (source),
+		  list (Qor, Qstring, Qbuffer, Qvector), source);
+      /* Let Faref signal an error if SOURCE is too small.  */
+      Lisp_Object send = Faref (source, make_fixnum (2));
+      Lisp_Object sbeg = AREF (source, 1);
+      CHECK_BUFFER (AREF (source, 0));
+      b = XBUFFER (AREF (source, 0));
+      specpdl_ref count = SPECPDL_INDEX ();
+      record_unwind_current_buffer ();
+      set_buffer_internal (b);
+      validate_region (&sbeg, &send);
+      unbind_to (count, Qnil);
+      min_b = XFIXNUM (sbeg);
+      size_b = XFIXNUM (send) - min_b;
+    }
+  eassume (0 <= size_b);
+  bool b_empty = size_b == 0;
+  if (b && !BUFFER_LIVE_P (b))
     error ("Selecting deleted buffer");
+
+  /* Handle trivial cases where at least one accessible portion is
+     empty.  */
+
+  if (a_empty && b_empty)
+    return Qt;
+  else if (a_empty || b_empty
+	   || EQ (max_secs, make_fixnum (0))
+	   || EQ (max_costs, make_fixnum (0)))
+    {
+      replace_range (min_a, min_a + size_a, source, true, false, inh);
+      return Qt;
+    }
+
+  struct buffer *a = current_buffer;
   if (a == b)
     error ("Cannot replace a buffer with itself");
 
@@ -1983,35 +2066,7 @@ nil.  */)
 	time_limit = tlim;
     }
 
-  ptrdiff_t min_a = BEGV;
-  ptrdiff_t min_b = BUF_BEGV (b);
-  ptrdiff_t size_a = ZV - min_a;
-  ptrdiff_t size_b = BUF_ZV (b) - min_b;
-  eassume (size_a >= 0);
-  eassume (size_b >= 0);
-  bool a_empty = size_a == 0;
-  bool b_empty = size_b == 0;
-
-  /* Handle trivial cases where at least one accessible portion is
-     empty.  */
-
-  if (a_empty && b_empty)
-    return Qt;
-
-  if (a_empty)
-    {
-      Finsert_buffer_substring (source, Qnil, Qnil);
-      return Qt;
-    }
-
-  if (b_empty)
-    {
-      del_range_both (BEGV, BEGV_BYTE, ZV, ZV_BYTE, true);
-      return Qt;
-    }
-
   specpdl_ref count = SPECPDL_INDEX ();
-
 
   ptrdiff_t diags = size_a + size_b + 3;
   ptrdiff_t del_bytes = size_a / CHAR_BIT + 1;
@@ -2025,6 +2080,18 @@ nil.  */)
   buffer = SAFE_ALLOCA (bytes_needed);
   unsigned char *deletions_insertions = memset (buffer + 2 * diags, 0,
 						del_bytes + ins_bytes);
+
+  /* The rest of the code is not prepared to handle a string SOURCE.  */
+  if (!b)
+    {
+      Lisp_Object workbuf
+	= code_conversion_save (true, STRING_MULTIBYTE (source));
+      b = XBUFFER (workbuf);
+      set_buffer_internal (b);
+      CALLN (Finsert, source);
+      set_buffer_internal (a);
+    }
+  Lisp_Object source_buffer = make_lisp_ptr (b, Lisp_Vectorlike);
 
   /* FIXME: It is not documented how to initialize the contents of the
      context structure.  This code cargo-cults from the existing
@@ -2056,15 +2123,16 @@ nil.  */)
 
   if (early_abort)
     {
-      del_range (min_a, ZV);
-      Finsert_buffer_substring (source, Qnil,Qnil);
+      Lisp_Object src = CALLN (Fvector, source_buffer,
+			       make_fixnum (BUF_BEGV (b)),
+			       make_fixnum (BUF_ZV (b)));
+      replace_range (min_a, min_a + size_a, src, true, false, inh);
       SAFE_FREE_UNBIND_TO (count, Qnil);
       return Qnil;
     }
 
   Fundo_boundary ();
   bool modification_hooks_inhibited = false;
-  record_unwind_protect_excursion ();
 
   /* We are going to make a lot of small modifications, and having the
      modification hooks called for each of them will slow us down.
@@ -2073,13 +2141,14 @@ nil.  */)
      modification hooks, because then they don't want that.  */
   if (!inhibit_modification_hooks)
     {
-      prepare_to_modify_buffer (BEGV, ZV, NULL);
+      prepare_to_modify_buffer (min_a, min_a + size_a, NULL);
       specbind (Qinhibit_modification_hooks, Qt);
       modification_hooks_inhibited = true;
     }
 
   ptrdiff_t i = size_a;
   ptrdiff_t j = size_b;
+  Lisp_Object src = CALLN (Fvector, source_buffer, Qnil, Qnil);
   /* Walk backwards through the lists of changes.  This was also
      cargo-culted from src/analyze.c in GNU Diffutils.  Because we
      walk backwards, we don’t have to keep the positions in sync.  */
@@ -2105,14 +2174,9 @@ nil.  */)
           eassert (beg_a <= end_a);
           eassert (beg_b <= end_b);
           eassert (beg_a < end_a || beg_b < end_b);
-          if (beg_a < end_a)
-            del_range (beg_a, end_a);
-          if (beg_b < end_b)
-            {
-              SET_PT (beg_a);
-              Finsert_buffer_substring (source, make_fixed_natnum (beg_b),
-                                        make_fixed_natnum (end_b));
-            }
+          ASET (src, 1, make_fixed_natnum (beg_b));
+          ASET (src, 2, make_fixed_natnum (end_b));
+          replace_range (beg_a, end_a, src, true, false, inh);
 	}
       --i;
       --j;
@@ -2122,8 +2186,8 @@ nil.  */)
 
   if (modification_hooks_inhibited)
     {
-      signal_after_change (BEGV, size_a, ZV - BEGV);
-      update_compositions (BEGV, ZV, CHECK_INSIDE);
+      signal_after_change (min_a, size_a, size_b);
+      update_compositions (min_a, min_a + size_b, CHECK_INSIDE);
       /* We've locked the buffer's file above in
 	 prepare_to_modify_buffer; if the buffer is unchanged at this
 	 point, i.e. no insertions or deletions have been made, unlock
@@ -2236,15 +2300,23 @@ Both characters must have the same length of multi-byte form.  */)
   unsigned char fromstr[MAX_MULTIBYTE_LENGTH], tostr[MAX_MULTIBYTE_LENGTH];
   unsigned char *p;
   specpdl_ref count = SPECPDL_INDEX ();
-#define COMBINING_NO	 0
-#define COMBINING_BEFORE 1
-#define COMBINING_AFTER  2
-#define COMBINING_BOTH (COMBINING_BEFORE | COMBINING_AFTER)
-  int maybe_byte_combining = COMBINING_NO;
   ptrdiff_t last_changed = 0;
   bool multibyte_p
     = !NILP (BVAR (current_buffer, enable_multibyte_characters));
   int fromc, toc;
+
+#ifdef HAVE_TREE_SITTER
+  ptrdiff_t start_char = fix_position (start);
+  ptrdiff_t old_end_char = fix_position (end);
+  ptrdiff_t start_byte = CHAR_TO_BYTE (start_char);
+  ptrdiff_t old_end_byte = CHAR_TO_BYTE (old_end_char);
+  struct ts_linecol start_linecol
+    = treesit_linecol_maybe (start_char, start_byte,
+			     BUF_TS_LINECOL_POINT (current_buffer));
+  struct ts_linecol old_end_linecol
+    = treesit_linecol_maybe (old_end_char, old_end_byte,
+			     BUF_TS_LINECOL_POINT (current_buffer));
+#endif
 
  restart:
 
@@ -2259,17 +2331,6 @@ Both characters must have the same length of multi-byte form.  */)
       len = CHAR_STRING (fromc, fromstr);
       if (CHAR_STRING (toc, tostr) != len)
 	error ("Characters in `subst-char-in-region' have different byte-lengths");
-      if (!ASCII_CHAR_P (*tostr))
-	{
-	  /* If *TOSTR is in the range 0x80..0x9F and TOCHAR is not a
-	     complete multibyte character, it may be combined with the
-	     after bytes.  If it is in the range 0xA0..0xFF, it may be
-	     combined with the before and after bytes.  */
-	  if (!CHAR_HEAD_P (*tostr))
-	    maybe_byte_combining = COMBINING_BOTH;
-	  else if (BYTES_BY_CHAR_HEAD (*tostr) > len)
-	    maybe_byte_combining = COMBINING_AFTER;
-	}
     }
   else
     {
@@ -2344,53 +2405,10 @@ Both characters must have the same length of multi-byte form.  */)
 	      goto restart;
 	    }
 
-	  /* Take care of the case where the new character
-	     combines with neighboring bytes.  */
-	  if (maybe_byte_combining
-	      && (maybe_byte_combining == COMBINING_AFTER
-		  ? (pos_byte_next < Z_BYTE
-		     && ! CHAR_HEAD_P (FETCH_BYTE (pos_byte_next)))
-		  : ((pos_byte_next < Z_BYTE
-		      && ! CHAR_HEAD_P (FETCH_BYTE (pos_byte_next)))
-		     || (pos_byte > BEG_BYTE
-			 && ! ASCII_CHAR_P (FETCH_BYTE (pos_byte - 1))))))
-	    {
-	      Lisp_Object tem, string;
+	  if (NILP (noundo))
+	    record_change (pos, 1);
+	  for (i = 0; i < len; i++) *p++ = tostr[i];
 
-	      tem = BVAR (current_buffer, undo_list);
-
-	      /* Make a multibyte string containing this single character.  */
-	      string = make_multibyte_string ((char *) tostr, 1, len);
-	      /* replace_range is less efficient, because it moves the gap,
-		 but it handles combining correctly.  */
-	      replace_range (pos, pos + 1, string,
-			     false, false, true, false, false);
-	      pos_byte_next = CHAR_TO_BYTE (pos);
-	      if (pos_byte_next > pos_byte)
-		/* Before combining happened.  We should not increment
-		   POS.  So, to cancel the later increment of POS,
-		   decrease it now.  */
-		pos--;
-	      else
-		pos_byte_next += next_char_len (pos_byte_next);
-
-	      if (! NILP (noundo))
-		bset_undo_list (current_buffer, tem);
-	    }
-	  else
-	    {
-	      if (NILP (noundo))
-		record_change (pos, 1);
-	      for (i = 0; i < len; i++) *p++ = tostr[i];
-
-#ifdef HAVE_TREE_SITTER
-	      /* In the previous branch, replace_range() notifies
-                 changes to tree-sitter, but in this branch, we
-                 modified buffer content manually, so we need to
-                 notify tree-sitter manually.  */
-	      treesit_record_change (pos_byte, pos_byte + len, pos_byte + len);
-#endif
-	    }
 	  last_changed =  pos + 1;
 	}
       pos_byte = pos_byte_next;
@@ -2399,6 +2417,10 @@ Both characters must have the same length of multi-byte form.  */)
 
   if (changed > 0)
     {
+#ifdef HAVE_TREE_SITTER
+      treesit_record_change (start_byte, old_end_byte, old_end_byte,
+			     start_linecol, old_end_linecol, old_end_char);
+#endif
       signal_after_change (changed,
 			   last_changed - changed, last_changed - changed);
       update_compositions (changed, last_changed, CHECK_ALL);
@@ -2579,11 +2601,20 @@ It returns the number of characters changed.  */)
 		     but it should handle multibyte characters correctly.  */
 		  string = make_multibyte_string ((char *) str, 1, str_len);
 		  replace_range (pos, pos + 1, string,
-				 true, false, true, false, false);
+				 true, false, false);
 		  len = str_len;
 		}
 	      else
 		{
+#ifdef HAVE_TREE_SITTER
+		  struct ts_linecol linecol_cache
+		    = BUF_TS_LINECOL_POINT (current_buffer);
+		  struct ts_linecol start_linecol
+		    = treesit_linecol_maybe (pos, pos_byte, linecol_cache);
+		  struct ts_linecol old_end_linecol
+		    = treesit_linecol_maybe (pos + 1, pos_byte + len,
+					     start_linecol);
+#endif
 		  record_change (pos, 1);
 		  while (str_len-- > 0)
 		    *p++ = *str++;
@@ -2596,7 +2627,8 @@ It returns the number of characters changed.  */)
                      modified buffer content manually, so we need to
                      notify tree-sitter manually.  */
 		  treesit_record_change (pos_byte, pos_byte + len,
-					 pos_byte + len);
+					 pos_byte + len, start_linecol,
+					 old_end_linecol, pos + 1);
 #endif
 		}
 	      characters_changed++;
@@ -2623,8 +2655,7 @@ It returns the number of characters changed.  */)
 		= (VECTORP (val)
 		   ? Fconcat (1, &val)
 		   : Fmake_string (make_fixnum (1), val, Qnil));
-	      replace_range (pos, pos + len, string, true, false, true, false,
-			     false);
+	      replace_range (pos, pos + len, string, true, false, false);
 	      pos_byte += SBYTES (string);
 	      pos += SCHARS (string);
 	      characters_changed += SCHARS (string);
@@ -3416,7 +3447,7 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
    SPRINTF_BUFSIZE = (sizeof "-." + (LDBL_MAX_10_EXP + 1)
 		      + USEFUL_PRECISION_MAX)
   };
-  verify (USEFUL_PRECISION_MAX > 0);
+  static_assert (USEFUL_PRECISION_MAX > 0);
 
   ptrdiff_t n;		/* The number of the next arg to substitute.  */
   char initial_buffer[1000 + SPRINTF_BUFSIZE];
@@ -3440,10 +3471,6 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
   /* Information recorded for each format spec.  */
   struct info
   {
-    /* The corresponding argument, converted to string if conversion
-       was needed.  */
-    Lisp_Object argument;
-
     /* The start and end bytepos in the output string.  */
     ptrdiff_t start, end;
 
@@ -3455,9 +3482,10 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
   } *info;
 
   CHECK_STRING (args[0]);
-  char *format_start = SSDATA (args[0]);
   bool multibyte_format = STRING_MULTIBYTE (args[0]);
   ptrdiff_t formatlen = SBYTES (args[0]);
+  char *format_start = SAFE_ALLOCA (formatlen + 1);
+  memcpy (format_start, SSDATA (args[0]), formatlen + 1);
   bool fmt_props = !!string_intervals (args[0]);
 
   /* Upper bound on number of format specs.  Each uses at least 2 chars.  */
@@ -3470,6 +3498,10 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
       || SIZE_MAX < alloca_size)
     memory_full (SIZE_MAX);
   info = SAFE_ALLOCA (alloca_size);
+  /* One argument belonging to each spec; but needs to be allocated
+     separately so GC doesn't free the strings (bug#75754).  */
+  Lisp_Object *spec_arguments;
+  SAFE_ALLOCA_LISP (spec_arguments, nspec_bound);
   /* discarded[I] is 1 if byte I of the format
      string was not copied into the output.
      It is 2 if byte I was not the first byte of its character.  */
@@ -3619,14 +3651,15 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
 	  if (! (n < nargs))
 	    error ("Not enough arguments for format string");
 
-	  struct info *spec = &info[ispec++];
+	  ptrdiff_t spec_index = ispec++;
+	  struct info *spec = &info[spec_index];
 	  if (nspec < ispec)
 	    {
-	      spec->argument = args[n];
+	      spec_arguments[spec_index] = args[n];
 	      spec->intervals = false;
 	      nspec = ispec;
 	    }
-	  Lisp_Object arg = spec->argument;
+	  Lisp_Object arg = spec_arguments[spec_index];
 
 	  /* For 'S', prin1 the argument, and then treat like 's'.
 	     For 's', princ any argument that is not a string or
@@ -3639,7 +3672,7 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
 	      if (EQ (arg, args[n]))
 		{
 		  Lisp_Object noescape = conversion == 'S' ? Qnil : Qt;
-		  spec->argument = arg = Fprin1_to_string (arg, noescape, Qnil);
+		  spec_arguments[spec_index] = arg = Fprin1_to_string (arg, noescape, Qnil);
 		  if (STRING_MULTIBYTE (arg) && ! multibyte)
 		    {
 		      multibyte = true;
@@ -3657,7 +3690,7 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
 		      multibyte = true;
 		      goto retry;
 		    }
-		  spec->argument = arg = Fchar_to_string (arg);
+		  spec_arguments[spec_index] = arg = Fchar_to_string (arg);
 		}
 
 	      if (!EQ (arg, args[n]))
@@ -3667,7 +3700,7 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
 
 	  if (SYMBOLP (arg))
 	    {
-	      spec->argument = arg = SYMBOL_NAME (arg);
+	      spec_arguments[spec_index] = arg = SYMBOL_NAME (arg);
 	      if (STRING_MULTIBYTE (arg) && ! multibyte)
 		{
 		  multibyte = true;
@@ -4312,9 +4345,9 @@ styled_format (ptrdiff_t nargs, Lisp_Object *args, bool message)
 	for (ptrdiff_t i = 0; i < nspec; i++)
 	  if (info[i].intervals)
 	    {
-	      len = make_fixnum (SCHARS (info[i].argument));
+	      len = make_fixnum (SCHARS (spec_arguments[i]));
 	      Lisp_Object new_len = make_fixnum (info[i].end - info[i].start);
-	      props = text_property_list (info[i].argument,
+	      props = text_property_list (spec_arguments[i],
                                           make_fixnum (0), len, Qnil);
 	      props = extend_property_ranges (props, len, new_len);
 	      /* If successive arguments have properties, be sure that
@@ -4486,7 +4519,7 @@ ring.  */)
   ptrdiff_t gap, len1, len_mid, len2;
   unsigned char *start1_addr, *start2_addr, *temp;
 
-  INTERVAL cur_intv, tmp_interval1, tmp_interval_mid, tmp_interval2, tmp_interval3;
+  INTERVAL cur_intv, tmp_interval1, tmp_interval2, tmp_interval3;
   Lisp_Object buf;
 
   XSETBUFFER (buf, current_buffer);
@@ -4546,6 +4579,15 @@ ring.  */)
   start1_byte = CHAR_TO_BYTE (start1);
   end2_byte = CHAR_TO_BYTE (end2);
 
+#ifdef HAVE_TREE_SITTER
+  struct ts_linecol start_linecol
+    = treesit_linecol_maybe (start1, start1_byte,
+			     BUF_TS_LINECOL_POINT (current_buffer));
+  struct ts_linecol old_end_linecol
+    = treesit_linecol_maybe (end2, end2_byte,
+			     BUF_TS_LINECOL_POINT (current_buffer));
+#endif
+
   /* Make sure the gap won't interfere, by moving it out of the text
      we will operate on.  */
   if (start1 < gap && gap < end2)
@@ -4557,7 +4599,8 @@ ring.  */)
     }
 
   start2_byte = CHAR_TO_BYTE (start2);
-  len1_byte = CHAR_TO_BYTE (end1) - start1_byte;
+  ptrdiff_t end1_byte = CHAR_TO_BYTE (end1);
+  len1_byte = end1_byte - start1_byte;
   len2_byte = end2_byte - start2_byte;
 
 #ifdef BYTE_COMBINING_DEBUG
@@ -4589,168 +4632,87 @@ ring.  */)
      enough to use as the temporary storage?  That would avoid an
      allocation... interesting.  Later, don't fool with it now.  */
 
-  if (end1 == start2)		/* adjacent regions */
+  modify_text (start1, end2);
+  tmp_interval1 = copy_intervals (cur_intv, start1, len1);
+  tmp_interval2 = copy_intervals (cur_intv, start2, len2);
+  USE_SAFE_ALLOCA;
+  if (len1_byte == len2_byte && len1 == len2)
+    /* Regions are same size, though, how nice.  */
+    /* The char lengths also have to match, for text-properties.  */
     {
-      modify_text (start1, end2);
-      record_change (start1, len1 + len2);
+      if (end1 == start2)	/* Merge the two parts into a single one.  */
+	record_change (start1, (end2 - start1));
+      else
+	{
+	  record_change (start1, len1);
+	  record_change (start2, len2);
+	}
 
-      tmp_interval1 = copy_intervals (cur_intv, start1, len1);
-      tmp_interval2 = copy_intervals (cur_intv, start2, len2);
-      /* Don't use Fset_text_properties: that can cause GC, which can
-	 clobber objects stored in the tmp_intervals.  */
+      tmp_interval3 = validate_interval_range (buf, &startr1, &endr1, 0);
+      if (tmp_interval3)
+	set_text_properties_1 (startr1, endr1, Qnil, buf, tmp_interval3);
+
+      tmp_interval3 = validate_interval_range (buf, &startr2, &endr2, 0);
+      if (tmp_interval3)
+	set_text_properties_1 (startr2, endr2, Qnil, buf, tmp_interval3);
+
+      temp = SAFE_ALLOCA (len1_byte);
+      start1_addr = BYTE_POS_ADDR (start1_byte);
+      start2_addr = BYTE_POS_ADDR (start2_byte);
+      memcpy (temp, start1_addr, len1_byte);
+      memcpy (start1_addr, start2_addr, len2_byte);
+      memcpy (start2_addr, temp, len1_byte);
+    }
+  else
+    {
+      len_mid = start2_byte - end1_byte;
+      record_change (start1, (end2 - start1));
+      INTERVAL tmp_interval_mid = copy_intervals (cur_intv, end1, len_mid);
       tmp_interval3 = validate_interval_range (buf, &startr1, &endr2, 0);
       if (tmp_interval3)
 	set_text_properties_1 (startr1, endr2, Qnil, buf, tmp_interval3);
-
-      USE_SAFE_ALLOCA;
-
-      /* First region smaller than second.  */
-      if (len1_byte < len2_byte)
-        {
-	  temp = SAFE_ALLOCA (len2_byte);
-
-	  /* Don't precompute these addresses.  We have to compute them
-	     at the last minute, because the relocating allocator might
-	     have moved the buffer around during the xmalloc.  */
-	  start1_addr = BYTE_POS_ADDR (start1_byte);
-	  start2_addr = BYTE_POS_ADDR (start2_byte);
-
-          memcpy (temp, start2_addr, len2_byte);
-          memcpy (start1_addr + len2_byte, start1_addr, len1_byte);
-          memcpy (start1_addr, temp, len2_byte);
-        }
-      else
-	/* First region not smaller than second.  */
-        {
-	  temp = SAFE_ALLOCA (len1_byte);
-	  start1_addr = BYTE_POS_ADDR (start1_byte);
-	  start2_addr = BYTE_POS_ADDR (start2_byte);
-          memcpy (temp, start1_addr, len1_byte);
-          memcpy (start1_addr, start2_addr, len2_byte);
-          memcpy (start1_addr + len2_byte, temp, len1_byte);
-        }
-
-      SAFE_FREE ();
-      graft_intervals_into_buffer (tmp_interval1, start1 + len2,
-                                   len1, current_buffer, 0);
-      graft_intervals_into_buffer (tmp_interval2, start1,
-                                   len2, current_buffer, 0);
-      update_compositions (start1, start1 + len2, CHECK_BORDER);
-      update_compositions (start1 + len2, end2, CHECK_TAIL);
-    }
-  /* Non-adjacent regions, because end1 != start2, bleagh...  */
-  else
-    {
-      len_mid = start2_byte - (start1_byte + len1_byte);
-
-      if (len1_byte == len2_byte)
-	/* Regions are same size, though, how nice.  */
-        {
-	  USE_SAFE_ALLOCA;
-
-          modify_text (start1, end2);
-          record_change (start1, len1);
-          record_change (start2, len2);
-          tmp_interval1 = copy_intervals (cur_intv, start1, len1);
-          tmp_interval2 = copy_intervals (cur_intv, start2, len2);
-
-	  tmp_interval3 = validate_interval_range (buf, &startr1, &endr1, 0);
-	  if (tmp_interval3)
-	    set_text_properties_1 (startr1, endr1, Qnil, buf, tmp_interval3);
-
-	  tmp_interval3 = validate_interval_range (buf, &startr2, &endr2, 0);
-	  if (tmp_interval3)
-	    set_text_properties_1 (startr2, endr2, Qnil, buf, tmp_interval3);
-
-	  temp = SAFE_ALLOCA (len1_byte);
-	  start1_addr = BYTE_POS_ADDR (start1_byte);
-	  start2_addr = BYTE_POS_ADDR (start2_byte);
-          memcpy (temp, start1_addr, len1_byte);
-          memcpy (start1_addr, start2_addr, len2_byte);
-          memcpy (start2_addr, temp, len1_byte);
-	  SAFE_FREE ();
-
-          graft_intervals_into_buffer (tmp_interval1, start2,
-                                       len1, current_buffer, 0);
-          graft_intervals_into_buffer (tmp_interval2, start1,
-                                       len2, current_buffer, 0);
-        }
-
-      else if (len1_byte < len2_byte)	/* Second region larger than first */
-        /* Non-adjacent & unequal size, area between must also be shifted.  */
-        {
-	  USE_SAFE_ALLOCA;
-
-          modify_text (start1, end2);
-          record_change (start1, (end2 - start1));
-          tmp_interval1 = copy_intervals (cur_intv, start1, len1);
-          tmp_interval_mid = copy_intervals (cur_intv, end1, len_mid);
-          tmp_interval2 = copy_intervals (cur_intv, start2, len2);
-
-	  tmp_interval3 = validate_interval_range (buf, &startr1, &endr2, 0);
-	  if (tmp_interval3)
-	    set_text_properties_1 (startr1, endr2, Qnil, buf, tmp_interval3);
-
+      if (len1_byte < len2_byte)	/* Second region larger than first */
+	{
 	  /* holds region 2 */
 	  temp = SAFE_ALLOCA (len2_byte);
 	  start1_addr = BYTE_POS_ADDR (start1_byte);
 	  start2_addr = BYTE_POS_ADDR (start2_byte);
-          memcpy (temp, start2_addr, len2_byte);
-          memcpy (start1_addr + len_mid + len2_byte, start1_addr, len1_byte);
-          memmove (start1_addr + len2_byte, start1_addr + len1_byte, len_mid);
-          memcpy (start1_addr, temp, len2_byte);
-	  SAFE_FREE ();
-
-          graft_intervals_into_buffer (tmp_interval1, end2 - len1,
-                                       len1, current_buffer, 0);
-          graft_intervals_into_buffer (tmp_interval_mid, start1 + len2,
-                                       len_mid, current_buffer, 0);
-          graft_intervals_into_buffer (tmp_interval2, start1,
-                                       len2, current_buffer, 0);
-        }
+	  memcpy (temp, start2_addr, len2_byte);
+	  memcpy (start1_addr + len_mid + len2_byte, start1_addr, len1_byte);
+	  memmove (start1_addr + len2_byte, start1_addr + len1_byte, len_mid);
+	  memcpy (start1_addr, temp, len2_byte);
+	}
       else
 	/* Second region smaller than first.  */
-        {
-	  USE_SAFE_ALLOCA;
-
-          record_change (start1, (end2 - start1));
-          modify_text (start1, end2);
-
-          tmp_interval1 = copy_intervals (cur_intv, start1, len1);
-          tmp_interval_mid = copy_intervals (cur_intv, end1, len_mid);
-          tmp_interval2 = copy_intervals (cur_intv, start2, len2);
-
-	  tmp_interval3 = validate_interval_range (buf, &startr1, &endr2, 0);
-	  if (tmp_interval3)
-	    set_text_properties_1 (startr1, endr2, Qnil, buf, tmp_interval3);
-
+	{
 	  /* holds region 1 */
 	  temp = SAFE_ALLOCA (len1_byte);
 	  start1_addr = BYTE_POS_ADDR (start1_byte);
 	  start2_addr = BYTE_POS_ADDR (start2_byte);
-          memcpy (temp, start1_addr, len1_byte);
-          memcpy (start1_addr, start2_addr, len2_byte);
-          memmove (start1_addr + len2_byte, start1_addr + len1_byte, len_mid);
-          memcpy (start1_addr + len2_byte + len_mid, temp, len1_byte);
-	  SAFE_FREE ();
-
-          graft_intervals_into_buffer (tmp_interval1, end2 - len1,
-                                       len1, current_buffer, 0);
-          graft_intervals_into_buffer (tmp_interval_mid, start1 + len2,
-                                       len_mid, current_buffer, 0);
-          graft_intervals_into_buffer (tmp_interval2, start1,
-                                       len2, current_buffer, 0);
-        }
-
-      update_compositions (start1, start1 + len2, CHECK_BORDER);
-      update_compositions (end2 - len1, end2, CHECK_BORDER);
+	  memcpy (temp, start1_addr, len1_byte);
+	  memcpy (start1_addr, start2_addr, len2_byte);
+	  memmove (start1_addr + len2_byte, start1_addr + len1_byte, len_mid);
+	  memcpy (start1_addr + len2_byte + len_mid, temp, len1_byte);
+	}
+      graft_intervals_into_buffer (tmp_interval_mid, start1 + len2,
+                                   len_mid, current_buffer, 0);
     }
+  SAFE_FREE ();
+  graft_intervals_into_buffer (tmp_interval1, end2 - len1,
+                               len1, current_buffer, 0);
+  graft_intervals_into_buffer (tmp_interval2, start1,
+                               len2, current_buffer, 0);
+
+  update_compositions (start1, start1 + len2, CHECK_BORDER);
+  update_compositions (end2 - len1, end2, CHECK_BORDER);
 
   /* When doing multiple transpositions, it might be nice
      to optimize this.  Perhaps the markers in any one buffer
      should be organized in some sorted data tree.  */
   if (NILP (leave_markers))
     {
+      /* FIXME: Since the undo info doesn't record the transposition as its own
+	 operation, we won't enjoy 'transpose_markers' during undo :-(  */
       transpose_markers (start1, end1, start2, end2,
 			 start1_byte, start1_byte + len1_byte,
 			 start2_byte, start2_byte + len2_byte);
@@ -4765,10 +4727,8 @@ ring.  */)
     }
 
 #ifdef HAVE_TREE_SITTER
-  /* I don't think it's common to transpose two far-apart regions, so
-     amalgamating the edit into one should be fine.  This is what the
-     signal_after_change below does, too.  */
-  treesit_record_change (start1_byte, end2_byte, end2_byte);
+  treesit_record_change (start1_byte, end2_byte, end2_byte,
+			 start_linecol, old_end_linecol, end2);
 #endif
 
   signal_after_change (start1, end2 - start1, end2 - start1);
@@ -4931,7 +4891,7 @@ it to be non-nil.  */);
 
   defsubr (&Sinsert_buffer_substring);
   defsubr (&Scompare_buffer_substrings);
-  defsubr (&Sreplace_buffer_contents);
+  defsubr (&Sreplace_region_contents);
   defsubr (&Ssubst_char_in_region);
   defsubr (&Stranslate_region_internal);
   defsubr (&Sdelete_region);

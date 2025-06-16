@@ -491,6 +491,11 @@ struct glyph
      continuation glyphs, or the overlay-arrow glyphs on TTYs.  */
   Lisp_Object object;
 
+  /* Frame on which the glyph was produced.  The face_id of this glyph
+     refers to the face_cache of this frame.  This is used on tty
+     frames only.  */
+  struct frame *frame;
+
   /* Width in pixels.  */
   short pixel_width;
 
@@ -635,10 +640,12 @@ struct glyph
 
 #define FONT_TYPE_UNKNOWN	0
 
-/* Is GLYPH a space?  */
+/* Is GLYPH a space in default face on frame FRAME?  */
 
-#define CHAR_GLYPH_SPACE_P(GLYPH) \
-  ((GLYPH).u.ch == SPACEGLYPH && (GLYPH).face_id == DEFAULT_FACE_ID)
+# define CHAR_GLYPH_SPACE_P(FRAME, GLYPH)	\
+  ((GLYPH).u.ch == SPACEGLYPH			\
+   && (GLYPH).face_id == DEFAULT_FACE_ID	\
+   && (GLYPH).frame == (FRAME))
 
 /* Are glyph slices of glyphs *X and *Y equal?  It assumes that both
    glyphs have the same type.
@@ -663,6 +670,7 @@ struct glyph
       && (X)->u.val == (Y)->u.val				\
       && GLYPH_SLICE_EQUAL_P (X, Y)				\
       && (X)->face_id == (Y)->face_id				\
+      && (X)->frame == (Y)->frame				\
       && (X)->padding_p == (Y)->padding_p			\
       && (X)->left_box_line_p == (Y)->left_box_line_p		\
       && (X)->right_box_line_p == (Y)->right_box_line_p		\
@@ -674,16 +682,18 @@ struct glyph
 #define GLYPH_CHAR_AND_FACE_EQUAL_P(X, Y)	\
   ((X)->u.ch == (Y)->u.ch			\
    && (X)->face_id == (Y)->face_id		\
+   && (X)->frame == (Y)->frame			\
    && (X)->padding_p == (Y)->padding_p)
 
 /* Fill a character glyph GLYPH.  CODE, FACE_ID, PADDING_P correspond
    to the bits defined for the typedef `GLYPH' in lisp.h.  */
 
-#define SET_CHAR_GLYPH(GLYPH, CODE, FACE_ID, PADDING_P)	\
+#define SET_CHAR_GLYPH(FRAME, GLYPH, CODE, FACE_ID, PADDING_P)	\
      do							\
        {						\
          (GLYPH).u.ch = (CODE);				\
          (GLYPH).face_id = (FACE_ID);			\
+         (GLYPH).frame = (FRAME);			\
          (GLYPH).padding_p = (PADDING_P);		\
        }						\
      while (false)
@@ -691,11 +701,9 @@ struct glyph
 /* Fill a character type glyph GLYPH from a glyph typedef FROM as
    defined in lisp.h.  */
 
-#define SET_CHAR_GLYPH_FROM_GLYPH(GLYPH, FROM)			\
-     SET_CHAR_GLYPH (GLYPH,					\
-		     GLYPH_CHAR (FROM),				\
-		     GLYPH_FACE (FROM),				\
-		     false)
+#define SET_CHAR_GLYPH_FROM_GLYPH(FRAME, GLYPH, FROM)		\
+  SET_CHAR_GLYPH (FRAME, GLYPH, GLYPH_CHAR (FROM),		\
+		  GLYPH_FACE (FROM), false)
 
 /* Construct a glyph code from a character glyph GLYPH.  If the
    character is multibyte, return -1 as we can't use glyph table for a
@@ -1323,9 +1331,6 @@ struct glyph_row *matrix_row (struct glyph_matrix *, int);
 
 extern struct glyph space_glyph;
 
-/* True means last display completed.  False means it was preempted.  */
-
-extern bool display_completed;
 
 /************************************************************************
 			  Glyph Strings
@@ -1570,6 +1575,34 @@ struct glyph_string
 	 : estimate_mode_line_height					\
 	 (XFRAME ((W)->frame), CURRENT_MODE_LINE_ACTIVE_FACE_ID (W)))))
 
+/* Return the desired face id for the header line of a window, depending
+   on whether the window is selected or not, or if the window is the
+   scrolling window for the currently active minibuffer window.
+
+   Due to the way display_mode_lines manipulates with the contents of
+   selected_window, this macro needs three arguments: SELW which is
+   compared against the current value of selected_window, MBW which is
+   compared against minibuf_window (if SELW doesn't match), and SCRW
+   which is compared against minibuf_selected_window (if MBW matches).  */
+
+#define CURRENT_HEADER_LINE_ACTIVE_FACE_ID_3(SELW, MBW, SCRW)    	\
+     ((!mode_line_in_non_selected_windows			\
+       || (SELW) == XWINDOW (selected_window)			\
+       || (minibuf_level > 0					\
+           && !NILP (minibuf_selected_window)			\
+           && (MBW) == XWINDOW (minibuf_window)			\
+           && (SCRW) == XWINDOW (minibuf_selected_window)))	\
+      ? HEADER_LINE_ACTIVE_FACE_ID				\
+      : HEADER_LINE_INACTIVE_FACE_ID)
+
+
+/* Return the desired face id for the header line of window W.  */
+
+#define CURRENT_HEADER_LINE_ACTIVE_FACE_ID(W)		\
+	 CURRENT_HEADER_LINE_ACTIVE_FACE_ID_3(W, \
+					    XWINDOW (selected_window), \
+					    W)
+
 /* Return the current height of the header line of window W.  If not known
    from W->header_line_height, look at W's current glyph matrix, or return
    an estimation based on the height of the font of the face `header-line'.  */
@@ -1581,7 +1614,7 @@ struct glyph_string
       = (MATRIX_HEADER_LINE_HEIGHT ((W)->current_matrix)	\
 	 ? MATRIX_HEADER_LINE_HEIGHT ((W)->current_matrix)	\
 	 : estimate_mode_line_height				\
-	     (XFRAME ((W)->frame), HEADER_LINE_FACE_ID))))
+	 (XFRAME ((W)->frame), CURRENT_HEADER_LINE_ACTIVE_FACE_ID (W)))))
 
 /* Return the current height of the tab line of window W.  If not known
    from W->tab_line_height, look at W's current glyph matrix, or return
@@ -1902,7 +1935,8 @@ enum face_id
   MODE_LINE_INACTIVE_FACE_ID,
   TOOL_BAR_FACE_ID,
   FRINGE_FACE_ID,
-  HEADER_LINE_FACE_ID,
+  HEADER_LINE_ACTIVE_FACE_ID,
+  HEADER_LINE_INACTIVE_FACE_ID,
   SCROLL_BAR_FACE_ID,
   BORDER_FACE_ID,
   CURSOR_FACE_ID,
@@ -1993,9 +2027,9 @@ GLYPH_CODE_P (Lisp_Object gc)
 	     && RANGED_FIXNUMP (0, XCDR (gc), MAX_FACE_ID))
 	  : (RANGED_FIXNUMP
 	     (0, gc,
-	      (MAX_FACE_ID < TYPE_MAXIMUM (EMACS_INT) >> CHARACTERBITS
+	      (MAX_FACE_ID < EMACS_INT_MAX >> CHARACTERBITS
 	       ? ((EMACS_INT) MAX_FACE_ID << CHARACTERBITS) | MAX_CHAR
-	       : TYPE_MAXIMUM (EMACS_INT)))));
+	       : EMACS_INT_MAX))));
 }
 
 /* True means face attributes have been changed since the last
@@ -3181,6 +3215,7 @@ struct image
 #endif /* HAVE_ANDROID */
 #ifdef HAVE_NTGUI
   XFORM xform;
+  bool smoothing;
 #endif
 #ifdef HAVE_HAIKU
   /* The affine transformation to apply to this image.  */
@@ -3236,6 +3271,9 @@ struct image
 
   /* Width and height of the image.  */
   int width, height;
+
+  /* The scale factor applied to the image.  */
+  double scale;
 
   /* These values are used for the rectangles displayed for images
      that can't be loaded.  */
@@ -3470,13 +3508,16 @@ enum tool_bar_item_image
    capabilities being queried for when calling `tty_capable_p' (which
    returns true if the terminal supports all of them).  */
 
-#define TTY_CAP_INVERSE		0x01
-#define TTY_CAP_UNDERLINE	0x02
-#define TTY_CAP_BOLD		0x04
-#define TTY_CAP_DIM		0x08
-#define TTY_CAP_ITALIC  	0x10
-#define TTY_CAP_STRIKE_THROUGH	0x20
-#define TTY_CAP_UNDERLINE_STYLED	(0x32 & TTY_CAP_UNDERLINE)
+enum
+{
+  TTY_CAP_INVERSE = 1 << 1,
+  TTY_CAP_UNDERLINE = 1 << 2,
+  TTY_CAP_BOLD = 1 << 3,
+  TTY_CAP_DIM = 1 << 4,
+  TTY_CAP_ITALIC = 1 << 5,
+  TTY_CAP_STRIKE_THROUGH = 1 << 6,
+  TTY_CAP_UNDERLINE_STYLED = 1 << 7
+};
 
 
 /***********************************************************************
@@ -3835,7 +3876,7 @@ extern Lisp_Object marginal_area_string (struct window *, enum window_part,
                                          Lisp_Object *,
                                          int *, int *, int *, int *);
 extern void redraw_frame (struct frame *);
-extern bool update_frame (struct frame *, bool, bool);
+void update_frame (struct frame *, bool);
 extern void update_frame_with_menu (struct frame *, int, int);
 extern int update_mouse_position (struct frame *, int, int);
 extern void bitch_at_user (void);
@@ -3843,7 +3884,7 @@ extern void adjust_frame_glyphs (struct frame *);
 void free_glyphs (struct frame *);
 void free_window_matrices (struct window *);
 void check_glyph_memory (void);
-void mirrored_line_dance (struct glyph_matrix *, int, int, int *, char *);
+void mirrored_line_dance (struct frame *f, int, int, int *, char *);
 void clear_glyph_matrix (struct glyph_matrix *);
 void clear_current_matrices (struct frame *f);
 void clear_desired_matrices (struct frame *);
@@ -3867,7 +3908,7 @@ extern bool frame_size_change_delayed (struct frame *);
 void init_display (void);
 void syms_of_display (void);
 extern void spec_glyph_lookup_face (struct window *, GLYPH *);
-extern void fill_up_frame_row_with_spaces (struct glyph_row *, int);
+extern void fill_up_frame_row_with_spaces (struct frame *, struct glyph_row *, int);
 
 /* Defined in terminal.c.  */
 
@@ -3948,6 +3989,18 @@ extern bool gui_mouse_grabbed (Display_Info *);
 extern void gui_redo_mouse_highlight (Display_Info *);
 
 #endif /* HAVE_WINDOW_SYSTEM */
+
+Lisp_Object frames_in_reverse_z_order (struct frame *f, bool visible);
+bool is_tty_frame (struct frame *f);
+bool is_tty_child_frame (struct frame *f);
+bool is_tty_root_frame (struct frame *f);
+bool is_tty_root_frame_with_visible_child (struct frame *f);
+void combine_updates (Lisp_Object root_frames);
+void combine_updates_for_frame (struct frame *f, bool inhibit_id_p);
+void tty_raise_lower_frame (struct frame *f, bool raise);
+int max_child_z_order (struct frame *parent);
+void root_xy (struct frame *f, int x, int y, int *rx, int *ry);
+void child_xy (struct frame *f, int x, int y, int *cx, int *cy);
 
 INLINE_HEADER_END
 

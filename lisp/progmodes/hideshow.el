@@ -95,7 +95,7 @@
 ;; nested level in addition to the top-level:
 ;;
 ;;     (defun ttn-hs-hide-level-1 ()
-;;       (when (hs-looking-at-block-start-p)
+;;       (when (funcall hs-looking-at-block-start-p-func)
 ;;         (hs-hide-level 1))
 ;;       (forward-sexp 1))
 ;;     (setq hs-hide-all-non-comment-function 'ttn-hs-hide-level-1)
@@ -219,6 +219,7 @@
 ;; unbundles state save and restore, and includes more isearch support.
 
 ;;; Code:
+(require 'mule-util) ; For `truncate-string-ellipsis'
 
 ;;---------------------------------------------------------------------------
 ;; user-configurable variables
@@ -228,9 +229,21 @@
   :prefix "hs-"
   :group 'languages)
 
+(defface hs-ellipsis
+  '((t :height 0.80 :box (:line-width -1) :inherit default))
+  "Face used for hideshow ellipsis.
+Note: If `selective-display' ellipsis already has a face, hideshow will
+use that face for the ellipsis instead."
+  :version "31.1")
+
 (defcustom hs-hide-comments-when-hiding-all t
   "Hide the comments too when you do an `hs-hide-all'."
   :type 'boolean)
+
+(defcustom hs-display-lines-hidden nil
+  "If non-nil, display the number of hidden lines next to the ellipsis."
+  :type 'boolean
+  :version "31.1")
 
 (defcustom hs-minor-mode-hook nil
   "Hook called when hideshow minor mode is activated or deactivated."
@@ -257,7 +270,6 @@ This has effect only if `search-invisible' is set to `open'."
   ;; FIXME: Currently the check is made via
   ;; (assoc major-mode hs-special-modes-alist) so it doesn't pay attention
   ;; to the mode hierarchy.
-  (mapcar #'purecopy
   '((c-mode "{" "}" "/[*/]" nil nil)
     (c-ts-mode "{" "}" "/[*/]" nil nil)
     (c++-mode "{" "}" "/[*/]" nil nil)
@@ -267,10 +279,9 @@ This has effect only if `search-invisible' is set to `open'."
     (java-ts-mode "{" "}" "/[*/]" nil nil)
     (js-mode "{" "}" "/[*/]" nil)
     (js-ts-mode "{" "}" "/[*/]" nil)
-    (lua-ts-mode "{\\|\\[\\[" "}\\|\\]\\]" "--" nil)
     (mhtml-mode "{\\|<[^/>]*?" "}\\|</[^/>]*[^/]>" "<!--" mhtml-forward nil)
     ;; Add more support here.
-    ))
+    )
   "Alist for initializing the hideshow variables for different modes.
 Each element has the form
   (MODE START END COMMENT-START FORWARD-SEXP-FUNC ADJUST-BEG-FUNC
@@ -481,6 +492,9 @@ Specifying this function is necessary for languages such as
 Python, where `looking-at' and `syntax-ppss' check is not enough
 to check if the point is at the block start.")
 
+(defvar-local hs-inside-comment-p-func nil
+  "Function used to check if point is inside a comment.")
+
 (defvar hs-headline nil
   "Text of the line where a hidden block begins, set during isearch.
 You can display this in the mode line by adding the symbol `hs-headline'
@@ -527,8 +541,17 @@ to call with the newly initialized overlay."
         (io (if (eq 'block hs-isearch-open)
                 ;; backward compatibility -- `block'<=>`code'
                 'code
-              hs-isearch-open)))
+              hs-isearch-open))
+        (map (make-sparse-keymap)))
     (overlay-put ov 'invisible 'hs)
+    (define-key map (kbd "<mouse-1>") #'hs-show-block)
+    (overlay-put ov 'display
+                 (propertize
+                  (hs--get-ellipsis b e)
+                  'mouse-face
+                  'highlight
+                  'help-echo "mouse-1: show hidden lines"
+                  'keymap map))
     (overlay-put ov 'hs kind)
     (overlay-put ov 'hs-b-offset b-offset)
     (overlay-put ov 'hs-e-offset e-offset)
@@ -538,6 +561,39 @@ to call with the newly initialized overlay."
                    'hs-isearch-show-temporary))
     (when hs-set-up-overlay (funcall hs-set-up-overlay ov))
     ov))
+
+(defun hs--get-ellipsis (b e)
+  "Helper function for `hs-make-overlay'.
+This returns the ellipsis string to use and its face."
+  (let* ((standard-display-table
+          (or standard-display-table (make-display-table)))
+         (d-t-ellipsis
+          (display-table-slot standard-display-table 'selective-display))
+         ;; Convert ellipsis vector to a propertized string
+         (string
+          (if (and (vectorp d-t-ellipsis)
+                   ;; Ensure the vector is not empty
+                   (not (length= d-t-ellipsis 0)))
+              (mapconcat
+               (lambda (g)
+                 (apply #'propertize (char-to-string (glyph-char g))
+                        (if (glyph-face g) (list 'face (glyph-face g)))))
+               d-t-ellipsis)))
+         (string-face (if string (get-text-property 0 'face string)))
+         (lines (if-let* (hs-display-lines-hidden
+                          (l (1- (count-lines b e)))
+                          (l-str (concat (number-to-string l)
+                                         (if (= l 1) " line" " lines"))))
+                    (apply #'propertize l-str
+                           (if string-face
+                               (list 'face string-face))))))
+    (if string-face
+        ;; Return STRING and LINES if STRING has no face
+        (concat lines string)
+      ;; Otherwise propertize both with `hs-ellipsis'
+      (propertize
+       (concat lines (or string (truncate-string-ellipsis)))
+       'face 'hs-ellipsis))))
 
 (defun hs-isearch-show (ov)
   "Delete overlay OV, and set `hs-headline' to nil.
@@ -625,9 +681,13 @@ and then further adjusted to be at the end of the line."
 	  (setq p (line-end-position)))
 	;; `q' is the point at the end of the block
 	(hs-forward-sexp mdata 1)
-	(setq q (if (looking-back hs-block-end-regexp nil)
-		    (match-beginning 0)
-		  (point)))
+	(setq q (cond ((and (stringp hs-block-end-regexp)
+                            (looking-back hs-block-end-regexp nil))
+		       (match-beginning 0))
+                      ((functionp hs-block-end-regexp)
+                       (funcall hs-block-end-regexp)
+                       (match-beginning 0))
+		      (t (point))))
         (when (and (< p q) (> (count-lines p q) 1))
           (cond ((and hs-allow-nesting (setq ov (hs-overlay-at p)))
                  (delete-overlay ov))
@@ -644,6 +704,11 @@ its starting line there is only whitespace preceding the actual comment
 beginning.  If we are inside of a comment but this condition is not met,
 we return a list having a nil as its car and the end of comment position
 as cdr."
+  (if (functionp hs-inside-comment-p-func)
+      (funcall hs-inside-comment-p-func)
+    (hs-inside-comment-p--default)))
+
+(defun hs-inside-comment-p--default ()
   (save-excursion
     ;; the idea is to look backwards for a comment start regexp, do a
     ;; forward comment, and see if we are inside, then extend
@@ -850,14 +915,16 @@ If `hs-hide-comments-when-hiding-all' is non-nil, also hide the comments."
      (syntax-propertize (point-max))
      (let ((spew (make-progress-reporter "Hiding all blocks..."
                                          (point-min) (point-max)))
-           (re (concat "\\("
-                       hs-block-start-regexp
-                       "\\)"
-                       (if hs-hide-comments-when-hiding-all
-                           (concat "\\|\\("
-                                   hs-c-start-regexp
-                                   "\\)")
-                         ""))))
+           (re (when (stringp hs-block-start-regexp)
+                 (concat "\\("
+                         hs-block-start-regexp
+                         "\\)"
+                         (if (and hs-hide-comments-when-hiding-all
+                                  (stringp hs-c-start-regexp))
+                             (concat "\\|\\("
+                                     hs-c-start-regexp
+                                     "\\)")
+                           "")))))
        (while (funcall hs-find-next-block-func re (point-max)
                        hs-hide-comments-when-hiding-all)
          (if (match-beginning 1)
@@ -869,7 +936,9 @@ If `hs-hide-comments-when-hiding-all' is non-nil, also hide the comments."
 			 (hs-hide-block-at-point t))
 		 ;; Go to end of matched data to prevent from getting stuck
 		 ;; with an endless loop.
-                 (when (looking-at hs-block-start-regexp)
+                 (when (if (stringp hs-block-start-regexp)
+                           (looking-at hs-block-start-regexp)
+                         (eq (point) (match-beginning 0)))
 		   (goto-char (match-end 0)))))
            ;; found a comment, probably
            (let ((c-reg (hs-inside-comment-p)))
@@ -1008,7 +1077,10 @@ Key bindings:
   (setq hs-headline nil)
   (if hs-minor-mode
       (progn
-        (hs-grok-mode-type)
+        ;; Use such heuristics that if one buffer-local variable
+        ;; is already defined, don't overwrite other variables too.
+        (unless (buffer-local-value 'hs-inside-comment-p-func (current-buffer))
+          (hs-grok-mode-type))
         ;; Turn off this mode if we change major modes.
         (add-hook 'change-major-mode-hook
                   #'turn-off-hideshow

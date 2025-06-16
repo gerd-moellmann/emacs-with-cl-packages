@@ -43,7 +43,7 @@ union aligned_thread_state
   struct thread_state s;
   GCALIGNED_UNION_MEMBER
 };
-verify (GCALIGNED (union aligned_thread_state));
+static_assert (GCALIGNED (union aligned_thread_state));
 
 static union aligned_thread_state main_thread
   = {{
@@ -653,6 +653,9 @@ thread_select (select_func *func, int max_fds, fd_set *rfds,
   sa.efds = efds;
   sa.timeout = timeout;
   sa.sigmask = sigmask;
+#if defined HAVE_ANDROID && !defined ANDROID_STUBIFY
+  android_before_select ();
+#endif /* HAVE_ANDROID && !defined ANDROID_STUBIFY */
   flush_stack_call_func (really_call_select, &sa);
   return sa.result;
 }
@@ -741,7 +744,7 @@ invoke_thread_function (void)
 {
   specpdl_ref count = SPECPDL_INDEX ();
 
-  current_thread->result = Ffuncall (1, &current_thread->function);
+  current_thread->result = calln (current_thread->function);
   return unbind_to (count, Qnil);
 }
 

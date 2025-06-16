@@ -101,6 +101,7 @@ For the developer:
 * GNU Free Documentation License:: The license for this documentation.
 * Function Index::              @value{tramp} functions.
 * Variable Index::              User options and variables.
+* Key Index::                   Key bindings for @value{tramp} commands.
 * Concept Index::               An item for each concept.
 
 @detailmenu
@@ -853,8 +854,8 @@ as the @option{rsh} method.
 
 Instead of connecting to a remote host, @command{su} program allows
 editing as another user.  The host can be either @samp{localhost} or
-the host returned by the function @command{(system-name)}.  See
-@ref{Multi-hops} for an exception to this behavior.
+the host returned by the function @command{(system-name)}.
+@xref{Multi-hops}, for an exception to this behavior.
 
 @cindex method @option{androidsu}
 @cindex @option{androidsu} method
@@ -907,7 +908,7 @@ This is an optional method, @pxref{Optional methods}.
 The @command{sg} program allows editing as different group.  The host
 can be either @samp{localhost} or the host returned by the function
 @command{(system-name)}.  The user name must be specified, but it
-denotes a group name.  See @ref{Multi-hops} for an exception to this
+denotes a group name.  @xref{Multi-hops}, for an exception to this
 behavior.
 
 @cindex method @option{sshx}
@@ -989,6 +990,11 @@ ways:
 Integration for Docker containers.  The host name may be either a
 running container's name or ID, as returned by @samp{docker ps}.
 
+@vindex tramp-docker-program
+If the @command{docker} program isn't found in your @env{PATH}
+environment variable, you can tell @value{tramp} its absolute path via
+the user option @code{tramp-docker-program}.
+
 @cindex method @option{podman}
 @cindex @option{podman} method
 @item @option{podman}
@@ -996,14 +1002,27 @@ running container's name or ID, as returned by @samp{docker ps}.
 Podman is an alternative to @option{docker} which may be run rootless,
 if desired.
 
+@vindex tramp-podman-program
+If the @command{podman} program isn't found in your @env{PATH}
+environment variable, you can tell @value{tramp} its absolute path via
+the user option @code{tramp-podman-program}.
+
 @cindex method @option{kubernetes}
 @cindex @option{kubernetes} method
 @item @option{kubernetes}
 
 Integration for containers in Kubernetes pods.  The host name is
-@samp{@var{pod}}, or @samp{@var{container}.@var{pod}} if an
-explicit container name shall be used.  Otherwise, the first container
-in a pod is used.
+@samp{@var{pod}}, or @samp{@var{container}.@var{pod}} if an explicit
+container name shall be used.  Otherwise, the first container in a pod
+is used.  @samp{@var{pod}%@var{namespace}} as host name allows to use
+another namespace but the default one.  This can also be combined with
+the @samp{@var{container}.} prefix.
+
+@vindex tramp-kubernetes-program
+Internally, @value{tramp} uses the @command{kubectl} program.  If this
+program isn't found in your @env{PATH} environment variable, you can
+tell @value{tramp} its absolute path via the user option
+@code{tramp-kubernetes-program}.
 
 This method does not support user names.
 
@@ -1023,6 +1042,13 @@ such default for Distrobox.
 Contrary to the other container-based methods, these two methods start
 a created container, if it isn't running yet.
 
+@vindex tramp-toolbox-program
+@vindex tramp-distrobox-program
+If the @command{toolbox} or @command{distrobox} program isn't found in
+your @env{PATH} environment variable, you can tell @value{tramp} its
+absolute path via the user option @code{tramp-toolbox-program} or
+@code{tramp-distrobox-program}, respectively.
+
 These are optional methods, @pxref{Optional methods}.  They do not
 support user names.
 
@@ -1034,6 +1060,11 @@ Integration of Flatpak sandboxes.  The host name may be either an
 application ID, a sandbox instance ID, or a PID, as returned by
 @samp{flatpak ps}.
 
+@vindex tramp-flatpak-program
+If the @command{flatpak} program isn't found in your @env{PATH}
+environment variable, you can tell @value{tramp} its absolute path via
+the user option @code{tramp-flatpak-program}.
+
 This is an optional method, @pxref{Optional methods}.  It does not
 support user names.
 
@@ -1044,6 +1075,11 @@ support user names.
 Integration of Apptainer instances.  The host name is the instance
 name, as returned by @samp{apptainer instance list}.
 
+@vindex tramp-apptainer-program
+If the @command{apptainer} program isn't found in your @env{PATH}
+environment variable, you can tell @value{tramp} its absolute path via
+the user option @code{tramp-apptainer-program}.
+
 This is an optional method, @pxref{Optional methods}.  It does not
 support user names.
 
@@ -1053,6 +1089,12 @@ support user names.
 
 Integration of @code{systemd-nspawn} instances.  The host name is the
 instance name, as returned by @samp{machinectl list --all}.
+
+@vindex tramp-nspawn-program
+Internally, @value{tramp} uses the @command{machinectl} program.  If this
+program isn't found in your @env{PATH} environment variable, you can
+tell @value{tramp} its absolute path via the user option
+@code{tramp-nspawn-program}.
 
 This is an optional method, @pxref{Optional methods}.
 @end table
@@ -1526,7 +1568,7 @@ remote file name, it is ignored.
 
 Access via @option{rclone} is slow.  If you have an alternative method
 for accessing the system storage, you should use it.
-@ref{GVFS-based methods} for example, methods @option{gdrive} and
+For example, see @ref{GVFS-based methods}, methods @option{gdrive} and
 @option{nextcloud}.
 
 @cindex method @option{sshfs}
@@ -2350,7 +2392,7 @@ to a remote home directory, like @option{adb}, @option{rclone} and
 The temporary directory on the remote host.  If not specified, the
 default value is @t{"/data/local/tmp"} for the @option{adb} and
 @option{androidsu} methods, @t{"/C$/Temp"} for the @option{smb}
-method, and @t{"/tmp"} otherwise.  @ref{Temporary directory}.
+method, and @t{"/tmp"} otherwise.  @xref{Temporary directory}.
 
 @item @t{"posix"}
 
@@ -2495,8 +2537,8 @@ connection information}.  If you want, for example, use
 @end lisp
 
 This works only for connection methods which allow overriding the
-remote login shell, like @option{sshx} or @option{plink}.  See
-@ref{Inline methods} and @ref{External methods} for connection methods
+remote login shell, like @option{sshx} or @option{plink}.
+@xref{Inline methods}, and @ref{External methods}, for connection methods
 which support this.
 
 @vindex tramp-sh-extra-args
@@ -2743,11 +2785,11 @@ To accommodate using non-Bourne shells on that remote, use other
 shell-specific config files.  For example, bash can use
 @file{~/.bash_profile} and ignore @file{.profile}.
 
-@item Interactive shell prompt
-
 @vindex INSIDE_EMACS@r{, environment variable}
 @vindex SHELLNAME@r{, environment variable}
 @vindex ESHELL@r{, environment variable}
+@item Interactive shell prompt
+
 @value{tramp} redefines the remote shell prompt internally for robust
 parsing.  This redefinition affects the looks of a prompt in an
 interactive remote shell through commands, such as @kbd{M-x shell
@@ -2979,7 +3021,7 @@ hosts @samp{source} and @samp{target}, and
 
 @itemize @minus
 @item
-Variable @code{tramp-use-scp-direct-remote-copying} is non-@code{nil},
+User option @code{tramp-use-scp-direct-remote-copying} is non-@code{nil},
 
 @item
 Remote host @samp{source} doesn't use the @option{RemoteCommand}
@@ -3271,7 +3313,9 @@ by setting the pod annotation
 @vindex tramp-kubernetes-namespace
 @value{tramp} uses the default Kubernetes context and namespace.  If
 another context or namespace shall be used, configure the user options
-@code{tramp-kubernetes-context} and @code{tramp-kubernetes-namespace}.
+@code{tramp-kubernetes-context} or @code{tramp-kubernetes-namespace},
+respectively.  An explicit @samp{%@var{namespace}} postfix in the host
+name takes precedence.
 
 
 @node Auto-save File Lock and Backup
@@ -3388,11 +3432,10 @@ files, set user option
 @code{remote-file-name-inhibit-auto-save-visited} to non-@code{nil}.
 
 @vindex lock-file-name-transforms
-And still more issues to handle.  Since @w{Emacs 28}, file locks use a
-similar user option as auto-save files, called
-@code{lock-file-name-transforms}.  By default this user option is
-@code{nil}, meaning to keep file locks in the same directory as the
-original file.
+And still more issues to handle.  File locks use a similar user option
+as auto-save files, called @code{lock-file-name-transforms}.  By
+default this user option is @code{nil}, meaning to keep file locks in
+the same directory as the original file.
 
 If you change @code{lock-file-name-transforms} in order to keep file
 locks for remote files somewhere else, you will lose Emacs's feature
@@ -3443,6 +3486,12 @@ encryption.  Files in that directory and all subdirectories will be
 encrypted before copying to, and decrypted after copying from that
 directory.  File and directory names will be also encrypted.
 @end deffn
+
+@defopt tramp-crypt-encfs-program
+This is the name of the @command{encfsctl} program.  If it isn't in
+your @env{PATH} environment variable, you can set the absolute path
+here.
+@end defopt
 
 @defopt tramp-crypt-encfs-option
 If a remote directory is marked for encryption, it is initialized via
@@ -3750,7 +3799,18 @@ completion lists.  If you want to suppress this completion because
 there are invalid entries in the persistency file, for example if the
 host configuration changes often, or if you plug your laptop to
 different networks frequently, you can set the user option
-@code{tramp-completion-use-cache} to @code{nil}.
+@code{tramp-completion-use-cache} to @code{nil}.  This is set per
+default for all container-based methods, like @option{docker} or
+@option{podman}.  If you want to suppress this for other connections,
+you can use the connection property @t{"completion-use-cache"},
+@xref{Predefined connection information}.  Example:
+
+@lisp
+@group
+(add-to-list 'tramp-connection-properties
+             (list "^/sshfs:" "completion-use-cache" nil))
+@end group
+@end lisp
 
 After remote host name completion comes completion of file names on
 the remote host.  It works the same as with local host file completion
@@ -3869,23 +3929,30 @@ containers on the remote host.
 
 A common use case for ad-hoc specifications is to visit a file or a
 directory with proper permissions, for example with the @option{sudo}
-method.  The command @code{tramp-revert-buffer-with-sudo} supports
-this.
+method.  The commands @code{tramp-revert-buffer-with-sudo} (@kbd{C-x x
+@@}), and @code{tramp-dired-find-file-with-sudo} (@kbd{@@} in
+@code{dired-mode}) support this.
 
+@kindex C-x x @@
 @deffn Command tramp-revert-buffer-with-sudo
-This command shows the current buffer with @option{sudo} permissions.
-The buffer must either visit a file, or a directory
-(@code{dired-mode}).
+This command visits the current buffer with @option{sudo} permissions.
+The buffer must either visit a file, or a directory in @code{dired-mode}.
+@end deffn
+
+@kindex @@ @r{(in dired})
+@deffn Command tramp-dired-find-file-with-sudo
+In @code{dired-mode}, visit the file or directory named on this line.
+This is performed with @option{sudo} permissions.
 @end deffn
 
 @defopt tramp-file-name-with-method
-The method @code{tramp-revert-buffer-with-sudo} shows an alternate
-buffer.  It defaults to @option{sudo}, other valid methods are
-@option{su}, @option{doas}, @option{run0}, and @option{ksu}.
+The method used in @code{tramp-revert-buffer-with-sudo} and
+@code{tramp-dired-find-file-with-sudo}.  It defaults to @option{sudo},
+other valid methods are @option{su}, @option{doas}, @option{run0}, and
+@option{ksu}.
 
-@lisp
-(customize-set-variable 'tramp-file-name-with-method "doas")
-@end lisp
+If a command is called with a prefix argument @kbd{C-u}, the option's
+value is read interactively.
 @end defopt
 
 These methods apply the user @samp{root} as default.  If another user
@@ -3895,6 +3962,33 @@ shall be taken, add a proper rule to the user option
 @lisp
 (add-to-list 'tramp-default-user-alist '("sudo" "remotehost" "admin"))
 @end lisp
+
+
+@subsection Using different proxies for the same destination
+
+@strong{Note}: This feature is experimental, don't use it in
+production systems!
+
+Sometimes, it is needed to specify different proxies for the same
+destination host name.  This can happen for the same destination when
+the local host is located in different networks over the time.  This
+can also happen when the remote destination is specified by the remote
+same file name, although different hosts are meant depending on the
+used proxy.  A typical example are docker containers, which run on
+different hosts under the same docker name.
+
+When the user option @code{tramp-show-ad-hoc-proxies} is
+non-@code{nil}, such ad-hoc multi-hop file names can be used in
+parallel.  In the following, on both remote hosts @samp{host1} and
+@samp{host2} there is a docker container @samp{name}, respectively:
+
+@example
+@trampfn{ssh@value{postfixhop}user1@@host1|docker,name,}
+@trampfn{ssh@value{postfixhop}user2@@host2|docker,name,}
+@end example
+
+If you use the shortened name @samp{@trampfn{docker,name,}}, the last
+used proxy definition is expanded for.
 
 
 @node Home directories
@@ -4708,13 +4802,13 @@ proxy definitions (@pxref{Ad-hoc multi-hops}).
 
 @deffn Command tramp-cleanup-all-buffers
 Just as for @code{tramp-cleanup-all-connections}, all remote
-connections and ad-hoc proxy definition are cleaned up in addition to
+connections and ad-hoc proxy definitions are cleaned up in addition to
 killing all buffers related to remote connections.
 @end deffn
 
 @deffn Command tramp-cleanup-some-buffers
 Similar to @code{tramp-cleanup-all-buffers}, where all remote
-connections and ad-hoc proxy definition are cleaned up.  However,
+connections and ad-hoc proxy definitions are cleaned up.  However,
 additional buffers are killed only if one of the functions in
 @code{tramp-cleanup-some-buffers-hook} returns @code{t}.
 @end deffn
@@ -4725,6 +4819,18 @@ killed when @code{tramp-cleanup-some-buffers} is called.  Per default,
 remote buffers which are linked to a remote file, remote @code{dired}
 buffers, and buffers related to a remote process are cleaned up.
 @end defopt
+
+@deffn Command tramp-cleanup-bufferless-connections
+Similar to @code{tramp-cleanup-all-connections}, remote connections and
+ad-hoc proxy definitions are flushed, but limited to those connections
+for which no associated buffers exist (except for Tramp internal
+buffers).
+
+This command is helpful to prune connections after you close remote-file
+buffers without having to either cherry pick via
+@code{tramp-cleanup-connection} or clear them all via
+@code{tramp-cleanup-all-connections}.
+@end deffn
 
 
 @node Renaming remote files
@@ -5231,8 +5337,8 @@ Where is the latest @value{tramp}?
 @item
 Which systems does it work on?
 
-The package works successfully on @w{Emacs 27}, @w{Emacs 28}, @w{Emacs
-29}, and @w{Emacs 30}.
+The package works successfully on @w{Emacs 28}, @w{Emacs 29}, @w{Emacs
+30}, and @w{Emacs 31}.
 
 While Unix and Unix-like systems are the primary remote targets,
 @value{tramp} has equal success connecting to other platforms, such as
@@ -5320,6 +5426,31 @@ connections, apply the following code.
 @end group
 @end lisp
 
+@vindex dired-check-symlinks
+@item
+Disable check for symbolic link validity in @code{dired} buffers.
+Emacs fontifies symbolic links in @code{dired} buffers using the
+@code{file-truename} operation.  This can be slow.  Since @w{Emacs
+31}, there is a user option which suppresses this.  It can be set
+connection-local.
+@ifinfo
+@xref{Connection Variables, , , emacs}.
+@end ifinfo
+
+@lisp
+@group
+(connection-local-set-profile-variables
+ 'my-dired-profile
+ '((dired-check-symlinks . nil)))
+@end group
+
+@group
+(connection-local-set-profiles
+ '(:application tramp :machine "remotehost")
+ 'my-dired-profile)
+@end group
+@end lisp
+
 @item
 Use direct asynchronous processes if possible.
 
@@ -5373,8 +5504,8 @@ as value of the @env{TERM} environment variable.  If you want to use
 another value for @env{TERM}, change @code{tramp-terminal-type} and
 this line accordingly.
 
-Alternatively, you can set the remote login shell explicitly.  See
-@ref{Remote shell setup} for discussion of this technique,
+Alternatively, you can set the remote login shell explicitly.
+@xref{Remote shell setup}, for discussion of this technique,
 
 When using fish shell on remote hosts, disable fancy formatting by
 adding the following to @file{~/.config/fish/config.fish}:
@@ -5430,6 +5561,7 @@ characters.  Using @option{sshx} or @option{scpx} methods can avoid
 this problem because they allocate a pseudo tty.  @xref{Inline
 methods}.
 
+@vindex tramp-chunksize
 @item
 @value{tramp} stops transferring strings longer than 500 characters
 
@@ -6686,6 +6818,11 @@ maintainers, analyzing the remote commands for performance analysis.
 @node Variable Index
 @unnumbered Variable Index
 @printindex vr
+
+
+@node Key Index
+@unnumbered Key Index
+@printindex ky
 
 
 @node Concept Index

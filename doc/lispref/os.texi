@@ -590,10 +590,10 @@ displays the startup messages.
 The value of this variable is @code{t} once the command line has been
 processed.
 
-If you redump Emacs by calling @code{dump-emacs} (@pxref{Building
-Emacs}), you may wish to set this variable to @code{nil} first in
-order to cause the new dumped Emacs to process its new command-line
-arguments.
+If you redump Emacs by calling @code{dump-emacs-portable}
+(@pxref{Building Emacs}), you may wish to set this variable to
+@code{nil} first in order to cause the new dumped Emacs to process its
+new command-line arguments.
 @end defvar
 
 @defvar command-switch-alist
@@ -1790,8 +1790,8 @@ Conversion}).
 This function parses the time-string @var{string} and returns the
 corresponding Lisp timestamp.  The argument @var{string} should represent
 a date-time, and should be in one of the forms recognized by
-@code{parse-time-string} (see below).  This function assumes Universal
-Time if @var{string} lacks explicit time zone information,
+@code{parse-time-string} (see below).  This function assumes local time
+if @var{string} lacks explicit time zone information,
 and assumes earliest values if @var{string} lacks month, day, or time.
 The operating system limits the range of time and zone values.
 @end defun
@@ -1802,6 +1802,9 @@ structure (@pxref{Time Conversion}).  The argument @var{string} should
 resemble an RFC 822 (or later) or ISO 8601 string, like ``Fri, 25 Mar
 2016 16:24:56 +0100'' or ``1998-09-12T12:21:54-0200'', but this
 function will attempt to parse less well-formed time strings as well.
+It parses an incomplete string like ``2024-08-13'' to an incomplete
+structure like @samp{(nil nil nil 13 8 2024 nil -1 nil)}, in which
+an unknown DST value is @minus{}1 and other unknown values are @code{nil}.
 
 Note that, unlike @code{decode-time} (@pxref{Time Conversion}), this
 function does not interpret the time string, and in particular the
@@ -1833,7 +1836,6 @@ it also parses things like ``1998W45-3'' (week number) and ``1998-245''
 @code{iso8601-parse-interval}.  All these functions return decoded time
 structures, except the final one, which returns three of them (the
 start, the end, and the duration).
-
 Like @code{parse-time-string}, this function does not interpret the time
 string, and in particular the time-zone designator or UTC offset that is
 part of the @var{string} argument does not affect the returned value of
@@ -1847,6 +1849,19 @@ include it; otherwise the time-zone member of the returned value will be
 @code{nil}.  In other words, this function simply parses the textual
 representation of date and time into separate numerical values, and
 doesn't care whether the input time is local or UTC.
+@end defun
+
+@defun iso8601-parse-duration string
+This function parses an ISO 8601 time duration @var{string}
+and returns a decoded time structure.
+@c FIXME: example? behavior on incomplete input?
+@end defun
+
+@defun iso8601-parse-interval string
+This function parses an ISO 8601 time interval @var{string}
+and returns three decoded time structures
+representing the start, the end, and the duration.
+@c FIXME: example? behavior on incomplete input?
 @end defun
 
 @defun format-time-string format-string &optional time zone
@@ -2193,6 +2208,28 @@ Return the date of @var{ordinal} in @var{year} as a decoded time
 structure.  For instance, the 120th day in 2004 is April 29th.
 @end defun
 
+@defun seconds-to-string delay &optional readable abbrev precision
+Return a string describing a given @var{delay} (in seconds).  By
+default, this function formats the returned string as a floating-point
+number in units selected according to the value of @var{delay}.  For
+example, a delay of 9861.5 seconds yields @samp{2.74h}, since the value
+of @var{delay} is longer than 1 hour, but shorter than 1 day.  The
+output formatting can be further controlled by the optional arguments,
+if optional argument @var{readable} is non-@code{nil}.  If
+@var{readable}'s value is @code{expanded}, the returned string will
+describe @var{delay} using two units; for example, a delay of 9861.5
+seconds with @var{readable} set to the symbol @code{expanded} returns
+@samp{2 hours 44 minutes}, but if @var{readable} is @code{t}, the
+function returns @samp{3 hours}.  Optional argument @var{abbrev}, if
+non-@code{nil}, means to abbreviate the units: use @samp{h} instead of
+@samp{hours}, @samp{m} instead of @samp{minutes}, etc.  If
+@var{precision} is a whole integer number, the function rounds the value
+of the smallest unit it produces to that many digits after the decimal
+point; thus, 9861.5 with @var{precision} set to 3 yields @samp{2.739
+hours}.  If @var{precision} is a non-negative float smaller than 1, the
+function rounds to that value.
+@end defun
+
 @node Timers
 @section Timers for Delayed Execution
 @cindex timers
@@ -2485,8 +2522,7 @@ idleness.  Here's an example:
 @cindex terminal input
 
   This section describes functions and variables for recording or
-manipulating terminal input.  See @ref{Display}, for related
-functions.
+manipulating terminal input.  @xref{Display}, for related functions.
 
 @menu
 * Input Modes::         Options for how input is processed.

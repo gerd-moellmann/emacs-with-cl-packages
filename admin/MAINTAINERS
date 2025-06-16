@@ -31,7 +31,6 @@ Eli Zaretskii
 	    src/msdos.[ch]
 	    src/dosfns.[ch]
 	    src/w16select.c
-	    src/unexcoff.c
 	    lisp/term/internal.el
 	    lisp/term/pc-win.el
 	    lisp/dos-fns.el
@@ -228,6 +227,11 @@ Philip Kaludercic
        lisp/emacs-lisp/compat.el
        lisp/net/rcirc.el
 
+Yuan Fu
+       src/treesit.c
+       lisp/treesit.el
+       lisp/progmodes/c-ts-common.el
+
 Sean Whitton
 	VC
 	    lisp/vc/*
@@ -254,7 +258,6 @@ Eli Zaretskii
 	src/frame.c
 	src/dired.c
 	src/fileio.c
-	src/unexw32.c
 	src/w32*.[ch]
 	src/window.c
 	src/indent.c
@@ -370,8 +373,14 @@ Juri Linkov
 Philip Kaludercic
 	lisp/epa-ks.el
 
+Harald Jörg
+	lisp/progmodes/cperl-mode.el
+
 Spencer Baugh
 	lisp/progmodes/flymake.el
+
+Yuan Fu
+       lisp/progmodes/c-ts-mode.el
 
 ==============================================================================
 3. Externally maintained packages.

@@ -51,10 +51,10 @@ hash_get_category_set (Lisp_Object table, Lisp_Object category_set)
   if (NILP (XCHAR_TABLE (table)->extras[1]))
     set_char_table_extras
       (table, 1,
-       make_hash_table (&hashtest_equal, DEFAULT_HASH_SIZE, Weak_None, false));
+       make_hash_table (&hashtest_equal, DEFAULT_HASH_SIZE, Weak_None));
   struct Lisp_Hash_Table *h = XHASH_TABLE (XCHAR_TABLE (table)->extras[1]);
   hash_hash_t hash;
-  ptrdiff_t i = hash_lookup_get_hash (h, category_set, &hash);
+  ptrdiff_t i = hash_find_get_hash (h, category_set, &hash);
   if (i >= 0)
     return HASH_KEY (h, i);
   hash_put (h, category_set, Qnil, hash);
@@ -118,8 +118,6 @@ the current buffer's category table.  */)
 
   if (!NILP (CATEGORY_DOCSTRING (table, XFIXNAT (category))))
     error ("Category `%c' is already defined", (int) XFIXNAT (category));
-  if (!NILP (Vpurify_flag))
-    docstring = Fpurecopy (docstring);
   SET_CATEGORY_DOCSTRING (table, XFIXNAT (category), docstring);
 
   return Qnil;

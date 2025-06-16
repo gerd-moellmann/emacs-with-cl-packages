@@ -658,7 +658,7 @@ When called with a `C-0' (zero) prefix, insert a template at point.
 When called with a `C-1' (one) prefix, force prompting for a date when
 a datetree entry is made.
 
-ELisp programs can set KEYS to a string associated with a template
+Elisp programs can set KEYS to a string associated with a template
 in `org-capture-templates'.  In this case, interactive selection
 will be bypassed.
 
@@ -1100,7 +1100,7 @@ Store them in the capture property list."
                     (org-encode-time
                      (apply #'list
                             0 0 org-extend-today-until
-                            (cl-cdddr (decode-time prompt-time))))))
+                            (cdddr (decode-time prompt-time))))))
 		 (time-to-days prompt-time)))
 	      (t
 	       ;; Current date, possibly corrected for late night
@@ -1920,7 +1920,7 @@ placeholder to check."
     (goto-char (match-beginning 0))
     (let ((n (abs (skip-chars-backward "\\\\"))))
       (delete-char (/ (1+ n) 2))
-      (= (% n 2) 1))))
+      (cl-oddp n))))
 
 (defun org-capture-expand-embedded-elisp (&optional mark)
   "Evaluate embedded elisp %(sexp) and replace with the result.

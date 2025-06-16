@@ -19,9 +19,11 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <config.h>
 
+#include <errno.h>
 #include <fcntl.h>
 #include <math.h>
 #include <unistd.h>
+#include <stdlib.h>
 
 /* Include this before including <setjmp.h> to work around bugs with
    older libpng; see Bug#17429.  */
@@ -62,11 +64,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #ifdef HAVE_WINDOW_SYSTEM
 #include TERM_HEADER
 #endif /* HAVE_WINDOW_SYSTEM */
-
-/* Work around GCC bug 54561.  */
-#if GNUC_PREREQ (4, 3, 0)
-# pragma GCC diagnostic ignored "-Wclobbered"
-#endif
 
 #ifdef HAVE_X_WINDOWS
 typedef struct x_bitmap_record Bitmap_Record;
@@ -230,6 +227,9 @@ typedef android_pixmap Pixmap;
 static void image_disable_image (struct frame *, struct image *);
 static void image_edge_detection (struct frame *, struct image *, Lisp_Object,
                                   Lisp_Object);
+
+static double image_compute_scale (struct frame *f, Lisp_Object spec,
+				   struct image *img);
 
 static void init_color_table (void);
 static unsigned long lookup_rgb_color (struct frame *f, int r, int g, int b);
@@ -2232,6 +2232,12 @@ four_corners_best (Emacs_Pix_Context pimg, int *corners,
   return best;
 }
 
+static Lisp_Object
+make_color_name (unsigned int red, unsigned int green, unsigned int blue)
+{
+  return make_formatted_string ("#%04x%04x%04x", red, green, blue);
+}
+
 /* Return the `background' field of IMG.  If IMG doesn't have one yet,
    it is guessed heuristically.  If non-zero, XIMG is an existing
    Emacs_Pix_Context object (device context with the image selected on
@@ -2254,14 +2260,10 @@ image_background (struct image *img, struct frame *f, Emacs_Pix_Context pimg)
       RGB_PIXEL_COLOR bg
 	= four_corners_best (pimg, img->corners, img->width, img->height);
 #ifdef USE_CAIRO
-      {
-	char color_name[30];
-	sprintf (color_name, "#%04x%04x%04x",
-		 (unsigned int) RED16_FROM_ULONG (bg),
-		 (unsigned int) GREEN16_FROM_ULONG (bg),
-		 (unsigned int) BLUE16_FROM_ULONG (bg));
-	bg = image_alloc_image_color (f, img, build_string (color_name), 0);
-      }
+      Lisp_Object color_name = make_color_name (RED16_FROM_ULONG (bg),
+						GREEN16_FROM_ULONG (bg),
+						BLUE16_FROM_ULONG (bg));
+      bg = image_alloc_image_color (f, img, color_name, 0);
 #endif
       img->background = bg;
 
@@ -2496,9 +2498,12 @@ search_image_cache (struct frame *f, Lisp_Object spec, EMACS_UINT hash,
      image spec specifies :background.  However, the extra memory
      usage is probably negligible in practice, so we don't bother.  */
 
+  double scale = image_compute_scale (f, spec, NULL);
+
   for (img = c->buckets[i]; img; img = img->next)
     if (img->hash == hash
 	&& !NILP (Fequal (img->spec, spec))
+	&& scale == img->scale
 	&& (ignore_colors || (img->face_foreground == foreground
                               && img->face_background == background
 			      && img->face_font_size == font_size
@@ -2958,19 +2963,17 @@ image_get_dimension (struct image *img, Lisp_Object symbol)
     }
   return -1;
 }
+#endif
 
-/* Compute the desired size of an image with native size WIDTH x HEIGHT,
-   which is to be displayed on F.  Use IMG to deduce the size.  Store
-   the desired size into *D_WIDTH x *D_HEIGHT.  Store -1 x -1 if the
-   native size is OK.  */
-
-static void
-compute_image_size (struct frame *f, double width, double height,
-		    struct image *img,
-		    int *d_width, int *d_height)
+/* Calculate the scale of the image.  IMG may be null as it is only
+   required when creating an image, and this function is called from
+   image cache related functions that do not have access to the image
+   structure.  */
+static double
+image_compute_scale (struct frame *f, Lisp_Object spec, struct image *img)
 {
   double scale = 1;
-  Lisp_Object value = image_spec_value (img->spec, QCscale, NULL);
+  Lisp_Object value = image_spec_value (spec, QCscale, NULL);
 
   if (EQ (value, Qdefault))
     {
@@ -2984,7 +2987,9 @@ compute_image_size (struct frame *f, double width, double height,
 	{
 	  /* This is a tag with which callers of `clear_image_cache' can
 	     refer to this image and its likenesses.  */
-	  img->dependencies = Fcons (Qauto, img->dependencies);
+	  if (img)
+	    img->dependencies = Fcons (Qauto, img->dependencies);
+
 	  scale = (FRAME_COLUMN_WIDTH (f) > 10
 		   ? (FRAME_COLUMN_WIDTH (f) / 10.0f) : 1);
 	}
@@ -3007,6 +3012,25 @@ compute_image_size (struct frame *f, double width, double height,
       if (0 <= dval)
 	scale = dval;
     }
+
+  if (img)
+    img->scale = scale;
+
+  return scale;
+}
+
+#if defined HAVE_IMAGEMAGICK || defined HAVE_NATIVE_TRANSFORMS
+/* Compute the desired size of an image with native size WIDTH x HEIGHT,
+   which is to be displayed on F.  Use IMG to deduce the size.  Store
+   the desired size into *D_WIDTH x *D_HEIGHT.  Store -1 x -1 if the
+   native size is OK.  */
+
+static void
+compute_image_size (struct frame *f, double width, double height,
+		    struct image *img,
+		    int *d_width, int *d_height)
+{
+  double scale = image_compute_scale(f, img->spec, img);
 
   /* If width and/or height is set in the display spec assume we want
      to scale to those values.  If either h or w is unspecified, the
@@ -3358,12 +3382,10 @@ image_set_transform (struct frame *f, struct image *img)
   flip = !NILP (image_spec_value (img->spec, QCflip, NULL));
 
 # if defined USE_CAIRO || defined HAVE_XRENDER || defined HAVE_MACGUI || defined HAVE_NS || defined HAVE_HAIKU \
-  || defined HAVE_ANDROID
+  || defined HAVE_ANDROID || defined HAVE_NTGUI
   /* We want scale up operations to use a nearest neighbor filter to
      show real pixels instead of munging them, but scale down
-     operations to use a blended filter, to avoid aliasing and the like.
-
-     TODO: implement for Windows.  */
+     operations to use a blended filter, to avoid aliasing and the like.  */
   bool smoothing;
   Lisp_Object s = image_spec_value (img->spec, QCtransform_smoothing, NULL);
   if (NILP (s))
@@ -3374,6 +3396,10 @@ image_set_transform (struct frame *f, struct image *img)
 
 #ifdef HAVE_HAIKU
   img->use_bilinear_filtering = smoothing;
+#endif
+
+#ifdef HAVE_NTGUI
+  img->smoothing = smoothing;
 #endif
 
   /* Perform scale transformation.  */
@@ -3841,8 +3867,9 @@ lookup_image (struct frame *f, Lisp_Object spec, int face_id)
       img->face_font_size = font_size;
       img->face_font_height = face->font->height;
       img->face_font_width = face->font->average_width;
-      img->face_font_family = xmalloc (strlen (font_family) + 1);
-      strcpy (img->face_font_family, font_family);
+      size_t len = strlen (font_family) + 1;
+      img->face_font_family = xmalloc (len);
+      memcpy (img->face_font_family, font_family, len);
       img->load_failed_p = ! img->type->load_img (f, img);
 
       /* If we can't load the image, and we don't have a width and
@@ -4431,10 +4458,8 @@ image_create_x_image_and_pixmap_1 (struct frame *f, int width, int height, int d
   if (*pixmap == NULL)
     {
       DWORD err = GetLastError ();
-      Lisp_Object errcode;
       /* All system errors are < 10000, so the following is safe.  */
-      XSETINT (errcode, err);
-      image_error ("Unable to create bitmap, error code %d", errcode);
+      image_error ("Unable to create bitmap, error code %d", make_fixnum (err));
       image_destroy_x_image (*pimg);
       *pimg = NULL;
       return 0;
@@ -6916,7 +6941,7 @@ xpm_free_color_cache (void)
 static int
 xpm_color_bucket (char *color_name)
 {
-  EMACS_UINT hash = hash_string (color_name, strlen (color_name));
+  EMACS_UINT hash = hash_char_array (color_name, strlen (color_name));
   return hash % XPM_COLOR_CACHE_BUCKETS;
 }
 
@@ -6928,15 +6953,13 @@ xpm_color_bucket (char *color_name)
 static struct xpm_cached_color *
 xpm_cache_color (struct frame *f, char *color_name, XColor *color, int bucket)
 {
-  size_t nbytes;
-  struct xpm_cached_color *p;
-
   if (bucket < 0)
     bucket = xpm_color_bucket (color_name);
 
-  nbytes = FLEXSIZEOF (struct xpm_cached_color, name, strlen (color_name) + 1);
-  p = xmalloc (nbytes);
-  strcpy (p->name, color_name);
+  size_t len = strlen (color_name) + 1;
+  size_t nbytes = FLEXSIZEOF (struct xpm_cached_color, name, len);
+  struct xpm_cached_color *p = xmalloc (nbytes);
+  memcpy (p->name, color_name, len);
   p->color = *color;
   p->next = xpm_color_cache[bucket];
   xpm_color_cache[bucket] = p;
@@ -7592,7 +7615,7 @@ xpm_make_color_table_h (void (**put_func) (Lisp_Object, const char *, int,
 {
   *put_func = xpm_put_color_table_h;
   *get_func = xpm_get_color_table_h;
-  return make_hash_table (&hashtest_equal, DEFAULT_HASH_SIZE, Weak_None, false);
+  return make_hash_table (&hashtest_equal, DEFAULT_HASH_SIZE, Weak_None);
 }
 
 static void
@@ -7605,7 +7628,7 @@ xpm_put_color_table_h (Lisp_Object color_table,
   Lisp_Object chars = make_unibyte_string (chars_start, chars_len);
 
   hash_hash_t hash_code;
-  hash_lookup_get_hash (table, chars, &hash_code);
+  hash_find_get_hash (table, chars, &hash_code);
   hash_put (table, chars, color, hash_code);
 }
 
@@ -7616,7 +7639,7 @@ xpm_get_color_table_h (Lisp_Object color_table,
 {
   struct Lisp_Hash_Table *table = XHASH_TABLE (color_table);
   ptrdiff_t i =
-    hash_lookup (table, make_unibyte_string (chars_start, chars_len));
+    hash_find (table, make_unibyte_string (chars_start, chars_len));
 
   return i >= 0 ? HASH_VALUE (table, i) : Qnil;
 }
@@ -7634,12 +7657,30 @@ static const char xpm_color_key_strings[][4] = {"s", "m", "g4", "g", "c"};
 static int
 xpm_str_to_color_key (const char *s)
 {
-  int i;
-
-  for (i = 0; i < ARRAYELTS (xpm_color_key_strings); i++)
+  for (int i = 0; i < ARRAYELTS (xpm_color_key_strings); i++)
     if (strcmp (xpm_color_key_strings[i], s) == 0)
       return i;
   return -1;
+}
+
+static int
+xpm_str_to_int (char **buf)
+{
+  char *p;
+
+  errno = 0;
+  long result = strtol (*buf, &p, 10);
+  if (errno || p == *buf || result < INT_MIN || result > INT_MAX)
+    return -1;
+
+  /* Error out if we see something like "12x3xyz".  */
+  if (!c_isspace (*p) && *p != '\0')
+    return -1;
+
+  /* Update position to read next integer.  */
+  *buf = p;
+
+  return result;
 }
 
 static bool
@@ -7699,10 +7740,14 @@ xpm_load_image (struct frame *f,
     goto failure;
   memcpy (buffer, beg, len);
   buffer[len] = '\0';
-  if (sscanf (buffer, "%d %d %d %d", &width, &height,
-	      &num_colors, &chars_per_pixel) != 4
-      || width <= 0 || height <= 0
-      || num_colors <= 0 || chars_per_pixel <= 0)
+  char *next_int = buffer;
+  if ((width = xpm_str_to_int (&next_int)) <= 0)
+    goto failure;
+  if ((height = xpm_str_to_int (&next_int)) <= 0)
+    goto failure;
+  if ((num_colors = xpm_str_to_int (&next_int)) <= 0)
+    goto failure;
+  if ((chars_per_pixel = xpm_str_to_int (&next_int)) <= 0)
     goto failure;
 
   if (!check_image_size (f, width, height))
@@ -8794,14 +8839,11 @@ image_build_heuristic_mask (struct frame *f, struct image *img,
       if (i == 3 && NILP (how))
 	{
 #ifndef USE_CAIRO
-	  char color_name[30];
-	  sprintf (color_name, "#%04x%04x%04x",
-		   rgb[0] + 0u, rgb[1] + 0u, rgb[2] + 0u);
-	  bg = (
-#ifdef HAVE_NTGUI
-		0x00ffffff & /* Filter out palette info.  */
-#endif /* HAVE_NTGUI */
-		image_alloc_image_color (f, img, build_string (color_name), 0));
+	  Lisp_Object color_name = make_color_name (rgb[0], rgb[1], rgb[2]);
+	  bg = image_alloc_image_color (f, img, color_name, 0);
+# ifdef HAVE_NTGUI
+	  bg &= 0x00ffffff; /* Filter out palette info.  */
+# endif
 #else  /* USE_CAIRO */
 	  bg = lookup_rgb_color (f, rgb[0], rgb[1], rgb[2]);
 #endif	/* USE_CAIRO */
@@ -9662,7 +9704,7 @@ png_load_body (struct frame *f, struct image *img, struct png_load_context *c)
   bool transparent_p;
   struct png_memory_storage tbr;  /* Data to be read */
   ptrdiff_t nbytes;
-  Emacs_Pix_Container ximg, mask_img = NULL;
+  Emacs_Pix_Container ximg;
 
   /* Find out what file to load.  */
   specified_file = image_spec_value (img->spec, QCfile, NULL);
@@ -9753,9 +9795,12 @@ png_load_body (struct frame *f, struct image *img, struct png_load_context *c)
 
   /* Set error jump-back.  We come back here when the PNG library
      detects an error.  */
+
+  struct png_load_context *volatile c_volatile = c;
   if (FAST_SETJMP (PNG_JMPBUF (png_ptr)))
     {
     error:
+      c = c_volatile;
       if (c->png_ptr)
 	png_destroy_read_struct (&c->png_ptr, &c->info_ptr, &c->end_info);
       xfree (c->pixels);
@@ -9764,6 +9809,13 @@ png_load_body (struct frame *f, struct image *img, struct png_load_context *c)
 	emacs_fclose (c->fp);
       return 0;
     }
+
+#if GCC_LINT && __GNUC__ && !__clang__
+  /* These useless assignments pacify GCC 14.2.1 x86-64
+     <https://gcc.gnu.org/bugzilla/show_bug.cgi?id=21161>.  */
+  c = c_volatile;
+  fp = c->fp;
+#endif
 
   /* Read image info.  */
   if (!NILP (specified_data))
@@ -9891,6 +9943,7 @@ png_load_body (struct frame *f, struct image *img, struct png_load_context *c)
 
   /* Create an image and pixmap serving as mask if the PNG image
      contains an alpha channel.  */
+  Emacs_Pix_Container mask_img = NULL;
   if (channels == 4
       && transparent_p
       && !image_create_x_image_and_pixmap (f, img, width, height, 1,
@@ -9951,10 +10004,9 @@ png_load_body (struct frame *f, struct image *img, struct png_load_context *c)
 #ifndef USE_CAIRO
 	  img->background = lookup_rgb_color (f, bg->red, bg->green, bg->blue);
 #else  /* USE_CAIRO */
-	  char color_name[30];
-	  sprintf (color_name, "#%04x%04x%04x", bg->red, bg->green, bg->blue);
-	  img->background
-	    = image_alloc_image_color (f, img, build_string (color_name), 0);
+	  Lisp_Object color_name
+	    = make_color_name (bg->red, bg->green, bg->blue);
+	  img->background = image_alloc_image_color (f, img, color_name, 0);
 #endif /* USE_CAIRO */
 	  img->background_valid = 1;
 	}
@@ -10386,13 +10438,12 @@ jpeg_load_body (struct frame *f, struct image *img,
 		struct my_jpeg_error_mgr *mgr)
 {
   Lisp_Object specified_file, specified_data;
-  FILE *volatile fp = NULL;
+  FILE *fp = NULL;
   JSAMPARRAY buffer;
   int row_stride, x, y;
-  int width, height;
-  int i, ir, ig, ib;
-  unsigned long *colors;
-  Emacs_Pix_Container ximg = NULL;
+  int width, height, ncomp;
+  int ir, ig, ib;
+  Emacs_Pix_Container volatile ximg_volatile = NULL;
 
   /* Open the JPEG file.  */
   specified_file = image_spec_value (img->spec, QCfile, NULL);
@@ -10427,8 +10478,15 @@ jpeg_load_body (struct frame *f, struct image *img,
      error is detected.  This function will perform a longjmp.  */
   mgr->cinfo.err = jpeg_std_error (&mgr->pub);
   mgr->pub.error_exit = my_error_exit;
+  struct my_jpeg_error_mgr *volatile mgr_volatile = mgr;
+  struct image *volatile img_volatile = img;
+  FILE *volatile fp_volatile = fp;
   if (sys_setjmp (mgr->setjmp_buffer))
     {
+      mgr = mgr_volatile;
+      img = img_volatile;
+      fp = fp_volatile;
+
       switch (mgr->failure_code)
 	{
 	case MY_JPEG_ERROR_EXIT:
@@ -10454,12 +10512,21 @@ jpeg_load_body (struct frame *f, struct image *img,
       jpeg_destroy_decompress (&mgr->cinfo);
 
       /* If we already have an XImage, free that.  */
+      Emacs_Pix_Container ximg = ximg_volatile;
       if (ximg)
 	image_destroy_x_image (ximg);
       /* Free pixmap and colors.  */
       image_clear_image (f, img);
       return 0;
     }
+
+#if GCC_LINT && __GNUC__ && !__clang__
+  /* These useless assignments pacify GCC 14.2.1 x86-64
+     <https://gcc.gnu.org/bugzilla/show_bug.cgi?id=21161>.  */
+  mgr = mgr_volatile;
+  img = img_volatile;
+  fp = fp_volatile;
+#endif
 
   /* Create the JPEG decompression object.  Let it read from fp.
 	 Read the JPEG image header.  */
@@ -10473,12 +10540,17 @@ jpeg_load_body (struct frame *f, struct image *img,
 
   jpeg_read_header (&mgr->cinfo, 1);
 
-  /* Customize decompression so that color quantization will be used.
-	 Start decompression.  */
-  mgr->cinfo.quantize_colors = 1;
+  /* Start decompression.  */
   jpeg_start_decompress (&mgr->cinfo);
   width = img->width = mgr->cinfo.output_width;
   height = img->height = mgr->cinfo.output_height;
+  ncomp = mgr->cinfo.output_components;
+  if (ncomp > 2)
+    ir = 0, ig = 1, ib = 2;
+  else if (ncomp > 1)
+    ir = 0, ig = 1, ib = 0;
+  else
+    ir = 0, ig = 0, ib = 0;
 
   if (!check_image_size (f, width, height))
     {
@@ -10487,60 +10559,43 @@ jpeg_load_body (struct frame *f, struct image *img,
     }
 
   /* Create X image and pixmap.  */
-  if (!image_create_x_image_and_pixmap (f, img, width, height, 0, &ximg, 0))
+  Emacs_Pix_Container ximg;
+  bool ximg_ok = image_create_x_image_and_pixmap (f, img, width, height, 0,
+						  &ximg, 0);
+  ximg_volatile = ximg;
+  if (!ximg_ok)
     {
       mgr->failure_code = MY_JPEG_CANNOT_CREATE_X;
       sys_longjmp (mgr->setjmp_buffer, 1);
     }
 
-  /* Allocate colors.  When color quantization is used,
-     mgr->cinfo.actual_number_of_colors has been set with the number of
-     colors generated, and mgr->cinfo.colormap is a two-dimensional array
-     of color indices in the range 0..mgr->cinfo.actual_number_of_colors.
-     No more than 255 colors will be generated.  */
-  USE_SAFE_ALLOCA;
-  {
-    if (mgr->cinfo.out_color_components > 2)
-      ir = 0, ig = 1, ib = 2;
-    else if (mgr->cinfo.out_color_components > 1)
-      ir = 0, ig = 1, ib = 0;
-    else
-      ir = 0, ig = 0, ib = 0;
-
-    /* Use the color table mechanism because it handles colors that
-       cannot be allocated nicely.  Such colors will be replaced with
-       a default color, and we don't have to care about which colors
-       can be freed safely, and which can't.  */
-    init_color_table ();
-    SAFE_NALLOCA (colors, 1, mgr->cinfo.actual_number_of_colors);
-
-    for (i = 0; i < mgr->cinfo.actual_number_of_colors; ++i)
-      {
-	/* Multiply RGB values with 255 because X expects RGB values
-	   in the range 0..0xffff.  */
-	int r = mgr->cinfo.colormap[ir][i] << 8;
-	int g = mgr->cinfo.colormap[ig][i] << 8;
-	int b = mgr->cinfo.colormap[ib][i] << 8;
-	colors[i] = lookup_rgb_color (f, r, g, b);
-      }
-
-#ifdef COLOR_TABLE_SUPPORT
-    /* Remember those colors actually allocated.  */
-    img->colors = colors_in_color_table (&img->ncolors);
-    free_color_table ();
-#endif /* COLOR_TABLE_SUPPORT */
-  }
-
-  /* Read pixels.  */
-  row_stride = width * mgr->cinfo.output_components;
+  /* Allocate scanlines buffer and Emacs color table.  */
+  row_stride = width * ncomp;
   buffer = mgr->cinfo.mem->alloc_sarray ((j_common_ptr) &mgr->cinfo,
 					 JPOOL_IMAGE, row_stride, 1);
+  init_color_table ();
+
+  /* Fill the X image from JPEG data.  */
   for (y = 0; y < height; ++y)
     {
       jpeg_read_scanlines (&mgr->cinfo, buffer, 1);
-      for (x = 0; x < mgr->cinfo.output_width; ++x)
-	PUT_PIXEL (ximg, x, y, colors[buffer[0][x]]);
+      for (x = 0; x < width; ++x)
+	{
+	  int off = x * ncomp;
+	  /* Multiply RGB values with 255 because X expects RGB values
+	     in the range 0..0xffff.  */
+	  int r = buffer[0][off + ir] << 8;
+	  int g = buffer[0][off + ig] << 8;
+	  int b = buffer[0][off + ib] << 8;
+	  PUT_PIXEL (ximg, x, y, lookup_rgb_color (f, r, g, b));
+	}
     }
+
+#ifdef COLOR_TABLE_SUPPORT
+  /* Remember those colors actually allocated.  */
+  img->colors = colors_in_color_table (&img->ncolors);
+  free_color_table ();
+#endif /* COLOR_TABLE_SUPPORT */
 
   /* Clean up.  */
   jpeg_finish_decompress (&mgr->cinfo);
@@ -10555,7 +10610,6 @@ jpeg_load_body (struct frame *f, struct image *img,
 
   /* Put ximg into the image.  */
   image_put_x_image (f, img, ximg, 0);
-  SAFE_FREE ();
   return 1;
 }
 
@@ -10810,8 +10864,8 @@ tiff_handler (const char *log_format, const char *title,
      log entry, it's OK to truncate it.  */
   char buf[4000];
   int len = vsnprintf (buf, sizeof buf, format, ap);
-  add_to_log (log_format, build_string (title),
-	      make_string (buf, max (0, min (len, sizeof buf - 1))));
+  image_error (log_format, build_string (title),
+	       make_string (buf, max (0, min (len, sizeof buf - 1))));
 }
 # undef MINGW_STATIC
 
@@ -12362,13 +12416,13 @@ static struct animation_cache *animation_cache = NULL;
 static struct animation_cache *
 imagemagick_create_cache (char *signature)
 {
+  size_t len = strlen (signature) + 1;
   struct animation_cache *cache
-    = xmalloc (FLEXSIZEOF (struct animation_cache, signature,
-			   strlen (signature) + 1));
+    = xmalloc (FLEXSIZEOF (struct animation_cache, signature, len));
   cache->wand = 0;
   cache->index = 0;
   cache->next = 0;
-  strcpy (cache->signature, signature);
+  memcpy (cache->signature, signature, len);
   return cache;
 }
 
@@ -13648,34 +13702,27 @@ svg_css_length_to_pixels (RsvgLength length, double dpi, int font_size)
     {
     case RSVG_UNIT_PX:
       /* Already a pixel value.  */
-      break;
+      return value;
     case RSVG_UNIT_CM:
       /* 2.54 cm in an inch.  */
-      value = dpi * value / 2.54;
-      break;
+      return dpi * value / 2.54;
     case RSVG_UNIT_MM:
       /* 25.4 mm in an inch.  */
-      value = dpi * value / 25.4;
-      break;
+      return dpi * value / 25.4;
     case RSVG_UNIT_PT:
       /* 72 points in an inch.  */
-      value = dpi * value / 72;
-      break;
+      return dpi * value / 72;
     case RSVG_UNIT_PC:
       /* 6 picas in an inch.  */
-      value = dpi * value / 6;
-      break;
+      return dpi * value / 6;
     case RSVG_UNIT_IN:
-      value *= dpi;
-      break;
+      return value * dpi;
     case RSVG_UNIT_EM:
-      value *= font_size;
-      break;
+      return value * font_size;
     case RSVG_UNIT_EX:
       /* librsvg uses an ex height of half the em height, so we match
 	 that here.  */
-      value = value * font_size / 2.0;
-      break;
+      return value * font_size / 2.0;
     case RSVG_UNIT_PERCENT:
       /* Percent is a ratio of the containing "viewport".  We don't
 	 have a viewport, as such, as we try to draw the image to it's
@@ -13689,14 +13736,27 @@ svg_css_length_to_pixels (RsvgLength length, double dpi, int font_size)
 	 spec, this will work out correctly as librsvg will still
 	 honor the percentage sizes in its final rendering no matter
 	 what size we make the image.  */
-      value = 0;
-      break;
-    default:
-      /* We should never reach this.  */
-      value = 0;
+      return 0;
+#if LIBRSVG_CHECK_VERSION (2, 58, 0)
+    case RSVG_UNIT_CH:
+      /* FIXME: With CSS 3, "the ch unit falls back to 0.5em in the
+	 general case, and to 1em when it would be typeset upright".
+	 However, I could not find a way to easily get the relevant CSS
+	 attributes using librsvg.  Thus, we simply wrongly assume the
+	 general case is always true here.  See Bug#75712.  */
+      return value * font_size / 2.0;
+#endif
     }
 
-  return value;
+  /* The rsvg header files say that more values may be added to this
+     enum, but there doesn't appear to be a way to get a string
+     representation of the new enum value.  The unfortunate
+     consequence is that the only thing we can do is to report the
+     numeric value.  */
+  image_error ("Unknown RSVG unit, code: %s", make_fixnum ((int) length.unit));
+  /* Return 0; this special value indicates that another method of
+     obtaining the image size must be used.  */
+  return 0;
 }
 #endif
 
@@ -13711,7 +13771,7 @@ svg_css_length_to_pixels (RsvgLength length, double dpi, int font_size)
    The basic process, which is used for all versions of librsvg, is to
    load the SVG and parse it, then extract the image dimensions.  We
    then use those image dimensions to calculate the final size and
-   wrap the SVG data inside another SVG we build on the fly. This
+   wrap the SVG data inside another SVG we build on the fly.  This
    wrapper does the necessary resizing and setting of foreground and
    background colors and is then parsed and rasterized.
 
@@ -13729,16 +13789,10 @@ svg_load_image (struct frame *f, struct image *img, char *contents,
   int height;
   const guint8 *pixels;
   int rowstride;
-  char *wrapped_contents = NULL;
-  ptrdiff_t wrapped_size;
-
+  Lisp_Object wrapped_contents;
   bool empty_errmsg = true;
   const char *errmsg = "";
   ptrdiff_t errlen = 0;
-
-#if LIBRSVG_CHECK_VERSION (2, 48, 0)
-  char *css = NULL;
-#endif
 
 #if ! GLIB_CHECK_VERSION (2, 36, 0)
   /* g_type_init is a glib function that must be called prior to
@@ -13777,23 +13831,11 @@ svg_load_image (struct frame *f, struct image *img, char *contents,
          SVG supports, however it's only available in librsvg 2.48 and
          above so some things we could set here are handled in the
          wrapper below.  */
-      /* FIXME: The below calculations leave enough space for a font
-	 size up to 9999, if it overflows we just throw an error but
-	 should probably increase the buffer size.  */
-      const char *css_spec = "svg{font-family:\"%s\";font-size:%dpx}";
-      int css_len = strlen (css_spec) + strlen (img->face_font_family) + 1;
-      css = xmalloc (css_len);
-      if (css_len <= snprintf (css, css_len, css_spec,
-			       img->face_font_family, img->face_font_size))
-	goto rsvg_error;
-
-      rsvg_handle_set_stylesheet (rsvg_handle, (guint8 *)css, strlen (css), NULL);
-    }
-  else
-    {
-      css = xmalloc (SBYTES (lcss) + 1);
-      strncpy (css, SSDATA (lcss), SBYTES (lcss));
-      *(css + SBYTES (lcss) + 1) = 0;
+      lcss = make_formatted_string ("svg{font-family:\"%s\";font-size:%dpx}",
+				    img->face_font_family,
+				    img->face_font_size);
+      rsvg_handle_set_stylesheet (rsvg_handle, (guint8 *) SDATA (lcss),
+				  SBYTES (lcss), NULL);
     }
 #endif
 
@@ -13816,8 +13858,8 @@ svg_load_image (struct frame *f, struct image *img, char *contents,
   rsvg_handle_write (rsvg_handle, (unsigned char *) contents, size, &err);
   if (err) goto rsvg_error;
 
-  /* The parsing is complete, rsvg_handle is ready to be used, close
-     it for further writes.  */
+  /* The parsing is complete, rsvg_handle is ready to be used, close it
+     for further writes.  */
   rsvg_handle_close (rsvg_handle, &err);
   if (err) goto rsvg_error;
 #endif
@@ -13970,7 +14012,7 @@ svg_load_image (struct frame *f, struct image *img, char *contents,
        background color, before including the original image.  This
        acts to set the background color, instead of leaving it
        transparent.  */
-    const char *wrapper =
+    static char const wrapper[] =
       "<svg xmlns:xlink=\"http://www.w3.org/1999/xlink\" "
       "xmlns:xi=\"http://www.w3.org/2001/XInclude\" "
       "style=\"color: #%06X; fill: currentColor;\" "
@@ -13979,10 +14021,6 @@ svg_load_image (struct frame *f, struct image *img, char *contents,
       "<rect width=\"100%%\" height=\"100%%\" fill=\"#%06X\"/>"
       "<xi:include href=\"data:image/svg+xml;base64,%s\"></xi:include>"
       "</svg>";
-
-    /* FIXME: I've added 64 in the hope it will cover the size of the
-       width and height strings and things.  */
-    int buffer_size = SBYTES (encoded_contents) + strlen (wrapper) + 64;
 
     value = image_spec_value (img->spec, QCforeground, NULL);
     if (!NILP (value))
@@ -14007,22 +14045,18 @@ svg_load_image (struct frame *f, struct image *img, char *contents,
       | (background & 0x00FF00);
 #endif
 
-    wrapped_contents = xmalloc (buffer_size);
-
-    if (buffer_size <= snprintf (wrapped_contents, buffer_size, wrapper,
-				 foreground & 0xFFFFFF, width, height,
-				 viewbox_width, viewbox_height,
-				 background & 0xFFFFFF,
-				 SSDATA (encoded_contents)))
-      goto rsvg_error;
-
-    wrapped_size = strlen (wrapped_contents);
+    unsigned int color = foreground & 0xFFFFFF, fill = background & 0xFFFFFF;
+    wrapped_contents
+      = make_formatted_string (wrapper, color, width, height,
+			       viewbox_width, viewbox_height,
+			       fill, SSDATA (encoded_contents));
   }
 
   /* Now we parse the wrapped version.  */
 
 #if LIBRSVG_CHECK_VERSION (2, 32, 0)
-  input_stream = g_memory_input_stream_new_from_data (wrapped_contents, wrapped_size, NULL);
+  input_stream = g_memory_input_stream_new_from_data
+    (SDATA (wrapped_contents), SBYTES (wrapped_contents), NULL);
   base_file = filename ? g_file_new_for_path (filename) : NULL;
   rsvg_handle = rsvg_handle_new_from_stream_sync (input_stream, base_file,
 						  RSVG_HANDLE_FLAGS_NONE,
@@ -14041,7 +14075,8 @@ svg_load_image (struct frame *f, struct image *img, char *contents,
 #if LIBRSVG_CHECK_VERSION (2, 48, 0)
   /* Set the CSS for the wrapped SVG.  See the comment above the
      previous use of 'css'.  */
-  rsvg_handle_set_stylesheet (rsvg_handle, (guint8 *)css, strlen (css), NULL);
+  rsvg_handle_set_stylesheet (rsvg_handle, (guint8 *) SDATA (lcss),
+			      SBYTES (lcss), NULL);
 #endif
 #else
   /* Make a handle to a new rsvg object.  */
@@ -14059,10 +14094,11 @@ svg_load_image (struct frame *f, struct image *img, char *contents,
     rsvg_handle_set_base_uri (rsvg_handle, filename);
 
   /* Parse the contents argument and fill in the rsvg_handle.  */
-  rsvg_handle_write (rsvg_handle, (unsigned char *) wrapped_contents, wrapped_size, &err);
+  rsvg_handle_write (rsvg_handle, SDATA (wrapped_contents),
+		     SBYTES (wrapped_contents), &err);
   if (err) goto rsvg_error;
 
-  /* The parsing is complete, rsvg_handle is ready to used, close it
+  /* The parsing is complete, rsvg_handle is ready to be used, close it
      for further writes.  */
   rsvg_handle_close (rsvg_handle, &err);
   if (err) goto rsvg_error;
@@ -14079,12 +14115,6 @@ svg_load_image (struct frame *f, struct image *img, char *contents,
   if (!pixbuf) goto rsvg_error;
 #endif
   g_object_unref (rsvg_handle);
-  xfree (wrapped_contents);
-
-#if LIBRSVG_CHECK_VERSION (2, 48, 0)
-  if (!STRINGP (lcss))
-    xfree (css);
-#endif
 
   /* Extract some meta data from the svg handle.  */
   width     = gdk_pixbuf_get_width (pixbuf);
@@ -14175,12 +14205,6 @@ svg_load_image (struct frame *f, struct image *img, char *contents,
  done_error:
   if (rsvg_handle)
     g_object_unref (rsvg_handle);
-  if (wrapped_contents)
-    xfree (wrapped_contents);
-#if LIBRSVG_CHECK_VERSION (2, 48, 0)
-  if (css && !STRINGP (lcss))
-    xfree (css);
-#endif
   return false;
 }
 
@@ -14286,7 +14310,6 @@ static bool
 gs_load (struct frame *f, struct image *img)
 {
   uintmax_t printnum1, printnum2;
-  char buffer[sizeof " " + 2 * INT_STRLEN_BOUND (intmax_t)];
   Lisp_Object window_and_pixmap_id = Qnil, loader, pt_height, pt_width;
   Lisp_Object frame;
   double in_width, in_height;
@@ -14338,13 +14361,13 @@ gs_load (struct frame *f, struct image *img)
   printnum1 = FRAME_X_DRAWABLE (f);
   printnum2 = img->pixmap;
   window_and_pixmap_id
-    = make_formatted_string (buffer, "%"PRIuMAX" %"PRIuMAX,
+    = make_formatted_string ("%"PRIuMAX" %"PRIuMAX,
 			     printnum1, printnum2);
 
   printnum1 = FRAME_FOREGROUND_PIXEL (f);
   printnum2 = FRAME_BACKGROUND_PIXEL (f);
   pixel_colors
-    = make_formatted_string (buffer, "%"PRIuMAX" %"PRIuMAX,
+    = make_formatted_string ("%"PRIuMAX" %"PRIuMAX,
 			     printnum1, printnum2);
 
   XSETFRAME (frame, f);
@@ -14352,7 +14375,7 @@ gs_load (struct frame *f, struct image *img)
   if (NILP (loader))
     loader = Qgs_load_image;
 
-  img->lisp_data = call6 (loader, frame, img->spec,
+  img->lisp_data = calln (loader, frame, img->spec,
 			  make_fixnum (img->width),
 			  make_fixnum (img->height),
 			  window_and_pixmap_id,
@@ -14744,7 +14767,7 @@ non-numeric, there is no explicit limit on the size of images.  */);
   DEFSYM (Qgs_load_image, "gs-load-image");
 #endif /* HAVE_GHOSTSCRIPT */
 
-#ifdef HAVE_NTGUI
+#ifdef WINDOWSNT
   /* Versions of libpng, libgif, and libjpeg that we were compiled with,
      or -1 if no PNG/GIF support was compiled in.  This is tested by
      w32-win.el to correctly set up the alist used to search for the

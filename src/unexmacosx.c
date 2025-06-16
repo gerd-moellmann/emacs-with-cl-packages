@@ -451,8 +451,8 @@ unexec_regions_recorder (task_t task, void *rr, unsigned type,
 	 can be smaller than vmsize in segment commands.  In such a
 	 case, trailing bytes are initialized with zeros.  */
       for (p = ranges->address + ranges->size; p > ranges->address; p--)
-      	if (*(((char *) p)-1))
-      	  break;
+	if (*(((char *) p)-1))
+	  break;
       filesize = p - ranges->address;
 
       unexec_regions[num_unexec_regions].filesize = filesize;

@@ -84,14 +84,17 @@
 (defun pcase--edebug-match-pat-args (head pf)
   ;; (cl-assert (null (cdr head)))
   (setq head (car head))
-  (or (alist-get head '((quote sexp)
-                        (or    &rest pcase-PAT)
-                        (and   &rest pcase-PAT)
-                        (guard form)
-                        (pred  &or ("not" pcase-FUN) pcase-FUN)
-                        (app   pcase-FUN pcase-PAT)))
-      (let ((me (pcase--get-macroexpander head)))
-        (funcall pf (and me (symbolp me) (edebug-get-spec me))))))
+  (let ((specs
+         (or
+          (alist-get head '((quote sexp)
+                            (or    &rest pcase-PAT)
+                            (and   &rest pcase-PAT)
+                            (guard form)
+                            (pred  &or ("not" pcase-FUN) pcase-FUN)
+                            (app   pcase-FUN pcase-PAT)))
+          (let ((me (pcase--get-macroexpander head)))
+            (and me (symbolp me) (edebug-get-spec me))))))
+    (funcall pf specs)))
 
 (defun pcase--get-macroexpander (s)
   "Return the macroexpander for pcase pattern head S, or nil."
@@ -181,6 +184,7 @@ Emacs Lisp manual for more information and examples."
   (let* ((main (documentation (symbol-function 'pcase) 'raw))
          (ud (help-split-fundoc main 'pcase)))
     (require 'help-fns)
+    (declare-function help-fns-short-filename "help-fns" (filename))
     (declare-function help-fns--signature "help-fns"
                       (function doc real-def real-function buffer))
     (with-temp-buffer
@@ -213,9 +217,7 @@ Emacs Lisp manual for more information and examples."
               (save-excursion
                 (forward-char -1)
                 (insert (format-message "  in `"))
-                ;; `file-name-nondirectory' is naive, but
-                ;; `help-fns-short-filename' is not fast enough yet (bug#73766).
-                (help-insert-xref-button (file-name-nondirectory filename)
+                (help-insert-xref-button (help-fns-short-filename filename)
                                          'help-function-def symbol filename
                                          'pcase-macro)
                 (insert (format-message "'."))))
@@ -242,9 +244,14 @@ not signal an error."
 ;;;###autoload
 (defmacro pcase-lambda (lambda-list &rest body)
   "Like `lambda' but allow each argument to be a pattern.
-I.e. accepts the usual &optional and &rest keywords, but every
-formal argument can be any pattern accepted by `pcase' (a mere
-variable name being but a special case of it)."
+I.e. accepts the usual &optional and &rest keywords, but every formal
+argument can be any pattern destructed by `pcase-let' (a mere variable
+name being but a special case of it).
+
+Each argument should match its respective pattern in the parameter
+list (i.e. be of a compatible structure); a mismatch may signal an error
+or may go undetected, binding arguments to arbitrary values, such as
+nil."
   (declare (doc-string 2) (indent defun)
            (debug (&define (&rest pcase-PAT) lambda-doc def-body)))
   (let* ((bindings ())
@@ -363,7 +370,7 @@ undetected, binding variables to arbitrary values, such as nil.
   (cond
    (args
     (let ((arg-length (length args)))
-      (unless (= 0 (mod arg-length 2))
+      (unless (evenp arg-length)
         (signal 'wrong-number-of-arguments
                 (list 'pcase-setq (+ 2 arg-length)))))
     (let ((result))
@@ -1170,7 +1177,11 @@ The predicate is the logical-AND of:
           `'(,(cadr upata) . ,(cadr upatd))
         `(and (pred consp)
               (app car-safe ,upata)
-              (app cdr-safe ,upatd)))))
+              (app cdr-safe ,upatd)
+              ,@(when (eq (car qpat) '\`)
+                  `((guard ,(macroexp-warn-and-return
+                             "Nested ` are not supported in Pcase patterns"
+                             t nil nil qpat))))))))
    ((or (stringp qpat) (numberp qpat) (symbolp qpat)) `',qpat)
    ;; In all other cases just raise an error so we can't break
    ;; backward compatibility when adding \` support for other

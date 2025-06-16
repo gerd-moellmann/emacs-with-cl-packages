@@ -47,7 +47,7 @@
   ;;"f" #'Helper-describe-function
   ;;"v" #'Helper-describe-variable
   "?" #'Helper-help-options
-  (key-description (char-to-string help-char)) #'Helper-help-options)
+  (help-key) #'Helper-help-options)
 (fset 'Helper-help-map Helper-help-map)
 
 (defun Helper-help-scroller ()
@@ -80,7 +80,7 @@
 		 (recenter))
                 ((and (or (eq continue 'backspace)
                           (eq continue ?\177))
-                      (zerop (% state 2)))
+                      (evenp state))
 		 (scroll-down))
 		(t (setq continue nil))))))))
 

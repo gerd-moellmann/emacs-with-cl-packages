@@ -151,16 +151,16 @@ not a valid RFC 822 (or later) header or continuation line,
 that matches the variable `mail-header-separator'.
 This is used by the default mail-sending commands.  See also
 `message-send-mail-function' for use with the Message package."
-  :type '(radio (function-item sendmail-send-it)
-                (function-item sendmail-query-once)
+  :type '(radio (function-item :doc "Use the Sendmail package." sendmail-send-it)
+                (function-item :doc "Query once for which function to use (and remember it)." sendmail-query-once)
                 (function-item :doc "Use SMTPmail package." smtpmail-send-it)
-                (function-item feedmail-send-it)
-                (function-item mailclient-send-it)
-		function)
+                (function-item :doc "Use Feedmail package." feedmail-send-it)
+                (function-item :doc "Use the system mail client." mailclient-send-it)
+                (function :tag "Custom function."))
   :version "24.1")
 
 ;;;###autoload
-(defcustom mail-header-separator (purecopy "--text follows this line--")
+(defcustom mail-header-separator "--text follows this line--"
   "Line used to separate headers from text in messages being composed."
   :type 'string)
 
@@ -201,7 +201,7 @@ The default file is defined in sendmail's configuration file, e.g.
   :type '(choice (const :tag "Sendmail default" nil) file))
 
 ;;;###autoload
-(defcustom mail-personal-alias-file (purecopy "~/.mailrc")
+(defcustom mail-personal-alias-file "~/.mailrc"
   "If non-nil, the name of the user's personal mail alias file.
 This file typically should be in same format as the `.mailrc' file used by
 the `Mail' or `mailx' program.
@@ -258,7 +258,9 @@ regardless of what part of it (if any) is included in the cited text.")
 
 ;;;###autoload
 (defcustom mail-citation-prefix-regexp
-  (purecopy "\\([ \t]*\\(\\w\\|[_.]\\)+>+\\|[ \t]*[>|]\\)+")
+  ;; Use [[:word:]] rather than \w so we don't get tripped up if one
+  ;; of those chars has a weird `syntax-table' text property.
+  "\\([ \t]*\\([[:word:]]\\|[_.]\\)+>+\\|[ \t]*[>|]\\)+"
   "Regular expression to match a citation prefix plus whitespace.
 It should match whatever sort of citation prefixes you want to handle,
 with whitespace before and after; it should also match just whitespace.
@@ -377,12 +379,12 @@ and should insert whatever you want to insert."
   :risky t)
 
 ;;;###autoload
-(defcustom mail-signature-file (purecopy "~/.signature")
+(defcustom mail-signature-file "~/.signature"
   "File containing the text inserted at end of mail buffer."
   :type 'file)
 
 ;;;###autoload
-(defcustom mail-default-directory (purecopy "~/")
+(defcustom mail-default-directory "~/"
   "Value of `default-directory' for Mail mode buffers.
 This directory is used for auto-save files of Mail mode buffers.
 

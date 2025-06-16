@@ -22,6 +22,15 @@
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
+;;; Tree-sitter language versions
+;;
+;; cmake-ts-mode is known to work with the following languages and version:
+;; - tree-sitter-cmake: v0.5.0-5-ge409ae3
+;;
+;; We try our best to make builtin modes work with latest grammar
+;; versions, so a more recent grammar version has a good chance to work.
+;; Send us a bug report if it doesn't.
+
 ;;; Commentary:
 ;;
 
@@ -29,11 +38,12 @@
 
 (require 'treesit)
 (eval-when-compile (require 'rx))
+(treesit-declare-unavailable-functions)
 
-(declare-function treesit-parser-create "treesit.c")
-(declare-function treesit-query-capture "treesit.c")
-(declare-function treesit-node-type "treesit.c")
-(declare-function treesit-search-subtree "treesit.c")
+(add-to-list
+ 'treesit-language-source-alist
+ '(cmake "https://github.com/uyha/tree-sitter-cmake" "v0.5.0")
+ t)
 
 (defcustom cmake-ts-mode-indent-offset 2
   "Number of spaces for each indentation step in `cmake-ts-mode'."
@@ -179,7 +189,7 @@ Check if a node type is available, then return the right font lock rules."
    :feature 'misc-punctuation
    ;; Don't override strings.
    :override 'nil
-   '((["$" "{" "}" "<" ">"]) @font-lock-misc-punctuation-face)
+   '((["$" "{" "}"]) @font-lock-misc-punctuation-face)
 
    :language 'cmake
    :feature 'variable
@@ -207,8 +217,8 @@ Return nil if there is no name or if NODE is not a defun node."
   :group 'cmake
   :syntax-table cmake-ts-mode--syntax-table
 
-  (when (treesit-ready-p 'cmake)
-    (treesit-parser-create 'cmake)
+  (when (treesit-ensure-installed 'cmake)
+    (setq treesit-primary-parser (treesit-parser-create 'cmake))
 
     ;; Comments.
     (setq-local comment-start "# ")

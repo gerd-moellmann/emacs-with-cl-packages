@@ -175,16 +175,9 @@
   "Support for editing files."
   :group 'emacs)
 
-(defgroup wp nil
-  "Support for editing text files.
-Use group `text' for this instead.  This group is obsolete."
-  :group 'emacs)
-
 (defgroup text nil
   "Support for editing text files."
-  :group 'emacs
-  ;; Inherit from deprecated `wp' for compatibility, for now.
-  :group 'wp)
+  :group 'emacs)
 
 (defgroup data nil
   "Support for editing binary data files."
@@ -462,11 +455,13 @@ Use group `text' for this instead.  This group is obsolete."
 
 (defvar custom-field-keymap
   (let ((map (copy-keymap widget-field-keymap)))
-    (define-key map "\C-c\C-c" 'Custom-set)
-    (define-key map "\C-x\C-s" 'Custom-save)
+    (define-key map "\C-c\C-c" #'Custom-set)
+    (define-key map "\C-x\C-s" #'Custom-save)
     map)
   "Keymap used inside editable fields in customization buffers.")
 
+;; FIXME: Doesn't this affect all `editable-field's ever?  Why not set
+;; the right keymap right away when we (define-widget 'editable-field ...)?
 (widget-put (get 'editable-field 'widget-type) :keymap custom-field-keymap)
 
 ;;; Utilities.
@@ -1074,7 +1069,7 @@ even if it doesn't match the type.)
 
 \(fn [VARIABLE VALUE]...)"
   (declare (debug setq))
-  (unless (zerop (mod (length pairs) 2))
+  (unless (evenp (length pairs))
     (error "PAIRS must have an even number of variable/value members"))
   (let ((expr nil))
     (while pairs
@@ -1089,9 +1084,10 @@ even if it doesn't match the type.)
 (defun setopt--set (variable value)
   (custom-load-symbol variable)
   ;; Check that the type is correct.
-  (when-let ((type (get variable 'custom-type)))
+  (when-let* ((type (get variable 'custom-type)))
     (unless (widget-apply (widget-convert type) :match value)
-      (warn "Value `%S' does not match type %s" value type)))
+      (warn "Value `%S' for variable `%s' does not match its type \"%s\""
+            value variable type)))
   (put variable 'custom-check-value (list value))
   (funcall (or (get variable 'custom-set) #'set-default) variable value))
 
@@ -1292,7 +1288,7 @@ Show the buffer in another window, but don't select it."
     (unless (eq symbol basevar)
       (message "`%s' is an alias for `%s'" symbol basevar))))
 
-(defvar customize-changed-options-previous-release "29.4"
+(defvar customize-changed-options-previous-release "30.1"
   "Version for `customize-changed' to refer back to by default.")
 
 ;; Packages will update this variable, so make it available.
@@ -1787,14 +1783,17 @@ or a regular expression.")
 	       'editable-field
 	       :size 40 :help-echo echo
 	       :action (lambda (widget &optional _event)
-                         (customize-apropos (split-string (widget-value widget)))))))
+                         (let ((value (widget-value widget)))
+                           (if (string= value "")
+                               (message "Empty search field")
+                             (customize-apropos (split-string value))))))))
 	(widget-insert " ")
 	(widget-create-child-and-convert
 	 search-widget 'push-button
 	 :tag " Search "
 	 :help-echo echo :action
 	 (lambda (widget &optional _event)
-	   (customize-apropos (split-string (widget-value (widget-get widget :parent))))))
+           (widget-apply (widget-get widget :parent) :action)))
 	(widget-insert "\n")))
 
     ;; The custom command buttons are also in the toolbar, so for a
@@ -3014,7 +3013,7 @@ Possible return values are `standard', `saved', `set', `themed',
 		   (and (equal value (eval (car tmp)))
 			(equal comment temp))
 		 (error nil))
-               (if (equal value (eval (car (get symbol 'standard-value))))
+               (if (custom--standard-value-p symbol value)
                    'standard
 	         'set)
 	     'changed))
@@ -3064,11 +3063,18 @@ To check for other states, call `custom-variable-state'."
     (let* ((form (widget-get widget :custom-form))
            (symbol (widget-get widget :value))
            (get (or (get symbol 'custom-get) 'default-value))
-           (value (if (default-boundp symbol)
-                      (condition-case nil
-                          (funcall get symbol)
-                        (error (throw 'get-error t)))
-                    (symbol-value symbol)))
+           (value-widget (car (widget-get widget :children)))
+           ;; Round-trip the value, for the sake of widgets that accept
+           ;; values of different types (e.g., the obsolete key-sequence widget
+           ;; which takes either strings or vectors.  (Bug#76156)
+           (value
+            (widget-apply value-widget :value-to-external
+                          (widget-apply value-widget :value-to-internal
+                                        (if (default-boundp symbol)
+                                            (condition-case nil
+                                                (funcall get symbol)
+                                              (error (throw 'get-error t)))
+                                          (symbol-value symbol)))))
            (orig-value (widget-value (car (widget-get widget :children)))))
       (not (equal (if (memq form '(lisp mismatch))
                       ;; Mimic `custom-variable-value-create'.
@@ -3351,8 +3357,8 @@ If `custom-reset-standard-variables-list' is nil, save, reset and
 redraw the widget immediately."
   (let* ((symbol (widget-value widget)))
     (if (get symbol 'standard-value)
-	(unless (equal (custom-variable-current-value widget)
-                       (eval (car (get symbol 'standard-value))))
+	(unless (custom--standard-value-p
+                 symbol (custom-variable-current-value widget))
           (custom-variable-backup-value widget))
       (user-error "No standard setting known for %S" symbol))
     (put symbol 'variable-comment nil)
@@ -3437,6 +3443,28 @@ to switch between two values."
   :group 'custom-faces)
 
 ;;; The `custom-face-edit' Widget.
+
+(defvar custom-face--font-cache-timeout 60
+  "Refresh the cache of font families after at most this many seconds.")
+
+(defalias 'custom-face--font-completion
+  (let ((lastlist nil)
+        (lasttime nil)
+        (lastframe nil))
+    (completion-table-case-fold
+     (completion-table-dynamic
+      (lambda (_string)
+        ;; Flush the cache timeout after a while.
+        (let ((time (float-time)))
+         (if (and lastlist (eq (selected-frame) lastframe)
+                  (> custom-face--font-cache-timeout (- time lasttime)))
+             lastlist
+           ;; (message "last list time: %s" (if lasttime (- time lasttime)))
+           (setq lasttime time)
+           (setq lastframe (selected-frame))
+           (setq lastlist
+                 (nconc (mapcar #'car face-font-family-alternatives)
+                        (font-family-list))))))))))
 
 (define-widget 'custom-face-edit 'checklist
   "Widget for editing face attributes.
@@ -3600,6 +3628,10 @@ Only match the specified window systems.")
 				type)
 			 (checklist :inline t
 				    :offset 0
+                                    (const :format "Graphic "
+                                           :sibling-args (:help-echo "\
+Any graphics-capable display")
+                                           graphic)
 				    (const :format "X "
 					   :sibling-args (:help-echo "\
 The X11 Window System.")
@@ -5157,7 +5189,7 @@ This function does not save the buffer."
 (defun custom-save-faces ()
   "Save all customized faces in `custom-file'."
   (save-excursion
-    (custom-save-delete 'custom-reset-faces)
+    (custom-save-delete 'custom-reset-faces) ;FIXME: Never written!?
     (custom-save-delete 'custom-set-faces)
     (let ((standard-output (current-buffer))
 	  (saved-list (make-list 1 0)))
@@ -5317,9 +5349,9 @@ The format is suitable for use with `easy-menu-define'."
 
 (defvar tool-bar-map)
 
-;;; `custom-tool-bar-map' used to be set up here.  This will fail to
-;;; DTRT when `display-graphic-p' returns nil during compilation.  Hence
-;;; we set this up lazily in `Custom-mode'.
+;; `custom-tool-bar-map' used to be set up here.  This will fail to
+;; DTRT when `display-graphic-p' returns nil during compilation.  Hence
+;; we set this up lazily in `Custom-mode'.
 (defvar custom-tool-bar-map nil
   "Keymap for toolbar in Custom mode.")
 
@@ -5336,10 +5368,13 @@ The format is suitable for use with `easy-menu-define'."
 To see what function the widget will call, use the
 `widget-describe' command."
   (interactive "@d")
-  (let ((button (get-char-property pos 'button)))
-    ;; If there is no button at point, then use the one at the start
-    ;; of the line, if it is a custom-group-link (bug#2298).
+  (let ((button (or (get-char-property pos 'button)
+                    ;; Maybe we are just past a button, and it's quite handy
+                    ;; to action it as well.  (Bug#72341)
+                    (get-char-property (1- pos) 'button))))
     (or button
+        ;; If there is no button at point, then use the one at the start
+        ;; of the line, if it is a custom-group-link (bug#2298).
 	(if (setq button (get-char-property (line-beginning-position) 'button))
 	    (or (eq (widget-type button) 'custom-group-link)
 		(setq button nil))))
@@ -5415,6 +5450,13 @@ Erase customizations; set options
 Entry to this mode calls the value of `Custom-mode-hook'
 if that value is non-nil."
   (use-local-map custom-mode-map)
+  (when (not (boundp 'tool-bar-map))
+    ;; setq-local will render tool-bar-map buffer local before the form
+    ;; is evaluated, but if tool-bar.el remains unloaded this blv will
+    ;; be unbound and consequently once tool-bar-local-item-from-menu is
+    ;; called and autoloads tool-bar.el, no binding will be created,
+    ;; causing it to signal.
+    (setq tool-bar-map (make-sparse-keymap)))
   (setq-local tool-bar-map
 	      (or custom-tool-bar-map
 		  ;; Set up `custom-tool-bar-map'.
@@ -5435,7 +5477,7 @@ if that value is non-nil."
   (make-local-variable 'custom-options)
   (make-local-variable 'custom-local-buffer)
   (custom--initialize-widget-variables)
-  (add-hook 'widget-edit-functions 'custom-state-buffer-message nil t))
+  (add-hook 'widget-edit-functions #'custom-state-buffer-message nil t))
 
 (defun custom--revert-buffer (_ignore-auto _noconfirm)
   (unless custom--invocation-options
@@ -5547,6 +5589,53 @@ its standard value."
   "A menu for `custom-icon' widgets.
 Used in `custom-icon-action' to show a menu to the user.")
 
+(defconst custom-icon--images-sub-type
+  '(list :format "%{%t%}:\n%v\n"
+         :tag "Images"
+         (const  :tag "" image)
+         (repeat :tag "Values"
+                 (string :tag "Image filename"))
+         (plist  :tag "Image attributes")))
+
+(defconst custom-icon--emojis-sub-type
+  '(list :format "%{%t%}:\n%v\n"
+         :tag "Colorful Emojis"
+         (const  :tag "" emoji)
+         (repeat :tag "Values"
+                 (string :tag "Emoji text"))
+         (plist  :tag "Emoji text properties")))
+
+(defconst custom-icon--symbols-sub-type
+  '(list :format "%{%t%}:\n%v\n"
+         :tag "Monochrome Symbols"
+         (const  :tag "" symbol)
+         (repeat :tag "Values"
+                 (string :tag "Symbol text"))
+         (plist  :tag "Symbol text properties")))
+
+(defconst custom-icon--texts-sub-type
+  '(list :format "%{%t%}:\n%v\n"
+         :tag "Texts Only"
+         (const  :tag "" text)
+         (repeat :tag "Values"
+                 (string :tag "Text"))
+         (plist  :tag "Text properties")))
+
+(defconst custom-icon--type
+  `(repeat :format ,(concat "%{%t%}"
+                            (propertize ":" 'display "")
+                            "\n\n%v%i\n")
+           :tag "Icon elements:
+- Only the first occurrence of a same element counts.
+- Missing elements will take their default value.
+- At least one element should be provided with a valid value."
+    (choice :void ,custom-icon--texts-sub-type
+            :extra-offset -3
+            ,custom-icon--images-sub-type
+            ,custom-icon--emojis-sub-type
+            ,custom-icon--symbols-sub-type
+            ,custom-icon--texts-sub-type)))
+
 (defun custom-icon-value-create (widget)
   "Here is where you edit the icon's specification."
   (custom-load-widget widget)
@@ -5557,13 +5646,7 @@ Used in `custom-icon-action' to show a menu to the user.")
 	 (form (widget-get widget :custom-form))
 	 (symbol (widget-get widget :value))
 	 (tag (widget-get widget :tag))
-	 (type '(repeat
-                 (list (choice (const :tag "Images" image)
-                               (const :tag "Colorful Emojis" emoji)
-                               (const :tag "Monochrome Symbols" symbol)
-                               (const :tag "Text Only" text))
-                       (repeat string)
-                       plist)))
+	 (type custom-icon--type)
 	 (prefix (widget-get widget :custom-prefix))
 	 (last (widget-get widget :custom-last))
 	 (style (widget-get widget :custom-style))
@@ -5847,7 +5930,9 @@ This stores EXP (without evaluating it) as the saved spec for SYMBOL."
 (defvar-local custom-dirlocals-file-widget nil
   "Widget that holds the name of the dir-locals file being customized.")
 
-(defvar-keymap custom-dirlocals-map
+(define-obsolete-variable-alias 'custom-dirlocals-map
+  'Custom-dirlocals-mode-map "31.1")
+(defvar-keymap Custom-dirlocals-mode-map
   :doc "Keymap used in the \"*Customize Dirlocals*\" buffer."
   :full t
   :parent widget-keymap
@@ -5879,7 +5964,7 @@ This stores EXP (without evaluating it) as the saved spec for SYMBOL."
 See `custom-commands' for further explanation.")
 
 (easy-menu-define
-  Custom-dirlocals-menu (list custom-dirlocals-map
+  Custom-dirlocals-menu (list Custom-dirlocals-mode-map
                               custom-dirlocals-field-map)
   "Menu used in dirlocals customization buffers."
   (nconc (list "Custom"
@@ -5944,7 +6029,7 @@ The appropriate types are:
 
 (defun custom-dirlocals-maybe-update-cons ()
   "If focusing out from the first widget in a cons widget, update its value."
-  (when-let ((w (widget-at)))
+  (when-let* ((w (widget-at)))
     (when (widget-get w :custom-dirlocals-symbol)
       (widget-value-set (widget-get w :parent)
                         (cons (widget-value w) ""))
@@ -5990,31 +6075,45 @@ Moves point into the widget that holds the value."
   (custom--initialize-widget-variables)
   (add-hook 'widget-forward-hook #'custom-dirlocals-maybe-update-cons nil t))
 
+(define-derived-mode Custom-dirlocals-mode nil "Custom dirlocals"
+  "Major mode for customizing Directory Local Variables in current directory."
+  (custom-dirlocals--set-widget-vars)
+  (setq-local text-conversion-style 'action)
+  (setq-local touch-screen-keyboard-function
+              #'Custom-display-on-screen-keyboard-p)
+  (setq-local revert-buffer-function #'Custom-dirlocals-revert-buffer)
+  (setq-local tool-bar-map
+              (or custom-dirlocals-tool-bar-map
+                  ;; Set up `custom-dirlocals-tool-bar-map'.
+                  (let ((map (make-sparse-keymap)))
+                    (mapc
+                     (lambda (arg)
+                       (tool-bar-local-item-from-menu
+                        (nth 1 arg) (nth 4 arg) map Custom-dirlocals-mode-map
+                        :label (nth 5 arg)))
+                     custom-dirlocals-commands)
+                    (setq custom-dirlocals-tool-bar-map map))))
+  (run-mode-hooks 'Custom-mode-hook))
+
+;; As discussed in bug#77228, deriving from `Custom-mode' would
+;; include all the settings that are not necessary for
+;; `customize-dirlocals' and that can break it.
+;; FIXME: Introduce a `Custom-base-mode', which could be useful
+;; also for `gnus-custom-mode'.
+(derived-mode-add-parents 'Custom-dirlocals-mode '(Custom-mode))
+
 (defmacro custom-dirlocals-with-buffer (&rest body)
   "Arrange to execute BODY in a \"*Customize Dirlocals*\" buffer."
   ;; We don't use `custom-buffer-create' because the settings here
   ;; don't go into the `custom-file'.
   `(progn
      (switch-to-buffer "*Customize Dirlocals*")
-     (kill-all-local-variables)
+
      (let ((inhibit-read-only t))
        (erase-buffer))
      (remove-overlays)
-     (custom-dirlocals--set-widget-vars)
+     (Custom-dirlocals-mode)
      ,@body
-     (setq-local tool-bar-map
-                 (or custom-dirlocals-tool-bar-map
-                     ;; Set up `custom-dirlocals-tool-bar-map'.
-                     (let ((map (make-sparse-keymap)))
-                       (mapc
-                        (lambda (arg)
-                          (tool-bar-local-item-from-menu
-                           (nth 1 arg) (nth 4 arg) map custom-dirlocals-map
-                           :label (nth 5 arg)))
-                        custom-dirlocals-commands)
-                       (setq custom-dirlocals-tool-bar-map map))))
-     (setq-local revert-buffer-function #'Custom-dirlocals-revert-buffer)
-     (use-local-map custom-dirlocals-map)
      (widget-setup)))
 
 (defun custom-dirlocals-get-options ()
@@ -6035,7 +6134,7 @@ Moves point into the widget that holds the value."
 If at least an option doesn't validate, signals an error and moves point
 to the widget with the invalid value."
   (dolist (opt (custom-dirlocals-get-options))
-    (when-let ((w (widget-apply opt :validate)))
+    (when-let* ((w (widget-apply opt :validate)))
       (goto-char (widget-get w :from))
       (error "%s" (widget-get w :error))))
   t)

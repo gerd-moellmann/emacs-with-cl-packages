@@ -110,8 +110,11 @@ admin/notes/bug-triage.
 
 Any change that matters to end-users should have an entry in etc/NEWS.
 Try to start each NEWS entry with a sentence that summarizes the entry
-and takes just one line -- this will allow reading NEWS in Outline
-mode after hiding the body of each entry.
+and takes just one line -- this will allow reading NEWS in Outline mode
+after hiding the body of each entry.  When adding a new user option that
+allows changing behavior, please document its default value.  Similarly,
+changes to the default value of an existing user option should be
+announced.
 
 Doc-strings should be updated together with the code.
 
@@ -277,10 +280,11 @@ formatting them:
 
 - Emacs follows the GNU coding standards for ChangeLog entries: see
   https://www.gnu.org/prep/standards/html_node/Change-Logs.html or run
-  'info "(standards)Change Logs"'.  One exception is that commits
-  still sometimes quote `like-this' (as the standards used to
-  recommend) rather than 'like-this' or ‘like this’ (as they do now),
-  as `...' is so widely used elsewhere in Emacs.
+  'info "(standards)Change Logs"'.  One exception is that commits still
+  sometimes quote `like-this' (as the standards used to recommend)
+  rather than 'like-this' or ‘like this’ (as they do now), as `...' is
+  so widely used elsewhere in Emacs.  (Please do not use the Markdown
+  convention of quoting `like this`.)
 
 - Some commenting rules in the GNU coding standards also apply
   to ChangeLog entries: they must be in English, and be complete

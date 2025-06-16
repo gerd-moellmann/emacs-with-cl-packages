@@ -323,7 +323,7 @@ json_out_string (json_out_t *jo, Lisp_Object str, int skip)
 {
   /* FIXME: this code is slow, make faster! */
 
-  static const char hexchar[16] = "0123456789ABCDEF";
+  static const char hexchar[16] ATTRIBUTE_NONSTRING = "0123456789ABCDEF";
   ptrdiff_t len = SBYTES (str);
   json_make_room (jo, len + 2);
   json_out_byte (jo, '"');
@@ -641,7 +641,7 @@ usage: (json-insert OBJECT &rest ARGS)  */)
   move_gap_both (PT, PT_BYTE);
   if (GAP_SIZE < jo.size)
     make_gap (jo.size - GAP_SIZE);
-  memcpy ((char *) BEG_ADDR + PT_BYTE - BEG_BYTE, jo.buf, jo.size);
+  memcpy (GPT_ADDR, jo.buf, jo.size);
 
   /* No need to keep allocation beyond this point.  */
   unbind_to (count, Qnil);
@@ -1564,14 +1564,14 @@ json_parse_object (struct json_parser *parser)
     case json_object_hashtable:
       {
 	EMACS_INT value = (parser->object_workspace_current - first) / 2;
-	result = make_hash_table (&hashtest_equal, value, Weak_None, false);
+	result = make_hash_table (&hashtest_equal, value, Weak_None);
 	struct Lisp_Hash_Table *h = XHASH_TABLE (result);
 	for (size_t i = first; i < parser->object_workspace_current; i += 2)
 	  {
 	    hash_hash_t hash;
 	    Lisp_Object key = parser->object_workspace[i];
 	    Lisp_Object value = parser->object_workspace[i + 1];
-	    ptrdiff_t i = hash_lookup_get_hash (h, key, &hash);
+	    ptrdiff_t i = hash_find_get_hash (h, key, &hash);
 	    if (i < 0)
 	      hash_put (h, key, value, hash);
 	    else
@@ -1658,43 +1658,10 @@ json_parse_value (struct json_parser *parser, int c)
     }
 }
 
-enum ParseEndBehavior
-  {
-    PARSEENDBEHAVIOR_CheckForGarbage,
-    PARSEENDBEHAVIOR_MovePoint
-  };
-
 static Lisp_Object
-json_parse (struct json_parser *parser,
-	    enum ParseEndBehavior parse_end_behavior)
+json_parse (struct json_parser *parser)
 {
-  int c = json_skip_whitespace (parser);
-
-  Lisp_Object result = json_parse_value (parser, c);
-
-  switch (parse_end_behavior)
-    {
-    case PARSEENDBEHAVIOR_CheckForGarbage:
-      c = json_skip_whitespace_if_possible (parser);
-      if (c >= 0)
-	json_signal_error (parser, Qjson_trailing_content);
-      break;
-    case PARSEENDBEHAVIOR_MovePoint:
-      {
-	ptrdiff_t byte = (PT_BYTE + parser->input_current - parser->input_begin
-			  + parser->additional_bytes_count);
-	ptrdiff_t position;
-	if (NILP (BVAR (current_buffer, enable_multibyte_characters)))
-	  position = byte;
-	else
-	  position = PT + parser->point_of_current_line + parser->current_column;
-
-	SET_PT_BOTH (position, byte);
-	break;
-      }
-    }
-
-  return result;
+  return json_parse_value (parser, json_skip_whitespace (parser));
 }
 
 DEFUN ("json-parse-string", Fjson_parse_string, Sjson_parse_string, 1, MANY,
@@ -1738,10 +1705,12 @@ usage: (json-parse-string STRING &rest ARGS) */)
   const unsigned char *begin = SDATA (string);
   json_parser_init (&p, conf, begin, begin + SBYTES (string), NULL, NULL);
   record_unwind_protect_ptr (json_parser_done, &p);
+  Lisp_Object result = json_parse (&p);
 
-  return unbind_to (count,
-		    json_parse (&p,
-				PARSEENDBEHAVIOR_CheckForGarbage));
+  if (json_skip_whitespace_if_possible (&p) >= 0)
+    json_signal_error (&p, Qjson_trailing_content);
+
+  return unbind_to (count, result);
 }
 
 DEFUN ("json-parse-buffer", Fjson_parse_buffer, Sjson_parse_buffer,
@@ -1785,23 +1754,32 @@ usage: (json-parse-buffer &rest args) */)
 
   struct json_parser p;
   unsigned char *begin = PT_ADDR;
-  unsigned char *end = GPT_ADDR;
+  unsigned char *end = (GPT == ZV) ? GPT_ADDR : ZV_ADDR;
   unsigned char *secondary_begin = NULL;
   unsigned char *secondary_end = NULL;
-  if (GPT_ADDR < Z_ADDR)
+  if (PT == ZV)
+    begin = end = NULL;
+  else if (GPT > PT && GPT < ZV && GAP_SIZE > 0)
     {
+      end = GPT_ADDR;
       secondary_begin = GAP_END_ADDR;
-      if (secondary_begin < PT_ADDR)
-	secondary_begin = PT_ADDR;
-      secondary_end = Z_ADDR;
+      secondary_end = ZV_ADDR;
     }
 
   json_parser_init (&p, conf, begin, end, secondary_begin,
 		    secondary_end);
   record_unwind_protect_ptr (json_parser_done, &p);
+  Lisp_Object result = json_parse (&p);
 
-  return unbind_to (count,
-		    json_parse (&p, PARSEENDBEHAVIOR_MovePoint));
+  ptrdiff_t byte = (PT_BYTE + p.input_current - p.input_begin
+		    + p.additional_bytes_count);
+  ptrdiff_t position = (NILP (BVAR (current_buffer,
+				    enable_multibyte_characters))
+			? byte
+			: PT + p.point_of_current_line + p.current_column);
+  SET_PT_BOTH (position, byte);
+
+  return unbind_to (count, result);
 }
 
 void
@@ -1840,16 +1818,6 @@ syms_of_json (void)
 		"number out of range", Qjson_error);
   define_error (Qjson_escape_sequence_error,
 		"invalid escape sequence", Qjson_parse_error);
-
-  DEFSYM (Qpure, "pure");
-  DEFSYM (Qside_effect_free, "side-effect-free");
-
-  DEFSYM (Qjson_serialize, "json-serialize");
-  DEFSYM (Qjson_parse_string, "json-parse-string");
-  Fput (Qjson_serialize, Qpure, Qt);
-  Fput (Qjson_serialize, Qside_effect_free, Qt);
-  Fput (Qjson_parse_string, Qpure, Qt);
-  Fput (Qjson_parse_string, Qside_effect_free, Qt);
 
   DEFSYM (QCobject_type, ":object-type");
   DEFSYM (QCarray_type, ":array-type");

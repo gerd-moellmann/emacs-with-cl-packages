@@ -35,10 +35,10 @@
              (not (documentation-stringp doc)))
     (error "Invalid (or missing) doc string %S" doc))
   (unless (get face 'face-defface-spec)
-    (face-spec-set face (purecopy spec) 'face-defface-spec)
+    (face-spec-set face spec 'face-defface-spec)
     (push (cons 'defface face) current-load-list)
     (when doc
-      (set-face-documentation face (purecopy doc)))
+      (set-face-documentation face doc))
     (custom-handle-all-keywords face args 'custom-face)
     (run-hooks 'custom-define-hook))
   face)
@@ -48,7 +48,8 @@
 (defconst custom-face-attributes
   `((:family
      (string :tag "Font Family"
-	     :help-echo "Font family or fontset alias name."))
+	     :completions custom-face--font-completion
+	     :help-echo "Font family or fontset alias name (with completion)."))
 
     (:foundry
      (string :tag "Font Foundry"

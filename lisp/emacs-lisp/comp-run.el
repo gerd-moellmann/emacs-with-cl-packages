@@ -54,6 +54,23 @@ or one if there's just one execution unit."
   :risky t
   :version "28.1")
 
+;; TODO If we could start compilations that were skipped if and when AC
+;;      power is subsequently reconnected, we could consider changing
+;;      the default to nil.  --spwhitton
+(defcustom native-comp-async-on-battery-power t
+  "Whether to start asynchronous native compilation while on battery power.
+Customize this to nil to disable starting async compilations when AC
+power is not connected.  Async compilations that are already running
+when AC power is disconnected are not affected.  Compilations skipped
+because AC power was disconnected are not started again if AC power is
+subsequently reconnected; in most cases, those compilations will not be
+tried again until after you next restart Emacs.
+
+Customizing this to nil has no effect unless `battery-status-function'
+can correctly detect the absence of connected AC power on your platform."
+  :type 'boolean
+  :version "31.1")
+
 (defcustom native-comp-async-report-warnings-errors t
   "Whether to report warnings and errors from asynchronous native compilation.
 
@@ -158,11 +175,35 @@ LOAD and SELECTOR work as described in `native--compile-async'."
                       (string-match-p re file))
                     native-comp-jit-compilation-deny-list))))
 
+(defvar battery-status-function)
+
+(defun native--compile-skip-on-battery-p ()
+  "Should we skip JIT compilation because we're running on battery power?"
+  ;; The `battery-status-function' API is not specified so as to
+  ;; render it cleanly machine-readable, so we resort to heuristics.
+  ;; We could extend the API to return machine-readable information in
+  ;; the alist when an optional boolean argument is provided to the
+  ;; `battery-status-function'; we could use `func-arity' to check
+  ;; whether a custom `battery-status-function' supports the extension.
+  ;; However, so far in the time we've had battery.el, it would appear
+  ;; that this is the first time we've wanted to use the information
+  ;; other than just for generating messages.
+  (and-let* (((not native-comp-async-on-battery-power))
+             ((require 'battery))
+             battery-status-function
+             (res (funcall battery-status-function))
+             ((or (member (cdr (assq ?L res)) '("off-line" "BAT" "Battery"))
+                  ;; If %L has not given us what we need, we don't
+                  ;; consider battery charge levels or percentages,
+                  ;; because power users often configure their batteries
+                  ;; to stop charging at less than 100% as a way to
+                  ;; extend the lifetime of their battery hardware.
+                  (string= (cdr (assq ?b res)) "+")
+                  (member (cdr (assq ?B res)) '("charging" "pending-charge"))
+                  (not (string= (cdr (assq ?B res)) "discharging")))))))
+
 (defvar comp-files-queue ()
   "List of Emacs Lisp files to be compiled.")
-
-(defvar comp-async-compilations (make-hash-table :test #'equal)
-  "Hash table file-name -> async compilation process.")
 
 (defun comp--async-runnings ()
   "Return the number of async compilations currently running.
@@ -186,8 +227,7 @@ processes from `comp-async-compilations'"
 		(max 1 (/ (num-processors) 2))))
     native-comp-async-jobs-number))
 
-(defvar comp-last-scanned-async-output nil)
-(make-variable-buffer-local 'comp-last-scanned-async-output)
+(defvar-local comp-last-scanned-async-output nil)
 ;; From warnings.el
 (defvar warning-suppress-types)
 (defun comp--accept-and-process-async-output (process)
@@ -225,7 +265,8 @@ display a message."
   (cl-assert (null comp-no-spawn))
   (if (or comp-files-queue
           (> (comp--async-runnings) 0))
-      (unless (>= (comp--async-runnings) (comp--effective-async-max-jobs))
+      (unless (or (>= (comp--async-runnings) (comp--effective-async-max-jobs))
+                  (native--compile-skip-on-battery-p))
         (cl-loop
          for (source-file . load) = (pop comp-files-queue)
          while source-file
@@ -286,6 +327,7 @@ display a message."
                                    (mapcar #'prin1-to-string expr)))
                    (_ (progn
                         (with-temp-file temp-file
+                          (insert ";;; -*- lexical-binding: t -*-\n")
                           (mapc #'insert expr-strings))
                         (comp-log "\n")
                         (mapc #'comp-log expr-strings)))
@@ -371,8 +413,8 @@ Return the trampoline if found or nil otherwise."
                 (memq subr-name native-comp-never-optimize-functions)
                 (gethash subr-name comp-installed-trampolines-h))
       (cl-assert (subr-primitive-p subr))
-      (when-let ((trampoline (or (comp--trampoline-search subr-name)
-                                 (comp-trampoline-compile subr-name))))
+      (when-let* ((trampoline (or (comp--trampoline-search subr-name)
+                                  (comp-trampoline-compile subr-name))))
         (comp--install-trampoline subr-name trampoline)))))
 
 ;;;###autoload
@@ -424,7 +466,7 @@ bytecode definition was not changed in the meantime)."
             (t (signal 'native-compiler-error
                        (list "Not a file nor directory" file-or-dir)))))
     (dolist (file file-list)
-      (if-let ((entry (seq-find (lambda (x) (string= file (car x))) comp-files-queue)))
+      (if-let* ((entry (seq-find (lambda (x) (string= file (car x))) comp-files-queue)))
           ;; Most likely the byte-compiler has requested a deferred
           ;; compilation, so update `comp-files-queue' to reflect that.
           (unless (or (null load)

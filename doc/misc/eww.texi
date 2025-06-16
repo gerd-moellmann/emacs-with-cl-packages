@@ -259,6 +259,9 @@ to quickly kill, flip through and switch to specific EWW buffer.  To
 switch EWW buffers through a minibuffer prompt, press @kbd{s}
 (@code{eww-switch-to-buffer}).
 
+The @code{eww-switch-to-buffer} command will fallback to @code{eww}
+when there is no EWW buffers.
+
 @findex eww-browse-with-external-browser
 @vindex browse-url-secondary-browser-function
 @vindex eww-use-external-browser-for-content-type
@@ -372,6 +375,15 @@ customizing @code{shr-blocked-images}.
   You can control image display by customizing
 @code{shr-inhibit-images}.  If this variable is @code{nil}, display
 the ``ALT'' text of images instead.
+
+@vindex shr-sliced-image-height
+  To make scrolling up/down past images more intuititve, EWW splits
+large images into several rows.  This way, you can scroll individually
+past each slice, instead of jumping past the entire image.  EWW slices
+images that take up more than @code{shr-sliced-image-height} of the
+height of the window they are displayed in.  For example, a value of 0.7
+means that images are allowed to take up 70% of the height of the window
+before being sliced.
 
 @vindex shr-color-visible-distance-min
 @vindex shr-color-visible-luminance-min

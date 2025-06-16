@@ -404,8 +404,10 @@ elapsed since the time the first message was emitted.
 
 @defvar inhibit-message
 When this variable is non-@code{nil}, @code{message} and related functions
-will not display any messages in the Echo Area.  Echo-area messages
-are still logged in the @file{*Messages*} buffer, though.
+will not display any messages in the Echo Area, and will also not clear
+previous echo-area messages when @code{message} is called with a
+@code{nil} or an empty argument.  Echo-area messages are still logged in
+the @file{*Messages*} buffer, though.
 @end defvar
 
 @defmac with-temp-message message &rest body
@@ -2409,13 +2411,15 @@ narrow the buffer to that part before calling this function
 (@pxref{Narrowing}).
 @end defun
 
-@defun string-pixel-width string
+@defun string-pixel-width string &optional buffer
 This is a convenience function that uses @code{window-text-pixel-size}
 to compute the width of @var{string} (in pixels).  Caveat: if you call
 this function to measure the width of a string with embedded newlines,
 it will then return the width of the widest substring that does not
 include newlines.  The meaning of this result is the widest line taken
-by the string if inserted into a buffer.
+by the string if inserted into a buffer.  If @var{buffer} is
+non-@code{nil}, use any face remappings (@pxref{Face Remapping}) from
+that buffer when computing the width of @var{string}.
 @end defun
 
 @defun line-pixel-height
@@ -3182,18 +3186,21 @@ For example:
 @end example
 @end defun
 
-@defun face-all-attributes face &optional frame
+@defun face-all-attributes face &optional frame inherit
 This function returns an alist of attributes of @var{face}.  The
 elements of the result are name-value pairs of the form
 @w{@code{(@var{attr-name} . @var{attr-value})}}.  Optional argument
 @var{frame} specifies the frame whose definition of @var{face} to
 return; if omitted or @code{nil}, the returned value describes the
 default attributes of @var{face} for newly created frames, i.e.@: the
-values these attributes have before applying the face spec in the
-face's @code{defface} definition or the spec set by
-@code{face-spec-set}.  These default values of the attributes are
-normally @code{unspecified}, unless you have specified some other
-value using @code{set-face-attribute}; see below.
+values these attributes have before applying the face spec in the face's
+@code{defface} definition or the spec set by @code{face-spec-set}.
+These default values of the attributes are normally @code{unspecified},
+unless you have specified some other value using
+@code{set-face-attribute}; see below.  The optional argument
+@var{inherit} has the same meaning as the same argument to
+@code{face-attribute}, which see.  This is useful when you want the face
+attributes to be absolute and not @code{unspecified}.
 @end defun
 
 @defun merge-face-attribute attribute value1 value2
@@ -4118,6 +4125,14 @@ does that, this function's value may not be accurate.
 This function may return non-@code{nil} even when there is no font
 available, since it also checks whether the coding system for the text
 terminal can encode the character (@pxref{Terminal I/O Encoding}).
+@end defun
+
+@defun char-displayable-on-frame-p char frame
+This function behaves like @code{char-displayable-p} does (relative to
+@var{frame}), but in the graphical case, it does not perform the final
+check of whether the underlying text terminal can encode the character.
+It thus provides a displayability check for @var{char} more specific to
+@var{frame}.
 @end defun
 
 @node Low-Level Font
@@ -5245,27 +5260,29 @@ Properties}.
 specification, or a list or vector containing several display
 specifications.
 
-@defun get-display-property position prop &optional object properties
-This convenience function can be used to get a specific display
-property, no matter whether the @code{display} property is a vector, a
-list or a simple property.  This is like @code{get-text-property}
-(@pxref{Examining Properties}), but works on the @code{display}
-property only.
+@defun get-display-property position spec &optional object properties
+This convenience function can be used to get the value of a specific
+display specification, no matter whether the @code{display} property is
+a vector, a list or a single display specification.  This is like
+@code{get-text-property} (@pxref{Examining Properties}), but works on
+the @code{display} property only.  For specifications with a single
+value (e.g.@: @code{height}), this returns the value itself; for
+properties with a list of values (e.g.@: @code{slice}), this returns the
+list of values.
 
 @var{position} is the position in the buffer or string to examine, and
-@var{prop} is the @code{display} property to return.  The optional
-@var{object} argument should be either a string or a buffer, and
-defaults to the current buffer.  If the optional @var{properties}
-argument is non-@code{nil}, it should be a @code{display} property,
-and in that case, @var{position} and @var{object} are ignored.  (This
-can be useful if you've already gotten the @code{display} property
-with @code{get-char-property}, for instance (@pxref{Examining
-Properties}).
+@var{spec} is the @sc{car} of the display specification to return.  The
+optional @var{object} argument should be either a string or a buffer,
+and defaults to the current buffer.  If the optional @var{properties}
+argument is non-@code{nil}, it should be a @code{display} property, and
+in that case, @var{position} and @var{object} are ignored.  (This can be
+useful if you've already gotten the @code{display} property with
+@code{get-char-property}, for instance (@pxref{Examining Properties}).
 @end defun
 
-@defun add-display-text-property start end prop value &optional object
-Add @code{display} property @var{prop} of @var{value} to the text from
-@var{start} to @var{end}.
+@defun add-display-text-property start end spec value &optional object
+Add the display specification @code{(@var{prop} @var{value})} to the
+text from @var{start} to @var{end}.
 
 If any text in the region has a non-@code{nil} @code{display}
 property, those properties are retained.  For instance:
@@ -5276,13 +5293,51 @@ property, those properties are retained.  For instance:
 @end lisp
 
 After doing this, the region from 2 to 4 will have the @code{raise}
-@code{display} property, the region from 4 to 8 will have both the
-@code{raise} and @code{height} @code{display} properties, and finally
-the region from 8 to 12 will only have the @code{raise} @code{display}
-property.
+display specification, the region from 4 to 8 will have both the
+@code{raise} and @code{height} display specifications, and finally the
+region from 8 to 12 will only have the @code{raise} display
+specification.
 
-If @var{object} is non-@code{nil}, it should be a string or a buffer.
-If @code{nil}, this defaults to the current buffer.
+@var{object} is either a string or a buffer to add the specification to.
+If omitted, @var{object} defaults to the current buffer.
+@end defun
+
+@defun remove-display-text-property start end spec &optional object
+Remove the display specification @var{spec} from the text from
+@var{start} to @var{end}.  @var{spec} is the @sc{car} of the display
+specification to remove, e.g.@: @code{height} or @code{'(margin nil)}.
+
+If any text in the region has any other @code{display} properties, those
+properties are retained.  For instance:
+
+@lisp
+@group
+(add-display-text-property 1 8 'raise 0.5)
+(add-display-text-property 4 8 'height 2.0)
+(remove-display-text-property 2 6 'raise)
+@end group
+@end lisp
+
+After doing this, the text will have the following @code{display}
+properties:
+
+@itemize @bullet
+@item
+The region from 1 to 2, only @code{raise}
+
+@item
+The region from 2 to 4, no properties
+
+@item
+The region from 4 to 6, only @code{height}
+
+@item
+The region from 6 to 8, both @code{raise} and @code{height}
+
+@end itemize
+
+@var{object} is either a string or a buffer to remove the specification
+from. If omitted, @var{object} defaults to the current buffer.
 @end defun
 
 @cindex display property, unsafe evaluation
@@ -6755,7 +6810,7 @@ Draw vertical lines.
 @end deffn
 
 @deffn Command curveto coordinate-sets
-Using the first element in @var{coordinate-sets}, draw a cubic Bézier
+Using the first element in @var{coordinate-sets}, draw a cubic B@'ezier
 curve from the current point.  If there are multiple coordinate sets,
 draw a polybezier.  Each coordinate set is a list of the form
 @code{(@var{x1} @var{y1} @var{x2} @var{y2} @var{x} @var{y})}, where
@@ -6772,7 +6827,7 @@ beginning and at the end, respectively.
 @end deffn
 
 @deffn Command smooth-curveto coordinate-sets
-Using the first element in @var{coordinate-sets}, draw a cubic Bézier
+Using the first element in @var{coordinate-sets}, draw a cubic B@'ezier
 curve from the current point.  If there are multiple coordinate sets,
 draw a polybezier.  Each coordinate set is a list of the form
 @code{(@var{x2} @var{y2} @var{x} @var{y})}, where @w{(@var{x},
@@ -6793,7 +6848,7 @@ coincides with the current point.
 
 @deffn Command quadratic-bezier-curveto coordinate-sets
 Using the first element in @var{coordinate-sets}, draw a quadratic
-Bézier curve from the current point.  If there are multiple coordinate
+B@'ezier curve from the current point.  If there are multiple coordinate
 sets, draw a polybezier.  Each coordinate set is a list of the form
 @code{(@var{x1} @var{y1} @var{x} @var{y})}, where @w{(@var{x},
 @var{y})} is the curve's end point and @w{(@var{x1}, @var{y1})} is the
@@ -6811,7 +6866,7 @@ control point.
 
 @deffn Command smooth-quadratic-bezier-curveto coordinate-sets
 Using the first element in @var{coordinate-sets}, draw a quadratic
-Bézier curve from the current point.  If there are multiple coordinate
+B@'ezier curve from the current point.  If there are multiple coordinate
 sets, draw a polybezier.  Each coordinate set is a list of the form
 @code{(@var{x} @var{y})}, where @w{(@var{x}, @var{y})} is the curve's
 end point.  The control point is the reflection of the control point
@@ -8001,6 +8056,11 @@ between @var{start} and @var{end} into a button.  Arguments
 @code{help-echo} property of the button.
 @end defun
 
+@defun unbuttonize-region start end
+This function removes all buttons between @var{start} and @var{end} in
+the current buffer (both overlay and text-property based ones).
+@end defun
+
 @node Manipulating Buttons
 @subsection Manipulating Buttons
 @cindex manipulating buttons
@@ -8081,6 +8141,7 @@ These are commands and functions for locating and operating on
 buttons in an Emacs buffer.
 
 @cindex buffer-button-map
+@findex button-mode
 @code{push-button} is the command that a user uses to actually push
 a button, and is bound by default in the button itself to @key{RET}
 and to @key{mouse-2} using a local keymap in the button's overlay or
@@ -8091,7 +8152,8 @@ additionally available in the keymap stored in
 @code{button-buffer-map} as a parent keymap for its keymap.
 Alternatively, the @code{button-mode} can be switched on for much the
 same effect: It's a minor mode that does nothing else than install
-@code{button-buffer-map} as a minor mode keymap.
+@code{button-buffer-map} as a minor mode keymap (note that disabling
+@code{button-mode} will remove all the buttons in the current buffer).
 
 If the button has a non-@code{nil} @code{follow-link} property, and
 @code{mouse-1-click-follows-link} is set, a quick @key{mouse-1} click
@@ -8594,6 +8656,7 @@ The newline character (character code 10) has a special effect: it
 ends the preceding line and starts a new line.
 
 @cindex ASCII control characters
+@cindex non-printable ASCII characters
 @item
 The non-printable @dfn{@acronym{ASCII} control characters}---character
 codes 0 through 31, as well as the @key{DEL} character (character code
@@ -8724,6 +8787,20 @@ scroll bars are supported and in use, a scroll bar separates the two
 windows, and if there are no vertical scroll bars and no dividers
 (@pxref{Window Dividers}), Emacs uses a thin line to indicate the
 border.
+
+@item 6 to 11
+
+The glyphs for a single-line border around child frames on a terminal,
+in the order of vertical, horizontal, down-right edge, down-left edge,
+up-right, and up-left edge glyphs.  The horizontal glyph is also used for
+the single-line tty menu separator.
+
+@item 12 to 17
+
+The glyphs for a double-line border, in the order of vertical,
+horizontal, down-right edge, down-left edge, up-right, and up-left edge
+glyphs.  The horizontal glyph is also used for the single-line TTY menu
+separator, the other glyphs are not yet used.
 @end table
 
   For example, here is how to construct a display table that mimics
@@ -8746,22 +8823,32 @@ the effect of setting @code{ctl-arrow} to a non-@code{nil} value
 @defun display-table-slot display-table slot
 This function returns the value of the extra slot @var{slot} of
 @var{display-table}.  The argument @var{slot} may be a number from 0 to
-5 inclusive, or a slot name (symbol).  Valid symbols are
-@code{truncation}, @code{wrap}, @code{escape}, @code{control},
-@code{selective-display}, and @code{vertical-border}.
+17 inclusive, or a slot name, a symbol.
 @end defun
 
 @defun set-display-table-slot display-table slot value
 This function stores @var{value} in the extra slot @var{slot} of
 @var{display-table}.  The argument @var{slot} may be a number from 0 to
-5 inclusive, or a slot name (symbol).  Valid symbols are
-@code{truncation}, @code{wrap}, @code{escape}, @code{control},
-@code{selective-display}, and @code{vertical-border}.
+17 inclusive, or a slot name, a symbol.
 @end defun
+
+Valid slot name symbols are @code{truncation}, @code{wrap},
+@code{escape}, @code{control}, @code{selective-display},
+@code{vertical-border}, @code{box-vertical}, @code{box-horizontal},
+@code{box-down-right}, @code{box-down-left}, @code{box-up-right},
+@code{box-up-left}, @code{box-double-vertical},
+@code{box-double-horizontal}, @code{box-double-down-right},
+@code{box-double-down-left}, @code{box-double-up-right},
+@code{box-double-up-left}.
 
 @defun describe-display-table display-table
 This function displays a description of the display table
 @var{display-table} in a help buffer.
+@end defun
+
+@defun standard-display-unicode-special-glyphs
+This function sets the extra slots of @var{standard-display-table} with
+suitable Unicode characters.
 @end defun
 
 @deffn Command describe-current-display-table

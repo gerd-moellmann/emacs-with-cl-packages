@@ -91,7 +91,10 @@ Works with: topmost-intro-cont."
       (c-backward-syntactic-ws (c-langelem-pos langelem))
       (if (and (memq (char-before) '(?} ?,))
 	       (not (and c-overloadable-operators-regexp
-			 (c-after-special-operator-id))))
+			 (c-after-special-operator-id)))
+	       (or (not (eq (char-before) ?}))
+		   (not (eq (cdr-safe (c-in-requires-or-at-end-of-clause))
+			    t))))
 	  c-basic-offset))))
 
 (defun c-lineup-gnu-DEFUN-intro-cont (langelem)
@@ -128,7 +131,7 @@ Works with: topmost-intro-cont."
    ;; in-expression constructs.  This can both save the work that we
    ;; have to do below, and it also detect the brace list constructs
    ;; that `c-looking-at-inexpr-block' currently misses (they are
-   ;; recognized by `c-inside-bracelist-p' instead).
+   ;; recognized by `c-at-bracelist-p' instead).
    (assq 'inexpr-class c-syntactic-context)
    (assq 'inexpr-statement c-syntactic-context)
    (assq 'inlambda c-syntactic-context)
@@ -185,7 +188,12 @@ indent such cases this way.
 
 Works with: arglist-cont-nonempty, arglist-close."
   (save-excursion
-    (let ((indent-pos (point)))
+    (let ((indent-pos (point))
+	  (ws-length (save-excursion
+		       (back-to-indentation)
+		       (let ((ind-col (current-column)))
+			 (c-forward-comments (c-point 'eol))
+			 (- (current-column) ind-col)))))
 
       (if (c-block-in-arglist-dwim (c-langelem-2nd-pos c-syntactic-element))
 	  c-basic-offset		; DWIM case.
@@ -202,8 +210,10 @@ Works with: arglist-cont-nonempty, arglist-close."
 	  (c-forward-syntactic-ws)
 	  (when (< (point) indent-pos)
 	    (goto-char arglist-content-start)
-	    (skip-chars-forward " \t"))
-	  (vector (current-column)))))))
+	    (c-forward-comments (c-point 'eol))
+	    (if (eolp)
+		(goto-char arglist-content-start)))
+	  (vector (- (current-column) ws-length)))))))
 
 (defun c-lineup-argcont-1 (elem)
   ;; Move to the start of the current arg and return non-nil, otherwise
@@ -301,15 +311,49 @@ Works with: arglist-cont, arglist-cont-nonempty."
   "Line up a line to just after the open paren of the surrounding paren
 or brace block.
 
-Works with: defun-block-intro, brace-list-intro,
+Works with: defun-block-intro, brace-list-intro, enum-intro
 statement-block-intro, statement-case-intro, arglist-intro."
   (save-excursion
+    (let ((ws-length (save-excursion
+		       (back-to-indentation)
+		       (let ((ind-col (current-column)))
+			 (c-forward-comments (c-point 'eol))
+			 (- (current-column) ind-col)))))
     (beginning-of-line)
     (backward-up-list 1)
     (forward-char)
-    (skip-chars-forward " \t" (c-point 'eol))
-    (if (eolp) (skip-chars-backward " \t"))
-    (vector (current-column))))
+    (let ((after-paren-pos (point)))
+      (c-forward-comments (c-point 'eol))
+      (if (eolp)
+	  (goto-char after-paren-pos)))
+    (vector (- (current-column) ws-length)))))
+
+(defun c-lineup-item-after-paren-at-boi (_langelem)
+  "Line up to just after the surrounding open paren at boi.
+This also works when there are only open parens between the surrounding
+paren and boi.  \"paren\" here can also mean \"brace\", etc.  We line up
+under the first non-whitespace text after the paren.  If there is no
+such paren, or no such text, return nil, allowing another function to
+handle the construct.
+
+Works with: brace-list-intro, enum-intro, constraint-cont."
+  (save-excursion
+    (beginning-of-line)
+    (and
+     (if (c-langelem-2nd-pos c-syntactic-element)
+	 ;; brace-list-intro, enum-intro.
+	 (progn (goto-char (c-langelem-2nd-pos c-syntactic-element))
+		t)
+       ;; constraint-cont.
+       (c-go-up-list-backward nil (c-langelem-pos c-syntactic-element)))
+     (looking-at "\\s(")
+     (save-excursion
+       (skip-chars-backward " \t([{" (c-point 'boi))
+       (eq (point) (c-point 'boi)))
+     (progn (forward-char)
+	    (c-forward-syntactic-ws (c-point 'eol))
+	    (unless (eolp)
+	      (vector (current-column)))))))
 
 (defun c-lineup-arglist-close-under-paren (langelem)
   "Line up a line under the enclosing open paren.
@@ -324,7 +368,8 @@ as the open parenthesis of the argument list, the indentation is
 of this \"DWIM\" measure.
 
 Works with: Almost all symbols, but are typically most useful on
-arglist-close, brace-list-close, arglist-cont and arglist-cont-nonempty."
+arglist-close, brace-list-close, enum-close, arglist-cont and
+arglist-cont-nonempty."
   (save-excursion
     (if (memq (c-langelem-sym langelem)
 	      '(arglist-cont-nonempty arglist-close))
@@ -459,11 +504,12 @@ Works with: inher-cont, member-init-cont."
 	(c-backward-syntactic-ws))
 
       (c-syntactic-re-search-forward ":" eol 'move)
-      (if (looking-at c-syntactic-eol)
-	  (c-forward-syntactic-ws here)
-	(if (eq char-after-ip ?,)
-	    (backward-char)
-	  (skip-chars-forward " \t" eol)))
+      (cond
+       ((looking-at c-syntactic-eol)
+	(c-forward-syntactic-ws here))
+       ((eq char-after-ip ?,)
+	(backward-char))
+       (t (c-forward-comments eol)))
       (if (< (point) here)
 	  (vector (current-column)))
       )))
@@ -743,7 +789,7 @@ Works with: The `statement' syntactic symbol."
 	(if (c-langelem-pos langelem)
 	    (goto-char (c-langelem-pos langelem)))
 	(forward-char 1)
-	(skip-chars-forward " \t")
+	(c-forward-comments (c-point 'eol))
 	(unless (eolp)
 	  (vector (current-column))))))
 
@@ -973,11 +1019,10 @@ Works with: objc-method-call-cont."
            (target-col (progn
 			 (forward-char)
 			 (c-forward-sexp)
-			 (skip-chars-forward " \t")
+			 (c-forward-comments (c-point 'eol))
 			 (if (eolp)
 			     (+ open-bracket-col c-basic-offset)
-			   (current-column))))
-	   )
+			   (current-column)))))
       (- target-col open-bracket-col extra))))
 
 (defun c-lineup-ObjC-method-call-colons (langelem)
@@ -1110,9 +1155,9 @@ In the first case the indentation is kept unchanged, in the
 second `c-basic-offset' is added.
 
 Works with: defun-close, defun-block-intro, inline-close, block-close,
-brace-list-close, brace-list-intro, statement-block-intro,
-arglist-intro, arglist-cont-nonempty, arglist-close, and all in*
-symbols, e.g. inclass and inextern-lang."
+brace-list-close, brace-list-intro, enum-close, enum-intro,
+statement-block-intro, arglist-intro, arglist-cont-nonempty,
+arglist-close, and all in* symbols, e.g. inclass and inextern-lang."
   (save-excursion
     (beginning-of-line)
     (if (and (c-go-up-list-backward)
@@ -1146,8 +1191,8 @@ anchor position is at an open paren character.  In that case, it
 instead indents relative to the surrounding block just like
 `c-lineup-whitesmith-in-block'.
 
-Works with: brace-list-entry, brace-entry-open, statement,
-arglist-cont."
+Works with: brace-list-entry, brace-entry-open, enum-entry,
+statement, arglist-cont."
   (save-excursion
     (goto-char (c-langelem-pos langelem))
     (when (looking-at "\\s(")

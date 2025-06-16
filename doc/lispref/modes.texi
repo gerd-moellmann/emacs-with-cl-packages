@@ -183,6 +183,7 @@ adds @code{my-text-hook-function} to the hook called @code{text-mode-hook}.
 If @var{function} is already present in @var{hook} (comparing using
 @code{equal}), then @code{add-hook} does not add it a second time.
 
+@cindex @code{permanent-local-hook} (symbol property)
 If @var{function} has a non-@code{nil} property
 @code{permanent-local-hook}, then @code{kill-all-local-variables} (or
 changing major modes) won't delete it from the hook variable's local
@@ -565,6 +566,8 @@ If something special should be done if the user switches a buffer from
 this mode to any other major mode, this mode can set up a buffer-local
 value for @code{change-major-mode-hook} (@pxref{Creating Buffer-Local}).
 
+@cindex @code{mode-class} (symbol property)
+@cindex @code{special} modes
 @item
 If this mode is appropriate only for specially-prepared text produced by
 the mode itself (rather than by the user typing at the keyboard or by an
@@ -572,8 +575,6 @@ external file), then the major mode command symbol should have a
 property named @code{mode-class} with value @code{special}, put on as
 follows:
 
-@kindex mode-class @r{(property)}
-@cindex @code{special} modes
 @example
 (put 'funny-mode 'mode-class 'special)
 @end example
@@ -2148,17 +2149,6 @@ windows, you can say something like:
 @end lisp
 @end defun
 
-@vindex mode-line-compact
-  Some modes put a lot of data in the mode line, pushing elements at
-the end of the mode line off to the right.  Emacs can ``compress'' the
-mode line if the @code{mode-line-compact} variable is non-@code{nil}
-by turning stretches of spaces into a single space.  If this variable
-is @code{long}, this is only done when the mode line is wider than the
-currently selected window.  (This computation is approximate, based on
-the number of characters, and not their displayed width.)  This
-variable can be buffer-local to only compress mode-lines in certain
-buffers.
-
 @node Mode Line Data
 @subsection The Data Structure of the Mode Line
 @cindex mode line construct
@@ -3106,6 +3096,16 @@ instead.
 automatically sets up Imenu if this variable is non-@code{nil}.
 @end defvar
 
+@defvar treesit-aggregated-simple-imenu-settings
+This variable allows major modes to configure Imenu for multiple
+languages.  Its value is an alist mapping language symbols to Imenu
+settings of the form described above for the value of
+@code{treesit-simple-imenu-settings}.
+
+If this variable is non-@code{nil}, it overrides
+@code{treesit-simple-imenu-settings} for setting up Imenu.
+@end defvar
+
 @node Outline Minor Mode
 @section Outline Minor Mode
 
@@ -3153,12 +3153,22 @@ It's required in both cases: whether you define
 @code{outline-regexp} or @code{outline-search-function}.
 @end defvar
 
-If built with tree-sitter, Emacs can automatically use
-Outline minor mode if the major mode sets the following variable.
+If built with tree-sitter, Emacs can automatically use Outline
+minor mode if the major mode sets one of the following variables.
 
 @defvar treesit-outline-predicate
 This variable instructs Emacs how to find lines with outline headings.
 It should be a predicate that matches the node on the heading line.
+@end defvar
+
+@defvar treesit-aggregated-outline-predicate
+This variable allows major modes to configure outlines for multiple
+languages.  Its value is an alist mapping language symbols to outline
+headings as described above for the value of
+@code{treesit-outline-predicate}.
+
+If this variable is non-@code{nil}, it overrides
+@code{treesit-outline-predicate} for setting up outline headings.
 @end defvar
 
 @node Font Lock Mode
@@ -3403,7 +3413,7 @@ However, @var{facespec} can also evaluate to a list of this form:
 
 @example
 (@var{subexp}
-(face @var{face} @var{prop1} @var{val1} @var{prop2} @var{val2}@dots{}))
+ (face @var{face} @var{prop1} @var{val1} @var{prop2} @var{val2}@dots{}))
 @end example
 
 @noindent
@@ -3899,10 +3909,6 @@ faces specifically for Font Lock to use to highlight text.  These
 modes for syntactic highlighting outside of Font Lock mode (@pxref{Major
 Mode Conventions}).
 
-  Each of these symbols is both a face name, and a variable whose
-default value is the symbol itself.  Thus, the default value of
-@code{font-lock-comment-face} is @code{font-lock-comment-face}.
-
   The faces are listed with descriptions of their typical usage, and in
 order of greater to lesser prominence.  If a mode's syntactic
 categories do not fit well with the usage descriptions, the faces can be
@@ -4376,6 +4382,8 @@ Other keywords are optional:
 @item @tab @code{append} @tab Append the new face to existing ones
 @item @tab @code{prepend} @tab Prepend the new face to existing ones
 @item @tab @code{keep} @tab Fill-in regions without an existing face
+@item @code{:reversed} @tab @code{t}
+@tab Enable @var{query} when @var{feature} is not in the feature list.
 @item @code{:default-language} @tab @var{language}
 @tab Every @var{query} after this keyword will use @var{language}
 by default.
@@ -4406,10 +4414,11 @@ ignored.
 @end defun
 
 @c FIXME: Cross-ref treesit-font-lock-level to user manual.
+@vindex treesit-font-lock-level
 @defvar treesit-font-lock-feature-list
 This is a list of lists of feature symbols.  Each element of the list
 is a list that represents a decoration level.
-@code{treesit-font-lock-level} controls which levels are
+The @code{treesit-font-lock-level} user option controls which levels are
 activated.
 
 Each element of the list is a list of the form @w{@code{(@var{feature}
@@ -4454,10 +4463,23 @@ For this variable to take effect, a Lisp program should call
 @code{treesit-font-lock-recompute-features}).
 @end defvar
 
+@findex treesit-font-lock-setting-query
+@findex treesit-font-lock-setting-feature
+@findex treesit-font-lock-setting-enable
+@findex treesit-font-lock-setting-override
+@findex treesit-font-lock-setting-reversed
 @defvar treesit-font-lock-settings
-A list of settings for tree-sitter based font lock.  The exact format
-of each setting is considered internal.  One should always use
+A list of settings for tree-sitter based font lock.  The exact format of
+each individual setting is considered internal.  One should always use
 @code{treesit-font-lock-rules} to set this variable.
+
+Even though the setting object is opaque, Emacs provides accessors for
+the setting's query, feature, enable flag and override flag:
+@code{treesit-font-lock-setting-query},
+@code{treesit-font-lock-setting-feature},
+@code{treesit-font-lock-setting-enable},
+@code{treesit-font-lock-setting-override},
+@code{treesit-font-lock-setting-reversed}.
 
 @c Because the format is internal, we don't document them here.  Though
 @c we do have it explained in the docstring.  We also expose the fact
@@ -5226,11 +5248,14 @@ more complex indentation engines.
 @cindex indentation rules, for parser-based indentation
 
 @defvar treesit-simple-indent-rules
-This local variable stores indentation rules for every language.  It
-is an alist with elements of the form @w{@code{(@var{language}
-. @var{rules})}}, where @var{language} is a language symbol, and
-@var{rules} is a list with elements of the form
-@w{@code{(@var{matcher} @var{anchor} @var{offset})}}.
+This local variable stores indentation rules for every language.  It is
+an list of elements of the form @w{@code{(@var{language}
+@var{rule}@dots{})}}, where @var{language} is a language symbol, and each
+@var{rule} is either a list with elements of the form
+@w{@code{(@var{matcher} @var{anchor} @var{offset})}}, or a function.
+
+Here's the description of the list variant, followed by the function
+variant.
 
 First, Emacs passes the smallest tree-sitter node at the beginning of
 the current line to @var{matcher}; if it returns non-@code{nil}, this
@@ -5260,6 +5285,14 @@ and @var{anchor} should return a buffer position.
 or a function that returns an integer.  If it is a function, it is
 passed @var{node}, @var{parent}, and @var{bol}, like matchers and
 anchors.
+
+If @var{rule}is a function, it is useful for the complex cases where a
+rule needs to consider the matching rule and the anchor together.  The
+@var{rule} function is passed the same argument as @var{matcher}:
+@var{node}, @var{parent}, and @var{bol}.  If it matches, @var{rule}
+should return a cons @w{@code{(@var{anchor-pos} . @var{offset})}}, where
+@var{anchor-pos} is a buffer position, and @var{offset} is the indent
+offset.  If @var{rule} doesn't match, it should return @code{nil}.
 @end defvar
 
 @defvar treesit-simple-indent-presets
@@ -5376,11 +5409,14 @@ on the line which @var{parent}'s start is on.
 
 @item standalone-parent
 This anchor is a function that is called with 3 arguments: @var{node},
-@var{parent}, and @var{bol}.  It finds the first ancestor node
-(parent, grandparent, etc.@:) of @var{node} that starts on its own
-line, and return the start of that node.  ``Starting on its own line''
-means there is only whitespace character before the node on the line
-which the node's start is on.
+@var{parent}, and @var{bol}.  It finds the first ancestor node (parent,
+grandparent, etc.@:) of @var{node} that starts on its own line, and
+return the start of that node.  ``Starting on its own line'' means there
+is only whitespace character before the node on the line which the
+node's start is on.  The exact definition of ``Starting on its own
+line'' can be relaxed by setting
+@code{treesit-simple-indent-standalone-predicate}, some major mode might
+want to do that for easier indentation for method chaining.
 
 @item prev-sibling
 This anchor is a function that is called with 3 arguments: @var{node},

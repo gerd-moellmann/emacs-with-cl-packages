@@ -25,7 +25,7 @@
 
 ;;; Code:
 
-(defcustom term-file-prefix (purecopy "term/")
+(defcustom term-file-prefix "term/"
   "If non-nil, Emacs startup performs terminal-specific initialization.
 It does this by: (load (concat term-file-prefix (getenv \"TERM\")))
 
@@ -99,8 +99,7 @@ a font height that isn't optimal."
 ;; unavailable, and we fall back on the courier and helv families,
 ;; which are generally available.
 (defcustom face-font-family-alternatives
-  (mapcar (lambda (arg) (mapcar 'purecopy arg))
-  '(("Monospace" "courier" "fixed")
+  '(("Monospace" "Cascadia Code" "Lucida Console" "courier" "fixed")
 
     ;; Monospace Serif is an Emacs invention, intended to work around
     ;; portability problems when using Courier.  It should work well
@@ -133,8 +132,11 @@ a font height that isn't optimal."
     ;; This is present for backward compatibility.
     ("courier" "CMU Typewriter Text" "fixed")
 
-    ("Sans Serif" "helv" "helvetica" "arial" "fixed")
-    ("helv" "helvetica" "arial" "fixed")))
+    ("Sans Serif"
+     ;; https://en.wikipedia.org/wiki/List_of_typefaces_included_with_Microsoft_Windows
+     "Calibri" "Tahoma" "Lucida Sans Unicode"
+     "helv" "helvetica" "arial" "fixed")
+    ("helv" "helvetica" "arial" "fixed"))
   "Alist of alternative font family names.
 Each element has the form (FAMILY ALTERNATIVE1 ALTERNATIVE2 ...).
 If fonts of family FAMILY can't be loaded, try ALTERNATIVE1, then
@@ -149,7 +151,6 @@ ALTERNATIVE2 etc."
 
 ;; This is defined originally in xfaces.c.
 (defcustom face-font-registry-alternatives
-  (mapcar (lambda (arg) (mapcar 'purecopy arg))
   (if (featurep 'w32)
       '(("iso8859-1" "ms-oemlatin")
 	("gb2312.1980" "gb2312" "gbk" "gb18030")
@@ -159,7 +160,7 @@ ALTERNATIVE2 etc."
     '(("gb2312.1980" "gb2312.80&gb8565.88" "gbk" "gb18030")
       ("jisx0208.1990" "jisx0208.1983" "jisx0208.1978")
       ("ksc5601.1989" "ksx1001.1992" "ksc5601.1987")
-      ("muletibetan-2" "muletibetan-0"))))
+      ("muletibetan-2" "muletibetan-0")))
   "Alist of alternative font registry names.
 Each element has the form (REGISTRY ALTERNATIVE1 ALTERNATIVE2 ...).
 If fonts of registry REGISTRY can be loaded, font selection
@@ -351,11 +352,6 @@ is either `foreground-color', `background-color', or a keyword."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defcustom face-x-resources
-  (mapcar
-   (lambda (arg)
-     ;; FIXME; can we purecopy some of the conses too?
-     (cons (car arg)
-	   (cons (purecopy (car (cdr arg))) (purecopy (cdr (cdr arg))))))
   '((:family (".attributeFamily" . "Face.AttributeFamily"))
     (:foundry (".attributeFoundry" . "Face.AttributeFoundry"))
     (:width (".attributeWidth" . "Face.AttributeWidth"))
@@ -378,7 +374,7 @@ is either `foreground-color', `background-color', or a keyword."
     (:bold (".attributeBold" . "Face.AttributeBold"))
     (:italic (".attributeItalic" . "Face.AttributeItalic"))
     (:font (".attributeFont" . "Face.AttributeFont"))
-    (:inherit (".attributeInherit" . "Face.AttributeInherit"))))
+    (:inherit (".attributeInherit" . "Face.AttributeInherit")))
   "List of X resources and classes for face attributes.
 Each element has the form (ATTRIBUTE ENTRY1 ENTRY2...) where ATTRIBUTE is
 the name of a face attribute, and each ENTRY is a cons of the form
@@ -446,15 +442,16 @@ If `inhibit-x-resources' is non-nil, this function does nothing."
   (symbol-name (check-face face)))
 
 
-(defun face-all-attributes (face &optional frame)
+(defun face-all-attributes (face &optional frame inherit)
   "Return an alist stating the attributes of FACE.
 Each element of the result has the form (ATTR-NAME . ATTR-VALUE).
 If FRAME is omitted or nil the value describes the default attributes,
-but if you specify FRAME, the value describes the attributes
-of FACE on FRAME."
+but if you specify FRAME, the value describes the attributes of FACE
+on FRAME.
+INHERIT has the same meaning as in `face-attribute', which see."
   (mapcar (lambda (pair)
 	    (let ((attr (car pair)))
-	      (cons attr (face-attribute face attr (or frame t)))))
+	      (cons attr (face-attribute face attr (or frame t) inherit))))
   	  face-attribute-name-alist))
 
 (defun face-attribute (face attribute &optional frame inherit)
@@ -661,7 +658,7 @@ If FACE is a face-alias, get the documentation for the target face."
 (defun set-face-documentation (face string)
   "Set the documentation string for FACE to STRING."
   ;; Perhaps the text should go in DOC.
-  (put face 'face-documentation (purecopy string)))
+  (put face 'face-documentation string))
 
 
 (define-obsolete-function-alias 'face-doc-string #'face-documentation "29.1")
@@ -860,7 +857,6 @@ setting `:weight' to `bold', and a value of t for `:italic' is
 equivalent to setting `:slant' to `italic'.  But if `:weight' is
 specified in the face spec, `:bold' is ignored, and if `:slant'
 is specified, `:italic' is ignored."
-  (setq args (purecopy args))
   (let ((where (if (null frame) 0 frame))
 	(spec args)
 	family foundry orig-family orig-foundry)
@@ -890,15 +886,13 @@ is specified, `:italic' is ignored."
           (setq family orig-family)
           (setq foundry orig-foundry)))
       (when (or (stringp family) (eq family 'unspecified))
-	(internal-set-lisp-face-attribute face :family (purecopy family)
-					  where))
+        (internal-set-lisp-face-attribute face :family family where))
       (when (or (stringp foundry) (eq foundry 'unspecified))
-	(internal-set-lisp-face-attribute face :foundry (purecopy foundry)
-					  where)))
+        (internal-set-lisp-face-attribute face :foundry foundry where)))
     (while args
       (unless (memq (car args) '(:family :foundry))
 	(internal-set-lisp-face-attribute face (car args)
-					  (purecopy (cadr args))
+                                          (cadr args)
 					  where))
       (setq args (cddr args)))))
 
@@ -1144,30 +1138,30 @@ returned.  Otherwise, DEFAULT is returned verbatim."
     (let ((prompt (if default
                       (format-prompt prompt default)
                     (format "%s: " prompt)))
-          (completion-extra-properties
-           `(:affixation-function
-             ,(lambda (faces)
-                (mapcar
-                 (lambda (face)
-                   (list face
-                         (concat (propertize read-face-name-sample-text
-                                             'face face)
-                                 "\t")
-                         ""))
-                 faces))))
-          aliasfaces nonaliasfaces faces)
+          aliasfaces nonaliasfaces table)
       ;; Build up the completion tables.
       (mapatoms (lambda (s)
                   (if (facep s)
                       (if (get s 'face-alias)
                           (push (symbol-name s) aliasfaces)
                         (push (symbol-name s) nonaliasfaces)))))
+      (setq table
+            (completion-table-with-metadata
+             (completion-table-in-turn nonaliasfaces aliasfaces)
+             `((affixation-function
+                . ,(lambda (faces)
+                     (mapcar
+                      (lambda (face)
+                        (list face
+                              (concat (propertize read-face-name-sample-text
+                                                  'face face)
+                                      "\t")
+                              ""))
+                      faces))))))
       (if multiple
-          (progn
-            (dolist (face (completing-read-multiple
-                           prompt
-                           (completion-table-in-turn nonaliasfaces aliasfaces)
-                           nil t nil 'face-name-history default))
+          (let (faces)
+            (dolist (face (completing-read-multiple prompt table nil t nil
+                                                    'face-name-history default))
               ;; Ignore elements that are not faces
               ;; (for example, because DEFAULT was "all faces")
               (if (facep face) (push (if (stringp face)
@@ -1175,10 +1169,8 @@ returned.  Otherwise, DEFAULT is returned verbatim."
                                        face)
                                      faces)))
             (nreverse faces))
-        (let ((face (completing-read
-                     prompt
-                     (completion-table-in-turn nonaliasfaces aliasfaces)
-                     nil t nil 'face-name-history defaults)))
+        (let ((face (completing-read prompt table nil t nil
+                                     'face-name-history defaults)))
           (when (facep face) (if (stringp face)
                                  (intern face)
                                face)))))))
@@ -1776,7 +1768,8 @@ The following sources are applied in this order:
                                    (list :extend (cadr tail))))))
     (setq face-attrs (face-spec-choose (get face 'face-override-spec) frame))
     (face-spec-set-2 face frame face-attrs)
-    (when (and (fboundp 'set-frame-parameter) ; This isn't available
+    (when (and (not (eq (framep frame) t))
+	       (fboundp 'set-frame-parameter) ; This isn't available
                                               ; during loadup.
                (eq face 'scroll-bar))
       ;; Set the `scroll-bar-foreground' and `scroll-bar-background'
@@ -2095,7 +2088,7 @@ do that, use `get-text-property' and `get-char-property'."
   (let (faces)
     (when text
       ;; Try to get a face name from the buffer.
-      (when-let ((face (thing-at-point 'face)))
+      (when-let* ((face (thing-at-point 'face)))
         (push face faces)))
     ;; Add the named faces that the `read-face-name' or `face' property uses.
     (let ((faceprop (or (get-char-property (point) 'read-face-name)
@@ -2623,9 +2616,9 @@ unwanted effects."
 
 (defface line-number-major-tick
   '((((class color grayscale) (background light))
-     :background "grey85" :bold t)
+     :background "grey85" :weight bold)
     (((class color grayscale) (background dark))
-     :background "grey75" :bold t)
+     :background "grey75" :weight bold)
     (t :inherit line-number))
   "Face for highlighting \"major ticks\" (as in a ruler).
 When `display-line-numbers-major-tick' is positive, highlight
@@ -2644,9 +2637,9 @@ unwanted effects."
 
 (defface line-number-minor-tick
   '((((class color grayscale) (background light))
-     :background "grey95" :bold t)
+     :background "grey95" :weight bold)
     (((class color grayscale) (background dark))
-     :background "grey55" :bold t)
+     :background "grey55" :weight bold)
     (t :inherit line-number))
   "Face for highlighting \"minor ticks\" (as in a ruler).
 When `display-line-numbers-minor-tick' is positive, highlight
@@ -2817,6 +2810,21 @@ Use the face `mode-line-highlight' for features that can be selected."
 (defface header-line-highlight '((t :inherit mode-line-highlight))
   "Basic header line face for highlighting."
   :version "28.1"
+  :group 'basic-faces)
+
+(defface header-line-active
+  '((t :inherit header-line))
+  "Face for the selected header line.
+This inherits from the `header-line' face."
+  :version "31.1"
+  :group 'mode-line-faces
+  :group 'basic-faces)
+
+(defface header-line-inactive
+  '((t :inherit header-line))
+  "Basic header line face for non-selected windows."
+  :version "31.1"
+  :group 'mode-line-faces
   :group 'basic-faces)
 
 (defface vertical-border
@@ -3175,16 +3183,15 @@ This face is used by `show-paren-mode'."
       (encoding		"[^-]+")
       )
   (setq x-font-regexp
-	(purecopy (concat "\\`\\*?[-?*]"
+        (concat "\\`\\*?[-?*]"
 		foundry - family - weight\? - slant\? - swidth - adstyle -
 		pixelsize - pointsize - resx - resy - spacing - avgwidth -
-		registry - encoding "\\*?\\'"
-		)))
+                registry - encoding "\\*?\\'"))
   (setq x-font-regexp-head
-	(purecopy (concat "\\`[-?*]" foundry - family - weight\? - slant\?
-		"\\([-*?]\\|\\'\\)")))
-  (setq x-font-regexp-slant (purecopy (concat - slant -)))
-  (setq x-font-regexp-weight (purecopy (concat - weight -)))
+        (concat "\\`[-?*]" foundry - family - weight\? - slant\?
+                "\\([-*?]\\|\\'\\)"))
+  (setq x-font-regexp-slant (concat - slant -))
+  (setq x-font-regexp-weight (concat - weight -))
   nil)
 
 

@@ -1,6 +1,6 @@
 ;;; modus-vivendi-tritanopia-theme.el --- Tritanopia-optimized theme with a black background -*- lexical-binding:t -*-
 
-;; Copyright (C) 2019-2025 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2025  Free Software Foundation, Inc.
 
 ;; Author: Protesilaos Stavrou <info@protesilaos.com>
 ;; Maintainer: Protesilaos Stavrou <info@protesilaos.com>
@@ -63,7 +63,7 @@ standard)."
       (bg-dim           "#1e1e1e")
       (fg-main          "#ffffff")
       (fg-dim           "#989898")
-      (fg-alt           "#c6daff")
+      (fg-alt           "#a0d7f2")
       (bg-active        "#535353")
       (bg-inactive      "#303030")
       (border           "#646464")
@@ -72,7 +72,7 @@ standard)."
 
       (red             "#ff5f59")
       (red-warmer      "#ff6740")
-      (red-cooler      "#ff6f9f")
+      (red-cooler      "#ff7f86")
       (red-faint       "#ff9070")
       (red-intense     "#ff5f5f")
       (green           "#44bc44")
@@ -134,11 +134,19 @@ standard)."
       (bg-magenta-nuanced "#2f0c3f")
       (bg-cyan-nuanced    "#042837")
 
-;;; Uncommon accent backgrounds
+;;; Uncommon accent background and foreground pairs
 
-      (bg-ochre    "#442c2f")
+      (bg-clay     "#49191a")
+      (fg-clay     "#f1b090")
+
+      (bg-ochre    "#462f20")
+      (fg-ochre    "#e0d09c")
+
       (bg-lavender "#38325c")
-      (bg-sage     "#0f3d30")
+      (fg-lavender "#dfc0f0")
+
+      (bg-sage     "#143e32")
+      (fg-sage     "#c3e7d4")
 
 ;;; Graphs
 
@@ -159,14 +167,10 @@ standard)."
 
       (bg-completion       "#004253")
       (bg-hover            "#8e3e3b")
-      (bg-hover-secondary  "#00405f")
+      (bg-hover-secondary  "#204853")
       (bg-hl-line          "#2f3849")
       (bg-region           "#5a5a5a")
       (fg-region           "#ffffff")
-
-      (bg-char-0 "#922a00")
-      (bg-char-1 "#00709f")
-      (bg-char-2 "#5f3faf")
 
       (bg-mode-line-active        "#003c52")
       (fg-mode-line-active        "#f0f0f0")
@@ -248,19 +252,25 @@ standard)."
 
 ;;;; Code mappings
 
+      (bracket fg-main)
       (builtin magenta)
       (comment red-faint)
       (constant green-faint)
-      (docstring fg-alt)
+      (delimiter fg-main)
       (docmarkup magenta-faint)
+      (docstring fg-alt)
       (fnname cyan-warmer)
       (keyword red-cooler)
+      (number fg-main)
+      (operator fg-main)
       (preprocessor red-warmer)
+      (property cyan-cooler)
+      (punctuation fg-main)
+      (rx-backslash magenta)
+      (rx-construct red)
       (string cyan)
       (type blue-warmer)
       (variable cyan-cooler)
-      (rx-construct red)
-      (rx-backslash magenta)
 
 ;;;; Accent mappings
 
@@ -291,14 +301,16 @@ standard)."
 
       (date-common cyan-cooler)
       (date-deadline red)
+      (date-deadline-subtle red-faint)
       (date-event fg-alt)
       (date-holiday red-intense)
       (date-holiday-other cyan-warmer)
       (date-now fg-main)
       (date-range fg-alt)
       (date-scheduled magenta)
+      (date-scheduled-subtle magenta-faint)
       (date-weekday cyan)
-      (date-weekend red-faint)
+      (date-weekend magenta-warmer)
 
 ;;;; Line number mappings
 
@@ -370,7 +382,7 @@ standard)."
       (prose-table fg-alt)
       (prose-table-formula red-cooler)
 
-      (prose-tag magenta-faint)
+      (prose-tag fg-alt)
 
 ;;;; Rainbow mappings
 
@@ -482,6 +494,19 @@ as a symbol and the latter as a string.
 Semantic color mappings have the form (MAPPING-NAME COLOR-NAME)
 with both as symbols.  The latter is a named color that already
 exists in the palette and is associated with a HEX-VALUE.")
+
+  (defcustom modus-vivendi-tritanopia-palette-user nil
+    "Like the `modus-vivendi-tritanopia-palette' for user-defined entries.
+This is meant to extend the palette with custom named colors and/or
+semantic palette mappings.  Those may then be used in combination with
+palette overrides (also see `modus-themes-common-palette-overrides' and
+`modus-vivendi-tritanopia-palette-overrides')."
+    :group 'modus-themes
+    :package-version '(modus-themes . "4.5.0")
+    :type '(repeat (list symbol (choice symbol string)))
+    :set #'modus-themes--set-option
+    :initialize #'custom-initialize-default
+    :link '(info-link "(modus-themes) Option to extend the palette for use with overrides"))
 
   (defcustom modus-vivendi-tritanopia-palette-overrides nil
     "Overrides for `modus-vivendi-tritanopia-palette'.

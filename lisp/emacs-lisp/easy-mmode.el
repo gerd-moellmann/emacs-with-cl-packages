@@ -269,7 +269,7 @@ INIT-VALUE LIGHTER KEYMAP.
       (setq body (cdr body))
       (pcase keyw
 	(:init-value (setq init-value (pop body)))
-	(:lighter (setq lighter (purecopy (pop body))))
+        (:lighter (setq lighter (pop body)))
 	(:global (setq globalp (pop body))
                  (when (and globalp (symbolp mode))
                    (setq setter `(setq-default ,mode))
@@ -443,8 +443,6 @@ No problems result if this variable is not bound.
 ;;; make global minor mode
 ;;;
 
-;;;###autoload
-(defalias 'define-global-minor-mode #'define-globalized-minor-mode)
 ;;;###autoload
 (defmacro define-globalized-minor-mode (global-mode mode turn-on &rest body)
   "Make a global mode GLOBAL-MODE corresponding to buffer-local minor MODE.
@@ -763,6 +761,59 @@ CSS contains a list of syntax specifications of the form (CHAR . SYNTAX)."
 ;;; easy-mmode-define-navigation
 ;;;
 
+(defun easy-mmode--prev (re name count &optional endfun narrowfun)
+  "Go to the COUNT'th previous occurrence of RE.
+
+If none, error with NAME.
+
+ENDFUN and NARROWFUN are treated like in `easy-mmode-define-navigation'."
+  (unless count (setq count 1))
+  (if (< count 0) (easy-mmode--next re name (- count) endfun narrowfun)
+    (let ((re-narrow (and narrowfun (prog1 (buffer-narrowed-p) (widen)))))
+      ;; If point is inside a match for RE, move to its beginning like
+      ;; `backward-sexp' and other movement commands.
+      (when (and (not (zerop count))
+                 (save-excursion
+                   ;; Make sure we're out of the current match if any.
+                   (goto-char (if (re-search-backward re nil t 1)
+                                  (match-end 0) (point-min)))
+                   (re-search-forward re nil t 1))
+                 (< (match-beginning 0) (point) (match-end 0)))
+        (goto-char (match-beginning 0))
+        (setq count (1- count)))
+      (unless (re-search-backward re nil t count)
+        (user-error "No previous %s" name))
+      (when re-narrow (funcall narrowfun)))))
+
+(defun easy-mmode--next (re name count &optional endfun narrowfun)
+  "Go to the next COUNT'th occurrence of RE.
+
+If none, error with NAME.
+
+ENDFUN and NARROWFUN are treated like in `easy-mmode-define-navigation'."
+  (unless count (setq count 1))
+  (if (< count 0) (easy-mmode--prev re name (- count) endfun narrowfun)
+    (if (looking-at re) (setq count (1+ count)))
+    (let ((re-narrow (and narrowfun (prog1 (buffer-narrowed-p) (widen)))))
+      (if (not (re-search-forward re nil t count))
+          (if (looking-at re)
+              (goto-char (or (if endfun (funcall endfun)) (point-max)))
+            (user-error "No next %s" name))
+        (goto-char (match-beginning 0))
+        (when (and (eq (current-buffer) (window-buffer))
+                   (called-interactively-p 'interactive))
+          (let ((endpt (or (save-excursion
+                             (if endfun (funcall endfun)
+                               (re-search-forward re nil t 2)))
+                           (point-max))))
+            (unless (pos-visible-in-window-p endpt nil t)
+              (let ((ws (window-start)))
+                (recenter '(0))
+                (if (< (window-start) ws)
+                    ;; recenter scrolled in the wrong direction!
+                    (set-window-start nil ws)))))))
+      (when re-narrow (funcall narrowfun)))))
+
 (defmacro easy-mmode-define-navigation (base re &optional name endfun narrowfun
                                              &rest body)
   "Define BASE-next and BASE-prev to navigate in the buffer.
@@ -780,60 +831,33 @@ BODY is executed after moving to the destination location."
   (let* ((base-name (symbol-name base))
 	 (prev-sym (intern (concat base-name "-prev")))
 	 (next-sym (intern (concat base-name "-next")))
-         (when-narrowed
-          (lambda (body)
-            (if (null narrowfun) body
-              `(let ((was-narrowed (prog1 (buffer-narrowed-p) (widen))))
-                 ,body
-                 (when was-narrowed (funcall #',narrowfun)))))))
+         (endfun (when endfun `#',endfun))
+         (narrowfun (when narrowfun `#',narrowfun)))
     (unless name (setq name base-name))
-    ;; FIXME: Move most of those functions's bodies to helper functions!
     `(progn
        (defun ,next-sym (&optional count)
 	 ,(format "Go to the next COUNT'th %s.
 Interactively, COUNT is the prefix numeric argument, and defaults to 1." name)
 	 (interactive "p")
-	 (unless count (setq count 1))
-	 (if (< count 0) (,prev-sym (- count))
-	   (if (looking-at ,re) (setq count (1+ count)))
-           ,(funcall when-narrowed
-             `(if (not (re-search-forward ,re nil t count))
-                  (if (looking-at ,re)
-                      (goto-char (or ,(if endfun `(funcall #',endfun)) (point-max)))
-                    (user-error "No next %s" ,name))
-                (goto-char (match-beginning 0))
-                (when (and (eq (current-buffer) (window-buffer))
-                           (called-interactively-p 'interactive))
-                  (let ((endpt (or (save-excursion
-                                     ,(if endfun `(funcall #',endfun)
-                                        `(re-search-forward ,re nil t 2)))
-                                   (point-max))))
-                    (unless (pos-visible-in-window-p endpt nil t)
-                      (let ((ws (window-start)))
-                        (recenter '(0))
-                        (if (< (window-start) ws)
-                            ;; recenter scrolled in the wrong direction!
-                            (set-window-start nil ws))))))))
-           ,@body))
+         (easy-mmode--next ,re ,name count ,endfun ,narrowfun)
+         ,@body)
        (put ',next-sym 'definition-name ',base)
        (defun ,prev-sym (&optional count)
 	 ,(format "Go to the previous COUNT'th %s.
-Interactively, COUNT is the prefix numeric argument, and defaults to 1."
-                  (or name base-name))
+Interactively, COUNT is the prefix numeric argument, and defaults to 1." name)
 	 (interactive "p")
-	 (unless count (setq count 1))
-	 (if (< count 0) (,next-sym (- count))
-           ,(funcall when-narrowed
-             `(unless (re-search-backward ,re nil t count)
-                (user-error "No previous %s" ,name)))
-           ,@body))
+         (easy-mmode--prev ,re ,name count ,endfun ,narrowfun)
+         ,@body)
        (put ',prev-sym 'definition-name ',base))))
 
-;; When deleting these two, also delete them from loaddefs-gen.el.
+;; When deleting these, also delete them from loaddefs-gen.el.
 ;;;###autoload
 (define-obsolete-function-alias 'easy-mmode-define-minor-mode #'define-minor-mode "30.1")
 ;;;###autoload
 (define-obsolete-function-alias 'easy-mmode-define-global-mode #'define-globalized-minor-mode "30.1")
+;;;###autoload
+(define-obsolete-function-alias 'define-global-minor-mode
+  #'define-globalized-minor-mode "31.1")
 
 (provide 'easy-mmode)
 

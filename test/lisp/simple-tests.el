@@ -22,7 +22,6 @@
 ;;; Code:
 
 (require 'ert)
-(require 'ert-x)
 (eval-when-compile (require 'cl-lib))
 
 (defun simple-test--buffer-substrings ()
@@ -571,6 +570,51 @@ See bug#35036."
     (simple-tests--exec '(undo-redo))
     (should (equal (buffer-string) "abcde"))))
 
+(ert-deftest simple-tests--undo-apply () ;bug#74523
+  (with-temp-buffer
+    (modula-2-mode) ;; A simple mode with non-LF terminated comments.
+    (buffer-enable-undo)
+    (insert "foo\n\n")
+    (let ((midbeg (point-marker))
+          (_ (insert "midmid"))
+          (midend (point-marker)))
+      (insert "\n\nbar")
+      (undo-boundary)
+      (goto-char (+ midbeg 3))
+      (insert "\n")
+      (undo-boundary)
+      (comment-region (point-min) midbeg) ;inserts an `apply' element.
+      (undo-boundary)
+      (comment-region midend (point-max)) ;inserts an `apply' element.
+      (undo-boundary)
+      (progn
+        (goto-char midbeg)
+        (set-mark midend)
+        (setq last-command 'something-else) ;Not `undo', so we start a new run.
+        (undo '(4))
+        (should (equal (buffer-substring midbeg midend) "midmid")))
+      ;; (progn
+      ;;   (goto-char (point-min))
+      ;;   ;; FIXME: `comment-region-default' puts a too conservative boundary
+      ;;   ;; on the `apply' block, so we have to use a larger undo-region to
+      ;;   ;; include the comment-region action.  This in turn makes the
+      ;;   ;; undo-region include the \n insertion/deletion so we need 2 undo
+      ;;   ;; steps.
+      ;;   (set-mark (1+ midend))
+      ;;   (setq last-command 'something-else) ;Not `undo', so we start a new run.
+      ;;   (undo '(4))
+      ;;   (setq last-command 'undo) ;Continue the undo run.
+      ;;   (undo)
+      ;;   (should (equal (buffer-substring (point-min) midbeg) "foo\n\n")))
+      ;; (progn
+      ;;   (goto-char (point-max))
+      ;;   (set-mark midend)
+      ;;   (setq last-command 'something-else) ;Not `undo', so we start a new run.
+      ;;   (undo '(4))
+      ;;   (should (equal (buffer-substring midend (point-max)) "\n\nbar"))
+      ;;   (should (equal (buffer-string) "foo\n\nmidmid\n\nbar")))
+      )))
+
 (defun simple-tests--sans-leading-nil (lst)
   "Return LST sans the leading nils."
   (while (and (consp lst) (null (car lst)))
@@ -589,7 +633,8 @@ See bug#35036."
         (undo-boundary))
       (should (equal (buffer-string) "abc"))
       ;; Tests mappings in `undo-equiv-table'.
-      (simple-tests--exec '(undo))
+      ;; `ignore' makes sure the `undo' won't continue a previous `undo'.
+      (simple-tests--exec '(ignore undo))
       (should (equal (buffer-string) "ab"))
       (should (eq (gethash (simple-tests--sans-leading-nil
                             buffer-undo-list)
@@ -1102,7 +1147,7 @@ See Bug#21722."
 (ert-deftest kill-whole-line-invisible ()
   (cl-flet ((test (kill-whole-line-arg &rest expected-lines)
               (ert-info ((format "%s" kill-whole-line-arg) :prefix "Subtest: ")
-                (ert-with-test-buffer-selected nil
+                (ert-with-test-buffer (:selected t)
                   (simple-test--set-buffer-text-point-mark
                    (string-join
                     '("* -2" "hidden"
@@ -1170,7 +1215,7 @@ See Bug#21722."
   (cl-flet
       ((test (kill-whole-line-arg expected-kill-lines expected-buffer-lines)
          (ert-info ((format "%s" kill-whole-line-arg) :prefix "Subtest: ")
-           (ert-with-test-buffer-selected nil
+           (ert-with-test-buffer (:selected t)
              (simple-test--set-buffer-text-point-mark
               (string-join '("-2" "-1" "A<POINT>B" "1" "2" "") "\n"))
              (read-only-mode 1)
@@ -1192,7 +1237,7 @@ See Bug#21722."
     (test -9 '("-2" "-1" "AB") '("<POINT>-2" "-1" "AB" "1" "2" ""))))
 
 (ert-deftest kill-whole-line-after-other-kill ()
-  (ert-with-test-buffer-selected nil
+  (ert-with-test-buffer (:selected t)
     (simple-test--set-buffer-text-point-mark "A<POINT>X<MARK>B")
     (setq last-command #'ignore)
     (kill-region (point) (mark))
@@ -1204,7 +1249,7 @@ See Bug#21722."
                    (simple-test--get-buffer-text-point-mark)))))
 
 (ert-deftest kill-whole-line-buffer-boundaries ()
-  (ert-with-test-buffer-selected nil
+  (ert-with-test-buffer (:selected t)
     (ert-info ("0" :prefix "Subtest: ")
       (simple-test--set-buffer-text-point-mark "<POINT>")
       (should-error (kill-whole-line -1)
@@ -1235,7 +1280,7 @@ See Bug#21722."
       (should (equal "A\n" (car kill-ring))))))
 
 (ert-deftest kill-whole-line-line-boundaries ()
-  (ert-with-test-buffer-selected nil
+  (ert-with-test-buffer (:selected t)
     (ert-info ("1a" :prefix "Subtest: ")
       (simple-test--set-buffer-text-point-mark "-1\n<POINT>\n1\n")
       (setq last-command #'ignore)

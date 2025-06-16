@@ -20,12 +20,49 @@
 /* Provide public ATTRIBUTE_* names for the private _GL_ATTRIBUTE_*
    macros used within Gnulib.  */
 
-/* These attributes can be placed in two ways:
-     - At the start of a declaration (i.e. even before storage-class
-       specifiers!); then they apply to all entities that are declared
-       by the declaration.
-     - Immediately after the name of an entity being declared by the
-       declaration; then they apply to that entity only.  */
+/* The placement of these attributes depends on the kind of declaration
+   and, in some cases, also on the programming language (C vs. C++).
+
+   In function declarations and function definitions:
+
+     * ATTRIBUTE_NOTHROW must come after the parameter list.
+
+     * The macros
+         ATTRIBUTE_CONST
+         ATTRIBUTE_PURE
+         DEPRECATED
+         MAYBE_UNUSED
+         NODISCARD
+         REPRODUCIBLE
+         UNSEQUENCED
+       must come before the return type, and more precisely:
+         - In a function declaration/definition without a storage-class
+           specifier: at the beginning of the declaration/definition.
+         - In a function declaration/definition with a storage-class
+           specifier:
+             - In C: before the storage-class specifier.
+             - In C++: between the storage-class specifier and the return type.
+
+     * The other macros can be placed
+         - Either
+             - In a function declaration/definition without a storage-class
+               specifier: at the beginning of the declaration/definition.
+             - In a function declaration/definition with a storage-class
+               specifier: between the storage-class specifier and the return
+               type.
+        - Or after the parameter list,
+          ∙ but after ATTRIBUTE_NOTHROW if present.
+
+   In other declarations, such as variable declarations:
+
+     * Either
+         - In C: before the storage-class specifier.
+         - In C++: between the storage-class specifier and the return type.
+       Then they apply to all entities that are declared by the declaration.
+
+     * Or immediately after the name of an entity being declared by the
+       declaration.  Then they apply to that entity only.
+ */
 
 #ifndef _GL_ATTRIBUTE_H
 #define _GL_ATTRIBUTE_H
@@ -48,10 +85,10 @@
    _GL_ATTRIBUTE_FALLTHROUGH, _GL_ATTRIBUTE_FORMAT, _GL_ATTRIBUTE_LEAF,
    _GL_ATTRIBUTE_MALLOC, _GL_ATTRIBUTE_MAY_ALIAS, _GL_ATTRIBUTE_MAYBE_UNUSED,
    _GL_ATTRIBUTE_NODISCARD, _GL_ATTRIBUTE_NOINLINE, _GL_ATTRIBUTE_NONNULL,
-   _GL_ATTRIBUTE_NONSTRING, _GL_ATTRIBUTE_NOTHROW, _GL_ATTRIBUTE_PACKED,
-   _GL_ATTRIBUTE_PURE, _GL_ATTRIBUTE_REPRODUCIBLE,
-   _GL_ATTRIBUTE_RETURNS_NONNULL, _GL_ATTRIBUTE_SENTINEL,
-   _GL_ATTRIBUTE_UNSEQUENCED.  */
+   _GL_ATTRIBUTE_NONNULL_IF_NONZERO, _GL_ATTRIBUTE_NONSTRING,
+   _GL_ATTRIBUTE_NOTHROW, _GL_ATTRIBUTE_PACKED, _GL_ATTRIBUTE_PURE,
+   _GL_ATTRIBUTE_REPRODUCIBLE, _GL_ATTRIBUTE_RETURNS_NONNULL,
+   _GL_ATTRIBUTE_SENTINEL, _GL_ATTRIBUTE_UNSEQUENCED.  */
 #if !_GL_CONFIG_H_INCLUDED
  #error "Please include config.h first."
 #endif
@@ -132,6 +169,12 @@
    ATTRIBUTE_NONNULL () - All pointer arguments must not be null.  */
 /* Applies to: functions.  */
 #define ATTRIBUTE_NONNULL(args) _GL_ATTRIBUTE_NONNULL (args)
+
+/* ATTRIBUTE_NONNULL_IF_NONZERO (NP, NI) - Argument NP (a pointer)
+   must not be NULL if the argument NI (an integer) is != 0.  */
+/* Applies to: functions.  */
+#define ATTRIBUTE_NONNULL_IF_NONZERO(np, ni) _GL_ATTRIBUTE_NONNULL_IF_NONZERO (np, ni)
+
 
 /* The function's return value is a non-NULL pointer.  */
 /* Applies to: functions.  */
@@ -220,7 +263,9 @@
    because the function need not return exactly once and can depend
    on state addressed by its arguments.)
    See also <https://www.open-std.org/jtc1/sc22/wg14/www/docs/n2956.htm> and
-   <https://stackoverflow.com/questions/76847905/>.  */
+   <https://stackoverflow.com/questions/76847905/>.
+   ATTENTION! Efforts are underway to change the meaning of this attribute.
+   See <https://www.open-std.org/jtc1/sc22/wg14/www/docs/n3424.htm>.  */
 /* Applies to: functions, pointer to functions, function type.  */
 #define UNSEQUENCED _GL_ATTRIBUTE_UNSEQUENCED
 
@@ -247,7 +292,9 @@
    because the function need not return exactly once and can affect
    state addressed by its arguments.)
    See also <https://www.open-std.org/jtc1/sc22/wg14/www/docs/n2956.htm> and
-   <https://stackoverflow.com/questions/76847905/>.  */
+   <https://stackoverflow.com/questions/76847905/>.
+   ATTENTION! Efforts are underway to change the meaning of this attribute.
+   See <https://www.open-std.org/jtc1/sc22/wg14/www/docs/n3424.htm>.  */
 /* Applies to: functions, pointer to functions, function type.  */
 #define REPRODUCIBLE _GL_ATTRIBUTE_REPRODUCIBLE
 

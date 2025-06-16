@@ -41,7 +41,8 @@ This is to preserve the data in it in the event of a
 
 (defmacro macroexp--with-extended-form-stack (expr &rest body)
   "Evaluate BODY with EXPR pushed onto `byte-compile-form-stack'."
-  (declare (indent 1))
+  (declare (indent 1)
+           (debug (sexp body)))
   `(let ((byte-compile-form-stack (cons ,expr byte-compile-form-stack)))
      ,@body))
 
@@ -434,7 +435,7 @@ Assumes the caller has bound `macroexpand-all-environment'."
              ;; Malformed code is translated to code that signals an error
              ;; at run time.
              (let ((nargs (length args)))
-               (if (/= (logand nargs 1) 0)
+               (if (oddp nargs)
                    (macroexp-warn-and-return
                     (format-message "odd number of arguments in `setq' form")
                     `(signal 'wrong-number-of-arguments '(setq ,nargs))
@@ -488,7 +489,7 @@ Assumes the caller has bound `macroexpand-all-environment'."
                   (macroexp--unfold-lambda `(,fn ,eexp . ,eargs)))
                  (_ `(,fn ,eexp . ,eargs)))))
             (`(funcall . ,_) form)      ;bug#53227
-            (`(,func . ,_)
+            (`(,(and func (pred symbolp)) . ,_)
              (let ((handler (function-get func 'compiler-macro)))
                ;; Macro expand compiler macros.  This cannot be delayed to
                ;; byte-optimize-form because the output of the compiler-macro can
@@ -728,7 +729,7 @@ test of free variables in the following ways:
 - It does not distinguish variables from functions, so it can be used
   both to detect whether a given variable is used by SEXP and to
   detect whether a given function is used by SEXP.
-- It does not actually know ELisp syntax, so it only looks for the presence
+- It does not actually know Elisp syntax, so it only looks for the presence
   of symbols in SEXP and can't distinguish if those symbols are truly
   references to the given variable (or function).  That can make the result
   include bindings which actually aren't used.

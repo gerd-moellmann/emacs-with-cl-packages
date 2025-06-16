@@ -208,7 +208,14 @@ it inserts and pretty-prints that arg at point."
                       (while
                           (progn
                             (funcall avoid-unbreakable)
-                            (not (zerop (skip-chars-backward " \t({[',.")))))
+                            (let ((pos (point)))
+                              (skip-chars-backward " \t({[',.")
+                              (while (and (memq (char-after) '(?\. ?\{))
+                                          (not (memq (char-before)
+                                                     '(nil ?\n ?\) \" ?\]))))
+                                ;; `.' and `{' within symbols?  (Bug#76715)
+                                (forward-char 1))
+                              (not (eql pos (point))))))
                       (if (bolp)
                           ;; The sexp already starts on its own line.
                           (progn (goto-char beg) nil)
@@ -308,17 +315,24 @@ can handle, whenever this is possible.
 Uses the pretty-printing code specified in `pp-default-function'.
 
 Output stream is STREAM, or value of `standard-output' (which see)."
-  (cond
-   ((and (eq (or stream standard-output) (current-buffer))
-         ;; Make sure the current buffer is setup sanely.
-         (eq (syntax-table) emacs-lisp-mode-syntax-table)
-         (eq indent-line-function #'lisp-indent-line))
-    ;; Skip the buffer->string->buffer middle man.
-    (funcall pp-default-function object)
-    ;; Preserve old behavior of (usually) finishing with a newline.
-    (unless (bolp) (insert "\n")))
-   (t
-    (princ (pp-to-string object) (or stream standard-output)))))
+  (let ((stream (or stream standard-output)))
+    (cond
+     ((and (eq stream (current-buffer))
+           ;; Make sure the current buffer is setup sanely.
+           (eq (syntax-table) emacs-lisp-mode-syntax-table)
+           (eq indent-line-function #'lisp-indent-line))
+      ;; Skip the buffer->string->buffer middle man.
+      (funcall pp-default-function object)
+      ;; Preserve old behavior of (usually) finishing with a newline.
+      (unless (bolp) (insert "\n")))
+     (t
+      (save-current-buffer
+        (when (bufferp stream) (set-buffer stream))
+        (let ((begin (point))
+              (cols (current-column)))
+          (princ (pp-to-string object) (or stream standard-output))
+          (when (and (> cols 0) (bufferp stream))
+            (indent-rigidly begin (point) cols))))))))
 
 ;;;###autoload
 (defun pp-display-expression (expression out-buffer-name &optional lisp)
@@ -484,8 +498,8 @@ the bounds of a region containing Lisp code to pretty-print."
     (cons (cond
            ((consp (cdr sexp))
             (let ((head (car sexp)))
-              (if-let (((null (cddr sexp)))
-                       (syntax-entry (assq head pp--quoting-syntaxes)))
+              (if-let* (((null (cddr sexp)))
+                        (syntax-entry (assq head pp--quoting-syntaxes)))
                   (progn
                     (insert (cdr syntax-entry))
                     (pp--insert-lisp (cadr sexp)))
@@ -570,7 +584,7 @@ the bounds of a region containing Lisp code to pretty-print."
     (insert ")")))
 
 (defun pp--format-definition (sexp indent edebug)
-  (while (and (cl-plusp indent)
+  (while (and (plusp indent)
               sexp)
     (insert " ")
     ;; We don't understand all the edebug specs.
@@ -585,7 +599,7 @@ the bounds of a region containing Lisp code to pretty-print."
         (pp--insert-lisp (car sexp)))
       (pop sexp))
     (pop edebug)
-    (cl-decf indent))
+    (decf indent))
   (when (stringp (car sexp))
     (insert "\n")
     (prin1 (pop sexp) (current-buffer)))

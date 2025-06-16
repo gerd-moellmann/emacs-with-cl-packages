@@ -321,15 +321,14 @@ NAME should be a string and NAMES-AND-NUMBERS an alist which can
 be used by this macro to retain state.  If NAME for example is
 \"symbol\" then the first and subsequent uses of this macro will
 evaluate to \"symbol\", \"symbol-1\", \"symbol-2\", etc."
-  (let ((g-name (gensym))
-        (g-duplicate (gensym)))
+  (cl-with-gensyms (g-name g-duplicate)
     `(let* ((,g-name ,name)
             (,g-duplicate (assoc ,g-name ,names-and-numbers)))
        (if (null ,g-duplicate)
            (progn
              (push (cons ,g-name 0) ,names-and-numbers)
              ,g-name)
-         (cl-incf (cdr ,g-duplicate))
+         (incf (cdr ,g-duplicate))
          (format "%s-%s" ,g-name (cdr ,g-duplicate))))))
 
 (defun edebug-tests-setup-code-file (tmpfile)

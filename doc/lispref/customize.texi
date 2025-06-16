@@ -448,7 +448,10 @@ the build-time context.  This also has the side-effect that the
 @kindex local@r{, @code{defcustom} keyword}
 If the @var{value} is @code{t}, mark @var{option} as automatically
 buffer-local; if the value is @code{permanent}, also set @var{option}s
-@code{permanent-local} property to @code{t}.  @xref{Creating Buffer-Local}.
+@code{permanent-local} property to @code{t}.  Finally, if the value is
+@code{permanent-only}, set @var{option}s @code{permanent-local} property
+to @code{t} without marking it as automatically buffer-local.
+@xref{Creating Buffer-Local}.
 
 @item :risky @var{value}
 @kindex risky@r{, @code{defcustom} keyword}
@@ -508,6 +511,10 @@ previously, Lisp programs can use this function to add values for user
 options not yet defined.
 @end defun
 
+@cindex @code{customized-value} (symbol property)
+@cindex @code{saved-value} (symbol property)
+@cindex @code{standard-value} (symbol property)
+@cindex @code{theme-value} (symbol property)
 Internally, @code{defcustom} uses the symbol property
 @code{standard-value} to record the expression for the standard value,
 @code{saved-value} to record the value saved by the user with the
@@ -1214,8 +1221,8 @@ the value is acceptable.
 Specify how to decide whether an inline value matches the type.  The
 corresponding value, @var{function}, should be a function that accepts
 two arguments, a widget and an inline value; it should return
-non-@code{nil} if the value is acceptable.  See @ref{Splicing into
-Lists} for more information about inline values.
+non-@code{nil} if the value is acceptable.  @xref{Splicing into
+Lists}, for more information about inline values.
 
 @item :validate @var{function}
 Specify a validation function for input.  @var{function} takes a

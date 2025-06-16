@@ -239,8 +239,8 @@ would give mode line times like `94/12/30 21:07:48 (UTC)'."
 	 (timer display-time-timer)
 	 ;; Compute the time when this timer will run again, next.
 	 (next-time (timer-relative-time
-		     (list (aref timer 1) (aref timer 2) (aref timer 3))
-		     (* 5 (aref timer 4)) 0)))
+		     (timer--time timer)
+		     (* 5 (timer--repeat-delay timer)) 0)))
     ;; If the activation time is not in the future,
     ;; skip executions until we reach a time in the future.
     ;; This avoids a long pause if Emacs has been suspended for hours.
@@ -452,7 +452,7 @@ runs the normal hook `display-time-hook' after each update."
     ("America/New_York" "New York")
     ("Europe/London" "London")
     ("Europe/Paris" "Paris")
-    ("Asia/Calcutta" "Bangalore")
+    ("Asia/Kolkata" "Bangalore")
     ("Asia/Tokyo" "Tokyo"))
   "Alist of zoneinfo-style time zones and places for `world-clock'.
 Each element has the form (TIMEZONE LABEL).
@@ -536,6 +536,36 @@ If the value is t instead of an alist, use the value of
   :type 'natnum
   :version "28.1")
 
+(defcustom world-clock-sort-order nil
+  "Sort order of entries in the `world-clock'.
+This variable can take a few different forms:
+
+- A nil value indicates no sorting, and the displayed order is the same
+  as in `world-clock-list'.  This is the default.
+
+- A string is taken as a format for `format-time-string', whose output
+  is used as the sorting key.  For example, an ISO 8601 format `\"%FT%T\"'
+  means entries are sorted in chronological order.
+
+- A cons cell of the form (STRING . BOOL) again provides a format for
+  `format-time-string'.  The boolean part controls the sort direction.
+  For example, `(\"%FT%T\" .  t)' means entries are sorted in reverse
+  chronological order.
+
+- A function that takes a list of (TIMEZONE LABEL) entries and a TIME as
+  arguments, and returns another list of entries."
+  :version "31.1"
+  :type '(choice (const :tag "No sorting" nil)
+		 (const :tag "Chronological order" "%FT%T")
+		 (const :tag "Reverse chronological order" ("%FT%T" . t))
+		 (const :tag "Time of day order" "%T")
+		 (const :tag "Reverse time of day order" ("%T" . t))
+		 (string :tag "Format string")
+		 (cons :tag "Format string and reverse flag"
+		       (string :tag "Format string")
+		       (boolean :tag "Reverse"))
+		 (function :tag "Sorting function")))
+
 (defface world-clock-label
   '((t :inherit font-lock-variable-name-face))
   "Face for time zone label in `world-clock' buffer.")
@@ -548,7 +578,7 @@ If the value is t instead of an alist, use the value of
 (defun world-clock-copy-time-as-kill ()
   "Copy current line into the kill ring."
   (interactive nil world-clock-mode)
-  (when-let ((str (buffer-substring-no-properties (pos-bol) (pos-eol))))
+  (when-let* ((str (buffer-substring-no-properties (pos-bol) (pos-eol))))
     (kill-new str)
     (message str)))
 
@@ -562,15 +592,32 @@ See `world-clock'."
 (defvar world-clock--timer nil
   "The current world clock timer.")
 
+(defun world-clock--sort-entries (tzlist timeval)
+  "Sort TZLIST according to `world-clock-sort-order' at a given TIMEVAL."
+  (pcase world-clock-sort-order
+    ((pred null) tzlist)
+    ((or (and (pred stringp) format)
+	 `(,(and (pred stringp) format) .
+	   ,(and (pred booleanp) reverse)))
+     (sort tzlist
+	   :key (lambda (entry)
+		  (format-time-string format timeval (car entry)))
+	   :reverse reverse))
+    ((pred functionp) (funcall world-clock-sort-order tzlist timeval))
+    (_ (error "Invalid `world-clock-sort-order': `%s'"
+	      world-clock-sort-order))))
+
 (defun world-clock-display (alist)
-  "Replace current buffer text with times in various zones, based on ALIST."
-  (let ((inhibit-read-only t)
-	(buffer-undo-list t)
-	(now (current-time))
-	(max-width 0)
-	result fmt)
+  "Replace current buffer text with times in various zones, based on ALIST.
+The entries are ordered according to `world-clock-sort-order'."
+  (let* ((inhibit-read-only t)
+	 (buffer-undo-list t)
+	 (now (current-time))
+	 (zones (world-clock--sort-entries alist now))
+	 (max-width 0)
+	 result fmt)
     (erase-buffer)
-    (dolist (zone alist)
+    (dolist (zone zones)
       (let* ((label (cadr zone))
 	     (width (string-width label)))
 	(push (cons label
@@ -598,7 +645,7 @@ See `world-clock'."
 The variable `world-clock-list' specifies which time zones to use.
 To turn off the world time display, go to the window and type \\[quit-window]."
   (interactive)
-  (if-let ((buffer (get-buffer world-clock-buffer-name)))
+  (if-let* ((buffer (get-buffer world-clock-buffer-name)))
       (pop-to-buffer buffer)
     (pop-to-buffer world-clock-buffer-name)
     (when world-clock-timer-enable

@@ -81,8 +81,8 @@
 The tool symbol can be `detect', or a symbol that is the name of
 a tool that can be used for symbol referencing."
   :type 'symbol
+  :local t
   :group 'semantic)
-(make-variable-buffer-local 'semantic-symref-tool)
 
 ;;; TOOL SETUP
 ;;
@@ -398,7 +398,7 @@ this list.")
   (if (slot-boundp result 'hit-files)
       (oref result hit-files)
     (let* ((lines  (oref result hit-lines))
-	   (files (mapcar (lambda (a) (cdr a)) lines))
+           (files (mapcar #'cdr lines))
 	   (ans nil))
       (setq ans (list (car files))
 	    files (cdr files))

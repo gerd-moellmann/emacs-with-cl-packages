@@ -1704,8 +1704,8 @@ writable (Bug#44631)."
             (set-file-modes directory #o500)
             (should (byte-compile-file input-file))
             (should (file-regular-p output-file))
-            (should (cl-plusp (file-attribute-size
-                               (file-attributes output-file)))))
+            (should (plusp (file-attribute-size
+                            (file-attributes output-file)))))
         ;; Allow the directory to be deleted.
         (set-file-modes directory #o777)))))
 
@@ -1736,6 +1736,12 @@ mountpoint (Bug#44631)."
               (set-file-modes input-file #o400)
               (set-file-modes output-file #o200)
               (set-file-modes directory #o500)
+              (skip-unless
+               (zerop (call-process
+                       bwrap nil nil nil
+                       "--ro-bind" "/" "/"
+                       "--bind" unquoted-file unquoted-file
+                       "true")))
               (with-temp-buffer
                 (let ((status (call-process
                                bwrap nil t nil
@@ -1751,8 +1757,8 @@ mountpoint (Bug#44631)."
                     (ert-fail `((status . ,status)
                                 (output . ,(buffer-string)))))))
               (should (file-regular-p output-file))
-              (should (cl-plusp (file-attribute-size
-                                 (file-attributes output-file)))))
+              (should (plusp (file-attribute-size
+                              (file-attributes output-file)))))
           ;; Allow the directory to be deleted.
           (set-file-modes directory #o777))))))
 
@@ -1766,8 +1772,8 @@ mountpoint (Bug#44631)."
                      nil "test.el" nil nil nil 'excl)
       (should (byte-compile-file "test.el"))
       (should (file-regular-p "test.elc"))
-      (should (cl-plusp (file-attribute-size
-                         (file-attributes "test.elc")))))))
+      (should (plusp (file-attribute-size
+                      (file-attributes "test.elc")))))))
 
 (defun bytecomp-tests--get-vars ()
   (list (ignore-errors (symbol-value 'bytecomp-tests--var1))
@@ -1806,7 +1812,7 @@ compiled correctly."
   (cl-letf ((lexical-binding t)
             ((symbol-function 'counter) nil))
     (let ((x 0))
-      (defun counter () (cl-incf x))
+      (defun counter () (incf x))
       (should (equal (counter) 1))
       (should (equal (counter) 2))
       ;; byte compiling should not cause counter to always return the
@@ -1983,6 +1989,47 @@ EXPECTED-POINT BINDINGS (MODES \\='\\='(ruby-mode js-mode python-mode)) \
     (bytecomp--with-warning-test
      (rx "`integerp' is not a valid type")
      (dc 'integerp))
+    ))
+
+(ert-deftest bytecomp-test-defcustom-local ()
+  (cl-flet ((dc (local) `(defcustom mytest nil "doc" :type 'sexp :local ',local :group 'test)))
+    (bytecomp--with-warning-test
+     (rx ":local keyword does not accept 'symbol") (dc 'symbol))
+    (bytecomp--with-warning-test
+     (rx ":local keyword does not accept \"string\"") (dc "string"))
+    (bytecomp--without-warning-test (dc t))
+    (bytecomp--without-warning-test (dc 'permanent))
+    (bytecomp--without-warning-test (dc 'permanent-only))
+    ))
+
+(ert-deftest bytecomp-test-defface-spec ()
+  (cl-flet ((df (spec) `(defface mytest ',spec "doc" :group 'test)))
+    (bytecomp--with-warning-test
+     (rx "Bad face display condition `max-colors'")
+     (df '((((class color grayscale) (max-colors 75) (background light))
+            :foreground "cyan"))))
+    (bytecomp--with-warning-test
+     (rx "Bad face display `defualt'")
+     (df '((defualt :foreground "cyan"))))
+    (bytecomp--with-warning-test
+     (rx "`:inverse' is not a valid face attribute keyword")
+     (df '((t :background "blue" :inverse t))))
+    (bytecomp--with-warning-test
+     (rx "`:inverse' is not a valid face attribute keyword")
+     (df '((t (:background "blue" :inverse t)))))  ; old attr list syntax
+    (bytecomp--with-warning-test
+     (rx "Face attribute `:reverse-video' has been removed;"
+         " use `:inverse-video' instead")
+     (df '((t :background "red" :reverse-video t))))
+    (bytecomp--with-warning-test
+     (rx "Value for face attribute `:inherit' should not be quoted")
+     (df '((t :inherit 'other))))
+    (bytecomp--with-warning-test
+     (rx "Missing face attribute `:extend' value")
+     (df '((t :foundry "abc" :extend))))
+    (bytecomp--with-warning-test
+     (rx "Non-keyword in face attribute list: `\"green\"'")
+     (df '((t :foreground "white" "green"))))
     ))
 
 (ert-deftest bytecomp-function-attributes ()

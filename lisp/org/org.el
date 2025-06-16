@@ -3157,16 +3157,16 @@ There are multiple ways to set the category.  One way is to set
 it in the document property drawer.  For example:
 
 :PROPERTIES:
-:CATEGORY: ELisp
+:CATEGORY: Elisp
 :END:
 
 Other ways to define it is as an Emacs file variable, for example
 
-#   -*- mode: org; org-category: \"ELisp\"
+#   -*- mode: org; org-category: \"Elisp\"
 
 or for the file to contain a special line:
 
-#+CATEGORY: ELisp
+#+CATEGORY: Elisp
 
 If the file does not specify a category, then file's base name
 is used instead.")
@@ -4283,7 +4283,7 @@ related expressions."
 		  '("ARCHIVE" "CATEGORY" "COLUMNS" "PRIORITIES"))))
       ;; Startup options.  Get this early since it does change
       ;; behavior for other options (e.g., tags).
-      (let ((startup (cl-mapcan (lambda (value) (split-string value))
+      (let ((startup (cl-mapcan #'split-string
 				(cdr (assoc "STARTUP" alist)))))
 	(dolist (option startup)
 	  (pcase (assoc-string option org-startup-options t)
@@ -9422,7 +9422,7 @@ With numeric prefix arg, switch to the Nth state.
 With a numeric prefix arg of 0, inhibit note taking for the change.
 With a numeric prefix arg of -1, cancel repeater to allow marking as DONE.
 
-When called through ELisp, arg is also interpreted in the following way:
+When called through Elisp, arg is also interpreted in the following way:
 `none'        -> empty state
 \"\"            -> switch to empty state
 `done'        -> switch to DONE
@@ -12800,7 +12800,7 @@ variables is set."
 	  (cond
 	   (increment
 	    (unless allowed (user-error "Allowed effort values are not set"))
-	    (or (cl-caadr (member (list current) allowed))
+            (or (caadr (member (list current) allowed))
 		(user-error "Unknown value %S among allowed values" current)))
 	   (value
 	    (if (stringp value) value
@@ -13219,8 +13219,8 @@ However, if LITERAL-NIL is set, return the string value \"nil\" instead."
     ;; Consider global properties, if we found no PROPERTY (or maybe
     ;; only PROPERTY+).
     (unless found-inherited?
-      (when-let ((global (org--property-global-or-keyword-value
-                          property t)))
+      (when-let* ((global (org--property-global-or-keyword-value
+                           property t)))
         (setq values (cons global values))))
     (when values
       (setq values (mapconcat
@@ -20940,6 +20940,8 @@ URLS is a list of file URL."
       (org--dnd-local-file-handler u action sep))))
 
 (put 'org--dnd-multi-local-file-handler 'dnd-multiple-handler t)
+
+(declare-function dnd-open-local-file "dnd" (uri action))
 
 (defun org--dnd-local-file-handler (url action &optional separator)
   "Handle file URL as per ACTION.

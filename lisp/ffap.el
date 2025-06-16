@@ -179,12 +179,13 @@ Note this name may be omitted if it equals the default
   :group 'ffap)
 
 (defvar ffap-url-regexp
-  (concat
-   "\\("
-   "news\\(post\\)?:\\|mailto:\\|file:" ; no host ok
-   "\\|"
-   "\\(ftp\\|https?\\|telnet\\|gopher\\|gemini\\|www\\|wais\\)://" ; needs host
-   "\\)")
+  (eval-when-compile
+    (concat
+     "\\("
+     "news\\(post\\)?:\\|mailto:\\|file:" ; no host ok
+     "\\|"
+     "\\(ftp\\|https?\\|telnet\\|gopher\\|gemini\\|www\\|wais\\)://" ;Needs host
+     "\\)"))
   "Regexp matching the beginning of a URI, for ffap.
 If the value is nil, disable URL-matching features in ffap.")
 
@@ -805,7 +806,7 @@ to extract substrings.")
 
 (declare-function project-root "project" (project))
 (defun ffap-in-project (name)
-  (when-let (project (project-current))
+  (when-let* ((project (project-current)))
     (file-name-concat (project-root project) name)))
 
 (defun ffap-home (name) (ffap-locate-file name t '("~")))
@@ -831,28 +832,79 @@ to extract substrings.")
   (and (not (string-match "\\.el\\'" name))
        (ffap-locate-file name '(".el") load-path)))
 
-;; FIXME this duplicates the logic of Man-header-file-path.
-;; There should be a single central variable or function for this.
-;; See also (bug#10702):
-;; cc-search-directories, semantic-c-dependency-system-include-path,
-;; semantic-gcc-setup
-(defvar ffap-c-path
-  (let ((arch (with-temp-buffer
-                (when (eq 0 (ignore-errors
-                              (call-process "gcc" nil '(t nil) nil
-                                            "-print-multiarch")))
-                  (goto-char (point-min))
-                  (buffer-substring (point) (line-end-position)))))
-        (base '("/usr/include" "/usr/local/include")))
-    (if (zerop (length arch))
-        base
-      (append base (list (expand-file-name arch "/usr/include")))))
+(defun ffap--gcc-is-clang-p ()
+  "Return non-nil if the `gcc' command actually runs the Clang compiler."
+  ;; Recent macOS machines run llvm when you type gcc by default.  (!)
+  ;; We can't even check if it's a symlink; it's a binary placed in
+  ;; "/usr/bin/gcc".  So we need to check the output.
+  (when-let* ((out (ignore-errors
+                     (with-temp-buffer
+                       (call-process "gcc" nil t nil "--version")
+                       (buffer-string)))))
+   (string-match "Apple \\(LLVM\\|[Cc]lang\\)\\|Xcode\\.app" out)))
+
+(defun ffap--c-path ()
+  "Return search path for C header files (a list of strings)."
+  ;; FIXME: It's not clear that this is a good place to put this, or
+  ;; even that this should necessarily be internal.
+  ;; See also (Bug#10702):
+  ;; cc-search-directories, semantic-c-dependency-system-include-path,
+  ;; semantic-gcc-setup
+  (delete-dups
+   ;; We treat MS-Windows/MS-DOS specially, since there's no
+   ;; widely-accepted canonical directory for C include files.
+   (let ((base (if (not (memq system-type '(windows-nt ms-dos)))
+                   '("/usr/include" "/usr/local/include")))
+         (call-clang-p (or (ffap--gcc-is-clang-p)
+                           (and (executable-find "clang")
+                                (not (executable-find "gcc"))))))
+     (cond ((or call-clang-p
+                (memq system-type '(windows-nt ms-dos)))
+            ;; This is either macOS, or MS-Windows/MS-DOS, or a system
+            ;; with clang only.
+            (with-temp-buffer
+              (ignore-errors
+                (call-process (if call-clang-p "clang" "gcc")
+                              nil t nil
+                              "-v" "-E" "-"))
+              (goto-char (point-min))
+              (narrow-to-region
+               (save-excursion
+                 (re-search-forward
+                  "^#include <\\.\\.\\.> search starts here:\n" nil t)
+                 (point))
+               (save-excursion
+                 (re-search-forward "^End of search list.$" nil t)
+                 (pos-bol)))
+              (while (search-forward "(framework directory)" nil t)
+                (delete-line))
+              ;; "gcc -v" reports file names with many "..", so we
+              ;; normalize it.
+              (or (mapcar #'expand-file-name
+                          (append base
+                                  (split-string (buffer-substring-no-properties
+                                                 (point-min) (point-max)))))
+                  ;; Fallback for whedn the compiler is not available.
+                  (list (expand-file-name "/usr/include")
+                        (expand-file-name "/usr/local/include")))))
+           ;; Prefer GCC.
+           ((let ((arch (with-temp-buffer
+                          (when (eq 0 (ignore-errors
+                                        (call-process "gcc" nil '(t nil) nil
+                                                      "-print-multiarch")))
+                            (goto-char (point-min))
+                            (buffer-substring (point) (line-end-position))))))
+              (if (zerop (length arch))
+                  base
+                (append base (list (expand-file-name arch "/usr/include"))))))))))
+
+(defvar ffap-c-path (ffap--c-path)      ;FIXME: Delay initialization?
   "List of directories to search for include files.")
 
 (defun ffap-c-mode (name)
   (ffap-locate-file name t ffap-c-path))
 
-(defvar ffap-c++-path
+(defvar ffap-c++-path      ;FIXME: Delay initialization?
   (let ((c++-include-dir (with-temp-buffer
                            (when (eq 0 (ignore-errors
                                          (call-process "g++" nil t nil "-v")))
@@ -1088,7 +1140,7 @@ The arguments CHARS, BEG and END are handled as described in
   "Last string returned by the function `ffap-string-at-point'.")
 
 (defcustom ffap-file-name-with-spaces nil
-  "If non-nil, enable looking for paths with spaces in `ffap-string-at-point'.
+  "If non-nil, allow file names with spaces in `ffap-string-at-point'.
 Enabling this variable may lead to `find-file-at-point' guessing
 wrong more often when trying to find a file name intermingled
 with normal text, but can be useful when working on systems that
@@ -1234,10 +1286,16 @@ return an empty string, and set `ffap-string-at-point-region' to `(1 1)'."
 	          (if (and ffap-file-name-with-spaces
 			   (memq mode '(nil file)))
 		      (when (setq dir-separator (ffap-dir-separator-near-point))
-		        (while (re-search-backward
-			        (regexp-quote dir-separator)
-			        (line-beginning-position) t)
-		          (goto-char (match-beginning 0))))
+                        (let ((dirsep-re (regexp-quote dir-separator))
+                              (line-beg (line-beginning-position)))
+		          (while (re-search-backward dirsep-re line-beg t)
+		            (goto-char (match-beginning 0)))
+                          (if (and (looking-at dirsep-re)
+                                   (looking-back
+                                    ;; Either "~[USER]" or drive letter.
+                                    "\\(~[[:graph:]]*\\|[a-zA-Z]:\\)"
+                                    line-beg))
+                              (goto-char (match-beginning 0)))))
 		    (skip-chars-backward (car args))
 		    (skip-chars-forward (nth 1 args) pt))
 		  (point))))
@@ -1512,6 +1570,7 @@ which may actually result in an URL rather than a filename."
       ;; We mainly just want to disable these bits:
       (substitute-in-file-name (car args))
       (expand-file-name (car args))
+      (unhandled-file-name-directory temporary-file-directory)
       (otherwise
        (apply operation args)))))
 
@@ -1738,14 +1797,15 @@ Function CONT is applied to the entry chosen by the user."
 				    alist))))))
      ;; minibuffer with completion buffer:
      (t
-      (let ((minibuffer-setup-hook 'minibuffer-completion-help))
-	;; Bug: prompting may assume unique strings, no "".
-	(setq choice
-	      (completing-read
-	       (format-prompt title (car (car alist)))
-	       alist nil t
-	       ;; (cons (car (car alist)) 0)
-	       nil)))
+      ;; Bug: prompting may assume unique strings, no "".
+      (setq choice
+	    (completing-read
+	     (format-prompt title (car (car alist)))
+             (completion-table-with-metadata
+	      alist '((category . ffap-menu) (eager-display . t)))
+             nil t
+	     ;; (cons (car (car alist)) 0)
+	     nil))
       (sit-for 0)			; redraw original screen
       ;; Convert string to its entry, or else the default:
       (setq choice (or (assoc choice alist) (car alist)))))

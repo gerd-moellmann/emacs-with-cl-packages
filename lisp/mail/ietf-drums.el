@@ -86,7 +86,7 @@ backslash and doublequote.")
 	b c out range)
     (while (< i (length token))
       (setq c (aref token i))
-      (cl-incf i)
+      (incf i)
       (cond
        ((eq c ?-)
 	(if b
@@ -95,7 +95,7 @@ backslash and doublequote.")
        (range
 	(while (<= b c)
 	  (push (make-char 'ascii b) out)
-	  (cl-incf b))
+          (incf b))
 	(setq range nil))
        ((= i (length token))
 	(push (make-char 'ascii c) out))
@@ -275,11 +275,11 @@ a list of address strings."
            ((eq c ?:)
             (setq beg (1+ (point)))
             (skip-chars-forward "^;")
-            (when-let ((address
-                  (condition-case nil
-                      (ietf-drums-parse-addresses
-                       (buffer-substring beg (point)) rawp)
-                    (error nil))))
+            (when-let* ((address
+                         (condition-case nil
+                             (ietf-drums-parse-addresses
+                              (buffer-substring beg (point)) rawp)
+                           (error nil))))
               (if (listp address)
                   (setq pairs (append address pairs))
                 (push address pairs)))

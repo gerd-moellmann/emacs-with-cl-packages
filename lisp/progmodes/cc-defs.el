@@ -188,9 +188,12 @@ This variant works around bugs in `eval-when-compile' in various
 	 (subrp (symbol-function 'mapcan)))
     ;; XEmacs and Emacs >= 26.
     `(mapcan ,fun ,liszt))
-   ((eq c--cl-library 'cl-lib)
-    ;; Emacs >= 24.3, < 26.
-    `(cl-mapcan ,fun ,liszt))
+   ;; The following was commented out on 2025-06-02.  cl-mapcan fails in an
+   ;; obscure fashion in c-keywords-obarray.  See that c-lang-defvar for
+   ;; details.
+   ;; ((eq c--cl-library 'cl-lib)
+   ;;  ;; Emacs >= 24.3, < 26.
+   ;;  `(cl-mapcan ,fun ,liszt))
    (t
     ;; Emacs <= 24.2.  It would be nice to be able to distinguish between
     ;; compile-time and run-time use here.
@@ -199,16 +202,16 @@ This variant works around bugs in `eval-when-compile' in various
 (defmacro c--set-difference (liszt1 liszt2 &rest other-args)
   ;; Macro to smooth out the renaming of `set-difference' in Emacs 24.3.
   (declare (debug (form form &rest [symbolp form])))
-  (if (eq c--cl-library 'cl-lib)
-      `(cl-set-difference ,liszt1 ,liszt2 ,@other-args)
-    `(set-difference ,liszt1 ,liszt2 ,@other-args)))
+  (if (fboundp 'set-difference)
+      `(set-difference ,liszt1 ,liszt2 ,@other-args)
+    `(cl-set-difference ,liszt1 ,liszt2 ,@other-args)))
 
 (defmacro c--intersection (liszt1 liszt2 &rest other-args)
   ;; Macro to smooth out the renaming of `intersection' in Emacs 24.3.
   (declare (debug (form form &rest [symbolp form])))
-  (if (eq c--cl-library 'cl-lib)
-      `(cl-intersection ,liszt1 ,liszt2 ,@other-args)
-    `(intersection ,liszt1 ,liszt2 ,@other-args)))
+  (if (fboundp 'intersection)
+      `(intersection ,liszt1 ,liszt2 ,@other-args)
+    `(cl-intersection ,liszt1 ,liszt2 ,@other-args)))
 
 (eval-and-compile
   (defmacro c--macroexpand-all (form &optional environment)
@@ -221,9 +224,9 @@ This variant works around bugs in `eval-when-compile' in various
   (defmacro c--delete-duplicates (cl-seq &rest cl-keys)
     ;; Macro to smooth out the renaming of `delete-duplicates' in Emacs 24.3.
     (declare (debug (form &rest [symbolp form])))
-    (if (eq c--cl-library 'cl-lib)
-	`(cl-delete-duplicates ,cl-seq ,@cl-keys)
-      `(delete-duplicates ,cl-seq ,@cl-keys))))
+    (if (fboundp 'delete-duplicates)
+	`(delete-duplicates ,cl-seq ,@cl-keys)
+      `(cl-delete-duplicates ,cl-seq ,@cl-keys))))
 
 (defmacro c-font-lock-flush (beg end)
   "Declare the region BEG...END's fontification as out-of-date.
@@ -1248,6 +1251,14 @@ MODE is either a mode symbol or a list of mode symbols."
 	   `((setq c-syntax-table-hwm (min c-syntax-table-hwm -pos-))))
        (put-text-property -pos- (1+ -pos-) ',property ,value))))
 
+(defmacro c-put-syntax-table-trim-caches (pos value)
+  ;; Put a 'syntax-table property with VALUE at POS.  Also invalidate four
+  ;; caches from the position POS.
+  (declare (debug t))
+  `(let ((-pos- ,pos))
+     (c-put-char-property -pos- 'syntax-table ,value)
+     (c-truncate-lit-pos/state-cache -pos-)))
+
 (defmacro c-put-string-fence (pos)
   ;; Put the string-fence syntax-table text property at POS.
   ;; Since the character there cannot then count as syntactic whitespace,
@@ -1258,6 +1269,14 @@ MODE is either a mode symbol or a list of mode symbols."
      (c-put-char-property -pos- 'syntax-table '(15))
      (c-clear-char-property -pos- 'c-is-sws)
      (c-clear-char-property -pos- 'c-in-sws)))
+
+(defmacro c-put-string-fence-trim-caches (pos)
+  ;; Put the string-fence syntax-table text property at POS, and invalidate
+  ;; the four caches from position POS.
+  (declare (debug t))
+  `(let ((-pos- ,pos))
+     (c-put-string-fence -pos-)
+     (c-truncate-lit-pos/state-cache -pos-)))
 
 (eval-and-compile
   ;; Constant to decide at compilation time whether to use category
@@ -1333,6 +1352,14 @@ MODE is either a mode symbol or a list of mode symbols."
 	 ;; Emacs < 21.
 	 `(c-clear-char-property-fun ,pos ',property))))
 
+(defmacro c-clear-syntax-table-trim-caches (pos)
+  ;; Remove the 'syntax-table property at POS and invalidate the four caches
+  ;; from that position.
+  (declare (debug t))
+  `(let ((-pos- ,pos))
+     (c-clear-char-property -pos- 'syntax-table)
+     (c-truncate-lit-pos/state-cache -pos-)))
+
 (defmacro c-min-property-position (from to property)
   ;; Return the first position in the range [FROM to) where the text property
   ;; PROPERTY is set, or `most-positive-fixnum' if there is no such position.
@@ -1343,7 +1370,7 @@ MODE is either a mode symbol or a list of mode symbols."
       ((and (< -from- -to-)
 	    (get-text-property -from- ,property))
        -from-)
-      ((< (setq pos (next-single-property-change -from- ,property nil -to-))
+      ((< (setq pos (c-next-single-property-change -from- ,property nil -to-))
 	  -to-)
        pos)
       (most-positive-fixnum))))
@@ -1387,7 +1414,8 @@ MODE is either a mode symbol or a list of mode symbols."
 	     (c-use-extents
 	      ;; XEmacs
 	      `(map-extents (lambda (ext ignored)
-				(delete-extent ext))
+				(delete-extent ext)
+				nil) ; To prevent exit from `map-extents'.
 			    nil ret -to- nil nil ',property))
 	     ((and (fboundp 'syntax-ppss)
 		   (eq property 'syntax-table))
@@ -1401,6 +1429,15 @@ MODE is either a mode symbol or a list of mode symbols."
 	      `(remove-text-properties ret -to- '(,property nil))))
 	   ret)
        nil)))
+
+(defmacro c-clear-syntax-table-properties-trim-caches (from to)
+  ;; Remove all occurrences of the 'syntax-table property in (FROM TO) and
+  ;; invalidate the four caches from the first position from which the
+  ;; property was removed, if any.
+  (declare (debug t))
+  `(let ((first (c-clear-char-properties ,from ,to 'syntax-table)))
+     (when first
+       (c-truncate-lit-pos/state-cache first))))
 
 (defmacro c-clear-syn-tab-properties (from to)
   ;; Remove all occurrences of the `syntax-table' and `c-fl-syn-tab' text
@@ -1492,8 +1529,10 @@ point is then left undefined."
   "Remove all text-properties PROPERTY from the region (FROM, TO)
 which have the value VALUE, as tested by `equal'.  These
 properties are assumed to be over individual characters, having
-been put there by `c-put-char-property'.  POINT remains unchanged."
-  (let ((place from) end-place)
+been put there by `c-put-char-property'.  POINT remains unchanged.
+Return the position of the first removed property, if any, or nil."
+  (let ((place from) end-place
+	first)
     (while			  ; loop round occurrences of (PROPERTY VALUE)
 	(progn
 	  (while	   ; loop round changes in PROPERTY till we find VALUE
@@ -1506,24 +1545,50 @@ been put there by `c-put-char-property'.  POINT remains unchanged."
 	(setq c-syntax-table-hwm (min c-syntax-table-hwm place)))
       (setq end-place (c-next-single-property-change place property nil to))
       (remove-text-properties place end-place (list property nil))
+      (unless first (setq first place))
       ;; Do we have to do anything with stickiness here?
-      (setq place end-place))))
+      (setq place end-place))
+    first))
 
 (defmacro c-clear-char-property-with-value (from to property value)
   "Remove all text-properties PROPERTY from the region [FROM, TO)
 which have the value VALUE, as tested by `equal'.  These
 properties are assumed to be over individual characters, having
-been put there by `c-put-char-property'.  POINT remains unchanged."
+been put there by `c-put-char-property'.  POINT remains unchanged.
+Return the position of the first removed property, or nil."
   (declare (debug t))
   (if c-use-extents
     ;; XEmacs
-      `(let ((-property- ,property))
+      `(let ((-property- ,property)
+	     (first (1+ (point-max))))
 	 (map-extents (lambda (ext val)
-			(if (equal (extent-property ext -property-) val)
-			    (delete-extent ext)))
-		      nil ,from ,to ,value nil -property-))
-    ;; GNU Emacs
+			;; In the following, the test on the extent's property
+			;; is probably redundant.  See documentation of
+			;; `map-extents'.  NO it's NOT!  This automatic check
+			;; would require another argument to `map-extents',
+			;; but the test would use `eq', not `equal', so it's
+			;; no good.  :-(
+			(when (equal (extent-property ext -property-) val)
+			  (setq first (min first
+					   (extent-start-position ext)))
+			  (delete-extent ext))
+			nil)
+		      nil ,from ,to ,value nil -property-)
+	 (and (<= first (point-max)) first))
+    ;; Gnu Emacs
     `(c-clear-char-property-with-value-function ,from ,to ,property ,value)))
+
+(defmacro c-clear-syntax-table-with-value-trim-caches (from to value)
+  "Remove all `syntax-table' text-properties with value VALUE from [FROM, TO)
+and invalidate the four caches from the first position, if any, where a
+property was removed.  Return the position of the first property removed,
+if any, else nil.  POINT and the match data remain unchanged."
+  (declare (debug t))
+  `(let ((first
+	  (c-clear-char-property-with-value ,from ,to 'syntax-table ,value)))
+     (when first
+       (c-truncate-lit-pos/state-cache first))
+     first))
 
 (defmacro c-search-forward-char-property-with-value-on-char
     (property value char &optional limit)
@@ -1620,7 +1685,8 @@ property, or nil."
 	(or first
 	    (progn (setq first place)
 		   (when (eq property 'syntax-table)
-		     (setq c-syntax-table-hwm (min c-syntax-table-hwm place))))))
+		     (setq c-syntax-table-hwm
+			   (min c-syntax-table-hwm place))))))
       ;; Do we have to do anything with stickiness here?
       (setq place (1+ place)))
     first))
@@ -1639,26 +1705,46 @@ property, or nil."
 	     (-char- ,char)
 	     (first (1+ (point-max))))
 	 (map-extents (lambda (ext val)
-			(when (and (equal (extent-property ext -property-) val)
+			;; In the following, the test on the extent's property
+			;; is probably redundant.  See documentation of
+			;; map-extents.  NO!  See
+			;; `c-clear-char-property-with-value'.
+			(when (and (equal (extent-property ext -property-)
+					  val)
 				   (eq (char-after
 					(extent-start-position ext))
 				       -char-))
 			  (setq first (min first (extent-start-position ext)))
-			  (delete-extent ext)))
+			  (delete-extent ext))
+			nil)
 		      nil ,from ,to ,value nil -property-)
 	 (and (<= first (point-max)) first))
-    ;; GNU Emacs
+    ;; Gnu Emacs
     `(c-clear-char-property-with-value-on-char-function ,from ,to ,property
 							,value ,char)))
+
+(defmacro c-clear-syntax-table-with-value-on-char-trim-caches
+    (from to value char)
+  "Remove all `syntax-table' properties with VALUE on CHAR in [FROM, TO),
+as tested by `equal', and invalidate the four caches from the first position,
+if any, where a property was removed.  POINT and the match data remain
+unchanged."
+  (declare (debug t))
+  `(let ((first (c-clear-char-property-with-value-on-char
+		 ,from ,to 'syntax-table ,value ,char)))
+     (when first
+       (c-truncate-lit-pos/state-cache first))))
 
 (defmacro c-put-char-properties-on-char (from to property value char)
   ;; This needs to be a macro because `property' passed to
   ;; `c-put-char-property' must be a constant.
   "Put the text property PROPERTY with value VALUE on characters
-with value CHAR in the region [FROM to)."
+with value CHAR in the region [FROM to).  Return the position of the
+first char changed, if any, else nil."
   (declare (debug t))
   `(let ((skip-string (concat "^" (list ,char)))
-	 (-to- ,to))
+	 (-to- ,to)
+	 first)
      (save-excursion
        (goto-char ,from)
        (while (progn (skip-chars-forward skip-string -to-)
@@ -1667,8 +1753,20 @@ with value CHAR in the region [FROM to)."
 		      (eq (eval property) 'syntax-table))
 	     `((setq c-syntax-table-hwm (min c-syntax-table-hwm (point)))))
 	 (c-put-char-property (point) ,property ,value)
-	 (forward-char)))))
+	 (when (not first) (setq first (point)))
+	 (forward-char)))
+     first))
 
+(defmacro c-put-syntax-table-properties-on-char-trim-caches
+    (from to value char)
+  "Put a `syntax-table' text property with value VALUE on all characters
+with value CHAR in the region [FROM to), and invalidate the four caches
+from the first position, if any, where a property was put."
+  (declare (debug t))
+  `(let ((first (c-put-char-properties-on-char
+		 ,from ,to 'syntax-table ,value ,char)))
+     (when first
+       (c-truncate-lit-pos/state-cache first))))
 
 ;; Miscellaneous macro(s)
 (defvar c-string-fences-set-flag nil)
@@ -1772,8 +1870,8 @@ with value CHAR in the region [FROM to)."
       `(c-put-char-property ,pos 'category 'c->-as-paren-syntax)
     `(c-put-char-property ,pos 'syntax-table c->-as-paren-syntax)))
 
-(defmacro c-unmark-<->-as-paren (pos)
-  ;; Unmark the "<" or "<" character at POS as an sexp list opener using the
+(defmacro c-unmark-<-or->-as-paren (pos)
+  ;; Unmark the "<" or ">" character at POS as an sexp list opener using the
   ;; `syntax-table' property either directly or indirectly through a
   ;; `category' text property.
   ;;

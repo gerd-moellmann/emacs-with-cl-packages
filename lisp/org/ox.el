@@ -1552,7 +1552,7 @@ Assume buffer is in Org mode.  Narrowing, if any, is ignored."
 		      (newline
 		       (mapconcat #'identity values "\n"))
 		      (split
-		       (cl-mapcan (lambda (v) (split-string v)) values))
+                       (cl-mapcan #'split-string values))
 		      ((t)
 		       (org-last values))
 		      (otherwise
@@ -2672,7 +2672,7 @@ from tree."
 		(let ((type (org-element-type data)))
 		  (if (org-export--skip-p data info selected excluded)
 		      (if (memq type '(table-cell table-row)) (push data ignore)
-                        (if-let ((keep-spaces (org-export--keep-spaces data info)))
+                        (if-let* ((keep-spaces (org-export--keep-spaces data info)))
 			    ;; Keep spaces in place of removed
 			    ;; element, if necessary.
 			    ;; Example: "Foo.[10%] Bar" would become
@@ -3456,7 +3456,7 @@ file."
        (with-temp-buffer
          (let ((org-inhibit-startup t)
                (lines
-                (if-let ((location (plist-get parameters :location)))
+                (if-let* ((location (plist-get parameters :location)))
                     (org-export--inclusion-absolute-lines
                      file location
                      (plist-get parameters :only-contents)
@@ -6660,7 +6660,7 @@ to `:default' encoding.  If it fails, return S."
   "Call function FUN on the results returned by BODY evaluation.
 
 FUN is an anonymous function of one argument.  BODY should be a valid
-ELisp source expression.  BODY evaluation happens in an asynchronous process,
+Elisp source expression.  BODY evaluation happens in an asynchronous process,
 from a buffer which is an exact copy of the current one.
 
 Use `org-export-add-to-stack' in FUN in order to register results
@@ -7287,14 +7287,14 @@ back to standard interface."
 			     (lambda (sub-entry)
 			       (cl-incf index)
 			       (format
-				(if (zerop (mod index 2)) "    [%s] %-26s"
+				(if (cl-evenp index) "    [%s] %-26s"
 				  "[%s] %s\n")
 				(funcall fontify-key
 					 (char-to-string (car sub-entry))
 					 top-key)
 				(nth 1 sub-entry)))
 			     sub-menu "")
-			    (when (zerop (mod index 2)) "\n"))))))))
+			    (when (cl-evenp index) "\n"))))))))
 		entries ""))
 	     ;; Publishing menu is hard-coded.
 	     (format "\n[%s] Publish

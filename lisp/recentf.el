@@ -73,20 +73,22 @@
 You should define the options of your own filters in this group."
   :group 'recentf)
 
-(defcustom recentf-max-saved-items 20
+(defcustom recentf-max-saved-items 25
   "Maximum number of items of the recent list that will be saved.
 A nil value means to save the whole list.
 See the command `recentf-save-list'."
   :group 'recentf
-  :type '(choice (integer :tag "Entries" :value 1)
-		 (const :tag "No Limit" nil)))
+  :type '(choice (natnum :tag "Entries")
+		 (const :tag "No Limit" nil))
+  :version "31.1")
 
-(defcustom recentf-save-file (locate-user-emacs-file "recentf" ".recentf")
+(defcustom recentf-save-file
+  (locate-user-emacs-file '("recentf.eld" "recentf") ".recentf")
   "File to save the recent list into."
   :group 'recentf
-  :version "24.4"
+  :version "31.1"
   :type 'file
-  :initialize 'custom-initialize-default
+  :initialize #'custom-initialize-default
   :set (lambda (symbol value)
          (let ((oldvalue (symbol-value symbol)))
            (custom-set-default symbol value)
@@ -96,9 +98,10 @@ See the command `recentf-save-list'."
 
 (defcustom recentf-save-file-modes #o600
   "Mode bits of recentf save file, as an integer, or nil.
-If non-nil, after writing `recentf-save-file', set its mode bits to
-this value.  By default give R/W access only to the user who owns that
-file.  See also the function `set-file-modes'."
+If non-nil, after writing `recentf-save-file', set its mode bits to this
+value.  This is decimal, not octal.  The default is 384 (0600 in octal),
+which gives R/W access only to the user who owns that file.  See also
+the function `set-file-modes'."
   :group 'recentf
   :type '(choice (const :tag "Don't change" nil)
           integer))
@@ -155,7 +158,7 @@ Set VARIABLE with VALUE, and force a rebuild of the recentf menu."
   "Name of the recentf menu."
   :group 'recentf
   :type 'string
-  :set 'recentf-menu-customization-changed)
+  :set #'recentf-menu-customization-changed)
 
 (defcustom recentf-menu-path '("File")
   "Path where to add the recentf menu.
@@ -163,7 +166,7 @@ If nil add it at top level (see also `easy-menu-add-item')."
   :group 'recentf
   :type '(choice (const :tag "Top Level" nil)
                  (sexp :tag "Menu Path"))
-  :set 'recentf-menu-customization-changed)
+  :set #'recentf-menu-customization-changed)
 
 (defcustom recentf-menu-before "Open File..."
   "Name of the menu before which the recentf menu will be added.
@@ -171,7 +174,7 @@ If nil add it at end of menu (see also `easy-menu-add-item')."
   :group 'recentf
   :type '(choice (string :tag "Name")
                  (const :tag "Last" nil))
-  :set 'recentf-menu-customization-changed)
+  :set #'recentf-menu-customization-changed)
 
 (defcustom recentf-menu-action #'find-file
   "Function to invoke with a filename item of the recentf menu.
@@ -307,10 +310,10 @@ They are successively passed a file name to transform it."
   :type '(choice
           (const :tag "None" nil)
           (repeat :tag "Functions"
-           (choice
-            (const file-truename)
-            (const abbreviate-file-name)
-            (function :tag "Other function"))))
+                  (choice
+                   (const file-truename)
+                   (const abbreviate-file-name)
+                   (function :tag "Other function"))))
   :version "29.1")
 
 (defcustom recentf-show-file-shortcuts-flag t
@@ -319,6 +322,14 @@ If non-nil, `recentf-open-files' will show labels for keys that can be
 used as shortcuts to open the Nth file."
   :group 'recentf
   :type 'boolean)
+
+(defcustom recentf-show-messages t
+  "Whether to show verbose messages about low-level recentf actions.
+nil means to not show messages related to the recentf machinery.
+t means show messages that were printed by default on Emacs <= 31.1."
+  :group 'recentf
+  :type 'boolean
+  :version "31.1")
 
 ;;; Utilities
 ;;
@@ -361,7 +372,9 @@ the full list."
         (setq value (seq-take value limit)))
       (insert (format "\n(setq %S\n      '(" variable))
       (dolist (e value)
-        (insert (format "\n        %S" e)))
+        (insert (format "\n        %S"
+                        (or (and (stringp e) (substring-no-properties e))
+                            e))))
       (insert "\n        ))\n"))))
 
 (defvar recentf-auto-cleanup-timer nil
@@ -380,11 +393,11 @@ See also the option `recentf-auto-cleanup'.")
             nil)
            ((numberp recentf-auto-cleanup)
             (run-with-idle-timer
-             recentf-auto-cleanup t 'recentf-cleanup))
+             recentf-auto-cleanup t #'recentf-cleanup))
            ((stringp recentf-auto-cleanup)
             (run-at-time
              ;; Repeat every 24 hours.
-             recentf-auto-cleanup (* 24 60 60) 'recentf-cleanup))))))
+             recentf-auto-cleanup (* 24 60 60) #'recentf-cleanup))))))
 
 ;;; File functions
 ;;
@@ -492,12 +505,14 @@ Enable `recentf-mode' if it isn't already."
    (list
     (progn (unless recentf-mode (recentf-mode 1))
            (completing-read (format-prompt "Open recent file" nil)
-                            recentf-list nil t))))
+                            (completion-table-with-metadata
+                             recentf-list '((category . recentf)))
+                            nil t))))
   (when file
     (funcall recentf-menu-action file)))
 
 ;;;###autoload
-(defalias 'recentf 'recentf-open)
+(defalias 'recentf #'recentf-open)
 
 
 ;;; Menu building
@@ -1305,7 +1320,9 @@ Optional argument N must be a valid digit number.  It defaults to 1.
 ;;; Save/load/cleanup the recent list
 ;;
 (defconst recentf-save-file-header
-  ";;; Automatically generated by `recentf' on %s.\n"
+  ;; FIXME: This should arguably be a `lisp-data' file, but currently
+  ;; it contains and is used as an executable ELisp code.
+  ";;; Automatically generated by `recentf' on %s  -*- mode: emacs-lisp; lexical-binding: t -*-\n"
   "Header to be written into the `recentf-save-file'.")
 
 (defconst recentf-save-file-coding-system
@@ -1329,8 +1346,12 @@ Write data into the file specified by `recentf-save-file'."
         (insert "\n\n;; Local Variables:\n"
                 (format ";; coding: %s\n" recentf-save-file-coding-system)
                 ";; End:\n")
-        (write-region (point-min) (point-max)
-                      (expand-file-name recentf-save-file))
+        (write-region (point-min)
+                      (point-max)
+                      (expand-file-name recentf-save-file) nil
+                      (unless (or (called-interactively-p 'interactive)
+                                  recentf-show-messages)
+                        'quiet))
         (when recentf-save-file-modes
           (set-file-modes recentf-save-file recentf-save-file-modes))
         nil)
@@ -1347,7 +1368,8 @@ empty `file-name-history' with the recent list."
         ;; We do not want Tramp asking for passwords.
         (non-essential t))
     (when (file-readable-p file)
-      (load-file file)
+      (let ((warning-inhibit-types '((files missing-lexbind-cookie))))
+        (load-file file))
       (and recentf-initialize-file-name-history
            (not file-name-history)
            (setq file-name-history (mapcar #'abbreviate-file-name

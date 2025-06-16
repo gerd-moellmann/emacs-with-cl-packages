@@ -130,6 +130,14 @@ decode_window_system_frame (Lisp_Object frame)
 #endif
 }
 
+struct frame *
+decode_tty_frame (Lisp_Object frame)
+{
+  struct frame *f = decode_live_frame (frame);
+  check_tty (f);
+  return f;
+}
+
 void
 check_window_system (struct frame *f)
 {
@@ -141,6 +149,20 @@ check_window_system (struct frame *f)
 	 : "Window system is not in use or not initialized");
 }
 
+void
+check_tty (struct frame *f)
+{
+  /* FIXME: the noninteractive case is here because some tests running
+     in batch mode, like xt-mouse-tests, test with the initial frame
+     which is no tty frame.  It would be nicer if the test harness
+     would allow testing with real tty frames.  */
+  if (f && noninteractive)
+    return;
+
+  if (!f || !FRAME_TERMCAP_P (f))
+    error ("tty frame should be used");
+}
+
 /* Return the value of frame parameter PROP in frame FRAME.  */
 
 Lisp_Object
@@ -150,28 +172,34 @@ get_frame_param (struct frame *frame, Lisp_Object prop)
 }
 
 
-/* Return 1 if `frame-inhibit-implied-resize' is non-nil or fullscreen
-   state of frame F would be affected by a vertical (horizontal if
-   HORIZONTAL is true) resize.  PARAMETER is the symbol of the frame
-   parameter that is changed.  */
+/* Return true if 'frame-inhibit-implied-resize' is non-nil or
+   fullscreen state of frame F would be affected by a vertical
+   (horizontal if HORIZONTAL is true) resize.  PARAMETER is the symbol
+   of the frame parameter about to be changed.
+
+   If 'frame-inhibit-implied-resize' equals 'force', unconditionally
+   return true (Bug#76275).  Otherwise, return nil if F has not been
+   made yet and (on GTK) its tool bar has not been resized at least
+   once.  Together these should ensure that F always gets its requested
+   initial size.  */
 bool
 frame_inhibit_resize (struct frame *f, bool horizontal, Lisp_Object parameter)
 {
   Lisp_Object fullscreen = get_frame_param (f, Qfullscreen);
-  bool inhibit
-    = (f->after_make_frame
-       ? (EQ (frame_inhibit_implied_resize, Qt)
-	  || (CONSP (frame_inhibit_implied_resize)
-	      && !NILP (Fmemq (parameter, frame_inhibit_implied_resize)))
-	  || (horizontal
-	      && !NILP (fullscreen) && !EQ (fullscreen, Qfullheight))
-	  || (!horizontal
-	      && !NILP (fullscreen) && !EQ (fullscreen, Qfullwidth))
-	  || FRAME_TERMCAP_P (f) || FRAME_MSDOS_P (f))
-       : ((horizontal && f->inhibit_horizontal_resize)
-	  || (!horizontal && f->inhibit_vertical_resize)));
 
-  return inhibit;
+  return (EQ (frame_inhibit_implied_resize, Qforce)
+	  || (f->after_make_frame
+#ifdef USE_GTK
+	      && f->tool_bar_resized
+#endif
+	      && (EQ (frame_inhibit_implied_resize, Qt)
+		  || (CONSP (frame_inhibit_implied_resize)
+		      && !NILP (Fmemq (parameter, frame_inhibit_implied_resize)))
+		  || (horizontal
+		      && !NILP (fullscreen) && !EQ (fullscreen, Qfullheight))
+		  || (!horizontal
+		      && !NILP (fullscreen) && !EQ (fullscreen, Qfullwidth))
+		  || FRAME_TERMCAP_P (f) || FRAME_MSDOS_P (f))));
 }
 
 
@@ -182,11 +210,34 @@ set_menu_bar_lines (struct frame *f, Lisp_Object value, Lisp_Object oldval)
   int olines = FRAME_MENU_BAR_LINES (f);
   int nlines = TYPE_RANGED_FIXNUMP (int, value) ? XFIXNUM (value) : 0;
 
+  if (is_tty_frame (f))
+    {
+      /* Menu bars on child frames don't work on all platforms, which is
+	 the reason why prepare_menu_bar does not update_menu_bar for
+	 child frames (info from Martin Rudalics).  This could be
+	 implemented in ttys, but it's probably not worth it.  */
+      if (FRAME_PARENT_FRAME (f))
+	FRAME_MENU_BAR_LINES (f) = FRAME_MENU_BAR_HEIGHT (f) = 0;
+      else
+	{
+	  /* Make only 0 or 1 menu bar line (Bug#77015).  */
+	  FRAME_MENU_BAR_LINES (f) = FRAME_MENU_BAR_HEIGHT (f)
+	    = nlines > 0 ? 1 : 0;
+
+	  if (FRAME_MENU_BAR_LINES (f) != olines)
+	    {
+	      windows_or_buffers_changed = 14;
+	      change_frame_size
+		(f, FRAME_PIXEL_WIDTH (f), FRAME_PIXEL_HEIGHT (f),
+		 false, true, false);
+	    }
+	}
+    }
   /* Right now, menu bars don't work properly in minibuf-only frames;
      most of the commands try to apply themselves to the minibuffer
      frame itself, and get an error because you can't switch buffers
      in or split the minibuffer window.  */
-  if (!FRAME_MINIBUF_ONLY_P (f) && nlines != olines)
+  else if (!FRAME_MINIBUF_ONLY_P (f) && nlines != olines)
     {
       windows_or_buffers_changed = 14;
       FRAME_MENU_BAR_LINES (f) = FRAME_MENU_BAR_HEIGHT (f) = nlines;
@@ -310,6 +361,51 @@ predicates which report frame's specific UI-related capabilities.  */)
     return type;
 }
 
+/** Return true if F can be redisplayed, that is if F is visible and, if
+    F is a tty frame, all its ancestors are visible too.  */
+bool
+frame_redisplay_p (struct frame *f)
+{
+  if (is_tty_frame (f))
+    {
+      struct frame *p = FRAME_PARENT_FRAME (f);
+      struct frame *q = NULL;
+
+      while (p)
+	{
+	  if (!p->visible)
+	    /* A tty child frame cannot be redisplayed if one of its
+	       ancestors is invisible.  */
+	    return false;
+	  else
+	    {
+	      q = p;
+	      p = FRAME_PARENT_FRAME (p);
+	    }
+	}
+
+      struct tty_display_info *tty = FRAME_TTY (f);
+      struct frame *r = XFRAME (tty->top_frame);
+
+      /* A tty child frame can be redisplayed iff its root is the top
+	 frame of its terminal.  Any other tty frame can be redisplayed
+	 iff it is the top frame of its terminal itself which must be
+	 always visible.  */
+      return (q ? q == r : f == r);
+    }
+  else
+#ifndef HAVE_X_WINDOWS
+    return FRAME_VISIBLE_P (f);
+#else
+  /* Under X, frames can continue to be displayed to the user by the
+     compositing manager even if they are invisible, so this also
+     checks whether or not the frame is reported visible by the X
+     server.  */
+  return (FRAME_VISIBLE_P (f)
+	  || (FRAME_X_P (f) && FRAME_X_VISIBLE (f)));
+#endif
+}
+
 /* Placeholder used by temacs -nw before window.el is loaded.  */
 DEFUN ("frame-windows-min-size", Fframe_windows_min_size,
        Sframe_windows_min_size, 4, 4, 0,
@@ -373,18 +469,18 @@ frame_windows_min_size (Lisp_Object frame, Lisp_Object horizontal,
 			      : FRAME_COLUMN_WIDTH (f)));
     }
   else
-    retval = XFIXNUM (call4 (Qframe_windows_min_size, frame, horizontal,
-			  ignore, pixelwise));
+    retval = XFIXNUM (calln (Qframe_windows_min_size, frame, horizontal,
+			     ignore, pixelwise));
 
   /* Don't allow too small height of text-mode frames, or else cm.c
      might abort in cmcheckmagic.  */
   if ((FRAME_TERMCAP_P (f) || FRAME_MSDOS_P (f)) && NILP (horizontal))
     {
-      int min_height = (FRAME_MENU_BAR_LINES (f)
-			+ FRAME_TAB_BAR_LINES (f)
+      int min_height = (FRAME_MENU_BAR_LINES (f) + FRAME_TAB_BAR_LINES (f)
 			+ FRAME_WANTS_MODELINE_P (f)
-			+ 2);	/* one text line and one echo-area line */
-
+			+ FRAME_HAS_MINIBUF_P (f));
+      if (min_height == 0)
+	min_height = 1;
       if (retval < min_height)
 	retval = min_height;
     }
@@ -393,7 +489,6 @@ frame_windows_min_size (Lisp_Object frame, Lisp_Object horizontal,
 }
 
 
-#ifdef HAVE_WINDOW_SYSTEM
 /**
  * keep_ratio:
  *
@@ -512,7 +607,6 @@ keep_ratio (struct frame *f, struct frame *p, int old_width, int old_height,
 	}
     }
 }
-#endif
 
 
 static void
@@ -821,14 +915,18 @@ adjust_frame_size (struct frame *f, int new_text_width, int new_text_height,
   block_input ();
 
 #ifdef MSDOS
-  /* We only can set screen dimensions to certain values supported by
-     our video hardware.  Try to find the smallest size greater or
-     equal to the requested dimensions, while accounting for the fact
-     that the menu-bar lines are not counted in the frame height.  */
-  int dos_new_text_lines = new_text_lines + FRAME_TOP_MARGIN (f);
+  if (!FRAME_PARENT_FRAME (f))
+    {
+      /* We only can set screen dimensions to certain values supported
+	 by our video hardware.  Try to find the smallest size greater
+	 or equal to the requested dimensions, while accounting for the
+	 fact that the menu-bar lines are not counted in the frame
+	 height.  */
+      int dos_new_text_lines = new_text_lines + FRAME_TOP_MARGIN (f);
 
-  dos_set_window_size (&dos_new_text_lines, &new_text_cols);
-  new_text_lines = dos_new_text_lines - FRAME_TOP_MARGIN (f);
+      dos_set_window_size (&dos_new_text_lines, &new_text_cols);
+      new_text_lines = dos_new_text_lines - FRAME_TOP_MARGIN (f);
+    }
 #endif
 
   if (new_inner_width != old_inner_width)
@@ -837,8 +935,9 @@ adjust_frame_size (struct frame *f, int new_text_width, int new_text_height,
 
       /* MSDOS frames cannot PRETEND, as they change frame size by
 	 manipulating video hardware.  */
-      if ((FRAME_TERMCAP_P (f) && !pretend) || FRAME_MSDOS_P (f))
-	FrameCols (FRAME_TTY (f)) = new_text_cols;
+      if (is_tty_root_frame (f))
+	if ((FRAME_TERMCAP_P (f) && !pretend) || FRAME_MSDOS_P (f))
+	  FrameCols (FRAME_TTY (f)) = new_text_cols;
 
 #if defined (HAVE_WINDOW_SYSTEM)
       if (WINDOWP (f->tab_bar_window))
@@ -859,7 +958,7 @@ adjust_frame_size (struct frame *f, int new_text_width, int new_text_height,
 #endif
     }
   else if (new_text_cols != old_text_cols)
-    call2 (Qwindow__pixel_to_total, frame, Qt);
+    calln (Qwindow__pixel_to_total, frame, Qt);
 
   if (new_inner_height != old_inner_height
       /* When the top margin has changed we have to recalculate the top
@@ -870,12 +969,13 @@ adjust_frame_size (struct frame *f, int new_text_width, int new_text_height,
       resize_frame_windows (f, new_inner_height, false);
 
       /* MSDOS frames cannot PRETEND, as they change frame size by
-	 manipulating video hardware.  */
-      if ((FRAME_TERMCAP_P (f) && !pretend) || FRAME_MSDOS_P (f))
-	FrameRows (FRAME_TTY (f)) = new_text_lines + FRAME_TOP_MARGIN (f);
+	 manipulating video hardware. */
+      if (is_tty_root_frame (f))
+	if ((FRAME_TERMCAP_P (f) && !pretend) || FRAME_MSDOS_P (f))
+	  FrameRows (FRAME_TTY (f)) = new_text_lines + FRAME_TOP_MARGIN (f);
     }
   else if (new_text_lines != old_text_lines)
-    call2 (Qwindow__pixel_to_total, frame, Qnil);
+    calln (Qwindow__pixel_to_total, frame, Qnil);
 
   /* Assign new sizes.  */
   FRAME_COLS (f) = new_text_cols;
@@ -902,6 +1002,9 @@ adjust_frame_size (struct frame *f, int new_text_width, int new_text_height,
   adjust_frame_glyphs (f);
   calculate_costs (f);
   SET_FRAME_GARBAGED (f);
+  if (is_tty_child_frame (f))
+    SET_FRAME_GARBAGED (root_frame (f));
+
   /* We now say here that F was resized instead of using the old
      condition below.  Some resizing must have taken place and if it was
      only shifting the root window's position (paranoia?).  */
@@ -914,7 +1017,6 @@ adjust_frame_size (struct frame *f, int new_text_width, int new_text_height,
 
   unblock_input ();
 
-#ifdef HAVE_WINDOW_SYSTEM
   {
     /* Adjust size of F's child frames.  */
     Lisp_Object frames, frame1;
@@ -924,7 +1026,6 @@ adjust_frame_size (struct frame *f, int new_text_width, int new_text_height,
 	keep_ratio (XFRAME (frame1), f, old_native_width, old_native_height,
 		    new_native_width, new_native_height);
   }
-#endif
 }
 
 /* Allocate basically initialized frame.  */
@@ -961,8 +1062,6 @@ make_frame (bool mini_p)
   f->garbaged = true;
   f->can_set_window_size = false;
   f->after_make_frame = false;
-  f->inhibit_horizontal_resize = false;
-  f->inhibit_vertical_resize = false;
   f->tab_bar_redisplayed = false;
   f->tab_bar_resized = false;
   f->tool_bar_redisplayed = false;
@@ -971,12 +1070,12 @@ make_frame (bool mini_p)
   f->line_height = 1;  /* !FRAME_WINDOW_P value.  */
   f->new_width = -1;
   f->new_height = -1;
+  f->no_special_glyphs = false;
 #ifdef HAVE_WINDOW_SYSTEM
   f->vertical_scroll_bar_type = vertical_scroll_bar_none;
   f->horizontal_scroll_bars = false;
   f->want_fullscreen = FULLSCREEN_NONE;
   f->undecorated = false;
-  f->no_special_glyphs = false;
 #ifndef HAVE_NTGUI
   f->override_redirect = false;
 #endif
@@ -1047,7 +1146,7 @@ make_frame (bool mini_p)
   rw->pixel_height = rw->total_lines * FRAME_LINE_HEIGHT (f);
 
   fset_face_hash_table
-    (f, make_hash_table (&hashtest_eq, DEFAULT_HASH_SIZE, Weak_None, false));
+    (f, make_hash_table (&hashtest_eq, DEFAULT_HASH_SIZE, Weak_None));
 
   if (mini_p)
     {
@@ -1063,8 +1162,9 @@ make_frame (bool mini_p)
   {
     Lisp_Object buf = Fcurrent_buffer ();
 
-    /* If current buffer is hidden, try to find another one.  */
-    if (BUFFER_HIDDEN_P (XBUFFER (buf)))
+    /* If the current buffer is hidden and shall not be exposed, try to find
+       another one.  */
+    if (BUFFER_HIDDEN_P (XBUFFER (buf)) && NILP (expose_hidden_buffer))
       buf = other_buffer_safely (buf);
 
     /* Use set_window_buffer, not Fset_window_buffer, and don't let
@@ -1093,7 +1193,6 @@ make_frame (bool mini_p)
   return f;
 }
 
-#ifdef HAVE_WINDOW_SYSTEM
 /* Make a frame using a separate minibuffer window on another frame.
    MINI_WINDOW is the minibuffer window to use.  nil means use the
    default (the global minibuffer).  */
@@ -1123,7 +1222,7 @@ make_frame_without_minibuffer (Lisp_Object mini_window, KBOARD *kb,
 	  Lisp_Object initial_frame;
 
 	  /* If there's no minibuffer frame to use, create one.  */
-	  initial_frame = call1 (Qmake_initial_minibuffer_frame,
+	  initial_frame = calln (Qmake_initial_minibuffer_frame,
 				 display);
 	  kset_default_minibuffer_frame (kb, initial_frame);
 	}
@@ -1187,7 +1286,7 @@ make_minibuffer_frame (void)
 		      : Fcar (Vminibuffer_list)), 0, 0);
   return f;
 }
-#endif /* HAVE_WINDOW_SYSTEM */
+
 
 /* Construct a frame that refers to a terminal.  */
 
@@ -1211,9 +1310,9 @@ make_initial_frame (void)
   Vframe_list = Fcons (frame, Vframe_list);
 
   tty_frame_count = 1;
-  fset_name (f, build_pure_c_string ("F1"));
+  fset_name (f, build_string ("F1"));
 
-  SET_FRAME_VISIBLE (f, 1);
+  SET_FRAME_VISIBLE (f, true);
 
   f->output_method = terminal->type;
   f->terminal = terminal;
@@ -1250,23 +1349,91 @@ make_initial_frame (void)
 #ifndef HAVE_ANDROID
 
 static struct frame *
-make_terminal_frame (struct terminal *terminal)
+make_terminal_frame (struct terminal *terminal, Lisp_Object parent,
+		     Lisp_Object params)
 {
-  register struct frame *f;
-  Lisp_Object frame;
-  char name[sizeof "F" + INT_STRLEN_BOUND (tty_frame_count)];
-
   if (!terminal->name)
     error ("Terminal is not live, can't create new frames on it");
 
-  f = make_frame (1);
+  struct frame *f;
 
+  if (NILP (parent))
+    f = make_frame (true);
+  else
+    {
+      CHECK_LIVE_FRAME (parent);
+
+      f = NULL;
+      Lisp_Object mini = Fassq (Qminibuffer, params);
+
+      /* Handling the minibuffer parameter on a tty is different from
+	 its handling on a GUI.  On a GUI any "client frame" can have,
+	 in principle, its minibuffer window on any "minibuffer frame" -
+	 a frame that has a minibuffer window.  If necessary, Emacs
+	 tells the window manager to make the minibuffer frame visible,
+	 raise it and give it input focus.
+
+	 On a tty there's no window manager; so Emacs itself has to make
+	 such a minibuffer frame visible, raise and focus it.  Since a
+	 tty can show only one root frame (a frame that doesn't have a
+	 parent frame) at any time, any client frame shown on a tty must
+	 have a minibuffer frame whose root frame is the root frame of
+	 that client frame.  If that minibuffer frame is a child frame,
+	 Emacs will automatically make it visible, raise it and give it
+	 input focus, if necessary.
+
+	 Two trivial consequences of these observations for ttys are:
+
+	 - A root frame cannot be the minibuffer frame of another root
+	   frame.
+
+	 - Since a child frame cannot be created before its parent
+           frame, each root frame must have its own minibuffer window.
+
+         The situation may change as soon as we can delete and create
+         minibuffer windows on the fly.  */
+      if (CONSP (mini))
+	{
+	  mini = Fcdr (mini);
+
+	  if (EQ (mini, Qnone) || NILP (mini))
+	    {
+	      mini = root_frame (XFRAME (parent))->minibuffer_window;
+	      f = make_frame (false);
+	      fset_minibuffer_window (f, mini);
+	      store_frame_param (f, Qminibuffer, mini);
+	    }
+	  else if (EQ (mini, Qonly))
+	    f = make_minibuffer_frame ();
+	  else if (WINDOWP (mini))
+	    {
+	      if (!WINDOW_LIVE_P (mini)
+		  || !MINI_WINDOW_P (XWINDOW (mini))
+		  || (root_frame (WINDOW_XFRAME (XWINDOW (mini)))
+		      != root_frame (XFRAME (parent))))
+		error ("The `minibuffer' parameter does not specify a valid minibuffer window");
+	      else
+		{
+		  f = make_frame (false);
+		  fset_minibuffer_window (f, mini);
+		  store_frame_param (f, Qminibuffer, mini);
+		}
+	    }
+	}
+
+      if (f == NULL)
+	f = make_frame (true);
+      f->parent_frame = parent;
+      f->z_order = 1 + max_child_z_order (XFRAME (parent));
+    }
+
+  Lisp_Object frame;
   XSETFRAME (frame, f);
   Vframe_list = Fcons (frame, Vframe_list);
 
-  fset_name (f, make_formatted_string (name, "F%"PRIdMAX, ++tty_frame_count));
+  fset_name (f, make_formatted_string ("F%"PRIdMAX, ++tty_frame_count));
 
-  SET_FRAME_VISIBLE (f, 1);
+  SET_FRAME_VISIBLE (f, true);
 
   f->terminal = terminal;
   f->terminal->reference_count++;
@@ -1291,7 +1458,15 @@ make_terminal_frame (struct terminal *terminal)
   f->horizontal_scroll_bars = false;
 #endif
 
-  FRAME_MENU_BAR_LINES (f) = NILP (Vmenu_bar_mode) ? 0 : 1;
+  /* Menu bars on child frames don't work on all platforms, which is
+     the reason why prepare_menu_bar does not update_menu_bar for
+     child frames (info from Martin Rudalics).  This could be
+     implemented in ttys, but it's unclear if it is worth it.  */
+  if (NILP (parent))
+    FRAME_MENU_BAR_LINES (f) = NILP (Vmenu_bar_mode) ? 0 : 1;
+  else
+    FRAME_MENU_BAR_LINES (f) = 0;
+
   FRAME_TAB_BAR_LINES (f) = NILP (Vtab_bar_mode) ? 0 : 1;
   FRAME_LINES (f) = FRAME_LINES (f) - FRAME_MENU_BAR_LINES (f)
     - FRAME_TAB_BAR_LINES (f);
@@ -1299,16 +1474,6 @@ make_terminal_frame (struct terminal *terminal)
   FRAME_TAB_BAR_HEIGHT (f) = FRAME_TAB_BAR_LINES (f) * FRAME_LINE_HEIGHT (f);
   FRAME_TEXT_HEIGHT (f) = FRAME_TEXT_HEIGHT (f) - FRAME_MENU_BAR_HEIGHT (f)
     - FRAME_TAB_BAR_HEIGHT (f);
-
-  /* Set the top frame to the newly created frame.  */
-  if (FRAMEP (FRAME_TTY (f)->top_frame)
-      && FRAME_LIVE_P (XFRAME (FRAME_TTY (f)->top_frame)))
-    SET_FRAME_VISIBLE (XFRAME (FRAME_TTY (f)->top_frame), 2); /* obscured */
-
-  FRAME_TTY (f)->top_frame = frame;
-
-  if (!noninteractive)
-    init_frame_faces (f);
 
   return f;
 }
@@ -1339,6 +1504,98 @@ get_future_frame_param (Lisp_Object parameter,
 
 #endif
 
+int
+tty_child_pos_param (struct frame *f, Lisp_Object key,
+		     Lisp_Object params, int pos, int size)
+{
+  struct frame *p = XFRAME (f->parent_frame);
+  Lisp_Object val = Fassq (key, params);
+
+  if (CONSP (val))
+    {
+      val = XCDR (val);
+
+      if (EQ (val, Qminus))
+	pos = (EQ (key, Qtop)
+	       ? p->pixel_height - size
+	       : p->pixel_width - size);
+      else if (TYPE_RANGED_FIXNUMP (int, val))
+	{
+	  pos = XFIXNUM (val);
+
+	  if (pos < 0)
+	    /* Handle negative value. */
+	    pos = (EQ (key, Qtop)
+		   ? p->pixel_height - size + pos
+		   : p->pixel_width - size + pos);
+	}
+      else if (CONSP (val) && EQ (XCAR (val), Qplus)
+	       && CONSP (XCDR (val))
+	       && TYPE_RANGED_FIXNUMP (int, XCAR (XCDR (val))))
+	pos = XFIXNUM (XCAR (XCDR (val)));
+      else if (CONSP (val) && EQ (XCAR (val), Qminus)
+	       && CONSP (XCDR (val))
+	       && RANGED_FIXNUMP (-INT_MAX, XCAR (XCDR (val)), INT_MAX))
+	pos = (EQ (key, Qtop)
+	       ? p->pixel_height - size - XFIXNUM (XCAR (XCDR (val)))
+	       : p->pixel_width - size - XFIXNUM (XCAR (XCDR (val))));
+    }
+
+  return pos;
+}
+
+int
+tty_child_size_param (struct frame *child, Lisp_Object key,
+		      Lisp_Object params, int dflt)
+{
+  Lisp_Object val = Fassq (key, params);
+  if (CONSP (val))
+    {
+      val = XCDR (val);
+      if (CONSP (val))
+	{
+	  /* Width and height may look like (width text-pixels . PIXELS)
+	     on window systems.  Mimic that.  */
+	  val = XCDR (val);
+	  if (EQ (val, Qtext_pixels))
+	    val = XCDR (val);
+	}
+      else if (FLOATP (val))
+	{
+	  /* Width and height may be a float, in which case
+	     it's a multiple of the parent's value.  */
+	  struct frame *parent = FRAME_PARENT_FRAME (child);
+	  eassert (parent);	/* the caller ensures this, but... */
+	  if (parent)
+	    {
+	      int sz = (EQ (key, Qwidth) ? FRAME_TOTAL_COLS (parent)
+			: FRAME_TOTAL_LINES (parent));
+	      val = make_fixnum (XFLOAT_DATA (val) * sz);
+	    }
+	  else
+	    val = Qnil;
+	}
+
+      if (FIXNATP (val))
+	return XFIXNUM (val);
+    }
+  return dflt;
+}
+
+#ifndef HAVE_ANDROID
+
+static void
+tty_child_frame_rect (struct frame *f, Lisp_Object params,
+		      int *x, int *y, int *w, int *h)
+{
+  *w = tty_child_size_param (f, Qwidth, params, FRAME_TOTAL_COLS (f));
+  *h = tty_child_size_param (f, Qheight, params, FRAME_TOTAL_LINES (f));
+  *x = tty_child_pos_param (f, Qleft, params, 0, *w);
+  *y = tty_child_pos_param (f, Qtop, params, 0, *h);
+}
+
+#endif /* !HAVE_ANDROID */
+
 DEFUN ("make-terminal-frame", Fmake_terminal_frame, Smake_terminal_frame,
        1, 1, 0,
        doc: /* Create an additional terminal frame, possibly on another terminal.
@@ -1362,9 +1619,7 @@ affects all frames on the same terminal device.  */)
   error ("Text terminals are not supported on this platform");
   return Qnil;
 #else
-  struct frame *f;
   struct terminal *t = NULL;
-  Lisp_Object frame;
   struct frame *sf = SELECTED_FRAME ();
 
 #ifdef MSDOS
@@ -1398,7 +1653,7 @@ affects all frames on the same terminal device.  */)
       error ("Multiple terminals are not supported on this platform");
     if (!t)
       t = the_only_display_info.terminal;
-#endif
+# endif
   }
 
   if (!t)
@@ -1425,19 +1680,60 @@ affects all frames on the same terminal device.  */)
       SAFE_FREE ();
     }
 
-  f = make_terminal_frame (t);
+  /* Make a new frame.  We need to know up front if a parent frame is
+     specified because we behave differently in this case, e.g., child
+     frames don't obscure other frames.  */
+  Lisp_Object parent = Fcdr (Fassq (Qparent_frame, parms));
+  struct frame *f = make_terminal_frame (t, parent, parms);
 
-  {
-    int width, height;
+  if (!noninteractive)
+    init_frame_faces (f);
+
+  /* Visibility of root frames cannot be set with a frame parameter.
+     Their visibility solely depends on whether or not they are the
+     top_frame on the terminal.  */
+  if (FRAME_PARENT_FRAME (f))
+    {
+      Lisp_Object visible = Fassq (Qvisibility, parms);
+      if (CONSP (visible))
+	SET_FRAME_VISIBLE (f, !NILP (visible));
+
+      /* FIXME/tty: The only way, for now, to get borders on a tty is
+	 to allow decorations.  */
+      Lisp_Object undecorated = Fassq (Qundecorated, parms);
+      if (CONSP (undecorated) && !NILP (XCDR (undecorated)))
+	f->undecorated = true;
+
+      /* Unused at present.  */
+      Lisp_Object no_focus = Fassq (Qno_accept_focus, parms);
+      if (CONSP (no_focus) && !NILP (XCDR (no_focus)))
+	f->no_accept_focus = true;
+
+      Lisp_Object no_split = Fassq (Qunsplittable, parms);
+      if (CONSP (no_split) && !NILP (XCDR (no_split)))
+	f->no_split = true;
+    }
+
+  /* Determine width and height of the frame.  For root frames use the
+     width/height of the terminal.  For child frames, take it from frame
+     parameters.  Note that a default (80x25) has been set in
+     make_frame.  We handle root frames in this way because otherwise we
+     would end up needing glyph matrices for the terminal, which is both
+     more work and has its downsides (think of clipping frames to the
+     terminal size).  */
+  int x = 0, y = 0, width, height;
+  if (FRAME_PARENT_FRAME (f))
+    tty_child_frame_rect (f, parms, &x, &y, &width, &height);
+  else
     get_tty_size (fileno (FRAME_TTY (f)->input), &width, &height);
-    /* With INHIBIT 5 pass correct text height to adjust_frame_size.  */
-    adjust_frame_size (f, width, height - FRAME_TOP_MARGIN (f),
-		       5, 0, Qterminal_frame);
-  }
-
+  adjust_frame_size (f, width, height - FRAME_TOP_MARGIN (f), 5, 0,
+		     Qterminal_frame);
   adjust_frame_glyphs (f);
+
   calculate_costs (f);
-  XSETFRAME (frame, f);
+
+  f->left_pos = x;
+  f->top_pos = y;
 
   store_in_alist (&parms, Qtty_type, build_string (t->display_info.tty->type));
   store_in_alist (&parms, Qtty,
@@ -1459,7 +1755,11 @@ affects all frames on the same terminal device.  */)
   /* On terminal frames the `minibuffer' frame parameter is always
      virtually t.  Avoid that a different value in parms causes
      complaints, see Bug#24758.  */
-  store_in_alist (&parms, Qminibuffer, Qt);
+  if (!FRAME_PARENT_FRAME (f))
+    store_in_alist (&parms, Qminibuffer, Qt);
+
+  Lisp_Object frame;
+  XSETFRAME (frame, f);
   Fmodify_frame_parameters (frame, parms);
 
   f->can_set_window_size = true;
@@ -1488,8 +1788,6 @@ affects all frames on the same terminal device.  */)
 Lisp_Object
 do_switch_frame (Lisp_Object frame, int track, int for_deletion, Lisp_Object norecord)
 {
-  struct frame *sf = SELECTED_FRAME (), *f;
-
   /* If FRAME is a switch-frame event, extract the frame we should
      switch to.  */
   if (CONSP (frame)
@@ -1501,7 +1799,9 @@ do_switch_frame (Lisp_Object frame, int track, int for_deletion, Lisp_Object nor
      a switch-frame event to arrive after a frame is no longer live,
      especially when deleting the initial frame during startup.  */
   CHECK_FRAME (frame);
-  f = XFRAME (frame);
+  struct frame *f = XFRAME (frame);
+  struct frame *sf = SELECTED_FRAME ();
+
   /* Silently ignore dead and tooltip frames (Bug#47207).  */
   if (!FRAME_LIVE_P (f) || FRAME_TOOLTIP_P (f))
     return Qnil;
@@ -1554,24 +1854,43 @@ do_switch_frame (Lisp_Object frame, int track, int for_deletion, Lisp_Object nor
       struct tty_display_info *tty = FRAME_TTY (f);
       Lisp_Object top_frame = tty->top_frame;
 
-      /* Don't mark the frame garbaged and/or obscured if we are
-	 switching to the frame that is already the top frame of that
-	 TTY.  */
-      if (!EQ (frame, top_frame))
+      /* When FRAME's root frame is not its terminal's top frame, make
+	 that root frame the new top frame of FRAME's terminal.  */
+      if (NILP (top_frame) || root_frame (f) != XFRAME (top_frame))
 	{
-	  if (FRAMEP (top_frame))
-	    /* Mark previously displayed frame as now obscured.  */
-	    SET_FRAME_VISIBLE (XFRAME (top_frame), 2);
-	  SET_FRAME_VISIBLE (f, 1);
-	  /* If the new TTY frame changed dimensions, we need to
-	     resync term.c's idea of the frame size with the new
-	     frame's data.  */
-	  if (FRAME_COLS (f) != FrameCols (tty))
-	    FrameCols (tty) = FRAME_COLS (f);
-	  if (FRAME_TOTAL_LINES (f) != FrameRows (tty))
-	    FrameRows (tty) = FRAME_TOTAL_LINES (f);
+	  struct frame *p = FRAME_PARENT_FRAME (f);
+
+	  XSETFRAME (top_frame, root_frame (f));
+	  tty->top_frame = top_frame;
+
+	  while (p)
+	    {
+	      /* If FRAME is a child frame, make its ancsetors visible
+		 and garbage them ...  */
+	      SET_FRAME_VISIBLE (p, true);
+	      SET_FRAME_GARBAGED (p);
+	      p = FRAME_PARENT_FRAME (p);
+	    }
+
+	  /* ... and FRAME itself too.  */
+	  SET_FRAME_VISIBLE (f, true);
+	  SET_FRAME_GARBAGED (f);
+
+	  /* FIXME: Why is it correct to set FrameCols/Rows here?  */
+	  if (!FRAME_PARENT_FRAME (f))
+	    {
+	      /* If the new TTY frame changed dimensions, we need to
+		 resync term.c's idea of the frame size with the new
+		 frame's data.  */
+	      if (FRAME_COLS (f) != FrameCols (tty))
+		FrameCols (tty) = FRAME_COLS (f);
+	      if (FRAME_TOTAL_LINES (f) != FrameRows (tty))
+		FrameRows (tty) = FRAME_TOTAL_LINES (f);
+	    }
 	}
-      tty->top_frame = frame;
+      else
+	/* Should be covered by the condition above.  */
+	SET_FRAME_VISIBLE (f, true);
     }
 
   sf->select_mini_window_flag = MINI_WINDOW_P (XWINDOW (sf->selected_window));
@@ -1586,14 +1905,14 @@ do_switch_frame (Lisp_Object frame, int track, int for_deletion, Lisp_Object nor
 	 non-active minibuffer.  */
       && NILP (Fminibufferp (XWINDOW (f->minibuffer_window)->contents, Qt)))
     {
-      Lisp_Object w = call1 (Qget_mru_window, frame);
+      Lisp_Object w = calln (Qget_mru_window, frame);
       if (WINDOW_LIVE_P (w)) /* W can be nil in minibuffer-only frames.  */
         Fset_frame_selected_window (frame, w, Qnil);
     }
 
   /* After setting `selected_frame`, we're temporarily in an inconsistent
      state where (selected-window) != (frame-selected-window).  Until this
-     invariant is restored we should be very careful not to run ELisp code.
+     invariant is restored we should be very careful not to run any Lisp.
      (bug#58343)  */
   selected_frame = frame;
 
@@ -1613,10 +1932,36 @@ do_switch_frame (Lisp_Object frame, int track, int for_deletion, Lisp_Object nor
      (select-window (frame-root-window (make-frame))) doesn't end up
      with your typing being interpreted in the new frame instead of
      the one you're actually typing in.  */
-#ifdef HAVE_WINDOW_SYSTEM
-  if (!frame_ancestor_p (f, sf))
-#endif
-    internal_last_event_frame = Qnil;
+
+  /* FIXME/tty: I don't understand this.  (The comment above is from
+     Jim BLandy 1993 BTW, and the frame_ancestor_p from 2017.)
+
+     Setting the last event frame to nil leads to switch-frame events
+     being generated even if they normally wouldn't be because the frame
+     in question equals selected-frame.  See the places in keyboard.c
+     where make_lispy_switch_frame is called.
+
+     This leads to problems at least on ttys.
+
+     Imagine that we have functions in post-command-hook that use
+     select-frame in some way (e.g., with-selected-window).  Let these
+     functions select different frames during the execution of
+     post-command-hook in command_loop_1.  Setting
+     internal_last_event_frame to nil here makes these select-frame
+     calls (potentially and in reality) generate switch-frame events.
+     (But only in one direction (frame_ancestor_p), which I also don't
+     understand).
+
+     These switch-frame events form an endless loop in
+     command_loop_1.  It runs post-command-hook, which generates
+     switch-frame events, which command_loop_1 finds (bound to '#ignore)
+     and executes, which again runs post-command-hook etc., ad
+     infinitum.
+
+     Let's not do that for now on ttys.  */
+  if (!is_tty_frame (f))
+    if (!frame_ancestor_p (f, sf))
+      internal_last_event_frame = Qnil;
 
   return frame;
 }
@@ -1733,7 +2078,7 @@ parent window is the window-system's root window) or an embedded window
     return Qnil;
 }
 
-#ifdef HAVE_WINDOW_SYSTEM
+/* Return true if frame AF is an ancestor of frame DF.  */
 bool
 frame_ancestor_p (struct frame *af, struct frame *df)
 {
@@ -1749,7 +2094,22 @@ frame_ancestor_p (struct frame *af, struct frame *df)
 
   return false;
 }
-#endif
+
+/* A frame AF subsumes a frame DF if AF and DF are the same or AF is an
+   ancestor of DF.  */
+static bool
+frame_subsumes_p (struct frame *af, struct frame *df)
+{
+  while (df)
+    {
+      if (df == af)
+	return true;
+      else
+	df = FRAME_PARENT_FRAME (df);
+    }
+
+  return false;
+}
 
 DEFUN ("frame-ancestor-p", Fframe_ancestor_p, Sframe_ancestor_p,
        2, 2, 0,
@@ -1760,15 +2120,42 @@ ANCESTOR and DESCENDANT must be live frames and default to the selected
 frame.  */)
      (Lisp_Object ancestor, Lisp_Object descendant)
 {
-#ifdef HAVE_WINDOW_SYSTEM
   struct frame *af = decode_live_frame (ancestor);
   struct frame *df = decode_live_frame (descendant);
-
   return frame_ancestor_p (af, df) ? Qt : Qnil;
-#else
-  return Qnil;
-#endif
-  }
+}
+
+/* Return the root frame of frame F.  Follow the parent_frame chain
+   until we reach a frame that has no parent.  That is the root frame.
+   Note that the root of a root frame is itself. */
+
+struct frame *
+root_frame (struct frame *f)
+{
+  while (FRAME_PARENT_FRAME (f))
+    f = FRAME_PARENT_FRAME (f);
+  return f;
+}
+
+
+DEFUN ("frame-root-frame", Fframe_root_frame, Sframe_root_frame,
+       0, 1, 0,
+       doc: /* Return root frame of specified FRAME.
+FRAME must be a live frame and defaults to the selected one.  The root
+frame of FRAME is the frame obtained by following the chain of parent
+frames starting with FRAME until a frame is reached that has no parent.
+If FRAME has no parent, its root frame is FRAME.  */)
+     (Lisp_Object frame)
+{
+  struct frame *f = decode_live_frame (frame);
+  struct frame *r = root_frame (f);
+  Lisp_Object root;
+
+  XSETFRAME (root, r);
+
+  return root;
+}
+
 
 /* Return CANDIDATE if it can be used as 'other-than-FRAME' frame on the
    same tty (for tty frames) or among frames which uses FRAME's keyboard.
@@ -1826,24 +2213,39 @@ candidate_frame (Lisp_Object candidate, Lisp_Object frame, Lisp_Object minibuf)
 static Lisp_Object
 next_frame (Lisp_Object frame, Lisp_Object minibuf)
 {
-  Lisp_Object f, tail;
-  int passed = 0;
+  Lisp_Object f, tail, next = Qnil;
+  bool passed = false;
 
   eassume (CONSP (Vframe_list));
 
-  while (passed < 2)
-    FOR_EACH_FRAME (tail, f)
-      {
-	if (passed)
-	  {
-	    f = candidate_frame (f, frame, minibuf);
-	    if (!NILP (f))
-	      return f;
-	  }
-	if (EQ (frame, f))
-	  passed++;
-      }
-  return frame;
+  FOR_EACH_FRAME (tail, f)
+    {
+      if (EQ (f, frame))
+	/* If we encounter FRAME, set PASSED to true.  */
+	passed = true;
+      else
+	{
+	  f = candidate_frame (f, frame, minibuf);
+
+	  if (!NILP (f))
+	    {
+	      if (passed)
+		/* If we passed FRAME already, return first suitable
+		   candidate following it.  */
+		return f;
+	      else if (NILP (next))
+		/* If we didn't pass FRAME and have no suitable
+		   candidate yet, set NEXT to the first suitable
+		   candidate preceding FRAME.  */
+		next = f;
+	    }
+	}
+    }
+
+  /* We have scanned all frames.  Return first candidate preceding FRAME
+     if we have found one.  Otherwise return FRAME regardless of whether
+     it is a suitable candidate or not.  */
+  return NILP (next) ? frame : next;
 }
 
 /* Return the previous frame in the frame list before FRAME.  */
@@ -1858,21 +2260,26 @@ prev_frame (Lisp_Object frame, Lisp_Object minibuf)
   FOR_EACH_FRAME (tail, f)
     {
       if (EQ (frame, f) && !NILP (prev))
+	/* If we encounter FRAME and already have found a suitable
+	   candidate preceding it, return that candidate.  */
 	return prev;
+
       f = candidate_frame (f, frame, minibuf);
+
       if (!NILP (f))
+	/* PREV is always the last suitable candidate we found.  */
 	prev = f;
     }
 
   /* We've scanned the entire list.  */
   if (NILP (prev))
     /* We went through the whole frame list without finding a single
-       acceptable frame.  Return the original frame.  */
+       acceptable frame.  Return FRAME.  */
     return frame;
   else
-    /* There were no acceptable frames in the list before FRAME; otherwise,
-       we would have returned directly from the loop.  Since PREV is the last
-       acceptable frame in the list, return it.  */
+    /* There were no acceptable frames in the list before FRAME;
+       otherwise, we would have returned directly from the loop.  Since
+       PREV is the last suitable frame in the list, return it.  */
     return prev;
 }
 
@@ -1880,7 +2287,7 @@ prev_frame (Lisp_Object frame, Lisp_Object minibuf)
 DEFUN ("next-frame", Fnext_frame, Snext_frame, 0, 2, 0,
        doc: /* Return the next frame in the frame list after FRAME.
 Only frames on the same terminal as FRAME are included in the list
-of candidate frames.  If omitted, FRAME defaults to the selected frame.
+of candidate frames.  FRAME defaults to the selected frame.
 
 If MINIFRAME is nil (the default), include all frames except
 minibuffer-only frames.
@@ -1892,7 +2299,9 @@ If MINIFRAME is `visible', include only visible frames.
 
 If MINIFRAME is 0, include only visible and iconified frames.
 
-If MINIFRAME is any other value, include all frames.  */)
+If MINIFRAME is any other value, include all frames.
+
+Return FRAME if no suitable next frame is found.  */)
   (Lisp_Object frame, Lisp_Object miniframe)
 {
   if (NILP (frame))
@@ -1903,15 +2312,22 @@ If MINIFRAME is any other value, include all frames.  */)
 
 DEFUN ("previous-frame", Fprevious_frame, Sprevious_frame, 0, 2, 0,
        doc: /* Return the previous frame in the frame list before FRAME.
-It considers only frames on the same terminal as FRAME.
-By default, skip minibuffer-only frames.
-If omitted, FRAME defaults to the selected frame.
-If optional argument MINIFRAME is nil, exclude minibuffer-only frames.
-If MINIFRAME is a window, include only its own frame
-and any frame now using that window as the minibuffer.
-If MINIFRAME is `visible', include all visible frames.
-If MINIFRAME is 0, include all visible and iconified frames.
-Otherwise, include all frames.  */)
+Only frames on the same terminal as FRAME are included in the list
+of candidate frames.  FRAME defaults to the selected frame.
+
+If MINIFRAME is nil (the default), include all frames except
+minibuffer-only frames.
+
+If MINIFRAME is a window, include only its own frame and any frame now
+using that window as the minibuffer.
+
+If MINIFRAME is `visible', include only visible frames.
+
+If MINIFRAME is 0, include only visible and iconified frames.
+
+If MINIFRAME is any other value, include all frames.
+
+Return FRAME if no suitable previous frame is found.  */)
   (Lisp_Object frame, Lisp_Object miniframe)
 {
   if (NILP (frame))
@@ -1937,8 +2353,8 @@ DEFUN ("last-nonminibuffer-frame", Flast_nonminibuf_frame,
  * other_frames:
  *
  * Return true if there exists at least one visible or iconified frame
- * but F.  Tooltip frames do not qualify as candidates.  Return false
- * if no such frame exists.
+ * but F.  Tooltip and child frames do not qualify as candidates.
+ * Return false if no such frame exists.
  *
  * INVISIBLE true means we are called from make_frame_invisible where
  * such a frame must be visible or iconified.  INVISIBLE nil means we
@@ -2029,7 +2445,8 @@ other_frames (struct frame *f, bool invisible, bool force)
 	      && (invisible || NILP (get_frame_param (f1, Qdelete_before)))
 	      /* For invisibility and normal deletions, at least one
 		 visible or iconified frame must remain (Bug#26682).  */
-	      && (FRAME_VISIBLE_P (f1) || FRAME_ICONIFIED_P (f1)
+	      && (FRAME_VISIBLE_P (f1)
+		  || FRAME_ICONIFIED_P (f1)
 		  || (!invisible
 		      && (force
 			  /* Allow deleting the terminal frame when at
@@ -2072,6 +2489,8 @@ delete_frame (Lisp_Object frame, Lisp_Object force)
       else
 	error ("Attempt to delete the only frame");
     }
+  else if (IS_DAEMON && FRAME_INITIAL_P (f) && NILP (force))
+    error ("Attempt to delete daemon's initial frame");
 #ifdef HAVE_X_WINDOWS
   else if ((x_dnd_in_progress && f == x_dnd_frame)
 	   || (x_dnd_waiting_for_finish && f == x_dnd_finish_frame))
@@ -2083,6 +2502,18 @@ delete_frame (Lisp_Object frame, Lisp_Object force)
 #endif
 
   XSETFRAME (frame, f);
+
+  if (is_tty_frame (f) && NILP (force))
+    /* If F is a tty frame, check for surrogate minibuffer frames F
+       subsumes used by a frame that is not subsumed by F. */
+    FOR_EACH_FRAME (frames, frame1)
+      {
+	struct frame *f1 = XFRAME (frame1);
+
+	if (frame_subsumes_p (f, WINDOW_XFRAME (XWINDOW (f1->minibuffer_window)))
+	    && !frame_subsumes_p (f, f1))
+	  error ("Cannot delete surrogate minibuffer frame");
+      }
 
   /* Softly delete all frames with this frame as their parent frame or
      as their `delete-before' frame parameter value.  */
@@ -2180,61 +2611,67 @@ delete_frame (Lisp_Object frame, Lisp_Object force)
   /* Don't let the frame remain selected.  */
   if (f == sf)
     {
-      Lisp_Object tail;
-      Lisp_Object frame1 UNINIT;  /* This line works around GCC bug 85563.  */
-      eassume (CONSP (Vframe_list));
-
-      /* Look for another visible frame on the same terminal.
-	 Do not call next_frame here because it may loop forever.
-	 See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=15025.  */
-      FOR_EACH_FRAME (tail, frame1)
+      if (is_tty_child_frame (f))
+	/* If F is a child frame on a tty and is the selected frame, try
+	   to re-select the frame that was selected before F.  */
+	do_switch_frame (mru_rooted_frame (f), 0, 1, Qnil);
+      else
 	{
-	  struct frame *f1 = XFRAME (frame1);
+	  Lisp_Object tail;
+	  eassume (CONSP (Vframe_list));
 
-	  if (!EQ (frame, frame1)
-	      && !FRAME_TOOLTIP_P (f1)
-	      && FRAME_TERMINAL (f) == FRAME_TERMINAL (f1)
-	      && FRAME_VISIBLE_P (f1))
-	    break;
-	}
-
-      /* If there is none, find *some* other frame.  */
-      if (NILP (frame1) || EQ (frame1, frame))
-	{
+	  /* Look for another visible frame on the same terminal.
+	     Do not call next_frame here because it may loop forever.
+	     See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=15025.  */
 	  FOR_EACH_FRAME (tail, frame1)
 	    {
 	      struct frame *f1 = XFRAME (frame1);
 
 	      if (!EQ (frame, frame1)
-		  && FRAME_LIVE_P (f1)
-		  && !FRAME_TOOLTIP_P (f1))
-		{
-		  if (FRAME_TERMCAP_P (f1) || FRAME_MSDOS_P (f1))
-		    {
-		      Lisp_Object top_frame = FRAME_TTY (f1)->top_frame;
+		  && !FRAME_TOOLTIP_P (f1)
+		  && FRAME_TERMINAL (f) == FRAME_TERMINAL (f1)
+		  && FRAME_VISIBLE_P (f1))
+		break;
+	    }
 
-		      if (!EQ (top_frame, frame))
-			frame1 = top_frame;
+	  /* If there is none, find *some* other frame.  */
+	  if (NILP (frame1) || EQ (frame1, frame))
+	    {
+	      FOR_EACH_FRAME (tail, frame1)
+		{
+		  struct frame *f1 = XFRAME (frame1);
+
+		  if (!EQ (frame, frame1)
+		      && FRAME_LIVE_P (f1)
+		      && !FRAME_TOOLTIP_P (f1))
+		    {
+		      if (FRAME_TERMCAP_P (f1) || FRAME_MSDOS_P (f1))
+			{
+			  Lisp_Object top_frame = FRAME_TTY (f1)->top_frame;
+
+			  if (!EQ (top_frame, frame))
+			    frame1 = top_frame;
+			}
+		      break;
 		    }
-		  break;
 		}
 	    }
-	}
 #ifdef NS_IMPL_COCOA
-      else
-	{
-	  /* Under NS, there is no system mechanism for choosing a new
-	     window to get focus -- it is left to application code.
-	     So the portion of THIS application interfacing with NS
-	     needs to make the frame we switch to the key window.  */
-	  struct frame *f1 = XFRAME (frame1);
-	  if (FRAME_NS_P (f1))
-	    ns_make_frame_key_window (f1);
-	}
+	  else
+	    {
+	      /* Under NS, there is no system mechanism for choosing a new
+		 window to get focus -- it is left to application code.
+		 So the portion of THIS application interfacing with NS
+		 needs to make the frame we switch to the key window.  */
+	      struct frame *f1 = XFRAME (frame1);
+	      if (FRAME_NS_P (f1))
+		ns_make_frame_key_window (f1);
+	    }
 #endif
 
-      do_switch_frame (frame1, 0, 1, Qnil);
-      sf = SELECTED_FRAME ();
+	  do_switch_frame (frame1, 0, 1, Qnil);
+	  sf = SELECTED_FRAME ();
+	}
     }
   else
     /* Ensure any minibuffers on FRAME are moved onto the selected
@@ -2293,8 +2730,10 @@ delete_frame (Lisp_Object frame, Lisp_Object force)
   delete_all_child_windows (f->root_window);
   fset_root_window (f, Qnil);
 
+  block_input ();
   Vframe_list = Fdelq (frame, Vframe_list);
-  SET_FRAME_VISIBLE (f, 0);
+  unblock_input ();
+  SET_FRAME_VISIBLE (f, false);
 
   /* Allow the vector of menu bar contents to be freed in the next
      garbage collection.  The frame object itself may not be garbage
@@ -2332,11 +2771,11 @@ delete_frame (Lisp_Object frame, Lisp_Object force)
     f->terminal = 0;             /* Now the frame is dead.  */
     unblock_input ();
 
-  /* Clear markers and overlays set by F on behalf of an input
-     method.  */
+    /* Clear markers and overlays set by F on behalf of an input
+       method.  */
 #ifdef HAVE_TEXT_CONVERSION
-  if (FRAME_WINDOW_P (f))
-    reset_frame_state (f);
+    if (FRAME_WINDOW_P (f))
+      reset_frame_state (f);
 #endif
 
     /* If needed, delete the terminal that this frame was on.
@@ -2528,10 +2967,11 @@ FRAME must be a live frame and defaults to the selected one.
 When `undelete-frame-mode' is enabled, the 16 most recently deleted
 frames can be undeleted with `undelete-frame', which see.
 
-A frame may not be deleted if its minibuffer serves as surrogate
-minibuffer for another frame.  Normally, you may not delete a frame if
-all other frames are invisible, but if the second optional argument
-FORCE is non-nil, you may do so.
+Do not delete a frame whose minibuffer serves as surrogate minibuffer
+for another frame.  Do not delete a frame if all other frames are
+invisible unless the second optional argument FORCE is non-nil.  Do not
+delete the initial terminal frame of an Emacs process running as daemon
+unless FORCE is non-nil.
 
 This function runs `delete-frame-functions' before actually
 deleting the frame, unless the frame is a tooltip.
@@ -2541,7 +2981,7 @@ The functions are run with one argument, the frame to be deleted.  */)
   return delete_frame (frame, !NILP (force) ? Qt : Qnil);
 }
 
-#ifdef HAVE_WINDOW_SYSTEM
+
 /**
  * frame_internal_border_part:
  *
@@ -2564,7 +3004,11 @@ The functions are run with one argument, the frame to be deleted.  */)
 enum internal_border_part
 frame_internal_border_part (struct frame *f, int x, int y)
 {
-  int border = FRAME_INTERNAL_BORDER_WIDTH (f);
+  int border = (FRAME_INTERNAL_BORDER_WIDTH (f)
+		? FRAME_INTERNAL_BORDER_WIDTH (f)
+		: (is_tty_child_frame (f) && !FRAME_UNDECORATED (f))
+		? 1
+		: 0);
   int offset = FRAME_LINE_HEIGHT (f);
   int width = FRAME_PIXEL_WIDTH (f);
   int height = FRAME_PIXEL_HEIGHT (f);
@@ -2633,7 +3077,7 @@ frame_internal_border_part (struct frame *f, int x, int y)
 
   return part;
 }
-#endif
+
 
 /* Return mouse position in character cell units.  */
 
@@ -2691,7 +3135,7 @@ mouse_position (bool call_mouse_position_function)
     lispy_dummy = Qnil;
   retval = Fcons (lispy_dummy, Fcons (x, y));
   if (call_mouse_position_function && !NILP (Vmouse_position_function))
-    retval = call1 (Vmouse_position_function, retval);
+    retval = calln (Vmouse_position_function, retval);
   return retval;
 }
 
@@ -2733,7 +3177,7 @@ Y.  */)
 
   retval = Fcons (lispy_dummy, Fcons (x, y));
   if (!NILP (Vmouse_position_function))
-    retval = call1 (Vmouse_position_function, retval);
+    retval = calln (Vmouse_position_function, retval);
   return retval;
 }
 
@@ -2882,6 +3326,12 @@ If omitted, FRAME defaults to the currently selected frame.  */)
   if (FRAME_WINDOW_P (f) && FRAME_TERMINAL (f)->frame_visible_invisible_hook)
     FRAME_TERMINAL (f)->frame_visible_invisible_hook (f, true);
 
+  if (is_tty_frame (f))
+    {
+      SET_FRAME_VISIBLE (f, true);
+      tty_raise_lower_frame (f, true);
+    }
+
   make_frame_visible_1 (f->root_window);
 
   /* Make menu bar update for the Buffers and Frames menus.  */
@@ -2916,21 +3366,39 @@ If omitted, FRAME defaults to the currently selected frame.
 On graphical displays, invisible frames are not updated and are
 usually not displayed at all, even in a window system's \"taskbar\".
 
-Normally you may not make FRAME invisible if all other frames are invisible,
-but if the second optional argument FORCE is non-nil, you may do so.
+Normally you may not make FRAME invisible if all other frames are
+invisible, but if the second optional argument FORCE is non-nil, you may
+do so.
 
-This function has no effect on text terminal frames.  Such frames are
-always considered visible, whether or not they are currently being
-displayed in the terminal.  */)
+On a text terminal make FRAME invisible if and only FRAME is either a
+child frame or another non-child frame can be found.  In the former
+case, if FRAME is the selected frame, select the first visible ancestor
+of FRAME instead.  In the latter case, if FRAME is the top frame of its
+terminal, make another frame that terminal's top frame.  */)
   (Lisp_Object frame, Lisp_Object force)
 {
   struct frame *f = decode_live_frame (frame);
+
+  XSETFRAME (frame, f);
 
   if (NILP (force) && !other_frames (f, true, false))
     error ("Attempt to make invisible the sole visible or iconified frame");
 
   if (FRAME_WINDOW_P (f) && FRAME_TERMINAL (f)->frame_visible_invisible_hook)
     FRAME_TERMINAL (f)->frame_visible_invisible_hook (f, false);
+
+  SET_FRAME_VISIBLE (f, false);
+
+  if (is_tty_frame (f) && EQ (frame, selected_frame))
+  /* On a tty if FRAME is the selected frame, we have to select another
+    frame instead.  If FRAME is a child frame, use the first visible
+    ancestor as returned by 'mru_rooted_frame'.  If FRAME is a root
+    frame, use the frame returned by 'next-frame' which must exist since
+    otherwise other_frames above would have lied.  */
+    Fselect_frame (FRAME_PARENT_FRAME (f)
+		   ? mru_rooted_frame (f)
+		   : next_frame (frame, make_fixnum (0)),
+		   Qnil);
 
   /* Make menu bar update for the Buffers and Frames menus.  */
   windows_or_buffers_changed = 16;
@@ -2948,28 +3416,31 @@ for how to proceed.  */)
   (Lisp_Object frame)
 {
   struct frame *f = decode_live_frame (frame);
-#ifdef HAVE_WINDOW_SYSTEM
-  Lisp_Object parent = f->parent_frame;
 
-  if (!NILP (parent))
+  if (FRAME_PARENT_FRAME (f))
     {
       if (NILP (iconify_child_frame))
 	/* Do nothing.  */
 	return Qnil;
-      else if (EQ (iconify_child_frame, Qiconify_top_level))
+      else if (FRAME_WINDOW_P (f)
+	       && EQ (iconify_child_frame, Qiconify_top_level))
 	{
-	  /* Iconify top level frame instead (the default).  */
-	  Ficonify_frame (parent);
+	  /* Iconify root frame (the default).  */
+	  Lisp_Object root;
+
+	  XSETFRAME (root, root_frame (f));
+	  Ficonify_frame (root);
+
 	  return Qnil;
 	}
       else if (EQ (iconify_child_frame, Qmake_invisible))
 	{
-	  /* Make frame invisible instead.  */
+	  /* Make frame invisible.  */
 	  Fmake_frame_invisible (frame, Qnil);
+
 	  return Qnil;
 	}
     }
-#endif	/* HAVE_WINDOW_SYSTEM */
 
   if (FRAME_WINDOW_P (f) && FRAME_TERMINAL (f)->iconify_frame_hook)
     FRAME_TERMINAL (f)->iconify_frame_hook (f);
@@ -2983,18 +3454,15 @@ DEFUN ("frame-visible-p", Fframe_visible_p, Sframe_visible_p,
 Return the symbol `icon' if FRAME is iconified or \"minimized\".
 Return nil if FRAME was made invisible, via `make-frame-invisible'.
 On graphical displays, invisible frames are not updated and are
-usually not displayed at all, even in a window system's \"taskbar\".
-
-If FRAME is a text terminal frame, this always returns t.
-Such frames are always considered visible, whether or not they are
-currently being displayed on the terminal.  */)
+usually not displayed at all, even in a window system's \"taskbar\".  */)
   (Lisp_Object frame)
 {
   CHECK_LIVE_FRAME (frame);
+  struct frame *f = XFRAME (frame);
 
-  if (FRAME_VISIBLE_P (XFRAME (frame)))
+  if (FRAME_VISIBLE_P (f))
     return Qt;
-  if (FRAME_ICONIFIED_P (XFRAME (frame)))
+  if (FRAME_ICONIFIED_P (f))
     return Qicon;
   return Qnil;
 }
@@ -3026,12 +3494,7 @@ doesn't support multiple overlapping frames, this function selects FRAME.  */)
 
   XSETFRAME (frame, f);
 
-  if (FRAME_TERMCAP_P (f))
-    /* On a text terminal select FRAME.  */
-    Fselect_frame (frame, Qnil);
-  else
-    /* Do like the documentation says. */
-    Fmake_frame_visible (frame);
+  Fmake_frame_visible (frame);
 
   if (FRAME_TERMINAL (f)->frame_raise_lower_hook)
     (*FRAME_TERMINAL (f)->frame_raise_lower_hook) (f, true);
@@ -3142,8 +3605,6 @@ otherwise used with utter care to avoid that running functions on
 {
   struct frame *f = decode_live_frame (frame);
   f->after_make_frame = !NILP (made);
-  f->inhibit_horizontal_resize = false;
-  f->inhibit_vertical_resize = false;
   return made;
 }
 
@@ -3202,14 +3663,12 @@ set_term_frame_name (struct frame *f, Lisp_Object name)
   /* If NAME is nil, set the name to F<num>.  */
   if (NILP (name))
     {
-      char namebuf[sizeof "F" + INT_STRLEN_BOUND (tty_frame_count)];
-
       /* Check for no change needed in this very common case
 	 before we do any consing.  */
       if (frame_name_fnn_p (SSDATA (f->name), SBYTES (f->name)))
 	return;
 
-      name = make_formatted_string (namebuf, "F%"PRIdMAX, ++tty_frame_count);
+      name = make_formatted_string ("F%"PRIdMAX, ++tty_frame_count);
     }
   else
     {
@@ -3238,7 +3697,7 @@ store_frame_param (struct frame *f, Lisp_Object prop, Lisp_Object val)
     {
       if (WINDOWP (val))
 	{
-	  if (!MINI_WINDOW_P (XWINDOW (val)))
+	  if (!WINDOW_LIVE_P (val) || !MINI_WINDOW_P (XWINDOW (val)))
 	    error ("The `minibuffer' parameter does not specify a valid minibuffer window");
 	  else if (FRAME_MINIBUF_ONLY_P (f))
 	    {
@@ -3254,6 +3713,10 @@ store_frame_param (struct frame *f, Lisp_Object prop, Lisp_Object val)
 	      else
 		error ("Can't change the minibuffer window of a frame with its own minibuffer");
 	    }
+	  else if (is_tty_frame (f)
+		   && (root_frame (WINDOW_XFRAME (XWINDOW (val)))
+		       != root_frame (f)))
+	    error ("A frame and its surrogate minibuffer frame must have the same roots");
 	  else
 	    /* Store the chosen minibuffer window.  */
 	    fset_minibuffer_window (f, val);
@@ -3330,6 +3793,57 @@ store_frame_param (struct frame *f, Lisp_Object prop, Lisp_Object val)
       Lisp_Object old_val = Fcdr (Fassq (prop, f->param_alist));
 
       val = old_val;
+    }
+
+  /* The parent frame parameter for ttys must be handled specially.  */
+  if (is_tty_frame (f) && EQ (prop, Qparent_frame))
+    {
+      /* Invariant: When a frame F1 uses a surrogate minibuffer frame M1
+	 on a tty, both F1 and M1 must have the same root frame.  */
+      Lisp_Object frames, frame1, old_val = f->parent_frame;
+
+      FOR_EACH_FRAME (frames, frame1)
+	{
+	  struct frame *f1 = XFRAME (frame1);
+	  struct frame *m1 = WINDOW_XFRAME (XWINDOW (f1->minibuffer_window));
+	  bool mismatch = false;
+
+	  /* Temporarily install VAL and check whether our invariant
+	     above gets violated.  */
+	  f->parent_frame = val;
+	  mismatch = root_frame (f1) != root_frame (m1);
+	  f->parent_frame = old_val;
+
+	  if (mismatch)
+	    error ("Cannot re-root surrogate minibuffer frame");
+	}
+
+      if (f == XFRAME (FRAME_TERMINAL (f)->display_info.tty->top_frame)
+	  && !NILP (val))
+	error ("Cannot make tty top frame a child frame");
+      else if (NILP (val))
+	{
+	  if (!FRAME_HAS_MINIBUF_P (f)
+	      && (!frame_ancestor_p
+		  (f, WINDOW_XFRAME (XWINDOW (f->minibuffer_window)))))
+	    error ("Cannot make tty root frame without valid minibuffer window");
+	  else
+	    {
+	      /* When making a frame a root frame, expand it to full size,
+		 if necessary, and position it at top left corner.  */
+	      int width, height;
+
+	      get_tty_size (fileno (FRAME_TTY (f)->input), &width, &height);
+	      adjust_frame_size (f, width, height - FRAME_TOP_MARGIN (f), 5, 0,
+				 Qterminal_frame);
+	      f->left_pos = 0;
+	      f->top_pos = 0;
+	    }
+	}
+
+      SET_FRAME_GARBAGED (root_frame (f));
+      f->parent_frame = val;
+      SET_FRAME_GARBAGED (root_frame (f));
     }
 
   /* The tty color needed to be set before the frame's parameter
@@ -3455,13 +3969,10 @@ If FRAME is omitted or nil, return information on the currently selected frame. 
   else
 #endif
     {
-      /* This ought to be correct in f->param_alist for an X frame.  */
-      Lisp_Object lines;
-
-      XSETFASTINT (lines, FRAME_MENU_BAR_LINES (f));
-      store_in_alist (&alist, Qmenu_bar_lines, lines);
-      XSETFASTINT (lines, FRAME_TAB_BAR_LINES (f));
-      store_in_alist (&alist, Qtab_bar_lines, lines);
+      store_in_alist (&alist, Qmenu_bar_lines, make_fixnum (FRAME_MENU_BAR_LINES (f)));
+      store_in_alist (&alist, Qtab_bar_lines, make_fixnum (FRAME_TAB_BAR_LINES (f)));
+      store_in_alist (&alist, Qvisibility, FRAME_VISIBLE_P (f) ? Qt : Qnil);
+      store_in_alist (&alist, Qno_accept_focus, FRAME_NO_ACCEPT_FOCUS (f) ? Qt : Qnil);
     }
 
   return alist;
@@ -3539,7 +4050,6 @@ If FRAME is nil, describe the currently selected frame.  */)
   return value;
 }
 
-
 DEFUN ("modify-frame-parameters", Fmodify_frame_parameters,
        Smodify_frame_parameters, 2, 2, 0,
        doc: /* Modify FRAME according to new values of its parameters in ALIST.
@@ -3577,6 +4087,7 @@ list, but are otherwise ignored.  */)
       USE_SAFE_ALLOCA;
       SAFE_ALLOCA_LISP (parms, 2 * length);
       values = parms + length;
+      Lisp_Object params = alist;
 
       /* Extract parm names and values into those vectors.  */
 
@@ -3600,6 +4111,40 @@ list, but are otherwise ignored.  */)
 	  if (EQ (prop, Qforeground_color)
 	      || EQ (prop, Qbackground_color))
 	    update_face_from_frame_parameter (f, prop, val);
+	}
+
+      if (is_tty_child_frame (f))
+	{
+	  int w = tty_child_size_param (f, Qwidth, params, f->total_cols);
+	  int h = tty_child_size_param (f, Qheight, params, f->total_lines);
+	  int x = tty_child_pos_param (f, Qleft, params, f->left_pos, w);
+	  int y = tty_child_pos_param (f, Qtop, params, f->top_pos, h);
+
+	  if (x != f->left_pos || y != f->top_pos)
+	    {
+	      f->left_pos = x;
+	      f->top_pos = y;
+	      SET_FRAME_GARBAGED (root_frame (f));
+	    }
+
+	  if (w != f->total_cols || h != f->total_lines)
+	    change_frame_size (f, w, h, false, false, false);
+
+	  Lisp_Object visible = Fassq (Qvisibility, params);
+
+	  if (CONSP (visible))
+	    {
+	      if (EQ (Fcdr (visible), Qicon)
+		  && EQ (iconify_child_frame, Qmake_invisible))
+		SET_FRAME_VISIBLE (f, false);
+	      else
+		SET_FRAME_VISIBLE (f, !NILP (Fcdr (visible)));
+	    }
+
+	  Lisp_Object no_special = Fassq (Qno_special_glyphs, params);
+
+	  if (CONSP (no_special))
+	    FRAME_NO_SPECIAL_GLYPHS (f) = !NILP (Fcdr (no_special));
 	}
 
       SAFE_FREE ();
@@ -3949,6 +4494,11 @@ bottom edge of FRAME's display.  */)
       (void) yval;
 #endif
     }
+  else if (is_tty_child_frame (f))
+    {
+      f->left_pos = xval;
+      f->top_pos = yval;
+    }
 
   return Qt;
 }
@@ -4006,26 +4556,30 @@ multiplied to find the real number of pixels.  */)
 /* Connect the frame-parameter names for frames to the ways of passing
    the parameter values to the window system.
 
-   The name of a parameter, as a Lisp symbol, has a
-   `frame-parameter-pos' property which is an integer in Lisp that is
-   an index in this table.  */
+   The name of a parameter, a Lisp symbol, has an `x-frame-parameter'
+   property which is its index in this table.  This is initialized in
+   syms_of_frame.  */
 
 struct frame_parm_table {
   const char *name;
   int sym;
 };
 
+/* If you're adding a new frame parameter here, consider if it makes sense
+   for the user to customize it via `initial-frame-alist' and the like.
+   If it does, add it to `frame--special-parameters' in frame.el, in order
+   to provide completion in the Customize UI for the new parameter.  */
 static const struct frame_parm_table frame_parms[] =
 {
   {"auto-raise",		SYMBOL_INDEX (Qauto_raise)},
   {"auto-lower",		SYMBOL_INDEX (Qauto_lower)},
-  {"background-color",		-1},
+  {"background-color",		SYMBOL_INDEX (Qbackground_color)},
   {"border-color",		SYMBOL_INDEX (Qborder_color)},
   {"border-width",		SYMBOL_INDEX (Qborder_width)},
   {"cursor-color",		SYMBOL_INDEX (Qcursor_color)},
   {"cursor-type",		SYMBOL_INDEX (Qcursor_type)},
-  {"font",			-1},
-  {"foreground-color",		-1},
+  {"font",			SYMBOL_INDEX (Qfont)},
+  {"foreground-color",		SYMBOL_INDEX (Qforeground_color)},
   {"icon-name",			SYMBOL_INDEX (Qicon_name)},
   {"icon-type",			SYMBOL_INDEX (Qicon_type)},
   {"child-frame-border-width",	SYMBOL_INDEX (Qchild_frame_border_width)},
@@ -4149,7 +4703,7 @@ frame_float (struct frame *f, Lisp_Object val, enum frame_float_type what,
 	      Lisp_Object frame;
 
 	      XSETFRAME (frame, f);
-	      monitor_attributes = call1 (Qframe_monitor_attributes, frame);
+	      monitor_attributes = calln (Qframe_monitor_attributes, frame);
 	      if (NILP (monitor_attributes))
 		{
 		  /* No monitor attributes available.  */
@@ -4194,7 +4748,7 @@ frame_float (struct frame *f, Lisp_Object val, enum frame_float_type what,
 	  Lisp_Object frame, outer_edges;
 
 	  XSETFRAME (frame, f);
-	  outer_edges = call2 (Qframe_edges, frame, Qouter_edges);
+	  outer_edges = calln (Qframe_edges, frame, Qouter_edges);
 
 	  if (!NILP (outer_edges))
 	    {
@@ -4256,6 +4810,29 @@ frame_float (struct frame *f, Lisp_Object val, enum frame_float_type what,
 	  }
 	default:
 	  emacs_abort ();
+	}
+    }
+}
+
+/* Handle frame parameter change with frame parameter handler.
+   F is the frame whose frame parameter was changed.
+   PROP is the name of the frame parameter.
+   VAL and OLD_VALUE are the current and the old value of the
+   frame parameter.  */
+
+static void
+handle_frame_param (struct frame *f, Lisp_Object prop, Lisp_Object val,
+		    Lisp_Object old_value)
+{
+  Lisp_Object param_index = Fget (prop, Qx_frame_parameter);
+  if (FIXNATP (param_index) && XFIXNAT (param_index) < ARRAYELTS (frame_parms))
+    {
+      if (FRAME_RIF (f))
+	{
+	  frame_parm_handler handler
+	    = FRAME_RIF (f)->frame_parm_handlers[XFIXNAT (param_index)];
+	  if (handler)
+	    handler (f, val, old_value);
 	}
     }
 }
@@ -4401,17 +4978,9 @@ gui_set_frame_parameters_1 (struct frame *f, Lisp_Object alist,
 	}
       else
 	{
-	  Lisp_Object param_index, old_value;
-
-	  old_value = get_frame_param (f, prop);
-
+	  Lisp_Object old_value = get_frame_param (f, prop);
 	  store_frame_param (f, prop, val);
-
-	  param_index = Fget (prop, Qx_frame_parameter);
-	  if (FIXNATP (param_index)
-	      && XFIXNAT (param_index) < ARRAYELTS (frame_parms)
-	      && FRAME_RIF (f)->frame_parm_handlers[XFIXNUM (param_index)])
-	    (*(FRAME_RIF (f)->frame_parm_handlers[XFIXNUM (param_index)])) (f, val, old_value);
+	  handle_frame_param (f, prop, val, old_value);
 
 	  if (!default_parameter && EQ (prop, Qfont))
 	    /* The user manually specified the `font' frame parameter.
@@ -4585,7 +5154,6 @@ gui_report_frame_params (struct frame *f, Lisp_Object *alistptr)
 {
   Lisp_Object tem;
   uintmax_t w;
-  char buf[INT_BUFSIZE_BOUND (w)];
 
   /* Represent negative positions (off the top or left screen edge)
      in a way that Fmodify_frame_parameters will understand correctly.  */
@@ -4636,7 +5204,7 @@ gui_report_frame_params (struct frame *f, Lisp_Object *alistptr)
      warnings.  */
   w = (uintptr_t) FRAME_NATIVE_WINDOW (f);
   store_in_alist (alistptr, Qwindow_id,
-		  make_formatted_string (buf, "%"PRIuMAX, w));
+		  make_formatted_string ("%"PRIuMAX, w));
 #ifdef HAVE_X_WINDOWS
 #ifdef USE_X_TOOLKIT
   /* Tooltip frame may not have this widget.  */
@@ -4644,7 +5212,7 @@ gui_report_frame_params (struct frame *f, Lisp_Object *alistptr)
 #endif
     w = (uintptr_t) FRAME_OUTER_WINDOW (f);
   store_in_alist (alistptr, Qouter_window_id,
-		  make_formatted_string (buf, "%"PRIuMAX, w));
+		  make_formatted_string ("%"PRIuMAX, w));
 #endif
   store_in_alist (alistptr, Qicon_name, f->icon_name);
   store_in_alist (alistptr, Qvisibility,
@@ -4736,14 +5304,7 @@ gui_set_screen_gamma (struct frame *f, Lisp_Object new_value, Lisp_Object old_va
   /* Apply the new gamma value to the frame background.  */
   bgcolor = Fassq (Qbackground_color, f->param_alist);
   if (CONSP (bgcolor) && (bgcolor = XCDR (bgcolor), STRINGP (bgcolor)))
-    {
-      Lisp_Object parm_index = Fget (Qbackground_color, Qx_frame_parameter);
-      if (FIXNATP (parm_index)
-	  && XFIXNAT (parm_index) < ARRAYELTS (frame_parms)
-	  && FRAME_RIF (f)->frame_parm_handlers[XFIXNAT (parm_index)])
-	  (*FRAME_RIF (f)->frame_parm_handlers[XFIXNAT (parm_index)])
-	    (f, bgcolor, Qnil);
-    }
+    handle_frame_param (f, Qbackground_color, bgcolor, Qnil);
 
   clear_face_cache (true);	/* FIXME: Why of all frames?  */
   fset_redisplay (f);
@@ -5795,7 +6356,7 @@ On Nextstep, this just calls `ns-parse-geometry'.  */)
 
 #ifdef HAVE_NS
   if (strchr (SSDATA (string), ' ') != NULL)
-    return call1 (Qns_parse_geometry, string);
+    return calln (Qns_parse_geometry, string);
 #endif
   int geometry = XParseGeometry (SSDATA (string),
 				 &x, &y, &width, &height);
@@ -5941,7 +6502,6 @@ gui_figure_window_size (struct frame *f, Lisp_Object parms, bool tabbar_p,
 		xsignal1 (Qargs_out_of_range, XCDR (width));
 
 	      text_width = XFIXNUM (XCDR (width));
-	      f->inhibit_horizontal_resize = true;
 	    }
 	  else if (FLOATP (width))
 	    {
@@ -5977,7 +6537,6 @@ gui_figure_window_size (struct frame *f, Lisp_Object parms, bool tabbar_p,
 		xsignal1 (Qargs_out_of_range, XCDR (height));
 
 	      text_height = XFIXNUM (XCDR (height));
-	      f->inhibit_vertical_resize = true;
 	    }
 	  else if (FLOATP (height))
 	    {
@@ -6149,6 +6708,37 @@ selected frame.  This is useful when `make-pointer-invisible' is set.  */)
   return decode_any_frame (frame)->pointer_invisible ? Qnil : Qt;
 }
 
+DEFUN ("mouse-position-in-root-frame", Fmouse_position_in_root_frame,
+       Smouse_position_in_root_frame, 0, 0, 0,
+       doc: /* Return mouse position in selected frame's root frame.
+Return the position of `mouse-position' in coordinates of the root frame
+of the frame returned by 'mouse-position'.  */)
+  (void)
+{
+  Lisp_Object pos = mouse_position (true);
+  Lisp_Object frame = XCAR (pos);
+
+  if (!FRAMEP (frame))
+    return Qnil;
+  else
+    {
+      struct frame *f = XFRAME (frame);
+      int x = XFIXNUM (XCAR (XCDR (pos))) + f->left_pos;
+      int y = XFIXNUM (XCDR (XCDR (pos))) + f->top_pos;
+
+      f = FRAME_PARENT_FRAME (f);
+
+      while (f)
+	{
+	  x = x + f->left_pos;
+	  y = y + f->top_pos;
+	  f = FRAME_PARENT_FRAME (f);
+	}
+
+      return Fcons (make_fixnum (x), make_fixnum (y));
+    }
+}
+
 DEFUN ("frame--set-was-invisible", Fframe__set_was_invisible,
        Sframe__set_was_invisible, 2, 2, 0,
        doc: /* Set FRAME's was-invisible flag if WAS-INVISIBLE is non-nil.
@@ -6209,7 +6799,7 @@ have changed.  */)
 
   /* Now call this to apply the existing value(s) of the `default'
      face.  */
-  call2 (Qface_set_after_frame_default, frame, params);
+  calln (Qface_set_after_frame_default, frame, params);
 
   /* Restore the value of the `font-parameter' parameter, as
      `face-set-after-frame-default' will have changed it through its
@@ -6485,18 +7075,15 @@ syms_of_frame (void)
   DEFSYM (Qmake_invisible, "make-invisible");
   DEFSYM (Quse_frame_synchronization, "use-frame-synchronization");
   DEFSYM (Qfont_parameter, "font-parameter");
+  DEFSYM (Qforce, "force");
 
-  {
-    int i;
-
-    for (i = 0; i < ARRAYELTS (frame_parms); i++)
-      {
-	Lisp_Object v = (frame_parms[i].sym < 0
-			 ? intern_c_string (frame_parms[i].name)
-			 : builtin_lisp_symbol (frame_parms[i].sym));
-	Fput (v, Qx_frame_parameter, make_fixnum (i));
-      }
-  }
+  for (int i = 0; i < ARRAYELTS (frame_parms); i++)
+    {
+      int sym = frame_parms[i].sym;
+      eassert (sym >= 0 && sym < ARRAYELTS (lispsym));
+      Lisp_Object v = builtin_lisp_symbol (sym);
+      Fput (v, Qx_frame_parameter, make_fixnum (i));
+    }
 
 #ifdef HAVE_WINDOW_SYSTEM
   DEFVAR_LISP ("x-resource-name", Vx_resource_name,
@@ -6742,18 +7329,28 @@ a non-nil value in your init file.  */);
 
   DEFVAR_LISP ("frame-inhibit-implied-resize", frame_inhibit_implied_resize,
 	       doc: /* Whether frames should be resized implicitly.
-If this option is nil, setting font, menu bar, tool bar, tab bar, internal
-borders, fringes or scroll bars of a specific frame may resize the frame
-in order to preserve the number of columns or lines it displays.  If
-this option is t, no such resizing is done.  Note that the size of
-fullscreen and maximized frames, the height of fullheight frames and the
-width of fullwidth frames never change implicitly.
+If this option is nil, setting font, menu bar, tool bar, tab bar,
+internal borders, fringes or scroll bars of a specific frame may resize
+the frame in order to preserve the number of columns or lines it
+displays.
+
+If this option is t, no such resizing happens once Emacs has agreed with
+the window manager on the final initial size of a frame.  That size will
+have taken into account the size of the text area requested by the user
+and the size of all decorations initially present on the frame.
+
+If this is the symbol `force', no implicit resizing happens even before
+a frame has obtained its final initial size.  As a consequence, the
+initial frame size may not necessarily be the one requested by the user.
+This value can be useful with tiling window managers where the initial
+size of a frame is determined by external means.
 
 The value of this option can be also a list of frame parameters.  In
-this case, resizing is inhibited when changing a parameter that
-appears in that list.  The parameters currently handled by this option
-include `font', `font-backend', `internal-border-width',
-`menu-bar-lines', `tool-bar-lines' and `tab-bar-lines'.
+this case, resizing is inhibited once a frame has obtained its final
+initial size when changing a parameter that appears in that list.  The
+parameters currently handled by this option include `font',
+`font-backend', `internal-border-width', `menu-bar-lines',
+`tool-bar-lines' and `tab-bar-lines'.
 
 Changing any of the parameters `scroll-bar-width', `scroll-bar-height',
 `vertical-scroll-bars', `horizontal-scroll-bars', `left-fringe' and
@@ -6772,9 +7369,11 @@ adding/removing a tool bar or tab bar does not change the frame
 height.  Otherwise it's t which means the frame size never changes
 implicitly when there's no window system support.
 
-Note that when a frame is not large enough to accommodate a change of
-any of the parameters listed above, Emacs may try to enlarge the frame
-even if this option is non-nil.  */);
+Note that the size of fullscreen and maximized frames, the height of
+fullheight frames and the width of fullwidth frames never change
+implicitly.  Note also that when a frame is not large enough to
+accommodate a change of any of the parameters listed above, Emacs may
+try to enlarge the frame even if this option is non-nil.  */);
 #if defined (HAVE_WINDOW_SYSTEM) && !defined (HAVE_ANDROID)
 #if defined (USE_GTK) || defined HAVE_MACGUI || defined (HAVE_NS)
   frame_inhibit_implied_resize = list1 (Qtab_bar_lines);
@@ -6829,16 +7428,30 @@ but will not be able to display text properties inside tooltip text.  */);
 	       doc: /* How to handle iconification of child frames.
 This variable tells Emacs how to proceed when it is asked to iconify a
 child frame.  If it is nil, `iconify-frame' will do nothing when invoked
-on a child frame.  If it is `iconify-top-level', Emacs will try to
-iconify the top level frame associated with this child frame instead.
-If it is `make-invisible', Emacs will try to make this child frame
-invisible instead.
+on a child frame.  If it is `iconify-top-level' and the child frame is
+on a graphical terminal, Emacs will try to iconify the root frame of
+this child frame.  If it is `make-invisible', Emacs will try to make
+this child frame invisible instead.
 
-Any other value means to try iconifying the child frame.  Since such an
-attempt is not honored by all window managers and may even lead to
-making the child frame unresponsive to user actions, the default is to
-iconify the top level frame instead.  */);
+Any other value means to try iconifying the child frame on a graphical
+terminal.  Since such an attempt is not honored by all window managers
+and may even lead to making the child frame unresponsive to user
+actions, the default is to iconify the root frame instead.  */);
   iconify_child_frame = Qiconify_top_level;
+
+  DEFVAR_LISP ("expose-hidden-buffer", expose_hidden_buffer,
+	       doc: /* Non-nil means to make a hidden buffer more visible.
+A buffer is considered "hidden" if its name starts with a space.  By
+default, many functions disregard hidden buffers.  In particular,
+`make-frame' does not show the current buffer in the new frame's
+selected window if that buffer is hidden.  Rather, `make-frame' will
+show a buffer that is not hidden instead.
+
+If this variable is non-nil, it will override the default behavior and
+allow `make-frame' to show the current buffer even if its hidden.  */);
+  expose_hidden_buffer = Qnil;
+  DEFSYM (Qexpose_hidden_buffer, "expose-hidden-buffer");
+  Fmake_variable_buffer_local (Qexpose_hidden_buffer);
 
   DEFVAR_LISP ("frame-internal-parameters", frame_internal_parameters,
 	       doc: /* Frame parameters specific to every frame.  */);
@@ -6860,6 +7473,7 @@ iconify the top level frame instead.  */);
   defsubr (&Sframe_list);
   defsubr (&Sframe_parent);
   defsubr (&Sframe_ancestor_p);
+  defsubr (&Sframe_root_frame);
   defsubr (&Snext_frame);
   defsubr (&Sprevious_frame);
   defsubr (&Slast_nonminibuf_frame);
@@ -6910,6 +7524,7 @@ iconify the top level frame instead.  */);
   defsubr (&Sframe_position);
   defsubr (&Sset_frame_position);
   defsubr (&Sframe_pointer_visible_p);
+  defsubr (&Smouse_position_in_root_frame);
   defsubr (&Sframe__set_was_invisible);
   defsubr (&Sframe_window_state_change);
   defsubr (&Sset_frame_window_state_change);

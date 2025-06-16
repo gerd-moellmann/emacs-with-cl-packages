@@ -172,8 +172,8 @@ You can put this on `erc-insert-modify-hook' and/or `erc-send-modify-hook'."
         (save-restriction
           (narrow-to-region (point) (point-max))
           (funcall (or erc-fill--function erc-fill-function))
-          (when-let ((erc-fill-line-spacing)
-                     (p (point-min)))
+          (when-let* ((erc-fill-line-spacing)
+                      (p (point-min)))
             (widen)
             (when (or (erc--check-msg-prop 'erc--spkr)
                       (save-excursion
@@ -186,9 +186,9 @@ You can put this on `erc-insert-modify-hook' and/or `erc-send-modify-hook'."
   "Fills a text such that messages start at column `erc-fill-static-center'."
   (save-restriction
     (goto-char (point-min))
-    (when-let (((looking-at "^\\(\\S-+\\)"))
-               ((not (erc--check-msg-prop 'erc--msg 'datestamp)))
-               (nick (match-string 1)))
+    (when-let* (((looking-at "^\\(\\S-+\\)"))
+                ((not (erc--check-msg-prop 'erc--msg 'datestamp)))
+                (nick (match-string 1)))
       (progn
         (let ((fill-column (- erc-fill-column (erc-timestamp-offset)))
               (fill-prefix (make-string erc-fill-static-center 32)))
@@ -322,13 +322,13 @@ command."
   "Move to start of message text when left of speaker.
 Basically mimic what `move-beginning-of-line' does with invisible text.
 Stay put if OLD-POINT lies within hidden region."
-  (when-let ((erc-fill-wrap-merge)
-             (prop (get-text-property (point) 'erc-fill--wrap-merge))
-             ((or (member prop '("" t))
-                  (eq 'margin (car-safe (car-safe prop)))))
-             (end (text-property-not-all (point) (pos-eol)
-                                         'erc-fill--wrap-merge prop))
-             ((or (null old-point) (>= old-point end))))
+  (when-let* ((erc-fill-wrap-merge)
+              (prop (get-text-property (point) 'erc-fill--wrap-merge))
+              ((or (member prop '("" t))
+                   (eq 'margin (car-safe (car-safe prop)))))
+              (end (text-property-not-all (point) (pos-eol)
+                                          'erc-fill--wrap-merge prop))
+              ((or (null old-point) (>= old-point end))))
     (goto-char end)))
 
 (defun erc-fill--wrap-beginning-of-line (arg)
@@ -413,7 +413,6 @@ is 0, reset to value of `erc-fill-wrap-visual-keys'."
   "<remap> <toggle-truncate-lines>" #'erc-fill-wrap-toggle-truncate-lines
   "<remap> <next-line>" #'erc-fill--wrap-next-line
   "<remap> <previous-line>" #'erc-fill--wrap-previous-line
-  "C-c a" #'erc-fill-wrap-cycle-visual-movement
   ;; Not sure if this is problematic because `erc-bol' takes no args.
   "<remap> <erc-bol>" #'erc-fill--wrap-beginning-of-line)
 
@@ -421,7 +420,7 @@ is 0, reset to value of `erc-fill-wrap-visual-keys'."
 (defvar erc-scrolltobottom-mode)
 (defvar erc-legacy-invisible-bounds-p)
 
-(defvar erc--fill-wrap-scrolltobottom-exempt-p nil)
+(defvar erc-fill--wrap-scrolltobottom-exempt-p nil)
 
 (defun erc-fill--wrap-ensure-dependencies ()
   (with-suppressed-warnings ((obsolete erc-legacy-invisible-bounds-p))
@@ -435,7 +434,7 @@ is 0, reset to value of `erc-fill-wrap-visual-keys'."
     (unless erc-fill-mode
       (push 'fill missing-deps)
       (erc-fill-mode +1))
-    (unless (or erc-scrolltobottom-mode erc--fill-wrap-scrolltobottom-exempt-p
+    (unless (or erc-scrolltobottom-mode erc-fill--wrap-scrolltobottom-exempt-p
                 (memq 'scrolltobottom erc-modules))
       (push 'scrolltobottom missing-deps)
       (erc-scrolltobottom-mode +1))
@@ -547,6 +546,9 @@ via `erc-fill-wrap-mode-hook'."
    (when erc-fill-wrap-merge
      (add-hook 'erc-button--prev-next-predicate-functions
                #'erc-fill--wrap-merged-button-p nil t))
+   (add-function :after (local 'erc--clear-function)
+                 #'erc-fill--wrap-massage-initial-message-post-clear
+                 '((depth . 50)))
    (erc-stamp--display-margin-mode +1)
    (visual-line-mode +1))
   ((visual-line-mode -1)
@@ -557,13 +559,15 @@ via `erc-fill-wrap-mode-hook'."
    (kill-local-variable 'erc-fill--wrap-last-msg)
    (kill-local-variable 'erc--inhibit-prompt-display-property-p)
    (kill-local-variable 'erc-fill--wrap-merge-indicator-pre)
+   (remove-function (local 'erc--clear-function)
+                    #'erc-fill--wrap-massage-initial-message-post-clear)
    (remove-hook 'erc--refresh-prompt-hook
                 #'erc-fill--wrap-indent-prompt t)
    (remove-hook 'erc-button--prev-next-predicate-functions
                 #'erc-fill--wrap-merged-button-p t)
    (remove-hook 'erc-stamp--insert-date-hook
                 #'erc-fill--wrap-unmerge-on-date-stamp t))
-  'local)
+  localp)
 
 (defvar-local erc-fill--wrap-length-function nil
   "Function to determine length of overhanging characters.
@@ -668,11 +672,29 @@ Also cover region with text prop `erc-fill--wrap-merge' set to t."
     (let ((next-beg (point-max)))
       (save-restriction
         (widen)
-        (when-let (((get-text-property next-beg 'erc-fill--wrap-merge))
-                   (end (erc--get-inserted-msg-bounds next-beg))
-                   (beg (pop end))
-                   (erc-fill--wrap-continued-predicate #'ignore))
+        (when-let* (((get-text-property next-beg 'erc-fill--wrap-merge))
+                    (end (erc--get-inserted-msg-bounds next-beg))
+                    (beg (pop end))
+                    (erc-fill--wrap-continued-predicate #'ignore))
           (erc-fill--wrap-rejigger-region (1- beg) (1+ end) nil 'repairp))))))
+
+(defun erc-fill--wrap-massage-initial-message-post-clear (beg end)
+  "Maybe reveal hidden speaker or add stamp on initial message after END."
+  (if erc-stamp--date-mode
+      (erc-stamp--redo-right-stamp-post-clear beg end)
+    ;; With other non-date stamp-insertion functions, remove hidden
+    ;; speaker continuation on first spoken message in buffer.
+    (when-let* (((< end (1- erc-insert-marker)))
+                (next (text-property-not-all end (min erc-insert-marker
+                                                      (+ 4096 end))
+                                             'erc--msg nil))
+                (bounds (erc--get-inserted-msg-bounds next))
+                (found (text-property-not-all (car bounds) (cdr bounds)
+                                              'erc-fill--wrap-merge nil))
+                (erc-fill--wrap-continued-predicate #'ignore))
+      (erc-fill--wrap-rejigger-region (max (1- (car bounds)) (point-min))
+                                      (min (1+ (cdr bounds)) erc-insert-marker)
+                                      nil 'repairp))))
 
 (defun erc-fill-wrap ()
   "Use text props to mimic the effect of `erc-fill-static'.
@@ -685,11 +707,11 @@ See `erc-fill-wrap-mode' for details."
                         (funcall erc-fill--wrap-length-function))
                    (and-let* ((msg-prop (erc--check-msg-prop 'erc--msg))
                               ((not (eq msg-prop 'unknown))))
-                     (when-let ((e (erc--get-speaker-bounds))
-                                (b (pop e))
-                                ((or erc-fill--wrap-action-dedent-p
-                                     (not (erc--check-msg-prop 'erc--ctcp
-                                                               'ACTION)))))
+                     (when-let* ((e (erc--get-speaker-bounds))
+                                 (b (pop e))
+                                 ((or erc-fill--wrap-action-dedent-p
+                                      (not (erc--check-msg-prop 'erc--ctcp
+                                                                'ACTION)))))
                        (goto-char e))
                      (skip-syntax-forward "^-")
                      (forward-char)
@@ -754,18 +776,18 @@ With REPAIRP, destructively fill gaps and re-merge speakers."
          (end (text-property-not-all beg finish 'line-prefix val)))
       ;; If this is a left-side stamp on its own line.
       (remove-text-properties beg (1+ end) '(line-prefix nil wrap-prefix nil))
-      (when-let ((repairp)
-                 (dbeg (text-property-not-all beg end
-                                              'erc-fill--wrap-merge nil))
-                 ((get-text-property (1+ dbeg) 'erc--speaker))
-                 (dval (get-text-property dbeg 'erc-fill--wrap-merge)))
+      (when-let* ((repairp)
+                  (dbeg (text-property-not-all beg end
+                                               'erc-fill--wrap-merge nil))
+                  ((get-text-property (1+ dbeg) 'erc--speaker))
+                  (dval (get-text-property dbeg 'erc-fill--wrap-merge)))
         (remove-list-of-text-properties
          dbeg (text-property-not-all dbeg end 'erc-fill--wrap-merge dval)
          '(display erc-fill--wrap-merge)))
       ;; This "should" work w/o `front-sticky' and `rear-nonsticky'.
-      (let* ((pos (if-let (((eq 'erc-timestamp (field-at-pos beg)))
-                           (b (field-beginning beg))
-                           ((eq 'datestamp (get-text-property b 'erc--msg))))
+      (let* ((pos (if-let* (((eq 'erc-timestamp (field-at-pos beg)))
+                            (b (field-beginning beg))
+                            ((eq 'datestamp (get-text-property b 'erc--msg))))
                       b
                     beg))
              (erc--msg-props (map-into (text-properties-at pos) 'hash-table))
@@ -780,8 +802,8 @@ With REPAIRP, destructively fill gaps and re-merge speakers."
         (funcall on-next))
       ;; Skip to end of message upon encountering accidental gaps
       ;; introduced by third parties (or bugs).
-      (if-let (((/= ?\n (char-after end)))
-               (next (erc--get-inserted-msg-end beg)))
+      (if-let* (((/= ?\n (char-after end)))
+                (next (erc--get-inserted-msg-end beg)))
           (progn
             (cl-assert (= ?\n (char-after next)))
             (when repairp ; eol <= next
@@ -895,6 +917,12 @@ decorations applied by third-party modules."
            (not erc-hide-timestamps))
       (length (format-time-string erc-timestamp-format))
     0))
+
+(cl-defmethod erc--determine-fill-column-function
+  (&context (erc-fill-mode (eql t)))
+  (if erc-fill-wrap-mode
+      (- (window-width) erc-fill--wrap-value 1)
+    erc-fill-column))
 
 (provide 'erc-fill)
 

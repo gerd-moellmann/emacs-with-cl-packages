@@ -684,7 +684,7 @@ map_charset_for_dump (void (*c_function) (Lisp_Object, Lisp_Object),
 	  if (c_function)
 	    (*c_function) (arg, range);
 	  else
-	    call2 (function, range, arg);
+	    calln (function, range, arg);
 	  XSETCAR (range, Qnil);
 	}
       if (c == stop)
@@ -697,7 +697,7 @@ map_charset_for_dump (void (*c_function) (Lisp_Object, Lisp_Object),
 		  if (c_function)
 		    (*c_function) (arg, range);
 		  else
-		    call2 (function, range, arg);
+		    calln (function, range, arg);
 		}
 	      break;
 	    }
@@ -739,7 +739,7 @@ map_charset_chars (void (*c_function)(Lisp_Object, Lisp_Object), Lisp_Object fun
       if (NILP (function))
 	(*c_function) (arg, range);
       else
-	call2 (function, range, arg);
+	calln (function, range, arg);
     }
   else if (CHARSET_METHOD (charset) == CHARSET_METHOD_MAP)
     {
@@ -819,6 +819,7 @@ TO-CODE, which are CHARSET code points.  */)
     from = CHARSET_MIN_CODE (cs);
   else
     {
+      CHECK_FIXNAT (from_code);
       from = XFIXNUM (from_code);
       if (from < CHARSET_MIN_CODE (cs))
 	from = CHARSET_MIN_CODE (cs);
@@ -827,6 +828,7 @@ TO-CODE, which are CHARSET code points.  */)
     to = CHARSET_MAX_CODE (cs);
   else
     {
+      CHECK_FIXNAT (to_code);
       to = XFIXNUM (to_code);
       if (to > CHARSET_MAX_CODE (cs))
 	to = CHARSET_MAX_CODE (cs);
@@ -1007,7 +1009,8 @@ usage: (define-charset-internal ...)  */)
 
       i = CODE_POINT_TO_INDEX (&charset, charset.max_code);
       if (MAX_CHAR - charset.code_offset < i)
-	error ("Unsupported max char: %d", charset.max_char);
+	error ("Unsupported max char: %d + %ud > MAX_CHAR (%d)",
+	       i, charset.max_code, MAX_CHAR);
       charset.max_char = i + charset.code_offset;
       i = CODE_POINT_TO_INDEX (&charset, charset.min_code);
       charset.min_char = i + charset.code_offset;
@@ -1109,8 +1112,7 @@ usage: (define-charset-internal ...)  */)
 
   hash_hash_t hash_code;
   ptrdiff_t hash_index
-    = hash_lookup_get_hash (hash_table, args[charset_arg_name],
-			    &hash_code);
+    = hash_find_get_hash (hash_table, args[charset_arg_name], &hash_code);
   if (hash_index >= 0)
     {
       new_definition_p = false;

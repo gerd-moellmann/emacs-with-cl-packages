@@ -178,7 +178,7 @@ that was fetched."
 		    d)
 		(while (and (setq d (pop data))
 			    (if (numberp n)
-				(natnump (cl-decf n))
+                                (natnump (decf n))
 			      n))
 		  (unless (or (gnus-async-prefetched-article-entry
 			       group (setq article (gnus-data-number d)))
@@ -283,7 +283,7 @@ that was fetched."
 	    ;; should check time-since-last-output, which
 	    ;; needs to be done in nntp.el.
 	    (while (eq article gnus-async-current-prefetch-article)
-	      (cl-incf tries)
+              (incf tries)
 	      (when (nntp-accept-process-output proc)
 		(setq tries 0))
 	      (when (and (not nntp-have-messaged)

@@ -1,4 +1,4 @@
-;;; rx.el --- S-exp notation for regexps           --*- lexical-binding: t -*-
+;;; rx.el --- S-exp notation for regexps            -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2001-2025 Free Software Foundation, Inc.
 
@@ -52,7 +52,6 @@
 ;; (repeat N FORM)              (= N FORM)
 ;; (syntax CHARACTER)           (syntax NAME)
 ;; (syntax CHAR-SYM)      [1]   (syntax NAME)
-;; (category chinse-two-byte)   (category chinese-two-byte)
 ;; unibyte                      ascii
 ;; multibyte                    nonascii
 ;; --------------------------------------------------------
@@ -1011,7 +1010,6 @@ Return (REGEXP . PRECEDENCE)."
     (not-at-beginning-of-line   . ?>)
     (alpha-numeric-two-byte     . ?A)
     (chinese-two-byte           . ?C)
-    (chinse-two-byte            . ?C)   ; A typo in Emacs 21.1-24.3.
     (greek-two-byte             . ?G)
     (japanese-hiragana-two-byte . ?H)
     (indian-two-byte            . ?I)
@@ -1074,7 +1072,7 @@ Return (REGEXP . PRECEDENCE)."
   "Expand `eval' arguments.  Return a new rx form."
   (unless (and body (null (cdr body)))
     (error "rx `eval' form takes exactly one argument"))
-  (eval (car body)))
+  (eval (car body) lexical-binding))
 
 (defun rx--translate-eval (body)
   "Translate the `eval' form.  Return (REGEXP . PRECEDENCE)."

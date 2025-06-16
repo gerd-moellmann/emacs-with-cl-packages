@@ -148,9 +148,9 @@
 ;;
 ;; Any of the `ebnf-' commands can be bound to keys.  Here are some examples:
 ;;
-;;    (global-set-key 'f22 'ebnf-print-buffer) ;f22 is prsc
-;;    (global-set-key '(shift f22) 'ebnf-print-region)
-;;    (global-set-key '(control f22) 'ebnf-despool)
+;;    (keymap-global-set "<f22>" #'ebnf-print-buffer) ;f22 is prsc
+;;    (keymap-global-set "S-<f22>" #'ebnf-print-region)
+;;    (keymap-global-set "C-<f22>" #'ebnf-despool)
 ;;
 ;;
 ;; Invoking Ebnf2ps in Batch
@@ -5947,7 +5947,7 @@ killed after process termination."
 
 (defun ebnf-end-of-string ()
   (let ((n 1))
-    (while (> (logand n 1) 0)
+    (while (oddp n)
       (skip-chars-forward "^\"" ebnf-limit)
       (setq n (- (skip-chars-backward "\\\\")))
       (goto-char (+ (point) n 1))))

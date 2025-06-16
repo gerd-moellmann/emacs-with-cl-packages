@@ -1431,7 +1431,7 @@ menu_position_func (GtkMenu *menu, gint *x, gint *y, gboolean *push_in, gpointer
 #endif
   /* TODO: Get the monitor workarea directly without calculating other
      items in x-display-monitor-attributes-list. */
-  workarea = call3 (Qframe_monitor_workarea,
+  workarea = calln (Qframe_monitor_workarea,
                     Qnil,
                     make_fixnum (data->x),
                     make_fixnum (data->y));
@@ -1898,16 +1898,10 @@ x_menu_show (struct frame *f, int x, int y, int menuflags,
   widget_value **submenu_stack;
   Lisp_Object *subprefix_stack;
   int submenu_depth = 0;
-  specpdl_ref specpdl_count;
-
   USE_SAFE_ALLOCA;
-
-  submenu_stack = SAFE_ALLOCA (menu_items_used
-			       * sizeof *submenu_stack);
-  subprefix_stack = SAFE_ALLOCA (menu_items_used
-				 * sizeof *subprefix_stack);
-
-  specpdl_count = SPECPDL_INDEX ();
+  SAFE_NALLOCA (submenu_stack, 1, menu_items_used);
+  SAFE_NALLOCA (subprefix_stack, 1, menu_items_used);
+  specpdl_ref specpdl_count = SPECPDL_INDEX ();
 
   eassert (FRAME_X_P (f));
 

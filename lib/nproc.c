@@ -20,6 +20,7 @@
 #include <config.h>
 #include "nproc.h"
 
+#include <errno.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -125,6 +126,46 @@ num_processors_via_affinity_mask (void)
       }
   }
 #elif HAVE_SCHED_GETAFFINITY_LIKE_GLIBC /* glibc >= 2.3.4 */
+  /* There are two ways to use the sched_getaffinity() function:
+       - With a statically-sized cpu_set_t.
+       - With a dynamically-sized cpu_set_t.
+     Documentation:
+     <https://www.kernel.org/doc/man-pages/online/pages/man2/sched_getaffinity.2.html>
+     <https://www.kernel.org/doc/man-pages/online/pages/man3/CPU_SET.3.html>
+     The second way has the advantage that it works on systems with more than
+     1024 CPUs.  The first way has the advantage that it works also when memory
+     is tight.  */
+# if defined CPU_ALLOC_SIZE /* glibc >= 2.6 */
+  {
+    unsigned int alloc_count = 1024;
+    for (;;)
+      {
+        cpu_set_t *set = CPU_ALLOC (alloc_count);
+        if (set == NULL)
+          /* Out of memory.  */
+          break;
+        unsigned int size = CPU_ALLOC_SIZE (alloc_count);
+        if (sched_getaffinity (0, size, set) == 0)
+          {
+            unsigned int count = CPU_COUNT_S (size, set);
+            CPU_FREE (set);
+            return count;
+          }
+        if (errno != EINVAL)
+          {
+            /* Some other error.  */
+            CPU_FREE (set);
+            return 0;
+          }
+        CPU_FREE (set);
+        /* Retry with some larger cpu_set_t.  */
+        alloc_count *= 2;
+        if (alloc_count == 0)
+          /* Integer overflow.  Avoid an endless loop.  */
+          return 0;
+      }
+  }
+# endif
   {
     cpu_set_t set;
 
@@ -357,20 +398,16 @@ parse_omp_threads (char const* threads)
   /* Convert it from positive decimal to 'unsigned long'.  */
   if (c_isdigit (*threads))
     {
-      char *endptr = NULL;
+      char *endptr;
       unsigned long int value = strtoul (threads, &endptr, 10);
-
-      if (endptr != NULL)
-        {
-          while (*endptr != '\0' && c_isspace (*endptr))
-            endptr++;
-          if (*endptr == '\0')
-            return value;
-          /* Also accept the first value in a nesting level,
-             since we can't determine the nesting level from env vars.  */
-          else if (*endptr == ',')
-            return value;
-        }
+      while (*endptr != '\0' && c_isspace (*endptr))
+        endptr++;
+      if (*endptr == '\0')
+        return value;
+      /* Also accept the first value in a nesting level,
+         since we can't determine the nesting level from env vars.  */
+      else if (*endptr == ',')
+        return value;
     }
 
   return ret;
@@ -397,6 +434,9 @@ num_processors (enum nproc_query query)
       query = NPROC_CURRENT;
     }
   /* Here query is one of NPROC_ALL, NPROC_CURRENT.  */
+  if (omp_env_limit == 1)
+    /* No need to even call num_processors_ignoring_omp (query).  */
+    return 1;
   {
     unsigned long nprocs = num_processors_ignoring_omp (query);
     return MIN (nprocs, omp_env_limit);

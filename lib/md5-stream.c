@@ -1,7 +1,7 @@
 /* Functions to compute MD5 message digest of files or memory blocks.
    according to the definition of MD5 in RFC 1321 from April 1992.
-   Copyright (C) 1995-1997, 1999-2001, 2005-2006, 2008-2025 Free
-   Software Foundation, Inc.
+   Copyright (C) 1995-1997, 1999-2001, 2005-2006, 2008-2025 Free Software
+   Foundation, Inc.
    This file is part of the GNU C Library.
 
    This file is free software: you can redistribute it and/or modify
@@ -22,9 +22,6 @@
 #include <config.h>
 
 /* Specification.  */
-#if HAVE_OPENSSL_MD5
-# define GL_OPENSSL_INLINE _GL_EXTERN_INLINE
-#endif
 #include "md5.h"
 
 #include <stdlib.h>
@@ -132,10 +129,3 @@ process_partial_block:
   free (buffer);
   return 0;
 }
-
-/*
- * Hey Emacs!
- * Local Variables:
- * coding: utf-8
- * End:
- */

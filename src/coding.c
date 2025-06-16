@@ -6367,7 +6367,7 @@ make_string_from_utf8 (const char *text, ptrdiff_t nbytes)
   /* If TEXT is a valid UTF-8 string, we can convert it to a Lisp
      string directly.  Otherwise, we need to decode it.  */
   if (chars == nbytes || bytes == nbytes)
-    return make_specified_string (text, chars, nbytes, true);
+    return make_multibyte_string (text, chars, nbytes);
   else
     {
       struct coding_system coding;
@@ -7363,6 +7363,7 @@ decode_coding (struct coding_system *coding)
   struct ccl_spec cclspec;
   int carryover;
   int i;
+  specpdl_ref count = SPECPDL_INDEX ();
 
   USE_SAFE_ALLOCA;
 
@@ -7389,6 +7390,9 @@ decode_coding (struct coding_system *coding)
 
       undo_list = BVAR (current_buffer, undo_list);
       bset_undo_list (current_buffer, Qt);
+      /* Avoid running nested *-change-functions via 'produce_annotation'.
+         Our callers run *-change-functions over the whole region anyway.  */
+      specbind (Qinhibit_modification_hooks, Qt);
     }
 
   coding->consumed = coding->consumed_char = 0;
@@ -7501,7 +7505,7 @@ decode_coding (struct coding_system *coding)
       record_insert (coding->dst_pos, coding->produced_char);
     }
 
-  SAFE_FREE ();
+  SAFE_FREE_UNBIND_TO (count, Qnil);
 }
 
 
@@ -7898,6 +7902,8 @@ code_conversion_save (bool with_work_buf, bool multibyte)
       bset_enable_multibyte_characters (current_buffer, multibyte ? Qt : Qnil);
       if (EQ (workbuf, Vcode_conversion_reused_workbuf))
 	reused_workbuf_in_use = true;
+      /* FIXME: Maybe we should stay in the new workbuf, because we often
+	 switch right back to it anyway in order to initialize it further.  */
       set_buffer_internal (current);
     }
 
@@ -8034,7 +8040,7 @@ decode_coding_gap (struct coding_system *coding, ptrdiff_t bytes)
 			     Fcons (undo_list, Fcurrent_buffer ()));
       bset_undo_list (current_buffer, Qt);
       TEMP_SET_PT_BOTH (coding->dst_pos, coding->dst_pos_byte);
-      val = call1 (CODING_ATTR_POST_READ (attrs),
+      val = calln (CODING_ATTR_POST_READ (attrs),
 		   make_fixnum (coding->produced_char));
       CHECK_FIXNAT (val);
       coding->produced_char += Z - prev_Z;
@@ -10874,10 +10880,10 @@ usage: (find-operation-coding-system OPERATION ARGUMENTS...)  */)
 	    return Fcons (val, val);
 	  if (! NILP (Ffboundp (val)))
 	    {
-	      /* We use call1 rather than safe_call1
+	      /* We use calln rather than safe_calln
 		 so as to get bug reports about functions called here
 		 which don't handle the current interface.  */
-	      val = call1 (val, Flist (nargs, args));
+	      val = calln (val, Flist (nargs, args));
 	      if (CONSP (val))
 		return val;
 	      if (SYMBOLP (val) && ! NILP (Fcoding_system_p (val)))
@@ -11769,7 +11775,7 @@ syms_of_coding (void)
   Vcode_conversion_reused_workbuf = Qnil;
 
   staticpro (&Vcode_conversion_workbuf_name);
-  Vcode_conversion_workbuf_name = build_pure_c_string (" *code-conversion-work*");
+  Vcode_conversion_workbuf_name = build_string (" *code-conversion-work*");
 
   reused_workbuf_in_use = false;
   PDUMPER_REMEMBER_SCALAR (reused_workbuf_in_use);
@@ -11833,9 +11839,9 @@ syms_of_coding (void)
   /* Error signaled when there's a problem with detecting a coding system.  */
   DEFSYM (Qcoding_system_error, "coding-system-error");
   Fput (Qcoding_system_error, Qerror_conditions,
-	pure_list (Qcoding_system_error, Qerror));
+	list (Qcoding_system_error, Qerror));
   Fput (Qcoding_system_error, Qerror_message,
-	build_pure_c_string ("Invalid coding system"));
+	build_string ("Invalid coding system"));
 
   DEFSYM (Qtranslation_table, "translation-table");
   Fput (Qtranslation_table, Qchar_table_extra_slots, make_fixnum (2));
@@ -12110,22 +12116,22 @@ used for encoding standard output and error streams.  */);
   DEFVAR_LISP ("eol-mnemonic-unix", eol_mnemonic_unix,
 	       doc: /*
 String displayed in mode line for UNIX-like (LF) end-of-line format.  */);
-  eol_mnemonic_unix = build_pure_c_string (":");
+  eol_mnemonic_unix = build_string (":");
 
   DEFVAR_LISP ("eol-mnemonic-dos", eol_mnemonic_dos,
 	       doc: /*
 String displayed in mode line for DOS-like (CRLF) end-of-line format.  */);
-  eol_mnemonic_dos = build_pure_c_string ("\\");
+  eol_mnemonic_dos = build_string ("\\");
 
   DEFVAR_LISP ("eol-mnemonic-mac", eol_mnemonic_mac,
 	       doc: /*
 String displayed in mode line for MAC-like (CR) end-of-line format.  */);
-  eol_mnemonic_mac = build_pure_c_string ("/");
+  eol_mnemonic_mac = build_string ("/");
 
   DEFVAR_LISP ("eol-mnemonic-undecided", eol_mnemonic_undecided,
 	       doc: /*
 String displayed in mode line when end-of-line format is not yet determined.  */);
-  eol_mnemonic_undecided = build_pure_c_string (":");
+  eol_mnemonic_undecided = build_string (":");
 
   DEFVAR_LISP ("enable-character-translation", Venable_character_translation,
 	       doc: /*
@@ -12265,7 +12271,7 @@ internal character representation.  */);
       intern_c_string (":for-unibyte"),
       args[coding_arg_for_unibyte] = Qt,
       intern_c_string (":docstring"),
-      (build_pure_c_string
+      (build_string
        ("Do no conversion.\n"
 	"\n"
 	"When you visit a file with this coding, the file is read into a\n"
@@ -12285,7 +12291,7 @@ internal character representation.  */);
   plist[8] = intern_c_string (":charset-list");
   plist[9] = args[coding_arg_charset_list] = list1 (Qascii);
   plist[11] = args[coding_arg_for_unibyte] = Qnil;
-  plist[13] = build_pure_c_string ("No conversion on encoding, "
+  plist[13] = build_string ("No conversion on encoding, "
 				   "automatic conversion on decoding.");
   plist[15] = args[coding_arg_eol_type] = Qnil;
   args[coding_arg_plist] = CALLMANY (Flist, plist);

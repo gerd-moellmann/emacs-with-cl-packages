@@ -583,6 +583,10 @@ Functions
                               that have a special bearing on how
                               functions work.
 
+Defining Functions
+
+* Finding Definitions::     Finding function definitions created by macros.
+
 Lambda Expressions
 
 * Lambda Components::       The parts of a lambda expression.
@@ -1075,6 +1079,8 @@ Windows
 * Deleting Windows::        Deleting a window gives its space to other windows.
 * Recombining Windows::     Preserving the frame layout when splitting and
                               deleting windows.
+* Resurrecting Windows::    Restoring deleted windows.
+* Changing Window Layouts::  Transposing windows in an orderly manner.
 * Cyclic Window Ordering::  Moving around the existing windows.
 * Buffers and Windows::     Each window displays the contents of a buffer.
 * Switching Buffers::       Higher-level functions for switching to a buffer.
@@ -1180,6 +1186,12 @@ Window Frame Parameters
 * Management Parameters::   Communicating with the window manager.
 * Cursor Parameters::       Controlling the cursor appearance.
 * Font and Color Parameters:: Fonts and colors for the frame text.
+
+Child Frames
+
+* Child Frame Operations::  Making and investigating child frames.
+* Child Frame Properties::  Special properties of child frames.
+* Child Frame Peculiarities:: Deviant behaviors of child frames.
 
 Positions
 
@@ -1382,7 +1394,7 @@ Parsing Program Source
 * Pattern Matching::         Pattern matching with query patterns.
 * Multiple Languages::       Parse text written in multiple languages.
 * Tree-sitter Major Modes::  Develop major modes using tree-sitter.
-* Tree-sitter C API::        Compare the C API and the ELisp API.
+* Tree-sitter C API::        Compare the C API and the Lisp API.
 
 Syntax Descriptors
 
@@ -1651,7 +1663,6 @@ Tips and Conventions
 GNU Emacs Internals
 
 * Building Emacs::          How the dumped Emacs is made.
-* Pure Storage::            Kludge to make preloaded Lisp functions shareable.
 * Garbage Collection::      Reclaiming space for Lisp objects no longer used.
 * Stack-allocated Objects:: Temporary conses and strings on C stack.
 * Memory Usage::            Info about total size of Lisp objects made so far.

@@ -537,6 +537,16 @@ grep-find-toggle-abbreviation}.  To disable this abbreviation of the
 shell commands, customize the option @code{grep-find-abbreviate} to a
 @code{nil} value.
 
+@findex grep-change-to-grep-edit-mode
+@cindex Grep Edit mode
+@cindex mode, Grep Edit
+  Typing @kbd{e} in the @file{*grep*} buffer makes the buffer writable
+and enters the Grep Edit mode.  Similar to Occur Edit mode (@pxref{Other
+Repeating Search}), you can edit the matching lines reported by
+@code{grep} and have those changes reflected in the buffer visiting the
+originating file.  Type @kbd{C-c C-c} to leave the Grep Edit mode and
+return to the Grep mode.
+
 @node Flymake
 @section Finding Syntax Errors On The Fly
 @cindex checking syntax
@@ -664,6 +674,9 @@ Run the SDB debugger.
 using the minibuffer.  The minibuffer's initial contents contain the
 standard executable name and options for the debugger, and sometimes
 also a guess for the name of the executable file you want to debug.
+For @code{pdb}, @code{perldb}, and @code{guiler}, if the current buffer
+visits a file, pressing @kbd{M-n} (@code{next-history-element})
+in the prompt suggests a full command line including that file name.
 Shell wildcards and variables are not allowed in this command line.
 Emacs assumes that the first command argument which does not start
 with a @samp{-} is the executable file name.
@@ -1570,7 +1583,7 @@ Emacs Lisp Reference Manual}.
 @cindex native compilation
   Emacs Lisp code can also be compiled into @dfn{native code}: machine
 code not unlike the one produced by a C or Fortran compiler.  Native
-code runs even faster than byte-code.  Natively-compiled Emacs Lisp
+code runs even faster than byte-code.  Natively compiled Emacs Lisp
 code is stored in files whose names end in @samp{.eln}.  @xref{Native
 Compilation,, Native Compilation, elisp, the Emacs Lisp Reference Manual}.
 
@@ -1650,7 +1663,7 @@ way, you don't need to modify the default value of @code{load-path}.
 
 @vindex native-comp-eln-load-path
   Similarly to @code{load-path}, the list of directories where Emacs
-looks for @file{*.eln} files with natively-compiled Lisp code is
+looks for @file{*.eln} files with native-compiled Lisp code is
 specified by the variable @code{native-comp-eln-load-path}.
 
 @cindex autoload
