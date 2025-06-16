@@ -1,6 +1,6 @@
 # emacs-mac
 
-This is an experimental build of the [emacs-mac](https://bitbucket.org/mituharu/emacs-mac) (aka Carbon[^1] Emacs) port of emacs, updated for Emacs v30.1.
+This is an experimental build of the [emacs-mac](https://bitbucket.org/mituharu/emacs-mac) (aka Carbon[^1] Emacs) port of emacs, updated for Emacs v30.1, and Emacs master (see the [experimental master branch](https://github.com/jdtsmith/emacs-mac/tree/emacs-mac-gnu_master_exp)).
 
 > [!WARNING]
 > This is an experimental build of `emacs-mac`; there will certainly be bugs. We are looking for feedback and testing from experienced users.  If you are familiar with or willing to learn about running new builds of Emacs under a debugger, perfect.  If you are a Mac developer familiar with ObjC or Mac Window frameworks, even better!  Other users should stick to the official NS build or recent v29.4 emacs-mac release for now.
@@ -16,16 +16,20 @@ Known working systems:
 Please see the [issues](../../issues) for advice on build configurations for your system.
 
 >[!IMPORTANT]
-> Please open an [issue](../../issues) to report your experiences, even if you encounter no problems.  Mention your OS version, CPU, and any other relevant details, including the build/configure flags you used.
+> Please open an [issue](../../issues) to report your experiences, even if you encounter no problems.  Mention your OS version, CPU, which branch you built, and any other relevant details, including the build/configure flags you used.
 
 This build is kept current with the [`emacs-30`](https://github.com/emacs-mirror/emacs/tree/emacs-30) release branch.
 
+For an experimental build which is synced with the Emacs master branch, see [this branch](https://github.com/jdtsmith/emacs-mac/tree/emacs-mac-gnu_master_exp).
+
 ## Install
 
-See the `emacs-mac-30_1_exp` branch and the file `README-mac` for additional compile instructions.  Briefly:
+See the `emacs-mac-30_1_exp` or `emacs-mac-gnu_master_exp` branch and the file `README-mac` for additional compile instructions.  
 
 > [!NOTE]
 > On MacOS, `gcc` is actually aliased to the `clang` compiler, which is required to build `emacs-mac`.  Recent `gcc` versions either cannot build for the architecture (e.g. Apple Silicon) and/or do not support [blocks](https://en.wikipedia.org/wiki/Blocks_(C_language_extension)), which this build uses heavily.
+
+Briefly:
 
 
 ### Install (optional) libraries
