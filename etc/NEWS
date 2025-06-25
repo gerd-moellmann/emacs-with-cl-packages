@@ -61,6 +61,13 @@ OS selection instead of terminal-specific keybindings.
 You can keep the old behavior by putting '(xterm-mouse-mode -1)' in your
 init file.
 
++++
+** 'site-start.el' is now loaded before the user's early init file.
+Previously the order was early-init.el, site-start.el and then the
+user's regular init file, but now site-start.el comes first.  This
+allows site administrators to customize things that can normally only be
+done from early-init.el, such as adding to 'package-directory-list'.
+
 
 * Changes in Emacs 31.1
 
@@ -424,6 +431,19 @@ invoked standalone or from the 'project-switch-commands' dispatch menu.
 *** New user option 'project-list-exclude'.
 This user option describes projects that should always be skipped by
 'project-remember-project'.
+
+---
+*** New user option 'project-prune-zombie-projects'.
+This user option controls the automatic deletion of projects from
+'project-list-file' that cannot be accessed when prompting for a
+project.
+
+The value can be a predicate which takes one argument and should return
+non-nil if the project should be removed.  If set to nil, all the
+inaccessible projects will not be removed automatically.
+
+By default this is set to 'project-prune-zombies-default' function
+which removes all non-remote projects.
 
 ---
 *** New command 'project-save-some-buffers' bound to 'C-x p C-x s'.
@@ -922,7 +942,8 @@ are discarded, which matches the behavior of physical terminals and other
 terminal emulators. Control sequences and escape sequences are still processed
 correctly regardless of margin position.
 
-** Smerge
+---
+** SMerge
 
 *** New command 'smerge-extend' extends a conflict over surrounding lines.
 
@@ -930,6 +951,18 @@ correctly regardless of margin position.
 When used inside a refined chunk, it jumps to the matching position in
 the "other" side of the refinement: if you're in the new text, it jumps
 to the corresponding position in the old text and vice versa.
+
+*** New variable 'smerge-refine-shadow-cursor'.
+When 'smerge-refine' shows the conflict diffs at word granularity, a
+"shadow cursor" is now displayed in the "lower" version when point
+is in the "upper" version, and vice versa.  The "shadow cursor" is
+just the character corresponding to the position where
+'smerge-refine-exchange-point' would jump, shown in a new distinct
+face 'smerge-refine-shadow-cursor', by default a box face.
+
+** Cursor-Sensor mode
++++
+*** New direction 'moved' used when the cursor moved within the active area.
 
 ** Image Dired
 
@@ -1041,6 +1074,15 @@ compatible.
 *** New user option 'recentf-show-messages'.
 'recentf-save-list' can print a message when saving the recentf list.
 The new option, if set to nil, suppresses this message.
+
+---
+*** New user option 'recentf-suppress-open-file-help'.
+By default, invoking 'recentf-open-files' displays a message saying what
+action clicking or typing RET on the item at point executes, and tabbing
+between items in the *Open Recent* buffer likewise displays such
+messages.  To suppress these messages, customize the user option
+'recentf-suppress-open-file-help' to non-nil.  The default value of this
+option is nil.
 
 ** Saveplace
 
@@ -1914,6 +1956,14 @@ the command will only copy those files.
 +++
 *** package-x.el is now obsolete.
 
+---
+*** Package menu now highlights packages marked for installation or deletion.
+
+*** Package menu now displays the total number of the package type.
+Package menu now displays in the mode line the total number of packages
+installed, total number of packages from all the package archives, total
+number of packages to upgrade and total number of new packages
+available.
 
 ** RCIRC
 
