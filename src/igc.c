@@ -1778,11 +1778,6 @@ scan_kboard (mps_ss_t ss, void *start, void *end, void *closure)
   return MPS_RES_OK;
 }
 
-static int _Noreturn foo(void)
-{
-  return 1;
-}
-
 /***********************************************************************
 			 Default pad, fwd, ...
  ***********************************************************************/
