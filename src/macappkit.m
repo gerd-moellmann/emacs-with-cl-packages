@@ -2623,6 +2623,8 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 	  }
       window.appearanceCustomization.appearance =
 	oldWindow.appearanceCustomization.appearance;
+      window.appearance =
+	oldWindow.appearance;
 
       [oldWindow setDelegate:nil];
       [self hideHourglass:nil];
@@ -5260,6 +5262,8 @@ mac_set_frame_window_background (struct frame *f, unsigned long color)
 	 ? NSAppearanceNameVibrantLight : NSAppearanceNameVibrantDark);
 
       window.appearanceCustomization.appearance =
+	[NSAppearance appearanceNamed:name];
+      window.appearance =
 	[NSAppearance appearanceNamed:name];
     });
 }
