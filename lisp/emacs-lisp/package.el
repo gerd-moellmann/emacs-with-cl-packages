@@ -3264,25 +3264,61 @@ either a full name or nil, and EMAIL is a valid email address."
                (propertize "Total: " 'help-echo total-help)
                (propertize total
                            'help-echo total-help
-                           'face 'font-lock-keyword-face)
+                           'face 'package-mode-line-total)
                " / "
                (propertize "Installed: " 'help-echo installed-help)
                (propertize installed
                            'help-echo installed-help
-                           'face 'package-status-installed)
+                           'face 'package-mode-line-installed)
                " / "
                (propertize "To Upgrade: " 'help-echo upgrade-help)
                (propertize to-upgrade
                            'help-echo upgrade-help
-                           'face 'font-lock-keyword-face)
+                           'face 'package-mode-line-to-upgrade)
                (when (> new 0)
                  (concat
                   " / "
                   (propertize "New: " 'help-echo new-help)
                   (propertize (number-to-string new)
                               'help-echo new-help
-                              'face 'package-status-new)))
+                              'face 'package-mode-line-new)))
                "] "))))))
+(defvar package-menu--tool-bar-map
+  (let ((map (make-sparse-keymap)))
+    (tool-bar-local-item-from-menu
+     #'package-menu-execute "package-menu/execute"
+     map package-menu-mode-map)
+    (define-key-after map [separator-1] menu-bar-separator)
+    (tool-bar-local-item-from-menu
+     #'package-menu-mark-unmark "package-menu/unmark"
+     map package-menu-mode-map)
+    (tool-bar-local-item-from-menu
+     #'package-menu-mark-install "package-menu/install"
+     map package-menu-mode-map)
+    (tool-bar-local-item-from-menu
+     #'package-menu-mark-delete "package-menu/delete"
+     map package-menu-mode-map)
+    (tool-bar-local-item-from-menu
+     #'package-menu-describe-package "package-menu/info"
+     map package-menu-mode-map)
+    (tool-bar-local-item-from-menu
+     #'package-browse-url "package-menu/url"
+     map package-menu-mode-map)
+    (tool-bar-local-item
+     "package-menu/upgrade" 'package-upgrade-all
+    'package-upgrade-all
+     map :help "Upgrade all the packages")
+    (define-key-after map [separator-2] menu-bar-separator)
+    (tool-bar-local-item
+     "search" 'isearch-forward 'search map
+     :help "Search" :vert-only t)
+    (tool-bar-local-item-from-menu
+     #'revert-buffer "refresh"
+     map package-menu-mode-map)
+    (tool-bar-local-item-from-menu
+     #'quit-window "close"
+     map package-menu-mode-map)
+    map))
 
 (define-derived-mode package-menu-mode tabulated-list-mode "Package Menu"
   "Major mode for browsing a list of packages.
@@ -3303,6 +3339,7 @@ The most useful commands here are:
               (append
                mode-line-misc-info
                package-menu-mode-line-format))
+  (setq-local tool-bar-map package-menu--tool-bar-map)
   (setq tabulated-list-format
         `[("Package" ,package-name-column-width package-menu--name-predicate)
           ("Version" ,package-version-column-width package-menu--version-predicate)
@@ -3725,6 +3762,22 @@ Return (PKG-DESC [NAME VERSION STATUS DOC])."
      :background "indianred4" :extend t)
     (t :inherit (highlight) :extend t))
   "Face used for highlighting in package-menu packages marked to be deleted."
+  :version "31.1")
+
+(defface package-mode-line-total nil
+  "Face for the total number of packages displayed on the mode line."
+  :version "31.1")
+
+(defface package-mode-line-installed '((t :inherit package-status-installed))
+  "Face for the number of installed packages displayed on the mode line."
+  :version "31.1")
+
+(defface package-mode-line-to-upgrade '((t :inherit bold))
+  "Face for the number of packages to upgrade displayed on the mode line."
+  :version "31.1")
+
+(defface package-mode-line-new '((t :inherit package-status-new))
+  "Face for the number of new packages displayed on the mode line."
   :version "31.1")
 
 

@@ -619,6 +619,11 @@ sentence.  The new command 'fill-region-as-paragraph-semlf' fills a
 region of text using semantic linefeeds as if the region were a single
 paragraph.
 
++++
+** 'C-u C-x .' clears the fill prefix.
+You can now use 'C-u C-x .' to clear the fill prefix, similarly to how
+you could already use 'C-u C-x C-n' to clear the goal column.
+
 
 * Changes in Specialized Modes and Packages in Emacs 31.1
 
@@ -1875,6 +1880,12 @@ If you customize this variable to non-nil, the 'g' command to refresh
 the VC Directory buffer also has the effect of the 'x' command.
 That is, typing 'g' refreshes the buffer and also hides items in the
 'up-to-date' and 'ignored' states.
+
+---
+*** New user option 'vc-dir-save-some-buffers-on-revert'.
+If you customize this variable to non-nil, Emacs will offer to save
+relevant buffers before generating the contents of a VC Directory buffer
+(like the third-party package Magit does with its status buffer).
 
 +++
 *** New user option 'vc-async-checkin' to enable async checkin operations.
