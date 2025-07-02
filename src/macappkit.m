@@ -16855,9 +16855,6 @@ mac_set_buffer_and_glyph_matrix_access_restricted (bool flag)
 static bool
 mac_try_buffer_and_glyph_matrix_access (void)
 {
-  /* Sometimes we reach here as the thread is being killed, catch that here */
-  if (!current_thread)
-    return false;
   if (mac_buffer_and_glyph_matrix_access_restricted_p)
     return !thread_try_acquire_global_lock ();
 
