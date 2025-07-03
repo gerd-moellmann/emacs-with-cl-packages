@@ -321,12 +321,16 @@ end it with `/'.  DIR must be either `project-root' or one of
      grep-find-ignored-files)))
 
 (defun project--file-completion-table (all-files)
+  (project--completion-table-with-category all-files 'project-file))
+
+;; Switch to `completion-table-with-metadata' when we can.
+(defun project--completion-table-with-category (table category)
   (lambda (string pred action)
     (cond
      ((eq action 'metadata)
-      '(metadata . ((category . project-file))))
+      `(metadata . ((category . ,category))))
      (t
-      (complete-with-action action all-files string pred)))))
+      (complete-with-action action table string pred)))))
 
 (cl-defmethod project-root ((project (head transient)))
   (cdr project))
@@ -1598,12 +1602,20 @@ Return non-nil if PROJECT is not a remote project."
                    uniquify-buffer-name-style)
               ;; Forgo the use of `buffer-read-function' (often nil) in
               ;; favor of uniquifying the buffers better.
-              (let* ((unique-names (uniquify-get-unique-names buffers))
+              (let* ((unique-names
+                      (mapcar
+                       (lambda (name)
+                         (cons name
+                               (get-text-property 0 'uniquify-orig-buffer
+                                                  (or name ""))))
+                       (uniquify-get-unique-names buffers)))
                      (other-name (when (funcall predicate (cons other-name other-buffer))
                                    (car (rassoc other-buffer unique-names))))
                      (result (completing-read
                               "Switch to buffer: "
-                              unique-names
+                              (project--completion-table-with-category
+                               unique-names
+                               'buffer)
                               predicate
                               nil nil nil
                               other-name)))
