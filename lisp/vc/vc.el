@@ -376,6 +376,8 @@
 ;;   Return revision at the head of the branch at REMOTE-LOCATION.
 ;;   If there is no such branch there, return nil.  (Should signal an
 ;;   error, not return nil, in the case that fetching data fails.)
+;;   For a distributed VCS, should also fetch that revision into local
+;;   storage for operating on by subsequent calls into the backend.
 ;;
 ;; - log-search (buffer pattern)
 ;;
@@ -1951,10 +1953,57 @@ Runs the normal hooks `vc-before-checkin-hook' and `vc-checkin-hook'."
     (lambda ()
       (vc-call-backend backend 'log-edit-mode))
     (lambda (files comment)
+      ;; Check the user isn't likely to be surprised by what is included
+      ;; in the checkin.  Once a log operation is started, the fileset
+      ;; or patch string is locked in.  In particular, it's probably too
+      ;; late to offer to change it now -- checks in hooks and/or the
+      ;; backend's Log Edit derived mode have all already okayed the
+      ;; checkin.  Restarting with the new fileset or patch is easy.
+      (let* ((start-again
+              (substitute-command-keys "\\[vc-next-action] to check in again"))
+             (instructions
+              (substitute-command-keys
+               (string-join
+                (list "type \\<log-edit-mode-map>\\[log-edit-kill-buffer] to cancel"
+                      start-again
+                      "\\[log-edit-previous-comment] to recall your message")
+                ", "))))
+        (cond (patch-string
+               (unless (or (not (derived-mode-p 'diff-mode))
+                           (equal patch-string (buffer-string))
+                           (yes-or-no-p
+                            (format-message "Patch in buffer \"%s\" \
+has changed; continue with old patch?" (current-buffer))))
+                 (user-error "%s %s"
+                             "To check in the new patch" instructions)))
+              ((vc-dispatcher-browsing)
+               (unless (or (and (length= files 1)
+                                ;; If no files in the dispatcher were
+                                ;; marked and it was just that point
+                                ;; moved to a different line, we don't
+                                ;; want to bother the user.  This isn't
+                                ;; foolproof because we don't know
+                                ;; whether FILES was selected by means
+                                ;; of marking a single file or the
+                                ;; implicit selection of the file at
+                                ;; point in the absence of any marks.
+                                (not (vc-dispatcher--explicit-marks-p)))
+                           (equal files (cadr (vc-deduce-fileset)))
+                           (yes-or-no-p
+                            (format-message "Selected file(s) in buffer \"%s\" \
+have changed; continue with old fileset?" (current-buffer))))
+                 (user-error "%s %s"
+                             "To use the new fileset" instructions)))))
+
       ;; "This log message intentionally left almost blank".
       ;; RCS 5.7 gripes about whitespace-only comments too.
       (unless (and comment (string-match "[^\t\n ]" comment))
         (setq comment "*** empty log message ***"))
+      (unless patch-string
+        ;; Must not pass non-nil NOT-ESSENTIAL because we will shortly
+        ;; call (in `vc-finish-logentry') `vc-resynch-buffer' with its
+        ;; NOQUERY parameter non-nil.
+        (vc-buffer-sync-fileset (list backend files)))
       (when register (vc-register (list backend register)))
       (cl-labels ((do-it ()
                     ;; We used to change buffers to get local value of
@@ -2450,6 +2499,72 @@ The merge base is a common ancestor between REV1 and REV2 revisions."
        vc-allow-async-diff (list backend (list rootdir)) rev1 rev2
        (called-interactively-p 'interactive)))))
 
+;;;###autoload
+(defun vc-root-diff-incoming (&optional remote-location)
+  "Report diff of all changes that would be pulled from REMOTE-LOCATION.
+When unspecified REMOTE-LOCATION is the place \\[vc-update] would pull from.
+When called interactively with a prefix argument, prompt for REMOTE-LOCATION.
+In some version control systems REMOTE-LOCATION can be a remote branch name.
+
+See `vc-use-incoming-outgoing-prefixes' regarding giving this command a
+global binding."
+  (interactive (vc--maybe-read-remote-location))
+  (vc--with-backend-in-rootdir "VC root-diff"
+    (let ((default-directory rootdir)
+          (incoming (vc--incoming-revision backend
+                                           (or remote-location ""))))
+      (vc-diff-internal vc-allow-async-diff (list backend (list rootdir))
+                        (vc-call-backend backend 'mergebase incoming)
+                        incoming
+                        (called-interactively-p 'interactive)))))
+
+;;;###autoload
+(defun vc-root-diff-outgoing (&optional remote-location)
+  "Report diff of all changes that would be pushed to REMOTE-LOCATION.
+When unspecified REMOTE-LOCATION is the place \\[vc-push] would push to.
+When called interactively with a prefix argument, prompt for REMOTE-LOCATION.
+In some version control systems REMOTE-LOCATION can be a remote branch name.
+
+See `vc-use-incoming-outgoing-prefixes' regarding giving this command a
+global binding."
+  ;; For this command, for distributed VCS, we want to ignore
+  ;; uncommitted changes because those are not outgoing, and the point
+  ;; for those VCS is to make a comparison between locally committed
+  ;; changes and remote committed changes.
+  ;; (Hence why we don't call `vc-buffer-sync-fileset'.)
+  (interactive (vc--maybe-read-remote-location))
+  (vc--with-backend-in-rootdir "VC root-diff"
+    (let ((default-directory rootdir)
+          (incoming (vc--incoming-revision backend
+                                           (or remote-location ""))))
+      (vc-diff-internal vc-allow-async-diff (list backend (list rootdir))
+                        (vc-call-backend backend 'mergebase incoming)
+                        ;; FIXME: In order to exclude uncommitted
+                        ;; changes we need to pass the most recent
+                        ;; revision as REV2.  Calling `working-revision'
+                        ;; like this works for all the backends we have
+                        ;; in core that implement `mergebase' and so can
+                        ;; be used with this command (Git and Hg).
+                        ;; However, it is not clearly permitted by the
+                        ;; current semantics of `working-revision' to
+                        ;; call it on a directory.
+                        ;;
+                        ;; A possible alternative would be something
+                        ;; like this which effectively falls back to
+                        ;; including uncommitted changes in the case of
+                        ;; an older VCS or where the backend rejects our
+                        ;; attempt to call `working-revision' on a
+                        ;; directory:
+                        ;; (and (eq (vc-call-backend backend
+                        ;;                           'revision-granularity)
+                        ;;          'repository)
+                        ;;      (ignore-errors
+                        ;;        (vc-call-backend backend 'working-revision
+                        ;;                         rootdir)))
+                        (vc-call-backend backend 'working-revision
+                                         rootdir)
+                        (called-interactively-p 'interactive)))))
+
 (declare-function ediff-load-version-control "ediff" (&optional silent))
 (declare-function ediff-vc-internal "ediff-vers"
                   (rev1 rev2 &optional startup-hooks))
@@ -2647,6 +2762,11 @@ Unlike `vc-find-revision-save', doesn't save the buffer to the file."
                   (normal-mode (not enable-local-variables)))
 	        (set-buffer-modified-p nil)
                 (setq buffer-read-only t)
+                (run-hooks 'read-only-mode-hook)
+                (when (and view-read-only
+                           (not view-mode)
+                           (not (eq (get major-mode 'mode-class) 'special)))
+                  (view-mode-enter))
                 (setq failed nil))
 	    (when (and failed (unless buffer (get-file-buffer filename)))
 	      (with-current-buffer (get-file-buffer filename)
@@ -3292,24 +3412,32 @@ The command prompts for the branch whose change log to show."
                            (list rootdir) branch t
                            (when (> vc-log-show-limit 0) vc-log-show-limit))))
 
+(defvar vc-remote-location-history nil
+  "History for remote locations for VC incoming and outgoing commands.")
+
+(defun vc--maybe-read-remote-location ()
+  (and current-prefix-arg
+       (list (read-string "Remote location/branch (empty for default): "
+                          'vc-remote-location-history))))
+
+(defun vc--incoming-revision (backend remote-location)
+  (or (vc-call-backend backend 'incoming-revision remote-location)
+      (user-error "No incoming revision -- local-only branch?")))
+
 ;;;###autoload
 (defun vc-log-incoming (&optional remote-location)
   "Show log of changes that will be received with pull from REMOTE-LOCATION.
+When unspecified REMOTE-LOCATION is the place \\[vc-update] would pull from.
 When called interactively with a prefix argument, prompt for REMOTE-LOCATION.
 In some version control systems REMOTE-LOCATION can be a remote branch name."
-  (interactive
-   (when current-prefix-arg
-     (list (read-string "Remote location/branch (empty for default): "))))
+  (interactive (vc--maybe-read-remote-location))
   (vc--with-backend-in-rootdir "VC root-log"
     (vc-incoming-outgoing-internal backend (or remote-location "")
                                    "*vc-incoming*" 'log-incoming)))
 
 (defun vc-default-log-incoming (_backend buffer remote-location)
   (vc--with-backend-in-rootdir ""
-    (let ((incoming (or (vc-call-backend backend
-                                         'incoming-revision
-                                         remote-location)
-                        (user-error "No incoming revision -- local-only branch?"))))
+    (let ((incoming (vc--incoming-revision backend remote-location)))
       (vc-call-backend backend 'print-log (list rootdir) buffer t
                        incoming
                        (vc-call-backend backend 'mergebase incoming)))))
@@ -3317,21 +3445,17 @@ In some version control systems REMOTE-LOCATION can be a remote branch name."
 ;;;###autoload
 (defun vc-log-outgoing (&optional remote-location)
   "Show log of changes that will be sent with a push operation to REMOTE-LOCATION.
+When unspecified REMOTE-LOCATION is the place \\[vc-push] would push to.
 When called interactively with a prefix argument, prompt for REMOTE-LOCATION.
 In some version control systems REMOTE-LOCATION can be a remote branch name."
-  (interactive
-   (when current-prefix-arg
-     (list (read-string "Remote location/branch (empty for default): "))))
+  (interactive (vc--maybe-read-remote-location))
   (vc--with-backend-in-rootdir "VC root-log"
     (vc-incoming-outgoing-internal backend (or remote-location "")
                                    "*vc-outgoing*" 'log-outgoing)))
 
 (defun vc-default-log-outgoing (_backend buffer remote-location)
   (vc--with-backend-in-rootdir ""
-    (let ((incoming (or (vc-call-backend backend
-                                         'incoming-revision
-                                         remote-location)
-                        (user-error "No incoming revision -- local-only branch?"))))
+    (let ((incoming (vc--incoming-revision backend remote-location)))
       (vc-call-backend backend 'print-log (list rootdir) buffer t
                        ""
                        (vc-call-backend backend 'mergebase incoming)))))
@@ -3590,7 +3714,7 @@ For entries in FILES that are directories, revert all files inside them."
         (mapc #'vc-revert-file files)
       (with-vc-properties files
                           (vc-call-backend backend 'revert-files files)
-                          `((vc-state . up-to-date)))
+                          '((vc-state . up-to-date)))
       (dolist (file files)
         (vc-file-setprop file 'vc-checkout-time
                          (file-attribute-modification-time
