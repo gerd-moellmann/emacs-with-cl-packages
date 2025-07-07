@@ -1144,8 +1144,7 @@ It is based on `log-edit-mode', and has Git-specific extensions."
 (defalias 'vc-git-async-checkins #'always)
 
 (defun vc-git-checkin (files comment &optional _rev)
-  (let* ((parent (current-buffer))
-         (file1 (or (car files) default-directory))
+  (let* ((file1 (or (car files) default-directory))
          (root (vc-git-root file1))
          (default-directory (expand-file-name root))
          (only (or (cdr files)
@@ -1273,11 +1272,9 @@ It is based on `log-edit-mode', and has Git-specific extensions."
                  (with-current-buffer buffer
                    (vc-run-delayed
                      (vc-compilation-mode 'git)
-                     (funcall post)
-                     (when (buffer-live-p parent)
-                       (with-current-buffer parent
-                         (run-hooks 'vc-checkin-hook)))))
-                 (vc-set-async-update buffer))
+                     (funcall post)))
+                 (vc-set-async-update buffer)
+                 (list 'async (get-buffer-process buffer)))
         (apply #'vc-git-command nil 0 files args)
         (funcall post)))))
 

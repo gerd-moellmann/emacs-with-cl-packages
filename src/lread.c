@@ -3639,9 +3639,9 @@ read_bool_vector (Lisp_Object readcharfun)
   Lisp_Object str = read_string_literal (readcharfun);
   if (STRING_MULTIBYTE (str)
       || !(size_in_chars == SCHARS (str)
-	   /* We used to print 1 char too many when the number of bits
+	   /* Emacs 19 printed 1 char too many when the number of bits
 	      was a multiple of 8.  Accept such input in case it came
-	      from an old version.  */
+	      from that old version.  */
 	   || length == (SCHARS (str) - 1) * BOOL_VECTOR_BITS_PER_CHAR))
     invalid_syntax ("#&...", readcharfun);
 
@@ -3922,28 +3922,53 @@ read_make_string (const char *s, ptrdiff_t nbytes, bool multibyte)
   return make_specified_string (s, nchars, nbytes, multibyte);
 }
 
-#define READ_AND_BUFFER(c)			\
-  c = READCHAR;					\
-  if (c < 0)					\
-    INVALID_SYNTAX_WITH_BUFFER ();		\
-  if (multibyte)				\
-    p += CHAR_STRING (c, (unsigned char *) p);	\
-  else						\
-    *p++ = c;					\
-  if (end - p < MAX_MULTIBYTE_LENGTH + 1)	\
-    {						\
-       offset = p - read_buffer;		\
-       read_buffer = grow_read_buffer (read_buffer, offset, \
-				       &heapbuf, &read_buffer_size, count); \
-       p = read_buffer + offset;					\
-       end = read_buffer + read_buffer_size;				\
-    }
+typedef struct {
+  char *start;		/* start of buffer, dynamic if equal to heapbuf */
+  char *end;		/* just past end of buffer */
+  char *cur;		/* where to put next char read */
+  char *heapbuf;	/* start of heap allocation if any, or NULL */
+  specpdl_ref count;	/* specpdl at start */
+} readbuf_t;
 
-#define INVALID_SYNTAX_WITH_BUFFER()		\
-  {						\
-    *p = 0;					\
-    invalid_syntax (read_buffer, readcharfun);	\
-  }
+static NO_INLINE void
+readbuf_grow (readbuf_t *rb)
+{
+  ptrdiff_t offset = rb->cur - rb->start;
+  ptrdiff_t size = rb->end - rb->start;
+  rb->start = grow_read_buffer (rb->start, offset, &rb->heapbuf, &size,
+				rb->count);
+  rb->cur = rb->start + offset;
+  rb->end = rb->start + size;
+}
+
+static inline void
+add_char_to_buffer (readbuf_t *rb, int c, bool multibyte)
+{
+  if (multibyte)
+    rb->cur += CHAR_STRING (c, (unsigned char *) rb->cur);
+  else
+    *rb->cur++ = c;
+  if (rb->end - rb->cur < MAX_MULTIBYTE_LENGTH + 1)
+    readbuf_grow (rb);
+}
+
+static AVOID
+invalid_syntax_with_buffer (readbuf_t *rb, Lisp_Object readcharfun)
+{
+  *rb->cur = '\0';
+  invalid_syntax (rb->start, readcharfun);
+}
+
+static inline int
+read_and_buffer (readbuf_t *rb, Lisp_Object readcharfun)
+{
+  bool multibyte;
+  int c = READCHAR_REPORT_MULTIBYTE (&multibyte);
+  if (c < 0)
+    invalid_syntax_with_buffer (rb, readcharfun);
+  add_char_to_buffer (rb, c, multibyte);
+  return c;
+}
 
 static bool
 is_symbol_constituent (int c)
@@ -3979,16 +4004,15 @@ static Lisp_Object
 read0 (Lisp_Object readcharfun, bool locate_syms)
 {
   char stackbuf[64];
-  char *read_buffer = stackbuf;
-  ptrdiff_t read_buffer_size = sizeof stackbuf;
-  ptrdiff_t offset;
-  char *heapbuf = NULL;
 
   specpdl_ref base_pdl = SPECPDL_INDEX ();
   ptrdiff_t base_sp = rdstack.sp;
   record_unwind_protect_intmax (read_stack_reset, base_sp);
 
-  specpdl_ref count = SPECPDL_INDEX ();
+  readbuf_t rb = { .start = stackbuf,
+		   .end = stackbuf + sizeof stackbuf,
+		   .heapbuf = NULL,
+		   .count = SPECPDL_INDEX () };
 
   bool uninterned_symbol;
   bool skip_shorthand;
@@ -4083,13 +4107,9 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 
     case '#':
       {
-	char *p = read_buffer;
-	char *end = read_buffer + read_buffer_size;
-
-	*p++ = '#';
-	int ch;
-	READ_AND_BUFFER (ch);
-
+	rb.cur = rb.start;
+	*rb.cur++ = '#';
+	int ch = read_and_buffer (&rb, readcharfun);
 	switch (ch)
 	  {
 	  case '\'':
@@ -4107,11 +4127,11 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 
 	  case 's':
 	    /* #s(...) -- a record or hash-table */
-	    READ_AND_BUFFER (ch);
+	    ch = read_and_buffer (&rb, readcharfun);
 	    if (ch != '(')
 	      {
 		UNREAD (ch);
-		INVALID_SYNTAX_WITH_BUFFER ();
+		invalid_syntax_with_buffer (&rb, readcharfun);
 	      }
 	    read_stack_push ((struct read_stack_entry) {
 		.type = RE_record,
@@ -4124,10 +4144,10 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 	  case '^':
 	    /* #^[...]  -- char-table
 	       #^^[...] -- sub-char-table */
-	    READ_AND_BUFFER (ch);
+	    ch = read_and_buffer (&rb, readcharfun);
 	    if (ch == '^')
 	      {
-		ch = READCHAR;
+		ch = read_and_buffer (&rb, readcharfun);
 		if (ch == '[')
 		  {
 		    read_stack_push ((struct read_stack_entry) {
@@ -4141,7 +4161,7 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 		else
 		  {
 		    UNREAD (ch);
-		    INVALID_SYNTAX_WITH_BUFFER ();
+		    invalid_syntax_with_buffer (&rb, readcharfun);
 		  }
 	      }
 	    else if (ch == '[')
@@ -4157,7 +4177,7 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 	    else
 	      {
 		UNREAD (ch);
-		INVALID_SYNTAX_WITH_BUFFER ();
+		invalid_syntax_with_buffer (&rb, readcharfun);
 	      }
 
 	  case '(':
@@ -4267,12 +4287,12 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 		int c;
 		for (;;)
 		  {
-		    READ_AND_BUFFER (c);
+		    c = read_and_buffer (&rb, readcharfun);
 		    if (c < '0' || c > '9')
 		      break;
 		    if (ckd_mul (&n, n, 10)
 			|| ckd_add (&n, n, c - '0'))
-		      INVALID_SYNTAX_WITH_BUFFER ();
+		      invalid_syntax_with_buffer (&rb, readcharfun);
 		  }
 		if (c == 'r' || c == 'R')
 		  {
@@ -4313,18 +4333,18 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 			  = XHASH_TABLE (read_objects_map);
 			ptrdiff_t i = hash_find (h, make_fixnum (n));
 			if (i < 0)
-			  INVALID_SYNTAX_WITH_BUFFER ();
+			  invalid_syntax_with_buffer (&rb, readcharfun);
 			obj = HASH_VALUE (h, i);
 			break;
 		      }
 		    else
-		      INVALID_SYNTAX_WITH_BUFFER ();
+		      invalid_syntax_with_buffer (&rb, readcharfun);
 		  }
 		else
-		  INVALID_SYNTAX_WITH_BUFFER ();
+		  invalid_syntax_with_buffer (&rb, readcharfun);
 	      }
 	    else
-	      INVALID_SYNTAX_WITH_BUFFER ();
+	      invalid_syntax_with_buffer (&rb, readcharfun);
 	  }
 	break;
       }
@@ -4409,9 +4429,9 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
       /* symbol or number */
     read_symbol:
       {
-	char *p = read_buffer;
-	char *end = read_buffer + read_buffer_size;
+	rb.cur = rb.start;
 	EMACS_INT start_position = readchar_offset - 1;
+	//ptrdiff_t nchars = 0;
 
 	/* Remember where package prefixes end in COLON, which
 	   will be set to the first colon we find.  NCOLONS is the
@@ -4436,7 +4456,7 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 	      {
 		/* Remember where the first : is.  */
 		if (colon == NULL)
-		  colon = p;
+		  colon = rb.cur;
 		++ncolons;
 
 		/* #:xyz should not contain a colon unless in Emacs
@@ -4466,24 +4486,12 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 	    /* Store the character read, and advance the write pointer
 	       for by the length of the the character we read.  But
 	       first make sure that buffer is large enough.  */
-	    if (end - p < MAX_MULTIBYTE_LENGTH + 1)
-	      {
-		ptrdiff_t offset = p - read_buffer;
-		ptrdiff_t colon_offset = -1;
-		if (colon)
-		  colon_offset = colon - read_buffer;
-		read_buffer = grow_read_buffer (read_buffer, offset,
-						&heapbuf, &read_buffer_size,
-						count);
-		p = read_buffer + offset;
-		end = read_buffer + read_buffer_size;
-		if (colon_offset >= 0)
-		  colon = read_buffer + colon_offset;
-	      }
-	    if (multibyte)
-	      p += CHAR_STRING (c, (unsigned char *) p);
-	    else
-	      *p++ = c;
+	    ptrdiff_t colon_offset = -1;
+	    if (colon)
+	      colon_offset = colon - rb.start;
+	    add_char_to_buffer (&rb, c, multibyte);
+	    if (colon_offset >= 0)
+	      colon = rb.start + colon_offset;
 
 	    /* Proceed with the next character.  */
 	    c = READCHAR;
@@ -4513,13 +4521,13 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 
 	eassert (!is_symbol_constituent (c));
 	/* c maybe -1 here, hut we can unread EOF.  */
-	*p = 0;
+	*rb.cur = '\0';
 	UNREAD (c);
 
 	/* The start of the symbol, If a package prefix is present,
 	   set to the start of the symbol-name part later on.  */
-	char *symbol_start = read_buffer;
-	const char *symbol_end = p;
+	char *symbol_start = rb.start;
+	const char *symbol_end = rb.cur;
 
 	/* Package for the package prefix, if there is one, or nil
 	   if there is none.  */
@@ -4547,8 +4555,8 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 	    *colon = 0;
 
 	    /* Make a Lisp string for the package name.  */
-	    const char* pkg_start = read_buffer;
-	    const ptrdiff_t pkg_nbytes = colon - read_buffer;
+	    const char* pkg_start = rb.start;
+	    const ptrdiff_t pkg_nbytes = colon - rb.start;
 	    const Lisp_Object pkg_name
 	      = read_make_string (pkg_start, pkg_nbytes, multibyte);
 
@@ -4557,7 +4565,7 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 	       there a better way? */
 	    package = pkg_find_package (pkg_name);
 	    if (NILP (package))
-	      pkg_error ("unknown package '%s'", read_buffer);
+	      pkg_error ("unknown package '%s'", rb.start);
 
 	    /* Symbol name starts after the package prefix.  */
 	    symbol_start = colon + ncolons;

@@ -1219,8 +1219,7 @@ It is based on `log-edit-mode', and has Hg-specific extensions.")
 (defun vc-hg-checkin (files comment &optional _rev)
   "Hg-specific version of `vc-backend-checkin'.
 REV is ignored."
-  (let ((parent (current-buffer))
-        (args (nconc (list "commit" "-m")
+  (let ((args (nconc (list "commit" "-m")
                      (vc-hg--extract-headers comment))))
     (if vc-async-checkin
         (let ((buffer (vc-hg--async-buffer)))
@@ -1229,11 +1228,9 @@ REV is ignored."
            "Finishing checking in files...")
           (with-current-buffer buffer
             (vc-run-delayed
-              (vc-compilation-mode 'hg)
-              (when (buffer-live-p parent)
-                (with-current-buffer parent
-                  (run-hooks 'vc-checkin-hook)))))
-          (vc-set-async-update buffer))
+              (vc-compilation-mode 'hg)))
+          (vc-set-async-update buffer)
+          (list 'async (get-buffer-process buffer)))
       (apply #'vc-hg-command nil 0 files args))))
 
 (defun vc-hg-checkin-patch (patch-string comment)
