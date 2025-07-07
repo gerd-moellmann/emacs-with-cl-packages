@@ -4436,7 +4436,7 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 	/* Remember where package prefixes end in COLON, which
 	   will be set to the first colon we find.  NCOLONS is the
 	   number of colons found so far.  */
-	char *colon = NULL;
+	ptrdiff_t colon_offset = -1;
 	int ncolons = 0;
 
 	/* True if last character read was a backslash.  */
@@ -4455,8 +4455,8 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 	    if (c == ':' && !last_was_backslash && !NILP (Vsymbol_packages))
 	      {
 		/* Remember where the first : is.  */
-		if (colon == NULL)
-		  colon = rb.cur;
+		if (colon_offset < 0)
+		  colon_offset = rb.cur - rb.start;
 		++ncolons;
 
 		/* #:xyz should not contain a colon unless in Emacs
@@ -4486,12 +4486,7 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 	    /* Store the character read, and advance the write pointer
 	       for by the length of the the character we read.  But
 	       first make sure that buffer is large enough.  */
-	    ptrdiff_t colon_offset = -1;
-	    if (colon)
-	      colon_offset = colon - rb.start;
 	    add_char_to_buffer (&rb, c, multibyte);
-	    if (colon_offset >= 0)
-	      colon = rb.start + colon_offset;
 
 	    /* Proceed with the next character.  */
 	    c = READCHAR;
@@ -4548,15 +4543,13 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 		eassert (!NILP (package));
 	      }
 	  }
-	else if (colon)
+	else if (colon_offset >= 0)
 	  {
-	    /* PACKAGE name is in read_buffer, colon + ncolons is the
-	       start of the symbol name.  */
-	    *colon = 0;
+	    rb.start[colon_offset] = 0;
 
 	    /* Make a Lisp string for the package name.  */
 	    const char* pkg_start = rb.start;
-	    const ptrdiff_t pkg_nbytes = colon - rb.start;
+	    const ptrdiff_t pkg_nbytes = colon_offset;
 	    const Lisp_Object pkg_name
 	      = read_make_string (pkg_start, pkg_nbytes, multibyte);
 
@@ -4568,7 +4561,7 @@ read0 (Lisp_Object readcharfun, bool locate_syms)
 	      pkg_error ("unknown package '%s'", rb.start);
 
 	    /* Symbol name starts after the package prefix.  */
-	    symbol_start = colon + ncolons;
+	    symbol_start = rb.start + colon_offset + ncolons;
 	  }
 
 	/* This could be a number after all.  But not if empty, and
