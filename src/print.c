@@ -2447,7 +2447,7 @@ print_symbol_name (Lisp_Object name, Lisp_Object printcharfun,
   bool like_number_p = check_number ? looks_like_number_p (name) : false;
   for (ptrdiff_t ibyte = 0, ichar = 0; ibyte < SBYTES (name);)
     {
-      const int c = fetch_string_char_advance (name, &ichar, &ibyte);
+      const int c = fetch_string_char_as_multibyte_advance (name, &ichar, &ibyte);
       maybe_quit ();
       if (escape)
 	if (like_number_p || must_escape_p (c, ichar))

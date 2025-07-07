@@ -377,6 +377,8 @@ readchar (Lisp_Object readcharfun, bool *multibyte)
       else
 	{
 	  c = SREF (readcharfun, read_from_string_index_byte);
+	  if (!ASCII_CHAR_P (c))
+	    c = BYTE8_TO_CHAR (c);
 	  read_from_string_index++;
 	  read_from_string_index_byte++;
 	}
@@ -390,6 +392,9 @@ readchar (Lisp_Object readcharfun, bool *multibyte)
       emacs_mule_encoding = 1;
       goto read_multibyte;
     }
+
+  if (multibyte)
+    *multibyte = 1;
 
   tem = call0 (readcharfun);
 
