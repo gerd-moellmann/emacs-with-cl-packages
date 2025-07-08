@@ -596,6 +596,7 @@ OPTION_DEFAULT_OFF([small-ja-dic],[generate a smaller-size Japanese dictionary])
 OPTION_DEFAULT_OFF([android],[cross-compile Android application package])
 OPTION_DEFAULT_ON([android-debug],[don't build Emacs as a debug package on Android])
 OPTION_DEFAULT_OFF([mps],[use MPS for garbage collection])
+OPTION_DEFAULT_OFF([notcurses],[use Notcurses for terminals])
 
 # Find out of Android support is enabled and mailutils has defaulted
 # to `yes-unless-android'.  Disable it if so.
@@ -5561,6 +5562,25 @@ if test "${with_gpm}" != "no"; then
 fi
 AC_SUBST([LIBGPM])
 
+### Use -lnotcurses if available, unless '--with-notcurses=no'.
+AC_SUBST([HAVE_NOTCURSES])
+HAVE_NOTCURSES=no
+LIBNOTCURSES=
+NCTERMOBJ=
+if test "${with_notcurses}" != "no"; then
+  AC_CHECK_HEADER([notcurses/notcurses.h],
+    [AC_CHECK_LIB([notcurses], [notcurses_init], [HAVE_NOTCURSES=yes], [], [$LIB_PTHREAD])])
+
+  if test "${HAVE_NOTCURSES}" = "yes"; then
+    NCTERMOBJ="ncterm.o"
+    AC_DEFINE([HAVE_NOTCURSES], [1],
+      [Define to 1 if you have the notcurses library (-lnotcurses).])
+    LIBNOTCURSES"-lnotcurses $LIB_PTHREAD"
+  else
+    AC_MSG_ERROR([The Notcurses library libnotcurses is missing]):
+  fi
+fi
+
 ### Use -lmps if available, unless '--with-mps=no'.
 AC_SUBST([HAVE_MPS])
 HAVE_MPS=no
@@ -5585,25 +5605,6 @@ if test "${with_mps}" != "no"; then
     MPS_CFLAGS="-fno-omit-frame-pointer"
   else
     AC_MSG_ERROR([The MPS library libmps is missing]):
-  fi
-fi
-
-### Use -lnotcurses if available, unless '--with-notcurses=no'.
-AC_SUBST([HAVE_NOTCURSES])
-HAVE_NOTCURSES=no
-LIBNOTCURSES=
-NCTERMOBJ=
-if test "${with_notcurses}" != "no"; then
-  AC_CHECK_HEADER([notcurses.h],
-    [AC_CHECK_LIB([notcurses], [notcurses_init], [HAVE_NOTCURSES=yes], [], [$LIB_PTHREAD])])
-
-  if test "${HAVE_NOTCURSES}" = "yes"; then
-    NCTERMOBJ="ncterm.o"
-    AC_DEFINE([HAVE_NOTCURSES], [1],
-      [Define to 1 if you have the notcurses library (-lnotcurses).])
-    LIBNOTCURSES"-lnotcurses $LIB_PTHREAD"
-  else
-    AC_MSG_ERROR([The Notcurses library libnotcurses is missing]):
   fi
 fi
 
@@ -7685,7 +7686,7 @@ optsep=
 emacs_config_features=
 for opt in ACL BE_APP CAIRO DBUS FREETYPE GCONF GIF GLIB GMP GNUTLS GPM GSETTINGS \
  HARFBUZZ IMAGEMAGICK JPEG LCMS2 LIBOTF LIBSELINUX LIBSYSTEMD LIBXML2 \
- M17N_FLT MODULES MPS NATIVE_COMP NOTIFY NS OLDXMENU PDUMPER PGTK PNG RSVG SECCOMP \
+ M17N_FLT MODULES MPS NOTCURSES NATIVE_COMP NOTIFY NS OLDXMENU PDUMPER PGTK PNG RSVG SECCOMP \
  SOUND SQLITE3 THREADS TIFF TOOLKIT_SCROLL_BARS TREE_SITTER \
  UNEXEC WEBP X11 XAW3D XDBE XFT XIM XINERAMA XINPUT2 XPM XRANDR XWIDGETS \
  X_TOOLKIT ZLIB; do
@@ -7747,6 +7748,7 @@ AS_ECHO(["  Does Emacs use -lXaw3d?                                 ${HAVE_XAW3D
   Does Emacs support sound?                               ${HAVE_SOUND}
   Does Emacs use -lgpm?                                   ${HAVE_GPM}
   Does Emacs use -lmps?                                   ${HAVE_MPS}
+  Does Emacs use -lnotcurses?                             ${HAVE_NOTCURSES}
   Does Emacs use -ldbus?                                  ${HAVE_DBUS}
   Does Emacs use -lgconf?                                 ${HAVE_GCONF}
   Does Emacs use GSettings?                               ${HAVE_GSETTINGS}
