@@ -1293,6 +1293,7 @@ packages targeting Android 2.2.])])
   passthrough="$passthrough --with-rsvg=$with_rsvg"
   passthrough="$passthrough --with-mps=$with_mps"
   passthrough="$passthrough --with-dtrace=$with_dtrace"
+  passthrough="$passthrough --with-notcurses=$with_notcurses"
 
   # Now pass through some checking-related options.
   emacs_val="--enable-check-lisp-object-type=$enable_check_lisp_object_type"
@@ -5584,6 +5585,25 @@ if test "${with_mps}" != "no"; then
     MPS_CFLAGS="-fno-omit-frame-pointer"
   else
     AC_MSG_ERROR([The MPS library libmps is missing]):
+  fi
+fi
+
+### Use -lnotcurses if available, unless '--with-notcurses=no'.
+AC_SUBST([HAVE_NOTCURSES])
+HAVE_NOTCURSES=no
+LIBNOTCURSES=
+NCTERMOBJ=
+if test "${with_notcurses}" != "no"; then
+  AC_CHECK_HEADER([notcurses.h],
+    [AC_CHECK_LIB([notcurses], [notcurses_init], [HAVE_NOTCURSES=yes], [], [$LIB_PTHREAD])])
+
+  if test "${HAVE_NOTCURSES}" = "yes"; then
+    NCTERMOBJ="ncterm.o"
+    AC_DEFINE([HAVE_NOTCURSES], [1],
+      [Define to 1 if you have the notcurses library (-lnotcurses).])
+    LIBNOTCURSES"-lnotcurses $LIB_PTHREAD"
+  else
+    AC_MSG_ERROR([The Notcurses library libnotcurses is missing]):
   fi
 fi
 
