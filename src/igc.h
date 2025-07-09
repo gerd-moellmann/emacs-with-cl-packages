@@ -83,6 +83,7 @@ Lisp_Object igc_alloc_marker_vector (ptrdiff_t len, Lisp_Object init);
 struct Lisp_Buffer_Local_Value *igc_alloc_blv (void);
 void *igc_alloc_handler (void);
 void *igc_xzalloc_ambig (size_t size);
+void *igc_xzalloc_ambig_with_label (size_t size, const char *label);
 void *igc_realloc_ambig (void *block, size_t size);
 #ifdef ENABLE_CHECKING
 void igc_check_freeable (void *p);
