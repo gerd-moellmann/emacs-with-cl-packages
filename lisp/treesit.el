@@ -2020,7 +2020,7 @@ Because `pre-redisplay-functions' could be called multiple times
 during a single command loop, we use this variable to debounce
 calls to `treesit--pre-redisplay'.")
 
-(defun treesit--font-lock-mark-ranges-to-fontify (ranges _parser)
+(defun treesit--font-lock-mark-ranges-to-fontify (ranges)
   "A notifier that marks ranges that needs refontification.
 
 For RANGES and PARSER see `treesit-parser-add-notifier'.
@@ -2073,18 +2073,18 @@ parser."
               (signal 'treesit-no-parser nil))))
     (car (treesit-parser-list))))
 
-(defun treesit--pre-redisplay (&rest _)
-  "Force a reparse on the primary parser and mark regions to be fontified.
+(declare-function treesit-parser-changed-regions "treesit.c")
 
-The actual work is carried out by
-`treesit--font-lock-mark-ranges-to-fontify', which see."
+(defun treesit--pre-redisplay (&rest _)
+  "Force a reparse on primary parser and mark regions to be fontified."
   (unless (eq treesit--pre-redisplay-tick (buffer-chars-modified-tick))
     (when treesit-primary-parser
-      ;; Force a reparse on the primary parser, if everything is setup
-      ;; correctly, the parser should call
-      ;; `treesit--font-lock-mark-ranges-to-fontify' (which should be a
-      ;; notifier function of the primary parser).
-      (treesit-parser-root-node treesit-primary-parser))
+      ;; Force a reparse on the primary parser and update embedded
+      ;; parser ranges in the changed ranges.
+      (let ((affected-ranges (treesit-parser-changed-regions
+                              treesit-primary-parser)))
+        (when affected-ranges
+          (treesit--font-lock-mark-ranges-to-fontify affected-ranges))))
 
     (setq treesit--pre-redisplay-tick (buffer-chars-modified-tick))))
 
@@ -4072,6 +4072,7 @@ this variable takes priority.")
   "Search for the next outline heading in the syntax tree.
 For BOUND, MOVE, BACKWARD, LOOKING-AT, see the descriptions in
 `outline-search-function'."
+  (treesit--pre-redisplay)
   (if looking-at
       (when (treesit-outline--at-point) (pos-bol))
 
@@ -4157,11 +4158,6 @@ For BOUND, MOVE, BACKWARD, LOOKING-AT, see the descriptions in
           (setq level (1+ level)))))
 
     level))
-
-(defun treesit--after-change (beg end _len)
-  "Force updating the ranges in BEG...END.
-Expected to be called after each text change."
-  (treesit-update-ranges beg end))
 
 ;;; Hideshow mode
 
@@ -4374,9 +4370,6 @@ before calling this function."
                     . treesit-font-lock-fontify-region)))
     (treesit-font-lock-recompute-features)
     (add-hook 'pre-redisplay-functions #'treesit--pre-redisplay 0 t)
-    (when treesit-primary-parser
-      (treesit-parser-add-notifier
-       treesit-primary-parser #'treesit--font-lock-mark-ranges-to-fontify))
     (treesit-validate-font-lock-rules treesit-font-lock-settings))
   ;; Syntax
   (add-hook 'syntax-propertize-extend-region-functions
@@ -4462,8 +4455,7 @@ before calling this function."
       (setq treesit-outline-predicate
             #'treesit-outline-predicate--from-imenu))
     (setq-local outline-search-function #'treesit-outline-search
-                outline-level #'treesit-outline-level)
-    (add-hook 'outline-after-change-functions #'treesit--after-change nil t))
+                outline-level #'treesit-outline-level))
 
   ;; Remove existing local parsers.
   (dolist (ov (overlays-in (point-min) (point-max)))
@@ -5439,6 +5431,19 @@ Tree-sitter grammar for `%s' is missing; install it?"
   (treesit-parser-language
    :no-eval (treesit-parser-language parser)
    :eg-result c)
+  (treesit-parser-tag
+   :no-eval (treesit-parser-tag parser)
+   :eg-result 'embeded)
+  (treesit-parser-changed-regions
+   :no-eval (treesit-parser-changed-regions parser)
+   :eg-result '((1 . 10) (24 . 58)))
+
+  (treesit-parser-embed-level
+   :no-eval (treesit-parser-embed-level parser)
+   :eg-result 1)
+  (treesit-parser-set-embed-level
+   :no-eval (treesit-parser-set-embed-level parser 1))
+
   (treesit-parser-add-notifier)
   (treesit-parser-remove-notifier)
   (treesit-parser-notifiers
