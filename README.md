@@ -20,7 +20,7 @@ Please see the [issues](../../issues) for advice on build configurations for you
 
 This build is kept current with the [`emacs-30`](https://github.com/emacs-mirror/emacs/tree/emacs-30) release branch.
 
-For an experimental build which is synced with the Emacs master branch, see [this branch](https://github.com/jdtsmith/emacs-mac/tree/emacs-mac-gnu_master_exp).
+For an experimental build which is synced with Emacs master, see [this branch](https://github.com/jdtsmith/emacs-mac/tree/emacs-mac-gnu_master_exp).
 
 ## Install
 
