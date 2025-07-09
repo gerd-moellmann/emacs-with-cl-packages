@@ -107,7 +107,7 @@ Several additional features and fixes have been added on top of `emacs-mac` and 
 ### Features
 
 - A `New Frame` Dock Menu Item
-- New variable `mac-underwave-thickness` to customize the thickness of squiggly underlines (e.g. with linters or spell-checkers)
+- New variable `mac-underwave-thickness` to customize the thickness of squiggly underlines (e.g., as drawn by linters or spell-checkers)
 
 ### Bug fixes
 
