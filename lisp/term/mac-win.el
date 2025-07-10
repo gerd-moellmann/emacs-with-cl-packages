@@ -2882,6 +2882,11 @@ visibility, then remap this command to `mac-previous-tab'."
   (interactive)
   (mac-send-action 'mergeAllWindows))
 
+(defun mac-raise-all-frames ()
+  "Bring all frames (mac windows) to the front."
+  (interactive)
+  (mac-send-action 'arrangeInFront))
+
 
 ;;; Window system initialization.
 
@@ -3109,6 +3114,12 @@ standard ones in `x-handle-args'."
     (define-key-after mac-window-menu-map [mac-merge-all-frame-tabs]
       '(menu-item "Merge All Frames" mac-merge-all-frame-tabs
                   :enable (mac-send-action 'mergeAllWindows t)))
+
+    (define-key-after mac-window-menu-map [mac-separator-tab]
+      menu-bar-separator)
+    (define-key-after mac-window-menu-map [mac-merge-all-frame-tabs]
+      '(menu-item "Bring All to Front" mac-raise-all-frames
+                  :enable (mac-send-action 'arrangeInFront t)))
 
     ;; In the macos menubar "Window" always comes before "Help"...
     ;; Configure menu-bar-final-items to insert window before help.
