@@ -45,6 +45,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "pdumper.h"
 #include "disptab.h"
 #include "cm.h"
+#include "ncterm.h"
 
 #ifdef HAVE_ANDROID
 #include "android.h"
@@ -7315,14 +7316,6 @@ init_display_interactive (void)
     }
 #endif
 
-#ifdef HAVE_NOTCURSES
-  if (!inhibit_window_system && !will_dump_p ())
-    {
-      Vinitial_window_system = Qnotcurses;
-      return;
-    }
-#endif
-
   /* If no window system has been specified, try to use the terminal.  */
   if (! isatty (STDIN_FILENO))
     fatal ("standard input is not a tty");
@@ -7347,13 +7340,16 @@ init_display_interactive (void)
 
 #ifndef HAVE_ANDROID
   {
-    struct terminal *t;
     struct frame *f = XFRAME (selected_frame);
 
     init_foreground_group ();
 
     /* Open a display on the controlling tty. */
-    t = init_tty (0, terminal_type, 1); /* Errors are fatal. */
+#ifdef HAVE_NOTCURSES
+    struct terminal *t = ncterm_init_terminal (NULL, terminal_type, true);
+#else
+    struct terminal *t = init_tty (0, terminal_type, 1); /* Errors are fatal. */
+# endif
 
     /* Convert the initial frame to use the new display. */
     if (f->output_method != output_initial)
