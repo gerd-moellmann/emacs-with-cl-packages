@@ -20,7 +20,7 @@
 
 # Ignore all dot-files except for those under version control.
 .*
-!.clang-format
+!.clang-format*
 !.clangd
 !.dir-locals.el
 !.gitattributes
