@@ -9,6 +9,7 @@
 #include <stdlib.h>
 
 static void delete_terminal_hook(struct terminal* t) {
+    eassert(t->type == output_ncterm);
     block_input();
     struct ncterm_display_info* dpyinfo = t->display_info.ncterm;
     if (dpyinfo->nc)
@@ -19,7 +20,8 @@ static void delete_terminal_hook(struct terminal* t) {
     unblock_input();
 }
 
-static void delete_frame_hook(struct frame* f) { }
+static void delete_frame_hook(struct frame* f) {
+}
 
 static void ncterm_set_terminal_hooks(struct terminal* t) {
     t->delete_terminal_hook = delete_terminal_hook;
@@ -42,8 +44,7 @@ static struct terminal* find_or_make_terminal(const char* name) {
     return t;
 }
 
-static void open_terminal(struct ncterm_display_info* dpyinfo)
-{
+static void open_terminal(struct ncterm_display_info* dpyinfo) {
     dpyinfo->fd = emacs_open(dpyinfo->name, O_RDWR | O_NOCTTY, 0);
     if (dpyinfo->fd < 0) {
         delete_terminal(dpyinfo->terminal);
@@ -84,7 +85,15 @@ struct terminal* ncterm_init_terminal(
     return t;
 }
 
-void init_ncterm(void) { }
+static void ncterm_atexit(void) {
+    for (struct terminal* t = terminal_list; t; t = t->next_terminal)
+        if (t->type == output_ncterm)
+            delete_terminal_hook(t);
+}
+
+void init_ncterm(void) {
+    atexit(ncterm_atexit);
+}
 
 void syms_of_ncterm(void) {
     DEFSYM(Qnotcurses, "notcurses");

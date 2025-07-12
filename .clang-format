@@ -2,6 +2,7 @@ BasedOnStyle: Webkit
 ColumnLimit: 100
 BreakBeforeBraces: Attach
 QualifierAlignment: Left
+AllowShortFunctionsOnASingleLine: false
 ---
 Language: Cpp
 ---
