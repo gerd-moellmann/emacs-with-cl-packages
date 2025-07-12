@@ -1,11 +1,17 @@
 #ifndef EMACS_NCTERM_H
 # define EMACS_NCTERM_H
 
+#include "config.h"
+# include "lisp.h"
+
 struct ncterm_display_info
 {
     struct terminal *terminal;
     struct notcurses *nc;
     const char *name;
+    int fd;
+    FILE *input;
+    FILE *output;
 };
 
 void init_ncterm (void);
