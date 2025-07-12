@@ -19,8 +19,7 @@ static void delete_terminal_hook(struct terminal* t) {
     unblock_input();
 }
 
-static void delete_frame_hook(struct frame* f) {
-}
+static void delete_frame_hook(struct frame* f) { }
 
 static void ncterm_set_terminal_hooks(struct terminal* t) {
     t->delete_terminal_hook = delete_terminal_hook;
@@ -43,24 +42,29 @@ static struct terminal* find_or_make_terminal(const char* name) {
     return t;
 }
 
+static void open_terminal(struct ncterm_display_info* dpyinfo)
+{
+    dpyinfo->fd = emacs_open(dpyinfo->name, O_RDWR | O_NOCTTY, 0);
+    if (dpyinfo->fd < 0) {
+        delete_terminal(dpyinfo->terminal);
+        fatal("Could not open file: %s", dpyinfo->name);
+    }
+    dpyinfo->output = emacs_fdopen(dpyinfo->fd, "w+");
+    dpyinfo->input = dpyinfo->output;
+    add_keyboard_wait_descriptor(fileno(dpyinfo->input));
+}
+
 /* Initialize a notcurses terminal.  NAME is the name of the terminal.
    TERMINAL_TYPE is the type of terminal (think $TERM).  */
 
-struct terminal* ncterm_init_terminal(const char* name, const char* terminal_type, bool must_succeed) {
+struct terminal* ncterm_init_terminal(
+    const char* name, const char* terminal_type, bool must_succeed) {
     if (!terminal_type && must_succeed)
         fatal("Unknown terminal type");
 
     struct terminal* t = find_or_make_terminal(name);
     struct ncterm_display_info* dpyinfo = t->display_info.ncterm;
-
-    dpyinfo->fd = emacs_open(name, O_RDWR | O_NOCTTY, 0);
-    if (dpyinfo->fd < 0) {
-        delete_terminal(t);
-        fatal("Could not open file: %s", name);
-    }
-    dpyinfo->output = emacs_fdopen(dpyinfo->fd, "w+");
-    dpyinfo->input = dpyinfo->output;
-    add_keyboard_wait_descriptor(fileno(dpyinfo->input));
+    open_terminal(dpyinfo);
 
     struct notcurses_options opts = {
         .termtype = terminal_type,
@@ -72,14 +76,15 @@ struct terminal* ncterm_init_terminal(const char* name, const char* terminal_typ
         .flags = NCOPTION_INHIBIT_SETLOCALE,
     };
     dpyinfo->nc = notcurses_init(&opts, dpyinfo->output);
-    if (dpyinfo->nc == NULL)
+    if (dpyinfo->nc == NULL) {
+        delete_terminal(t);
         fatal("Cannot notcurses_init");
+    }
 
     return t;
 }
 
-void init_ncterm(void) {
-}
+void init_ncterm(void) { }
 
 void syms_of_ncterm(void) {
     DEFSYM(Qnotcurses, "notcurses");
