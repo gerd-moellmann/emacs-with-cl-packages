@@ -8,24 +8,30 @@
 #include <notcurses/notcurses.h>
 #include <stdlib.h>
 
-static void delete_terminal_hook(struct terminal* t) {
+// Note: Only one notcurses context can be active at a time in a
+// process.  That means multi-term is not supported, and why
+// libnotcurses doesn't contain notcurses_stop.
+
+static void ncterm_delete_terminal(struct terminal* t) {
     eassert(t->type == output_ncterm);
-    block_input();
     struct ncterm_display_info* dpyinfo = t->display_info.ncterm;
-    if (dpyinfo->nc)
-        notcurses_stop(dpyinfo->nc);
     xfree((char*)dpyinfo->name);
     xfree(dpyinfo);
     t->display_info.ncterm = NULL;
+}
+
+static void ncterm_delete_terminal_hook(struct terminal* t) {
+    block_input();
+    ncterm_delete_terminal(t);
     unblock_input();
 }
 
-static void delete_frame_hook(struct frame* f) {
+static void ncterm_delete_frame_hook(struct frame* f) {
 }
 
 static void ncterm_set_terminal_hooks(struct terminal* t) {
-    t->delete_terminal_hook = delete_terminal_hook;
-    t->delete_frame_hook = delete_frame_hook;
+    t->delete_terminal_hook = ncterm_delete_terminal_hook;
+    t->delete_frame_hook = ncterm_delete_frame_hook;
 }
 
 /* Find an existing or create a new notcurses terminal named NAME. */
@@ -88,7 +94,7 @@ struct terminal* ncterm_init_terminal(
 static void ncterm_atexit(void) {
     for (struct terminal* t = terminal_list; t; t = t->next_terminal)
         if (t->type == output_ncterm)
-            delete_terminal_hook(t);
+            ncterm_delete_terminal(t);
 }
 
 void init_ncterm(void) {
