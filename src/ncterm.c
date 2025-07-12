@@ -32,4 +32,5 @@ void
 syms_of_ncterm (void)
 {
   DEFSYM (Qnotcurses, "notcurses");
+  Fprovide (Qnotcurses, Qnil);
 }
