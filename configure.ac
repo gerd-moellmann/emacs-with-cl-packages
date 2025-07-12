@@ -5575,9 +5575,9 @@ if test "${with_notcurses}" != "no"; then
     NCTERMOBJ="ncterm.o"
     AC_DEFINE([HAVE_NOTCURSES], [1],
       [Define to 1 if you have the notcurses library (-lnotcurses).])
-    LIBNOTCURSES="-lnotcurses $LIB_PTHREAD"
+    LIBNOTCURSES="-lnotcurses -lnotcurses-core $LIB_PTHREAD"
   else
-    AC_MSG_ERROR([The Notcurses library libnotcurses is missing]):
+    AC_MSG_ERROR([The library libnotcurses is missing]):
   fi
 fi
 AC_SUBST([LIBNOTCURSES])
