@@ -28,6 +28,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #ifdef HAVE_MPS
 #include "igc.h"
 #endif
+#include "ncterm.h"
 
 #if HAVE_STRUCT_UNIPAIR_UNICODE
 # include <errno.h>
@@ -275,10 +276,27 @@ get_named_terminal (const char *name)
 
   for (t = terminal_list; t; t = t->next_terminal)
     {
-      if ((t->type == output_termcap || t->type == output_msdos_raw)
-          && !strcmp (t->display_info.tty->name, name)
-          && TERMINAL_ACTIVE_P (t))
-        return t;
+      const char *name = NULL;
+      switch (t->type)
+	{
+	case output_termcap:
+	case output_msdos_raw:
+	  name = t->display_info.tty->name;
+	  break;
+	case output_ncterm:
+	  name = t->display_info.ncterm->name;
+	  break;
+	case output_initial:
+	case output_x_window:
+	case output_w32:
+	case output_ns:
+	case output_pgtk:
+	case output_haiku:
+	case output_android:
+	  break;
+	}
+      if (name && !strcmp (name, name) && TERMINAL_ACTIVE_P (t))
+	return t;
     }
   return NULL;
 }
