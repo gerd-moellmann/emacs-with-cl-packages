@@ -31,7 +31,6 @@ See the `emacs-mac-30_1_exp` or `emacs-mac-gnu_master_exp` branch and the file `
 
 Briefly:
 
-
 ### Install (optional) libraries
 
 If you'd like to build with tree-sitter support, native-compilation, and RSVG (all recommended), first install the necessary libraries:
@@ -108,6 +107,7 @@ Several additional features and fixes have been added on top of `emacs-mac` and 
 
 - A `New Frame` Dock Menu Item
 - New variable `mac-underwave-thickness` to customize the thickness of squiggly underlines (e.g., as drawn by linters or spell-checkers)
+- A new [full-featured `Window` menu](https://github.com/jdtsmith/emacs-mac/pull/21) (including tab and tiling support, with default system shortcuts, e.g. `C-Fn-left/right/up/down`).  Thanks to @rymndhng!
 
 ### Bug fixes
 
