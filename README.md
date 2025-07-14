@@ -16,24 +16,24 @@ Known working systems:
 Please see the [issues](../../issues) for advice on build configurations for your system.
 
 >[!IMPORTANT]
-> Please open an [issue](../../issues) to report your experiences, even if you encounter no problems.  Mention your OS version, CPU, which branch you built, and any other relevant details, including the build/configure flags you used.
+> Please start a [discussion](../../discussions/categories/show-and-tell) to report your build experiences, even if you encounter no problems.  Mention your OS version, CPU, which branch you built, and any other relevant details, including the build/configure flags you used.
 
 This build is kept current with the [`emacs-30`](https://github.com/emacs-mirror/emacs/tree/emacs-30) release branch.
 
-For an experimental build which is synced with Emacs master, see [this branch](https://github.com/jdtsmith/emacs-mac/tree/emacs-mac-gnu_master_exp).
+For an experimental build synced with Emacs master, see [this branch](https://github.com/jdtsmith/emacs-mac/tree/emacs-mac-gnu_master_exp).
 
 ## Install
 
 See the `emacs-mac-30_1_exp` or `emacs-mac-gnu_master_exp` branch and the file `README-mac` for additional compile instructions.  
 
 > [!NOTE]
-> On MacOS, `gcc` is actually aliased to the `clang` compiler, which is required to build `emacs-mac`.  Recent `gcc` versions either cannot build for the architecture (e.g. Apple Silicon) and/or do not support [blocks](https://en.wikipedia.org/wiki/Blocks_(C_language_extension)), which this build uses heavily.
+> On MacOS, `gcc` is aliased to the `clang` compiler, which is required to build `emacs-mac`.  Recent `gcc` versions either cannot build for the architecture (e.g. Apple Silicon) and/or do not support [blocks](https://en.wikipedia.org/wiki/Blocks_(C_language_extension)), which this build uses heavily.
 
 Briefly:
 
 ### Install (optional) libraries
 
-If you'd like to build with tree-sitter support, native-compilation, and RSVG (all recommended), first install the necessary libraries:
+If you'd like to build with tree-sitter support, native-compilation, and RSVG (all recommended), first install the necessary libraries, here demonstrated using HomeBrew:
 
 ```bash
 brew install tree-sitter libgccjit librsvg
@@ -55,7 +55,7 @@ CFLAGS="-O3 -mcpu=native" ./configure --with-native-compilation --with-tree-sitt
 You can specify another build directory for the self-contained app using `--enable-mac-app=/path/to/dir`.
 
 >[!NOTE]
-> Note the `yes` argument to `--enable-mac-app=yes`, which is required to build a self-contained app under `/Applications`.
+> Please note the `yes` argument to `--enable-mac-app=yes`, which is required to build a self-contained app under `/Applications`.
 
 #### Non self-contained
 
@@ -67,7 +67,7 @@ CFLAGS="-O3 -mcpu=native" ./configure --with-native-compilation --with-tree-sitt
 ### Build
 
 ```bash
-make -j6 # or however many CPUs you want to use
+make -j6 # or however many CPU cores you want to use
 ```
 
 You'll find the staging build of the app under `mac/`.
@@ -97,7 +97,7 @@ If you choose not to `make install`, but instead want to run the application dir
 % ln -s ../native-lisp Emacs.app/Contents/
 ```
 
-to associate the native lisp files.  This is useful for debugging, to quickly rebuild and test, for example (saving the install step).  But a [self-contained app](#Self-contained) build is easier.
+to associate the native lisp files.  This is useful for debugging, to quickly rebuild and test, for example (saving the install step).  But a [self-contained app](#Self-contained) build is easier, and recommended for most uses.
 
 ## Additions
 
@@ -111,7 +111,7 @@ Several additional features and fixes have been added on top of `emacs-mac` and 
 
 ### Bug fixes
 
-- Take care to avoid crashes when selecting certain fonts from the system font panel.
+- Care is taken to avoid crashes when selecting certain fonts from the system font panel.
 - Prevent zombie "Emacs Web Content" processes [on SVG load](../../issues/9), ~~restoring normal WebView SVG rendering for MacOS v14+~~.  Update: `WebView` is deprecated, so this has been reverted and another workaround installed. It's recommended to build with RSVG (it is enabled by default if the `librsvg2` library is found during build).
 
 ## Debugging
@@ -136,4 +136,4 @@ If you get crashes or just want to help with debugging, it would be very useful 
 
 You can read about the issues encountered during the merge of Emacs v30 in the [debugging notes](https://github.com/jdtsmith/emacs-mac/blob/emacs-mac-30_1_exp/devel_update_notes.org).
 
-[^1]: Calling this the "Carbon" port is a vestigial nod to its origins back in the pre-OSX days. It is also what `M-x emacs-version` says.  But Carbon is a misnomer now.  The ancient Carbon API never supported 64bit applications, and was deprecated and removed by Apple in 2019.  A few convenience functions do remain (e.g. `Carbon.h`), and these are used by the NS build as well.  **Both NS and emacs-mac are Cocoa applications**.
+[^1]: Calling this the "Carbon" port is a vestigial nod to its origins back in the pre-OSX days. It is also what `M-x emacs-version` says.  But "Carbon" is a misnomer now.  The ancient Carbon API never supported 64bit applications, and was deprecated and removed by Apple in 2019.  A few convenience functions do remain (e.g. `Carbon.h`), and these are used by the NS build as well.  **Both NS and emacs-mac are Cocoa applications**.
