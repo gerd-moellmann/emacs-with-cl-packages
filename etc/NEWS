@@ -353,6 +353,13 @@ This option allows changing or removing the delimiters shown around
 the major mode and list of minor modes in the mode line.  The default
 retains the existing behavior of inserting parentheses.
 
++++
+*** New minor mode 'mode-line-invisible-mode'.
+This minor mode makes the mode line of the current buffer invisible.
+The command 'mode-line-invisible-mode' toggles the visibility of the
+current-buffer's mode line.  The default is to show the mode line of
+every buffer.
+
 ** Tab Bars and Tab Lines
 
 ---
@@ -510,6 +517,17 @@ the parens that are inside comments and strings.  If set to 'all',
 or strings.  If set to 'on-mismatch', mismatched parens inside comments
 and strings will not be highlighted.  If set to nil (the default),
 highlight the parens wherever they are.
+
+** Change in SVG foreground color handling.
+SVG images no longer have the 'fill' attribute set to the value of
+':foreground' or the current text foreground color.  The 'currentcolor'
+CSS attribute continues to be set as before.
+
+This change should result in more consistent display of SVG images.
+
+To use the ':foreground' or current text color ensure the 'fill' attribute
+in the SVG is set to 'currentcolor', or set the image spec's ':css'
+value to 'svg {fill: currentcolor;}'.
 
 
 * Editing Changes in Emacs 31.1
@@ -1445,7 +1463,7 @@ you exit the Emacs session or kill the IELM buffer.
 *** Dedicated buffer for plain text contents.
 When switching to the plain text contents with 'doc-view-open-text',
 DocView now creates a dedicated buffer to display it.  'C-c C-c' gets you
-back to real DocView buffer if it still exists.
+back to the real DocView buffer if it still exists.
 
 +++
 *** New commands to save and restore pages in buffer-local registers.
@@ -1504,7 +1522,10 @@ recent Dired line with superuser, or root, permissions.
 +++
 *** 'C-x x @' is now bound to 'tramp-revert-buffer-with-sudo'.
 You can use 'C-u C-x x @' to select a Tramp method other than the
-default, 'sudo'.
+default, "sudo".
+
++++
+*** 'tramp-file-name-with-method' can now be set as connection-local variable.
 
 +++
 *** Connection method "kubernetes" supports now optional namespace.
@@ -1536,7 +1557,7 @@ This feature is experimental.
 This command copies to the 'kill-ring' a region of text modified
 according to diffs in the current buffer, but without applying the diffs
 to the original text.  If the selected range extends a hunk, the
-command attempts to look up and copy the text in-between the hunks.
+command attempts to look up and copy the text in between the hunks.
 
 +++
 *** New command 'diff-revert-and-kill-hunk' bound to 'C-c M-r'.
@@ -1646,6 +1667,15 @@ Like Occur Edit mode, typing 'e' in the "*grep*" buffer will now make
 the 'grep' results editable.  The edits will be reflected in the buffer
 visiting the originating file.  Typing 'C-c C-c' will leave the Grep
 Edit mode.
+
+** Imenu
+
+---
+*** New user option 'imenu-allow-duplicate-menu-items'.
+This specifies whether Imenu can include duplicate menu items.
+Duplicate items are now allowed by default (option value 't'), which
+restores the behavior before Emacs 29.  Customize this to nil to get the
+behavior of Emacs 29 and Emacs 30.
 
 ** Time Stamp
 
@@ -1819,6 +1849,14 @@ the directory into which the repository was cloned.
 *** 'C-x v u' ('vc-revert') now works on directories listed in VC Directory.
 Reverting a directory means reverting changes to all files inside it.
 
++++
+*** New global minor mode 'vc-auto-revert-mode'.
+This is like 'global-auto-revert-mode' but limited to VCS-tracked files.
+As compared with VC's existing, default support for reverting files
+after VCS operations, the new mode is a more reliable way to ensure that
+Emacs reverts buffers visiting tracked files when VCS operations change
+the contents of those files.
+
 *** New command 'log-edit-done-strip-cvs-lines'.
 This command strips all lines beginning with "CVS:" from the buffer.
 It is intended to be added to the 'log-edit-done-hook' so that
@@ -1865,12 +1903,12 @@ files in the fileset are in a compatible state for a checkin.
 +++
 *** 'C-x v v' handles missing and removed files more consistently.
 Missing files are those which have been removed from the filesystem but
-are still tracked by version control.  Removed files are those scheduled
-to be removed from version control in the next commit.  Previously,
-different backends were inconsistent about applying these statuses to
-files, and 'C-x v v' behaved subtly differently for the two statuses.
-The combination of these differences between backends and in 'C-x v v'
-behavior was confusing.  Now,
+which are still tracked by version control.  Removed files are those
+scheduled to be removed from version control in the next commit.
+Previously, different backends were inconsistent about applying these
+statuses to files, and 'C-x v v' behaved subtly differently for the two
+statuses.  The combination of these differences between backends and in
+'C-x v v' behavior was confusing.  Now,
 
 - in VC-Dir, you can use 'C-x v v' on missing files to mark them as
   removed
@@ -1925,7 +1963,7 @@ Currently only supported by the Git and Mercurial backends.
 ---
 *** New 'log-edit-hook' option to display diff of changes to commit.
 You can customize 'log-edit-hook' to include its new
-'log-edit-maybe-show-diff' function to enable displaying a diff of the
+'log-edit-maybe-show-diff' option to enable displaying a diff of the
 changes to be committed in a window.  This is like the 'C-c C-d' command
 in Log Edit mode buffers, except that it does not select the "*vc-diff*"
 buffer's window, and so works well when added to 'log-edit-hook'.
@@ -2013,6 +2051,14 @@ Package menu now displays in the mode line the total number of packages
 installed, total number of packages from all the package archives, total
 number of packages to upgrade and total number of new packages
 available.
+
++++
+*** New functions to query builtin package information.
+'package-versioned-builtin-packages' returns a list of symbols of
+built-in packages; 'package-builtin-package-version' returns the
+version-list of a given package symbol.  These functions provide public
+interfaces for external tools to query information about built-in
+packages.
 
 ** Rcirc
 
@@ -2221,6 +2267,12 @@ It has the same meaning as the INHERIT argument to 'face-attribute',
 which already takes this argument for a single attribute.  This is
 useful when you want the face attributes to be absolute and not
 'unspecified'.
+
+---
+*** New user option 'ffap-prefer-remote-file'.
+If non-nil, FFAP always finds remote files in buffers with remote
+'default-directory'.  If nil, FFAP finds local files first for absolute
+file names in above buffers.  The default is nil.
 
 ---
 ** Flymake
