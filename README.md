@@ -93,8 +93,8 @@ sudo make install  # installs resources in, e.g., /usr/local/share/emacs/30.1.50
 If you choose not to `make install`, but instead want to run the application directly from the `mac/` sub-directory, you may need to:
 
 ```bash
-% cd mac/
-% ln -s ../native-lisp Emacs.app/Contents/
+% cd mac/Emacs.app/Contents
+% ln -s ../../../native-lisp .
 ```
 
 to associate the native lisp files.  This is useful for debugging, to quickly rebuild and test, for example (saving the install step).  But a [self-contained app](#Self-contained) build is easier, and recommended for most uses.
