@@ -4106,7 +4106,7 @@ See `treesit-thing-settings' for more information.")
     (treesit-major-mode-setup)
 
     (add-to-list 'auto-mode-alist
-                 '("\\(\\.js[mx]\\|\\.har\\)\\'" . js-ts-mode))))
+                 '("\\(\\.js[mx]?\\|\\.har\\)\\'" . js-ts-mode))))
 
 (derived-mode-add-parents 'js-ts-mode '(js-mode))
 

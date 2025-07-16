@@ -1147,9 +1147,18 @@ thread_check_current_buffer (struct buffer *buffer)
 }
 
 #ifdef HAVE_MACGUI
+#include <errno.h>
 int
 thread_try_acquire_global_lock (void)
 {
+  /* Sometimes we try to acquire the lock after a lisp thread has
+     completed, but before another lisp thread (like the main lisp
+     thread) has re-acquired the lock and set itself as the
+     current_thread.  Since we often need to access buffer parameters
+     from the current thread, we should not acquire the lock unless one
+     is set. */
+  if (!current_thread)
+    return EBUSY;
   return pthread_mutex_trylock (&global_lock);
 }
 

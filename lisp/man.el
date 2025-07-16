@@ -635,7 +635,12 @@ This is necessary if one wants to dump man.el with Emacs."
 	     (if Man-sed-script
 		 (concat "-e '" Man-sed-script "'")
 	       "")
-	     "-e '/^[[:cntrl:]][[:cntrl:]]*$/d'"
+             (if (eq system-type 'darwin)
+                 ;; macOS Sed doesn't support \o notation.
+                 "-e '/^[[:cntrl:]][[:cntrl:]]*$/d'"
+               ;; Use octal numbers.  Otherwise, \032 (Ctrl-Z) would
+               ;; suspend remote connections.
+	       "-e '/^[\\o001-\\o032][\\o001-\\o032]*$/d'")
 	     "-e '/\e[789]/s///g'"
 	     "-e '/Reformatting page.  Wait/d'"
 	     "-e '/Reformatting entry.  Wait/d'"
