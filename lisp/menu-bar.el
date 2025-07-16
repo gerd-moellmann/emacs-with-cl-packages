@@ -2233,31 +2233,41 @@ updating the menu."
 	 (not (window-minibuffer-p
 	       (frame-selected-window menu-frame))))))
 
-(defun kill-this-buffer (&optional event) ; for the menu bar
+(defun kill-this-buffer ()
   "Kill the current buffer.
 When called in the minibuffer, get out of the minibuffer
 using `abort-recursive-edit'.
 
-This command must be bound to a mouse event, and can be reliably
-invoked only from the menu bar, otherwise it could decide to silently
-do nothing or signal an error.  Use `kill-current-buffer' if you
-need to invoke a similar command from keyboard."
-  (interactive "e")
+This command can be invoked only from a menu or a tool bar.  If you want
+to invoke a similar command with `M-x', use `kill-current-buffer'."
+  (interactive)
   ;; This colossus of a conditional is necessary to account for the wide
   ;; variety of this command's callers.
-  (if (let* ((window (or (and event (event-start event)
-                              (posn-window (event-start event)))
-                         last-event-frame
-                         (selected-frame)))
-             (frame (if (framep window) window
-                      (window-frame window))))
-        (not (window-minibuffer-p (frame-selected-window frame))))
-      (progn (kill-buffer (current-buffer))
-             ;; Also close the current window if `menu-bar-close-window' is
-             ;; set.
-             (when menu-bar-close-window
-               (ignore-errors (delete-window))))
-    (abort-recursive-edit)))
+  (if (let ((lce last-command-event))
+        (eq (cond
+             ((atom lce)                ; Selected menu item.
+              lce)
+             ((mouse-event-p lce)       ; Clicked window tool bar icon.
+              ;; Code from window-tool-bar--call-button.
+              (let* ((posn (event-start lce))
+                     (str (posn-string posn)))
+                (get-text-property (cdr str) 'tool-bar-key (car str))))
+             (t
+              (car lce)))               ; Clicked tool bar icon.
+            'kill-buffer))
+      (if (let* ((window (or (posn-window (event--posn-at-point))
+                             last-event-frame
+                            (selected-frame)))
+                (frame (if (framep window) window
+                         (window-frame window))))
+           (not (window-minibuffer-p (frame-selected-window frame))))
+         (progn (kill-buffer (current-buffer))
+                ;; Also close the current window if
+                ;; `menu-bar-close-window' is set.
+                (when menu-bar-close-window
+                  (ignore-errors (delete-window))))
+        (abort-recursive-edit))
+    (error "This command must be called from a menu or a tool bar")))
 
 (defun kill-this-buffer-enabled-p ()
   "Return non-nil if the `kill-this-buffer' menu item should be enabled.

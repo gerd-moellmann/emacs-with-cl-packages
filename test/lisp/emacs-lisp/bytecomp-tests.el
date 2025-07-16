@@ -1285,6 +1285,11 @@ byte-compiled.  Run with dynamic binding."
  "warn-make-process-missing-keyword-value.el"
  "missing value for keyword argument :command")
 
+;;;; NEW STOUGH, 2025-07-13
+(bytecomp--define-warning-file-test "macro-warning-position.el" ":18:8:")
+
+(bytecomp--define-warning-file-test "macro-warning-position-2.el" ":18:8:")
+;;;; END OF NEW STOUGH
 
 ;;;; Macro expansion.
 
@@ -1322,6 +1327,24 @@ byte-compiled.  Run with dynamic binding."
       (defun def () (m))))
   (should (equal (funcall 'def) 4)))
 
+(ert-deftest test-eager-load-macro-expand-defalias ()
+  (ert-with-temp-file elfile
+    :suffix ".el"
+    (write-region
+     (concat ";;; -*- lexical-binding: t -*-\n"
+             (mapconcat #'prin1-to-string
+                        '((defalias 'nothing '(macro . ignore))
+                          (defalias 'something (cons 'macro #'identity))
+                          (defalias 'five (cons 'macro (lambda (&rest _) 5)))
+                          (eval-when-compile
+                            (defun def () (or (nothing t) (something (five nil))))))
+                        "\n"))
+     nil elfile)
+    (let* ((byte-compile-debug t)
+           (byte-compile-dest-file-function #'ignore))
+      (byte-compile-file elfile)
+      (should (equal (funcall 'def) 5)))))
+
 (defmacro bytecomp-tests--with-temp-file (file-name-var &rest body)
   (declare (indent 1))
   (cl-check-type file-name-var symbol)
@@ -1356,6 +1379,20 @@ byte-compiled.  Run with dynamic binding."
         (should-not (cookie-warning
                      (concat ";;; -*-lexical-binding:nil-*-\n" some-code)))
         (should (cookie-warning some-code))))))
+
+(defun bytecomp-tests--f (x y &optional u v) (list x y u v))
+
+(ert-deftest bytecomp-tests--warn-arity-noncompiled-callee ()
+  "Check that calls to non-compiled functions are arity-checked (bug#78685)"
+  (should (not (compiled-function-p (symbol-function 'bytecomp-tests--f))))
+  (let* ((source (concat ";;; -*-lexical-binding:t-*-\n"
+                         "(defun my-fun () (bytecomp-tests--f 11))\n"))
+         (lexical-binding t)
+         (log (bytecomp-tests--log-from-compilation source)))
+    (should (string-search
+             (concat "Warning: `bytecomp-tests--f' called with 1 argument,"
+                     " but requires 2-4")
+             log))))
 
 (ert-deftest bytecomp-tests--unescaped-char-literals ()
   "Check that byte compiling warns about unescaped character

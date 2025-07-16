@@ -3057,6 +3057,17 @@ hscrolling_current_line_p (struct window *w)
 			Lisp form evaluation
  ***********************************************************************/
 
+/* The redisplay is not re-entrant.  But we can run Elisp code during
+   redisplay, which in turn can trigger redisplay.
+   We try to make this inner redisplay work correctly, but it messes up
+   the state of the outer redisplay, so when we return to this outer
+   redisplay, we need to abort it.
+   To detect this case, we keep a counter that identifies every call to
+   redisplay, so we can detect when a nested redisplay happened by the
+   fact that the counter has changed.  */
+
+unsigned int redisplay_counter = 0;
+
 /* Error handler for dsafe_eval and dsafe_call.  */
 
 static Lisp_Object
@@ -3088,10 +3099,17 @@ dsafe__call (bool inhibit_quit, Lisp_Object (f) (ptrdiff_t, Lisp_Object *),
       specbind (Qinhibit_redisplay, Qt);
       if (inhibit_quit)
 	specbind (Qinhibit_quit, Qt);
+      int redisplay_counter_before = redisplay_counter;
       /* Use Qt to ensure debugger does not run,
-	 so there is no possibility of wanting to redisplay.  */
+	 to reduce the risk of wanting to redisplay.  */
       val = internal_condition_case_n (f, nargs, args, Qt,
 				       dsafe_eval_handler);
+      if (redisplay_counter_before != redisplay_counter)
+        /* A nested redisplay happened, abort this one!  */
+        /* FIXME: Rather than jump all the way to `top-level`
+           we should exit only the current redisplay.  */
+        Ftop_level ();
+
       val = unbind_to (count, val);
     }
 
@@ -14748,10 +14766,18 @@ tab_bar_height (struct frame *f, int *n_rows, bool pixelwise)
   it.paragraph_embedding = L2R;
 
   clear_glyph_row (temp_row);
-  while (!ITERATOR_AT_END_P (&it))
+  if (tab_bar_truncate)
     {
       it.glyph_row = temp_row;
       display_tab_bar_line (&it, -1);
+    }
+  else
+    {
+      while (!ITERATOR_AT_END_P (&it))
+	{
+	  it.glyph_row = temp_row;
+	  display_tab_bar_line (&it, -1);
+	}
     }
   clear_glyph_row (temp_row);
 
@@ -17119,6 +17145,8 @@ redisplay_internal (void)
   bool polling_stopped_here = false;
   Lisp_Object tail, frame;
 
+  redisplay_counter++;
+
   /* Set a limit to the number of retries we perform due to horizontal
      scrolling, this avoids getting stuck in an uninterruptible
      infinite loop (Bug #24633).  */
@@ -19467,9 +19495,11 @@ try_scrolling (Lisp_Object window, bool just_this_one_p,
       if (! cursor_row_fully_visible_p (w, extra_scroll_margin_lines <= 1,
 					false, false)
 	  /* It's possible that the cursor is on the first line of the
-	     buffer, which is partially obscured due to a vscroll
-	     (Bug#7537).  In that case, avoid looping forever. */
-	  && extra_scroll_margin_lines < w->desired_matrix->nrows - 1)
+	     buffer/window, which is partially obscured due to a vscroll
+	     (Bug#7537, Bug#78766).  If so, just return, since the code
+	     above is not prepared to deal with that case.  */
+	  && !(MATRIX_ROW_PARTIALLY_VISIBLE_AT_TOP_P
+		 (w, MATRIX_ROW (w->desired_matrix, w->cursor.vpos))))
 	{
 	  clear_glyph_matrix (w->desired_matrix);
 	  ++extra_scroll_margin_lines;
@@ -38259,6 +38289,10 @@ window, nil if it's okay to leave the cursor partially-visible.  */);
   make_window_start_visible = false;
   DEFSYM (Qmake_window_start_visible, "make-window-start-visible");
   Fmake_variable_buffer_local (Qmake_window_start_visible);
+
+  DEFVAR_BOOL ("tab-bar-truncate", tab_bar_truncate,
+    doc: /* Non-nil means truncate tab-bar and show only one line.  */);
+  tab_bar_truncate = false;
 
   DEFSYM (Qclose_tab, "close-tab");
   DEFVAR_LISP ("tab-bar-border", Vtab_bar_border,

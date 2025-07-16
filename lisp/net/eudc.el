@@ -109,7 +109,9 @@
    (version<= "3" (car (split-string bbdb-version)))))
 
 (defun eudc--plist-member (plist prop &optional predicate)
-  "Like `plist-member', but signal on invalid PLIST."
+  "Like `plist-member', but signal on invalid PLIST.
+Return t if PROP has a value specified in PLIST.  The comparison with
+PROP is done using PREDICATE, which defaults to `eq'."
   (or (plistp plist)
       (signal 'wrong-type-argument `(plistp ,plist)))
   (plist-member plist prop predicate))
@@ -571,7 +573,7 @@ otherwise they are formatted according to `eudc-user-attribute-names-alist'."
 	(widget-insert " ")
 	(widget-create 'push-button
 		       :notify (lambda (&rest _ignore)
-				 (kill-this-buffer))
+				 (kill-current-buffer))
 		       "Quit")
 	(eudc-mode)
 	(widget-setup)
@@ -883,7 +885,8 @@ non-nil, collect results from all servers."
 
 ;;;###autoload
 (defun eudc-format-inline-expansion-result (res query-attrs)
-  "Format a query result according to `eudc-inline-expansion-format'."
+  "Format a query result RES according to `eudc-inline-expansion-format'.
+QUERY-ATTRS is a list of attributes to include in the expansion."
   (cond
    ;; format string
    ((consp eudc-inline-expansion-format)
@@ -1096,7 +1099,7 @@ queries the server for the existing fields and displays a corresponding form."
     (widget-insert " ")
     (widget-create 'push-button
 		   :notify (lambda (&rest _ignore)
-			     (kill-this-buffer))
+			     (kill-current-buffer))
 		   "Quit")
     (goto-char pt)
     (use-local-map widget-keymap)

@@ -176,8 +176,8 @@ It must be supported by libarchive(3).")
 It must be supported by libarchive(3).")
 
 ;; The definition of `tramp-archive-file-name-regexp' contains calls
-;; to `regexp-opt', which cannot be autoloaded while loading
-;; loaddefs.el.  So we use a macro, which is evaluated only when needed.
+;; to `rx', which cannot be autoloaded while loading loaddefs.el.  So
+;; we use a macro, which is evaluated only when needed.
 ;;;###autoload
 (progn (defmacro tramp-archive-autoload-file-name-regexp ()
   "Regular expression matching archive file names."
@@ -557,7 +557,7 @@ A variable `foo-archive' (or `archive') will be bound to the
 archive name part of FILENAME, assuming `foo' (or nil) is the
 value of VAR.  OTOH, the variable `foo-hop' (or `hop') won't be
 offered."
-  (declare (debug (form symbolp body))
+  (declare (debug (form symbolp &rest body))
            (indent 2))
   (let ((bindings
          (mapcar

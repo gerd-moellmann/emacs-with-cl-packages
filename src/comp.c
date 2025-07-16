@@ -1972,27 +1972,32 @@ emit_mvar_rval (Lisp_Object mvar)
   if (!NILP (const_vld))
     {
       Lisp_Object value = CALLNI (comp-cstr-imm, mvar);
-      if (comp.debug > 1)
+      if (NILP (Fgethash (value,
+			  CALLNI (comp-ctxt-non-materializable-objs-h, Vcomp_ctxt),
+			  Qnil)))
 	{
-	  Lisp_Object func =
-	    Fgethash (value,
-		      CALLNI (comp-ctxt-byte-func-to-func-h, Vcomp_ctxt),
-		      Qnil);
+	  if (comp.debug > 1)
+	    {
+	      Lisp_Object func =
+		Fgethash (value,
+			  CALLNI (comp-ctxt-byte-func-to-func-h, Vcomp_ctxt),
+			  Qnil);
 
-	  emit_comment (
-	    SSDATA (
-	      Fprin1_to_string (
-		NILP (func) ? value : CALLNI (comp-func-c-name, func),
-		Qnil, Qnil)));
+	      emit_comment (
+	        SSDATA (
+		  Fprin1_to_string (
+		    NILP (func) ? value : CALLNI (comp-func-c-name, func),
+		    Qnil, Qnil)));
+	    }
+	  if (FIXNUMP (value))
+	    {
+	      /* We can still emit directly objects that are self-contained in a
+		 word (read fixnums).  */
+	      return emit_rvalue_from_lisp_obj (value);
+	    }
+	  /* Other const objects are fetched from the reloc array.  */
+	  return emit_lisp_obj_rval (value);
 	}
-      if (FIXNUMP (value))
-	{
-	  /* We can still emit directly objects that are self-contained in a
-	     word (read fixnums).  */
-          return emit_rvalue_from_lisp_obj (value);
-	}
-      /* Other const objects are fetched from the reloc array.  */
-      return emit_lisp_obj_rval (value);
     }
 
   return gcc_jit_lvalue_as_rvalue (emit_mvar_lval (mvar));
@@ -4212,7 +4217,7 @@ compile_function (Lisp_Object func)
 						  comp.handler_ptr_type,
 						  "c");
 
-  comp.func_blocks_h = CALLN (Fmake_hash_table);
+  comp.func_blocks_h = Fmake_hash_table (0, NULL);
 
   /* Pre-declare all basic blocks to gcc.
      The "entry" block must be declared as first.  */
@@ -4493,7 +4498,7 @@ Return t on success.  */)
   if (NILP (comp.emitter_dispatcher))
     {
       /* Move this into syms_of_comp the day will be dumpable.  */
-      comp.emitter_dispatcher = CALLN (Fmake_hash_table);
+      comp.emitter_dispatcher = Fmake_hash_table (0, NULL);
       register_emitter (Qset_internal, emit_set_internal);
       register_emitter (Qhelper_unbind_n, emit_simple_limple_call_lisp_ret);
       register_emitter (Qhelper_unwind_protect,
@@ -4603,7 +4608,7 @@ Return t on success.  */)
     Always reinitialize this cause old function definitions are garbage
     collected by libgccjit when the ctxt is released.
   */
-  comp.imported_funcs_h = CALLN (Fmake_hash_table);
+  comp.imported_funcs_h = Fmake_hash_table (0, NULL);
 
   define_memcpy ();
 
@@ -5771,7 +5776,7 @@ and advice.  */);
     doc: /* Hash table subr-name -> installed trampoline.
 This is used to prevent double trampoline instantiation, and also to
 protect the trampolines against GC.  */);
-  Vcomp_installed_trampolines_h = CALLN (Fmake_hash_table);
+  Vcomp_installed_trampolines_h = Fmake_hash_table (0, NULL);
 
   DEFVAR_LISP ("comp-no-native-file-h", V_comp_no_native_file_h,
     doc: /* Files for which no deferred compilation should be performed.

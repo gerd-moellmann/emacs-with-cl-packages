@@ -119,7 +119,8 @@ executes in under 5 ms on my system."
            savehist-autosave-interval
            (null savehist-timer))
       (setq savehist-timer
-	    (run-with-timer savehist-autosave-interval t #'savehist-autosave))
+            (run-with-timer savehist-autosave-interval
+                            savehist-autosave-interval #'savehist-autosave))
     (savehist--cancel-timer)))
 
 (defcustom savehist-autosave-interval (* 5 60)
@@ -255,7 +256,7 @@ Be careful to do it while preserving the current history data."
   ;; We don't know the relative age of the various entries in OLD and
   ;; NEW; it's possible that most entries in NEW are much older than
   ;; those in OLD or vice versa, or anything in-between.  Maybe we should
-  ;; export the `lib/diffseq.h' to ELisp and use it here, but in the mean
+  ;; export the `lib/diffseq.h' to Elisp and use it here, but in the mean
   ;; time we interleave the two lists, which should usually be tolerable.
   (let ((res ()))
     (while (and old new)

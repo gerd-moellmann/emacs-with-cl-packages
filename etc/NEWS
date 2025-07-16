@@ -61,6 +61,13 @@ OS selection instead of terminal-specific keybindings.
 You can keep the old behavior by putting '(xterm-mouse-mode -1)' in your
 init file.
 
++++
+** 'site-start.el' is now loaded before the user's early init file.
+Previously, the order was early-init.el, site-start.el and then the
+user's regular init file, but now site-start.el comes first.  This
+allows site administrators to customize things that can normally only be
+done from early-init.el, such as adding to 'package-directory-list'.
+
 
 * Changes in Emacs 31.1
 
@@ -346,6 +353,13 @@ This option allows changing or removing the delimiters shown around
 the major mode and list of minor modes in the mode line.  The default
 retains the existing behavior of inserting parentheses.
 
++++
+*** New minor mode 'mode-line-invisible-mode'.
+This minor mode makes the mode line of the current buffer invisible.
+The command 'mode-line-invisible-mode' toggles the visibility of the
+current-buffer's mode line.  The default is to show the mode line of
+every buffer.
+
 ** Tab Bars and Tab Lines
 
 ---
@@ -384,14 +398,19 @@ normally shown in the echo area or via tooltips.  See the variable's
 docstring for arguments passed to a help-text function.
 
 ---
+*** New variable 'tab-bar-truncate'.
+When non-nil, it truncates the tab bar, and therefore prevents
+wrapping and resizing the tab bar to more than one line.
+
+---
 *** New command 'tab-line-move-tab-forward' ('C-x M-<right>').
 Together with the new command 'tab-line-move-tab-backward'
-('C-x M-<left>') it can be used to move the current tab
+('C-x M-<left>'), it can be used to move the current tab
 on the tab line to a different position.
 
 ---
 *** New command 'tab-line-close-other-tabs'.
-It's bound to the tab's context menu item "Close other tabs".
+It is bound to the tab's context menu item "Close other tabs".
 
 ** Project
 
@@ -424,6 +443,19 @@ invoked standalone or from the 'project-switch-commands' dispatch menu.
 *** New user option 'project-list-exclude'.
 This user option describes projects that should always be skipped by
 'project-remember-project'.
+
+---
+*** New user option 'project-prune-zombie-projects'.
+This user option controls the automatic deletion of projects from
+'project-list-file' that cannot be accessed when prompting for a
+project.
+
+The value can be a predicate which takes one argument and should return
+non-nil if the project should be removed.  If set to nil, all the
+inaccessible projects will not be removed automatically.
+
+By default this is set to 'project-prune-zombies-default' function
+which removes all non-remote projects.
 
 ---
 *** New command 'project-save-some-buffers' bound to 'C-x p C-x s'.
@@ -491,6 +523,17 @@ or strings.  If set to 'on-mismatch', mismatched parens inside comments
 and strings will not be highlighted.  If set to nil (the default),
 highlight the parens wherever they are.
 
+** Change in SVG foreground color handling.
+SVG images no longer have the 'fill' attribute set to the value of
+':foreground' or the current text foreground color.  The 'currentcolor'
+CSS attribute continues to be set as before.
+
+This change should result in more consistent display of SVG images.
+
+To use the ':foreground' or current text color ensure the 'fill' attribute
+in the SVG is set to 'currentcolor', or set the image spec's ':css'
+value to 'svg {fill: currentcolor;}'.
+
 
 * Editing Changes in Emacs 31.1
 
@@ -557,11 +600,23 @@ This option, if non-nil, makes 'delete-pair' push a mark at the end of
 the region enclosed by the deleted delimiters.  This makes it easy to
 act on that region.  For example, we can highlight it using 'C-x C-x'.
 
+** Electric Pair mode
+
 +++
-** Electric Pair mode can now pair multiple delimiters at once.
+*** Electric Pair mode can now pair multiple delimiters at once.
 You can now insert or wrap text with multiple sets of parentheses and
 other matching delimiters at once with Electric Pair mode, by providing
 a prefix argument when inserting one of the delimiters.
+
+---
+*** Electric Pair mode now supports multi-character paired delimiters.
+'electric-pair-pairs' and 'electric-pair-text-pairs' now allow using
+strings for multi-character paired delimiters.
+
+To use this, add a list to both electric pair user options: '("/*" . "*/")'.
+
+You can also specify to insert an extra space after the first string
+pair: '("/*" " */" t)'.
 
 +++
 ** You can now use 'M-~' during 'C-x s' ('save-some-buffers').
@@ -587,15 +642,24 @@ The new command 'fill-paragraph-semlf' fills a paragraph of text using
 "semantic linefeeds", whereby a newline is inserted after every
 sentence.  The new command 'fill-region-as-paragraph-semlf' fills a
 region of text using semantic linefeeds as if the region were a single
-paragraph.
+paragraph.  You can set the variable 'fill-region-as-paragraph-function'
+to the value 'fill-region-as-paragraph-semlf' to enable functions like
+'fill-paragraph' and 'fill-region' to fill text using "semantic
+linefeeds".
+
++++
+** 'C-u C-x .' clears the fill prefix.
+You can now use 'C-u C-x .' to clear the fill prefix, similarly to how
+you could already use 'C-u C-x C-n' to clear the goal column.
 
 
 * Changes in Specialized Modes and Packages in Emacs 31.1
 
 ** Register
+
 *** The "*Register Preview*" buffer shows only suitable registers.
 That was already the case for the "fancy" UI but is now also true in
-the default UI you get, i.e. when 'register-use-preview' is 'traditional'.
+the default UI you get, i.e., when 'register-use-preview' is 'traditional'.
 
 ** Tree-sitter
 
@@ -603,6 +667,10 @@ the default UI you get, i.e. when 'register-use-preview' is 'traditional'.
 It controls the automatic installation of tree-sitter grammar libraries
 needed for tree-sitter based modes, if these grammar libraries are not
 available when such modes are turned on.
+
+*** 'treesit-language-source-alist' supports keywords.
+The language and URL are mandatory, but remaining data can use keywords:
+'(json "https://github.com/tree-sitter/tree-sitter-json" :commit "4d770d3")'.
 
 *** The file treesit-x.el defines a number of simple tree-sitter modes.
 Using the new macro 'define-treesit-generic-mode', generic modes are
@@ -716,19 +784,19 @@ Users can customize this variable to add simple custom indentation rules
 for tree-sitter major modes.
 
 +++
-*** New variable 'treesit-languages-require-line-column-tracking'
+*** New variable 'treesit-languages-require-line-column-tracking'.
 Now Emacs can optionally track line and column numbers for buffer edits
 and send that information to tree-sitter parsers.  Parsers of languages
 in this list will receive line and column information.  This is only
 needed for very few languages.  So far only Haskell is known to need it.
 
 +++
-*** New function 'treesit-tracking-line-column-p'
+*** New function 'treesit-tracking-line-column-p'.
 New function to check if a buffer is tracking line and column for buffer
 edits.
 
 +++
-*** New function 'treesit-parser-tracking-line-column-p'
+*** New function 'treesit-parser-tracking-line-column-p'.
 New function to check if a parser is receiving line and column
 information.
 
@@ -908,7 +976,8 @@ are discarded, which matches the behavior of physical terminals and other
 terminal emulators. Control sequences and escape sequences are still processed
 correctly regardless of margin position.
 
-** Smerge
+---
+** SMerge
 
 *** New command 'smerge-extend' extends a conflict over surrounding lines.
 
@@ -916,6 +985,19 @@ correctly regardless of margin position.
 When used inside a refined chunk, it jumps to the matching position in
 the "other" side of the refinement: if you're in the new text, it jumps
 to the corresponding position in the old text and vice versa.
+
+*** New user option 'smerge-refine-shadow-cursor'.
+When 'smerge-refine' shows the conflict diffs at word granularity, a
+"shadow cursor" is now displayed in the "lower" version when point
+is in the "upper" version, and vice versa.  The "shadow cursor" is
+just the character corresponding to the position where
+'smerge-refine-exchange-point' would jump, shown in a new distinct
+face 'smerge-refine-shadow-cursor', by default a box face.
+
+** Cursor Sensor mode
+
++++
+*** New direction 'moved' used when the cursor moved within the active area.
 
 ** Image Dired
 
@@ -955,7 +1037,7 @@ Emacs 25.1), and gnudoit (obsolete since Emacs 25.1).
 ** CL-Lib
 
 +++
-*** Derived types (i.e. 'cl-deftype')  can now be used as method specializers,
+*** Derived types (i.e. 'cl-deftype')  can now be used as method specializers.
 As part of this new support, the new function 'cl-types-of' returns
 the list of types to which a value belongs.
 
@@ -1027,6 +1109,15 @@ compatible.
 *** New user option 'recentf-show-messages'.
 'recentf-save-list' can print a message when saving the recentf list.
 The new option, if set to nil, suppresses this message.
+
+---
+*** New user option 'recentf-suppress-open-file-help'.
+By default, invoking 'recentf-open-files' displays a message saying what
+action clicking or typing 'RET' on the item at point executes, and tabbing
+between items in the "*Open Recent*" buffer likewise displays such
+messages.  To suppress these messages, customize the user option
+'recentf-suppress-open-file-help' to non-nil.  The default value of this
+option is nil.
 
 ** Saveplace
 
@@ -1293,7 +1384,7 @@ HTML 'doctype' declaration to have context-type "text/html".
 
 +++
 *** 'eww-switch-to-buffer' falls back to 'eww'.
-When there is no EWW buffers, 'eww-switch-to-buffer' falls back to
+When there is no EWW buffer, 'eww-switch-to-buffer' falls back to
 calling 'eww'.
 
 ** CC mode
@@ -1307,7 +1398,7 @@ alist element is indented as though it were the 'cdr'.
 +++
 *** Enums now have their own syntactic symbols.
 The new symbols 'enum-open', 'enum-close', 'enum-intro' and
-'enum-entry' are used in the analysis of enum constructs.  Previously
+'enum-entry' are used in the analysis of enum constructs.  Previously,
 they were given 'brace-list-open', etc.  These are fully described in
 the "(ccmode) Enum Symbols" node of the CC mode manual.
 
@@ -1377,7 +1468,7 @@ you exit the Emacs session or kill the IELM buffer.
 *** Dedicated buffer for plain text contents.
 When switching to the plain text contents with 'doc-view-open-text',
 DocView now creates a dedicated buffer to display it.  'C-c C-c' gets you
-back to real DocView buffer if it still exists.
+back to the real DocView buffer if it still exists.
 
 +++
 *** New commands to save and restore pages in buffer-local registers.
@@ -1436,7 +1527,10 @@ recent Dired line with superuser, or root, permissions.
 +++
 *** 'C-x x @' is now bound to 'tramp-revert-buffer-with-sudo'.
 You can use 'C-u C-x x @' to select a Tramp method other than the
-default, 'sudo'.
+default, "sudo".
+
++++
+*** 'tramp-file-name-with-method' can now be set as connection-local variable.
 
 +++
 *** Connection method "kubernetes" supports now optional namespace.
@@ -1458,6 +1552,9 @@ can be used in parallel.  Example: on both remote hosts "host1" and
 
 This feature is experimental.
 
+---
+*** Implementation of filesystem notifications for connection method "smb".
+
 ** Diff
 
 ---
@@ -1465,7 +1562,7 @@ This feature is experimental.
 This command copies to the 'kill-ring' a region of text modified
 according to diffs in the current buffer, but without applying the diffs
 to the original text.  If the selected range extends a hunk, the
-command attempts to look up and copy the text in-between the hunks.
+command attempts to look up and copy the text in between the hunks.
 
 +++
 *** New command 'diff-revert-and-kill-hunk' bound to 'C-c M-r'.
@@ -1575,6 +1672,15 @@ Like Occur Edit mode, typing 'e' in the "*grep*" buffer will now make
 the 'grep' results editable.  The edits will be reflected in the buffer
 visiting the originating file.  Typing 'C-c C-c' will leave the Grep
 Edit mode.
+
+** Imenu
+
+---
+*** New user option 'imenu-allow-duplicate-menu-items'.
+This specifies whether Imenu can include duplicate menu items.
+Duplicate items are now allowed by default (option value 't'), which
+restores the behavior before Emacs 29.  Customize this to nil to get the
+behavior of Emacs 29 and Emacs 30.
 
 ** Time Stamp
 
@@ -1748,6 +1854,14 @@ the directory into which the repository was cloned.
 *** 'C-x v u' ('vc-revert') now works on directories listed in VC Directory.
 Reverting a directory means reverting changes to all files inside it.
 
++++
+*** New global minor mode 'vc-auto-revert-mode'.
+This is like 'global-auto-revert-mode' but limited to VCS-tracked files.
+As compared with VC's existing, default support for reverting files
+after VCS operations, the new mode is a more reliable way to ensure that
+Emacs reverts buffers visiting tracked files when VCS operations change
+the contents of those files.
+
 *** New command 'log-edit-done-strip-cvs-lines'.
 This command strips all lines beginning with "CVS:" from the buffer.
 It is intended to be added to the 'log-edit-done-hook' so that
@@ -1794,12 +1908,12 @@ files in the fileset are in a compatible state for a checkin.
 +++
 *** 'C-x v v' handles missing and removed files more consistently.
 Missing files are those which have been removed from the filesystem but
-are still tracked by version control.  Removed files are those scheduled
-to be removed from version control in the next commit.  Previously,
-different backends were inconsistent about applying these statuses to
-files, and 'C-x v v' behaved subtly differently for the two statuses.
-The combination of these differences between backends and in 'C-x v v'
-behavior was confusing.  Now,
+which are still tracked by version control.  Removed files are those
+scheduled to be removed from version control in the next commit.
+Previously, different backends were inconsistent about applying these
+statuses to files, and 'C-x v v' behaved subtly differently for the two
+statuses.  The combination of these differences between backends and in
+'C-x v v' behavior was confusing.  Now,
 
 - in VC-Dir, you can use 'C-x v v' on missing files to mark them as
   removed
@@ -1815,10 +1929,37 @@ file removal.
 
 ---
 *** New user option 'vc-dir-hide-up-to-date-on-revert'.
-If you customize this variable to non-nil, the 'g' command to refresh
+If you customize this option to non-nil, the 'g' command to refresh
 the VC Directory buffer also has the effect of the 'x' command.
 That is, typing 'g' refreshes the buffer and also hides items in the
 'up-to-date' and 'ignored' states.
+
+---
+*** New user option 'vc-dir-save-some-buffers-on-revert'.
+If you customize this option to non-nil, Emacs will offer to save
+relevant buffers before generating the contents of a VC Directory buffer
+(like the third-party package Magit does with its status buffer).
+
++++
+*** New commands 'vc-root-diff-incoming' and 'vc-root-diff-outgoing'.
+These commands report diffs of all the changes that would be pulled and
+would be pushed, respectively.  They are the diff analogues of the
+existing commands 'vc-log-incoming' and 'vc-log-outgoing'.
+
+In particular, 'vc-root-diff-outgoing' is useful as a way to preview
+your push and ensure that all and only the changes you intended to
+include were committed and will be pushed.
+
++++
+*** New user option 'vc-use-incoming-outgoing-prefixes'.
+If this is customized to non-nil, 'C-x v I' and 'C-x v O' become prefix
+commands, such that the new incoming and outgoing commands have global
+bindings:
+
+- 'C-x v I L' is bound to 'vc-log-incoming'
+- 'C-x v I D' is bound to 'vc-root-diff-incoming'
+- 'C-x v O L' is bound to 'vc-log-outgoing'
+- 'C-x v O D' is bound to 'vc-root-diff-outgoing'.
 
 +++
 *** New user option 'vc-async-checkin' to enable async checkin operations.
@@ -1829,8 +1970,15 @@ Currently only supported by the Git and Mercurial backends.
 You can customize 'log-edit-hook' to include its new
 'log-edit-maybe-show-diff' option to enable displaying a diff of the
 changes to be committed in a window.  This is like the 'C-c C-d' command
-in Log Edit mode buffers, except that it does not select the *vc-diff*
+in Log Edit mode buffers, except that it does not select the "*vc-diff*"
 buffer's window, and so works well when added to 'log-edit-hook'.
+
+---
+*** 'vc-annotate' now abbreviates the Git revision in more cases.
+In Emacs 30, 'vc-annotate' gained the ability to abbreviate the Git
+revision in the buffer name.  Now, it also abbreviates the Git revision
+when visiting other revisions, such as with
+'vc-annotate-revision-previous-to-line'.
 
 ---
 *** New buffer-local variable 'vc-buffer-overriding-fileset'.
@@ -1900,11 +2048,27 @@ the command will only copy those files.
 +++
 *** package-x.el is now obsolete.
 
+---
+*** Package menu now highlights packages marked for installation or deletion.
 
-** RCIRC
+*** Package menu now displays the total number of the package type.
+Package menu now displays in the mode line the total number of packages
+installed, total number of packages from all the package archives, total
+number of packages to upgrade and total number of new packages
+available.
 
 +++
-*** Authentication via NickServ can access password from 'auth-source'
+*** New functions to query builtin package information.
+'package-versioned-builtin-packages' returns a list of symbols of
+built-in packages; 'package-builtin-package-version' returns the
+version-list of a given package symbol.  These functions provide public
+interfaces for external tools to query information about built-in
+packages.
+
+** Rcirc
+
++++
+*** Authentication via NickServ can access password from 'auth-source'.
 For details, consult 'rcirc-authinfo'.
 
 ** Xref
@@ -2084,7 +2248,7 @@ It is intended to be used in 'ring-bell-function'.
 
 ---
 *** New function 'flash-echo-area-bell-function'.
-This function flashes current echo area briefly.
+This function flashes the current echo area briefly.
 It is intended to be used in 'ring-bell-function'.
 
 ---
@@ -2108,6 +2272,12 @@ It has the same meaning as the INHERIT argument to 'face-attribute',
 which already takes this argument for a single attribute.  This is
 useful when you want the face attributes to be absolute and not
 'unspecified'.
+
+---
+*** New user option 'ffap-prefer-remote-file'.
+If non-nil, FFAP always finds remote files in buffers with remote
+'default-directory'.  If nil, FFAP finds local files first for absolute
+file names in above buffers.  The default is nil.
 
 ---
 ** Flymake
@@ -2159,8 +2329,8 @@ DISABLE-URI non-nil.
 
 ** GUD
 
----
-*** pdb, perldb, and guiler suggest debugging the current file via 'M-n'.
++++
+*** 'pdb', 'perldb', and 'guiler' suggest debugging the current file via 'M-n'.
 When starting these debuggers (e.g., 'M-x pdb') while visiting a file,
 pressing 'M-n' in the command prompt suggests a command line including
 the file name, using the minibuffer's "future history".
@@ -2185,13 +2355,12 @@ The month and year navigation key bindings 'M-}', 'M-{', 'C-x ]' and
 ** Calc
 
 *** New user option 'calc-string-maximum-character'.
-
 Previously, the 'calc-display-strings', 'string', and 'bstring'
 functions only considered integer vectors whose elements are all in the
 Latin-1 range 0-255.  This hard-coded maximum is replaced by
 'calc-string-maximum-character', and setting it to a higher value allows
 the display of matching vectors as Unicode strings.  The default value
-is '0xFF' or '255' to preserve the existing behavior.
+is 0xFF or 255 to preserve the existing behavior.
 
 ** Time
 
@@ -2204,8 +2373,27 @@ each refresh.  The sort direction can be controlled by using a cons cell
 of a format string and a boolean.  Alternatively, a sorting function can
 be provided directly.
 
-
+** Fill
 
++++
+*** New variable 'fill-region-as-paragraph-function'.
+The new variable 'fill-region-as-paragraph-function' provides a way to
+override how functions like 'fill-paragraph' and 'fill-region' fill
+text.  Major modes can bind this variable to a function that fits their
+needs.  It defaults to 'fill-region-as-paragraph-default'.
+
+---
+** 'report-emacs-bug' now checks whether the bug report is about Org.
+The command 'report-emacs-bug' looks in the report text for symbols that
+indicate problems in Org, and if found, will ask whether the bug report
+is actually about Org (in which case users should use the Org-specific
+command for reporting bugs).
+
+---
+** The elint package is now obsolete.
+Use the byte-compiler instead; it provides more and more useful warnings.
+
+
 * New Modes and Packages in Emacs 31.1
 
 ** New minor mode 'delete-trailing-whitespace-mode'.

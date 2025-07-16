@@ -2102,7 +2102,7 @@ of `current-buffer'."
   "Execute BODY and return the result.
 In case of an error, raise a `file-missing' error if FILENAME
 does not exist, otherwise propagate the error."
-  (declare (indent 2) (debug (symbolp form body)))
+  (declare (indent 2) (debug (tramp-file-name-p form &rest body)))
   (let ((err (make-symbol "err")))
     `(condition-case ,err
 	 (let (signal-hook-function) ,@body)
@@ -2141,7 +2141,7 @@ Remaining args are Lisp expressions to be evaluated (inside an implicit
 
 If VAR is nil, then we bind `v' to the structure and `method', `user',
 `domain', `host', `port', `localname', `hop' to the components."
-  (declare (indent 2) (debug (form symbolp body)))
+  (declare (indent 2) (debug (form symbolp &rest body)))
   (let ((bindings
          (mapcar
 	  (lambda (elem)
@@ -2218,7 +2218,7 @@ This shouldn't be changed globally, but let-bind where needed.")
 (defmacro with-tramp-suspended-timers (&rest body)
   "Run BODY with suspended timers.
 Obey `tramp-dont-suspend-timers'."
-  (declare (indent 0) (debug ((form body) body)))
+  (declare (indent 0) (debug t))
   `(if tramp-dont-suspend-timers
        (progn ,@body)
      (let ((stimers (with-timeout-suspend))
@@ -2759,7 +2759,7 @@ whether HANDLER is to be called.  Add operations defined in
 (progn (defmacro without-remote-files (&rest body)
   "Deactivate remote file names temporarily.
 Run BODY."
-  (declare (indent 0) (debug ((form body) body)))
+  (declare (indent 0) (debug t))
   `(let ((file-name-handler-alist (copy-tree file-name-handler-alist))
          tramp-mode)
      (tramp-unload-file-name-handlers)
@@ -3601,7 +3601,7 @@ BODY is the backend specific code."
 (defmacro tramp-skeleton-file-truename (filename &rest body)
   "Skeleton for `tramp-*-handle-file-truename'.
 BODY is the backend specific code."
-  (declare (indent 1) (debug (form body)))
+  (declare (indent 1) (debug (form &rest body)))
   ;; Preserve trailing "/".
   `(funcall
     (if (directory-name-p ,filename) #'file-name-as-directory #'identity)
@@ -5743,6 +5743,16 @@ of."
     (tramp-message proc 5 "Sentinel called: `%S' `%s'" proc event)
     (file-notify-rm-watch proc)))
 
+(defun tramp-directory-watched (directory)
+  "Check, whether a directory is watched."
+  (let (result)
+    (dolist (p (process-list) result)
+      (setq result
+	    (or result
+		(and-let* ((dir (process-get p 'tramp-watch-name))
+			   ((string-equal
+			     dir (tramp-file-local-name directory))))))))))
+
 ;;; Functions for establishing connection:
 
 ;; The following functions are actions to be taken when seeing certain
@@ -6120,7 +6130,7 @@ If the user quits via `C-g', it is propagated up to `tramp-file-name-handler'."
 	(if (with-local-quit
 	      (setq result (accept-process-output proc 0 nil t)) t)
 	    (tramp-message
-	     proc 10 "%s %s %s\n%s"
+	     proc 10 "%S %S %s\n%s"
 	     proc (process-status proc) result (buffer-string))
 	  ;; Propagate quit.
 	  (keyboard-quit)))
@@ -6197,7 +6207,7 @@ nil."
     ;; timeout of sudo.  The process buffer does not exist any longer then.
     (ignore-errors
       (tramp-message
-       proc 6 "\n%s" (tramp-get-buffer-string (process-buffer proc))))
+       proc 6 "%S\n%s" proc (tramp-get-buffer-string (process-buffer proc))))
     (unless found
       (if timeout
 	  (tramp-error

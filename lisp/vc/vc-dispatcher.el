@@ -106,9 +106,6 @@
 
 ;;; Code:
 
-;; TODO:
-;; - log buffers need font-locking.
-
 (eval-when-compile
   (require 'cl-lib)
   (require 'cl-print))
@@ -279,7 +276,10 @@ Only run CODE if the SUCCESS process has a zero exit code."
         (if (functionp code) (funcall code) (eval code t))))
      ;; If a process is running, add CODE to the sentinel
      ((eq (process-status proc) 'run)
-      (vc-set-mode-line-busy-indicator)
+      (let ((buf (process-buffer proc)))
+        (when (buffer-live-p buf)
+          (with-current-buffer buf
+            (vc-set-mode-line-busy-indicator))))
       (letrec ((fun (lambda (p _msg)
                       (remove-function (process-sentinel p) fun)
                       (vc--process-sentinel p code success))))
@@ -485,6 +485,16 @@ case, and the process object in the asynchronous case."
 
 (defvar vc--inhibit-async-window nil)
 
+(defun vc--display-async-command-buffer (buffer)
+  (unless vc--inhibit-async-window
+    (when-let* ((window (display-buffer buffer))
+                (start (with-current-buffer buffer
+                         (save-excursion
+                           (goto-char (point-max))
+                           (and (re-search-backward "\n" nil t)
+                                (match-end 0))))))
+      (set-window-start window start))))
+
 (defun vc-do-async-command (buffer root command &rest args)
   "Run COMMAND asynchronously with ARGS, displaying the result.
 Send the output to BUFFER, which should be a buffer or the name
@@ -494,7 +504,7 @@ The process object is returned.
 Display the buffer in some window, but don't select it."
   (let ((dir default-directory)
 	(inhibit-read-only t)
-        new-window-start proc)
+        proc)
     (setq buffer (get-buffer-create buffer))
     (if (get-buffer-process buffer)
 	(error "Another VC action on %s is running" root))
@@ -510,7 +520,6 @@ Display the buffer in some window, but don't select it."
                   (goto-char (point-max))
                   (unless (eq (point) (point-min))
 	            (insert "\n"))
-                  (setq new-window-start (point))
                   (insert "Running '" cmd)
                   (dolist (flag flags)
                     (let ((lines (string-lines flag)))
@@ -529,9 +538,7 @@ Display the buffer in some window, but don't select it."
                   (insert "'...\n")
                   args))))
 	(setq proc (apply #'vc-do-command t 'async command nil args))))
-    (unless vc--inhibit-async-window
-      (when-let* ((window (display-buffer buffer)))
-        (set-window-start window new-window-start)))
+    (vc--display-async-command-buffer buffer)
     proc))
 
 (defvar compilation-error-regexp-alist)
@@ -649,9 +656,10 @@ CONTEXT is that which `vc-buffer-context' returns."
            (when new-mark (set-mark new-mark))))))
 
 (defun vc-revert-buffer-internal (&optional arg no-confirm)
-  "Revert buffer, keeping point and mark where user expects them.
-Try to be clever in the face of changes due to expanded version-control
-key words.  This is important for typeahead to work as expected.
+  "Revert buffer keeping point and the mark where the user expects them.
+Try to be clever in the face of changes due to expanded VCS
+keywords (cf., e.g., Info node `(cvs)Keyword substitution').
+This is important for typeahead to work as expected.
 ARG and NO-CONFIRM are passed on to `revert-buffer'."
   (interactive "P")
   (widen)
@@ -671,6 +679,8 @@ ARG and NO-CONFIRM are passed on to `revert-buffer'."
 
 (defvar view-old-buffer-read-only)
 
+(declare-function auto-revert-buffers "autorevert")
+
 (defun vc-resynch-window (file &optional keep noquery reset-vc-info)
   "If FILE is in the current buffer, either revert or unvisit it.
 The choice between revert (to see expanded keywords) and unvisit
@@ -679,31 +689,37 @@ reverting.  NOQUERY should be t *only* if it is known the only
 difference between the buffer and the file is due to
 modifications by the dispatcher client code, rather than user
 editing!"
-  (and (string= buffer-file-name
-                (if (file-name-absolute-p file)
-                    file
-                  (expand-file-name file (vc-root-dir))))
-       (if keep
-	   (when (file-exists-p file)
-	     (when reset-vc-info
-	       (vc-file-clearprops file))
-	     (vc-revert-buffer-internal t noquery)
+  (and (equal buffer-file-name
+              (if (file-name-absolute-p file)
+                  file
+                (expand-file-name file (vc-root-dir))))
+       (cond ((not keep)
+              (kill-buffer))
+             ((file-exists-p file)
+              (when reset-vc-info
+	        (vc-file-clearprops file))
+              ;; If `auto-revert-mode' is on (probably due to either
+              ;; `global-auto-revert-mode' or `vc-auto-revert-mode')
+              ;; then defer to that.  Otherwise we do our own
+              ;; VC-specific reverting.
+              (if (and (bound-and-true-p auto-revert-mode) noquery)
+                  (auto-revert-buffers)
+	        (vc-revert-buffer-internal t noquery))
 
-	     ;; VC operations might toggle the read-only state.  In
-	     ;; that case we need to adjust the `view-mode' status
-	     ;; when `view-read-only' is non-nil.
-             (and view-read-only
-                  (if (file-writable-p file)
-                      (and view-mode
-                           (let ((view-old-buffer-read-only nil))
-                             (view-mode-exit t)))
-                    (and (not view-mode)
-                         (not (eq (get major-mode 'mode-class) 'special))
-                         (view-mode-enter))))
+	      ;; VC operations might toggle the read-only state.  In
+	      ;; that case we need to adjust the `view-mode' status
+	      ;; when `view-read-only' is non-nil.
+              (and view-read-only
+                   (if (file-writable-p file)
+                       (and view-mode
+                            (let ((view-old-buffer-read-only nil))
+                              (view-mode-exit t)))
+                     (and (not view-mode)
+                          (not (eq (get major-mode 'mode-class) 'special))
+                          (view-mode-enter))))
 
-             ;; FIXME: Why use a hook?  Why pass it buffer-file-name?
-	     (run-hook-with-args 'vc-mode-line-hook buffer-file-name))
-	 (kill-buffer (current-buffer)))))
+              ;; FIXME: Why use a hook?  Why pass it buffer-file-name?
+	      (run-hook-with-args 'vc-mode-line-hook buffer-file-name)))))
 
 (declare-function vc-dir-resynch-file "vc-dir" (&optional fname))
 
@@ -861,39 +877,49 @@ the buffer contents as a comment."
   ;; Check and record the comment, if any.
   (unless nocomment
     (run-hooks 'vc-logentry-check-hook))
-  ;; Must pass NOT-ESSENTIAL nil because we later call
-  ;; `vc-resynch-buffer' with NOQUERY non-nil.
-  (vc-buffer-sync-fileset (list log-edit-vc-backend vc-log-fileset))
   (unless vc-log-operation
     (error "No log operation is pending"))
 
   ;; save the parameters held in buffer-local variables
   (let ((logbuf (current-buffer))
-	(log-operation vc-log-operation)
-        ;; FIXME: When coming from VC-Dir, we should check that the
-        ;; set of selected files is still equal to vc-log-fileset,
-        ;; to avoid surprises.
-	(log-fileset vc-log-fileset)
-	(log-entry (buffer-string))
-	(after-hook vc-log-after-operation-hook))
-    (pop-to-buffer vc-parent-buffer)
+        (log-operation vc-log-operation)
+        (log-fileset vc-log-fileset)
+        (log-entry (buffer-string))
+        (after-hook vc-log-after-operation-hook)
+        (parent vc-parent-buffer))
     ;; OK, do it to it
-    (save-excursion
-      (funcall log-operation
-	       log-fileset
-	       log-entry))
-    (setq vc-log-operation nil)
+    (let ((log-operation-ret
+           (with-current-buffer parent
+             (let ((vc--inhibit-async-window t))
+               (funcall log-operation log-fileset log-entry)))))
 
-    ;; Quit windows on logbuf.
-    (cond ((not logbuf))
-          (vc-delete-logbuf-window
-           (quit-windows-on logbuf t (selected-frame)))
-          (t
-           (quit-windows-on logbuf nil 0)))
+      (pop-to-buffer parent)
+      (setq vc-log-operation nil)
 
-    ;; Now make sure we see the expanded headers
-    (mapc (lambda (file) (vc-resynch-buffer file t t)) log-fileset)
-    (run-hooks after-hook 'vc-finish-logentry-hook)))
+      ;; Quit windows on logbuf.
+      (cond ((not logbuf))
+            (vc-delete-logbuf-window
+             (quit-windows-on logbuf t (selected-frame)))
+            (t
+             (quit-windows-on logbuf nil 0)))
+
+      (when (eq (car-safe log-operation-ret) 'async)
+        (vc--display-async-command-buffer (process-buffer
+                                           (cadr log-operation-ret))))
+
+      ;; Now make sure we see the expanded headers.
+      ;; If the `vc-log-operation' started an async operation then we
+      ;; need to delay running the hooks.  It tells us whether it did
+      ;; that with a special return value.
+      (cl-flet ((resynch-and-hooks ()
+                  (when (buffer-live-p parent)
+                    (with-current-buffer parent
+                      (mapc (lambda (file) (vc-resynch-buffer file t t))
+                            log-fileset)
+                      (run-hooks after-hook 'vc-finish-logentry-hook)))))
+        (if (eq (car-safe log-operation-ret) 'async)
+            (vc-exec-after #'resynch-and-hooks nil (cadr log-operation-ret))
+          (resynch-and-hooks))))))
 
 (defun vc-dispatcher-browsing ()
   "Are we in a directory browser buffer?"
@@ -901,6 +927,16 @@ the buffer contents as a comment."
       (derived-mode-p 'dired-mode)
       (derived-mode-p 'diff-mode)
       (derived-mode-p 'log-view-mode)))
+
+(declare-function vc-dir-marked-files "vc-dir")
+(declare-function dired-get-marked-files "dired")
+
+(defun vc-dispatcher--explicit-marks-p ()
+  "Are any files in the directory browser explicitly marked?"
+  (or (and (derived-mode-p 'vc-dir-mode)
+           (vc-dir-marked-files))
+      (and (derived-mode-p 'dired-mode)
+           (length> (dired-get-marked-files nil nil nil t) 1))))
 
 ;; These are unused.
 ;; (defun vc-dispatcher-in-fileset-p (fileset)
