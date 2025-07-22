@@ -3902,8 +3902,15 @@ union read_non_regular
 {
   struct
   {
+    /* File descriptor to read from.  */
     emacs_fd fd;
+
+    /* If BUF is non-null, read into BUF; otherwise, read into
+       gap + INSERTED (done this way because the gap can relocate).  */
     char *buf;
+    ptrdiff_t inserted;
+
+    /* Number of bytes to try to read.  */
     ptrdiff_t bufsize;
   } s;
   GCALIGNED_UNION_MEMBER
@@ -3914,7 +3921,12 @@ static Lisp_Object
 read_non_regular (Lisp_Object state)
 {
   union read_non_regular *data = XFIXNUMPTR (state);
-  intmax_t nbytes = emacs_fd_read (data->s.fd, data->s.buf, data->s.bufsize);
+  intmax_t nbytes
+    = emacs_fd_read (data->s.fd,
+		     (data->s.buf ? data->s.buf
+		      : ((char *) BEG_ADDR + PT_BYTE - BEG_BYTE
+			 + data->s.inserted)),
+		     data->s.bufsize);
   return make_int (nbytes < 0 ? -errno : nbytes);
 }
 
@@ -4025,9 +4037,16 @@ maybe_move_gap (struct buffer *b)
     }
 }
 
-/* A good blocksize to minimize system call overhead across most systems.
-   Taken from coreutils/src/ioblksize.h as of July 2025.  */
-enum { IO_BUFSIZE = 256 * 1024 };
+/* In FD, position to POS relative to WHENCE.  Return the resulting
+   position if successful, otherwise signal an error with FILENAME.  */
+static off_t
+xlseek (emacs_fd fd, off_t pos, int whence, Lisp_Object filename)
+{
+  off_t newpos = emacs_fd_lseek (fd, pos, whence);
+  if (newpos < 0)
+    report_file_error ("Setting file position", filename);
+  return newpos;
+}
 
 /* FIXME: insert-file-contents should be split with the top-level moved to
    Elisp and only the core kept in C.  */
@@ -4073,6 +4092,14 @@ by calling `format-decode', which see.  */)
   (Lisp_Object filename, Lisp_Object visit, Lisp_Object beg, Lisp_Object end,
    Lisp_Object replace)
 {
+  /* A good read blocksize for insert-file-contents.
+     It is for reading a big chunk of a file into memory,
+     as opposed to coreutils IO_BUFSIZE which is for 'cat'-like stream reads.
+     If too small, insert-file-contents has more syscall overhead.
+     If too large, insert-file-contents might take too long respond to a quit.
+     1 MiB should be reasonable even for older, slower devices circa 2025.  */
+  enum { INSERT_READ_SIZE_MAX = min (1024 * 1024, MAX_RW_COUNT) };
+
   struct timespec mtime;
   emacs_fd fd;
   ptrdiff_t inserted = 0;
@@ -4083,7 +4110,7 @@ by calling `format-decode', which see.  */)
   off_t total = 0;
   bool regular;
   int save_errno = 0;
-  char read_buf[MAX_ALLOCA];
+  char read_buf[min (+MAX_ALLOCA, +INSERT_READ_SIZE_MAX)];
   struct coding_system coding;
   bool replace_handled = false;
   bool set_coding_system = false;
@@ -4106,8 +4133,9 @@ by calling `format-decode', which see.  */)
      restore_window_points needs the old character count.  */
   ptrdiff_t same_at_end_charpos = ZV;
 
-  /* A hint about the file size, or -1 if there is no hint.  */
-  off_t file_size_hint = -1;
+  /* The size reported by fstat, or -1 if the file was not found or its
+     size is meaningless.  */
+  off_t st_size = -1;
 
   if (current_buffer->base_buffer && ! NILP (visit))
     error ("Cannot do file visiting in an indirect buffer");
@@ -4150,6 +4178,13 @@ by calling `format-decode', which see.  */)
 
   off_t beg_offset = !NILP (beg) ? file_offset (beg) : 0;
   off_t end_offset = !NILP (end) ? file_offset (end) : TYPE_MAXIMUM (off_t);
+
+  /* END_OFFSET should never be less than BEG_OFFSET,
+     so that code can assume that END_OFFSET - BEG_OFFSET is nonnegative.
+     So set END_OFFSET = max (END_OFFSET, BEG_OFFSET)
+     whenever setting either variable,
+     unless it is already known that BEG_OFFSET <= END_OFFSET.  */
+  end_offset = max (end_offset, beg_offset);
 
   filename = ENCODE_FILE (filename);
 
@@ -4200,11 +4235,12 @@ by calling `format-decode', which see.  */)
 
     if (regular | memory_object)
       {
-	file_size_hint = st.st_size;
+	st_size = st.st_size;
 
-	/* A negative size can happen on a platform that allows file
-	   sizes greater than the maximum off_t value.  */
-	if (file_size_hint < 0)
+	/* On some ancient platforms, a regular file with a negative size means
+	   the actual file size is greater than the maximum off_t value.
+	   Fail now rather than doing a lot of work and exhausting memory.  */
+	if (st_size < 0)
 	  buffer_overflow ();
       }
 
@@ -4212,15 +4248,6 @@ by calling `format-decode', which see.  */)
 	     ? make_timespec (0, UNKNOWN_MODTIME_NSECS)
 	     : get_stat_mtime (&st));
   }
-
-  /* The initial offset can be nonzero, e.g., /dev/stdin.
-     Regular files can be non-seekable, e.g., /proc/cpuinfo with SEEK_END.  */
-  off_t initial_offset = emacs_fd_lseek (fd, 0, SEEK_CUR);
-  bool seekable = 0 <= initial_offset;
-  if (seekable && NILP (beg))
-    beg_offset = initial_offset;
-  if (end_offset <= beg_offset)
-    goto handled;
 
   /* The REPLACE code will need to be changed in order to work on
      named pipes, and it's probably just not worth it.  So we should
@@ -4255,7 +4282,7 @@ by calling `format-decode', which see.  */)
      This saves a lot of needless work before a buffer overflow.
      If LIKELY_END is nonnegative, it is likely where we will stop reading.
      We could read more (or less), if the file grows (or shrinks).  */
-  off_t likely_end = min (end_offset, file_size_hint);
+  off_t likely_end = min (end_offset, st_size);
   if (beg_offset < likely_end)
     {
       ptrdiff_t buf_bytes
@@ -4268,6 +4295,9 @@ by calling `format-decode', which see.  */)
 
   /* Prevent redisplay optimizations.  */
   current_buffer->clip_changed = true;
+
+  /* The current input position if known, -1 otherwise.  */
+  off_t curpos = -1;
 
   if (EQ (Vcoding_system_for_read, Qauto_save_coding))
     {
@@ -4286,14 +4316,17 @@ by calling `format-decode', which see.  */)
       else
 	{
 	  /* Don't try looking inside a file for a coding system
-	     specification if it is not a regular, seekable file.  */
-	  bool look_inside = (regular && seekable
-			      && !NILP (Vset_auto_coding_function));
-	  if (look_inside && 0 < initial_offset
-	      && emacs_fd_lseek (fd, 0, SEEK_SET) < 0)
-	    look_inside = seekable = false;
-	  if (look_inside)
+	     specification if it is not a regular file.  */
+	  if (regular && !NILP (Vset_auto_coding_function))
 	    {
+	      if (!NILP (beg))
+		curpos = xlseek (fd, beg_offset, SEEK_SET, orig_filename);
+	      else
+		{
+		  beg_offset = curpos = xlseek (fd, 0, SEEK_CUR, orig_filename);
+		  end_offset = max (end_offset, beg_offset);
+		}
+
 	      /* Find a coding system specified in the heading two
 		 lines or in the tailing several lines of the file.
 		 Assume that the 1 KiB and 3 KiB for heading
@@ -4301,38 +4334,35 @@ by calling `format-decode', which see.  */)
 		 purpose.  Because the file may be in /proc,
 		 do not use st_size or report any SEEK_END failure.  */
 	      static_assert (4 * 1024 < sizeof read_buf);
-	      ptrdiff_t nread = emacs_full_read (fd, read_buf, 4 * 1024);
-	      if (nread < 4 * 1024)
-		file_size_hint = nread;
-	      else
+	      ptrdiff_t
+		trial = min (end_offset - beg_offset, 4 * 1024),
+		nread = trial ? emacs_full_read (fd, read_buf, trial) : 0;
+	      curpos += nread;
+
+	      if (nread == 4 * 1024 && curpos < end_offset)
 		{
-		  off_t tailoff = emacs_fd_lseek (fd, - 3 * 1024, SEEK_END);
-		  if (tailoff < 0)
+		  curpos = emacs_fd_lseek (fd, - 3 * 1024, SEEK_END);
+		  if (curpos < 0)
+		    curpos = beg_offset + nread;
+		  else
 		    {
-		      seekable = false;
-		      tailoff = nread;
+		      off_t curmax = end_offset - 3 * 1024;
+		      if (curmax < curpos)
+			curpos = xlseek (fd, curmax, SEEK_SET, orig_filename);
 		    }
 
 		  /* When appending the last 3 KiB, read extra bytes
-		     without trusting tailoff, as the file may be growing.  */
-		  nread = emacs_full_read (fd, read_buf + 1024,
-					   sizeof read_buf - 1024);
-		  if (nread == sizeof read_buf - 1024)
+		     without trusting SEEK_END, as the file may be growing.
+		     Although this may yield more than 4 KiB of data total,
+		     and the trailing data may not be from file end if
+		     the file is growing, it is good enough.  */
+		  ptrdiff_t trial = min (end_offset - curpos,
+					 sizeof read_buf - 1024);
+		  nread = emacs_full_read (fd, read_buf + 1024, trial);
+		  if (0 <= nread)
 		    {
-		      /* Give up reading the last 3 KiB; the file is
-			 growing too rapidly.  */
-		      nread = 1024;
-		    }
-		  else if (0 <= nread)
-		    {
-		      file_size_hint = tailoff + nread;
+		      curpos += nread;
 		      nread += 1024;
-		      if (4 * 1024 < nread)
-			{
-			  memmove (read_buf + 1024,
-				   read_buf + nread - 3 * 1024, 3 * 1024);
-			  nread = 4 * 1024;
-			}
 		    }
 		}
 
@@ -4371,10 +4401,6 @@ by calling `format-decode', which see.  */)
 		  /* Discard the unwind protect for recovering the
                      current buffer.  */
 		  unbind_discard_to (count);
-
-		  /* Rewind the file for the actual read done later.  */
-		  if (emacs_fd_lseek (fd, initial_offset, SEEK_SET) < 0)
-		    report_file_error ("Setting file position", orig_filename);
 		}
 	    }
 
@@ -4430,58 +4456,27 @@ by calling `format-decode', which see.  */)
 	 give up on handling REPLACE in the optimized way.  */
       bool giveup_match_end = false;
 
-      if (beg_offset != initial_offset)
+      if (beg_offset != curpos)
 	{
-	  if (emacs_fd_lseek (fd, beg_offset, SEEK_SET) < 0)
-	    report_file_error ("Setting file position", orig_filename);
+	  if (!NILP (beg) || 0 <= curpos)
+	    curpos = xlseek (fd, beg_offset, SEEK_SET, orig_filename);
+	  else
+	    {
+	      beg_offset = curpos = xlseek (fd, 0, SEEK_CUR, orig_filename);
+	      end_offset = max (end_offset, beg_offset);
+	    }
 	}
 
       /* Count how many chars at the start of the file
 	 match the text at the beginning of the buffer.  */
       while (true)
 	{
-	  off_t bytes_to_read = sizeof read_buf;
-	  off_t curpos = beg_offset + (same_at_start - BEGV_BYTE);
-	  bytes_to_read = min (bytes_to_read, end_offset - curpos);
-	  ptrdiff_t nread = (bytes_to_read <= 0
-			     ? 0
-			     : emacs_full_read (fd, read_buf, bytes_to_read));
+	  ptrdiff_t trial = min (end_offset - curpos, sizeof read_buf);
+	  ptrdiff_t nread = trial ? emacs_fd_read (fd, read_buf, trial) : 0;
 	  if (nread < 0)
 	    report_file_error ("Read error", orig_filename);
-
-	  if (0 < nread)
+	  else if (nread == 0)
 	    {
-	      if (CODING_REQUIRE_DETECTION (&coding))
-		{
-		  coding_system
-		    = detect_coding_system ((unsigned char *) read_buf,
-					    nread, nread, 1, 0,
-					    coding_system);
-		  setup_coding_system (coding_system, &coding);
-		}
-
-	      if (CODING_REQUIRE_DECODING (&coding))
-		/* We found that the file should be decoded somehow.
-		   Let's give up here.  */
-		{
-		  giveup_match_end = true;
-		  break;
-		}
-
-	      ptrdiff_t bufpos = 0;
-	      ptrdiff_t bufposlim = min (nread, same_at_end - same_at_start);
-	      while (bufpos < bufposlim
-		     && FETCH_BYTE (same_at_start) == read_buf[bufpos])
-		same_at_start++, bufpos++;
-	      /* If we found a discrepancy, stop the scan.  */
-	      if (bufpos != nread)
-		break;
-	    }
-
-	  if (nread < bytes_to_read)
-	    {
-	      file_size_hint = curpos + nread;
-
 	      /* Data inserted from the file match the buffer's leading bytes,
 		 so there's no need to replace anything.  */
 	      emacs_fd_close (fd);
@@ -4491,8 +4486,34 @@ by calling `format-decode', which see.  */)
 	      del_range_byte (same_at_start, same_at_end);
 	      goto handled;
 	    }
+
+	  curpos += nread;
+
+	  if (CODING_REQUIRE_DETECTION (&coding))
+	    {
+	      coding_system = detect_coding_system ((unsigned char *) read_buf,
+						    nread, nread, 1, 0,
+						    coding_system);
+	      setup_coding_system (coding_system, &coding);
+	    }
+
+	  if (CODING_REQUIRE_DECODING (&coding))
+	    /* We found that the file should be decoded somehow.
+               Let's give up here.  */
+	    {
+	      giveup_match_end = true;
+	      break;
+	    }
+
+	  ptrdiff_t bufpos = 0;
+	  ptrdiff_t bufposlim = min (nread, same_at_end - same_at_start);
+	  while (bufpos < bufposlim
+		 && FETCH_BYTE (same_at_start) == read_buf[bufpos])
+	    same_at_start++, bufpos++;
+	  /* If we found a discrepancy, stop the scan.  */
+	  if (bufpos != nread)
+	    break;
 	}
-      off_t same_at_start_pos = beg_offset + (same_at_start - BEGV_BYTE);
 
       /* Find the end position, which is end_offset if given,
 	 the file's end otherwise.  */
@@ -4505,31 +4526,25 @@ by calling `format-decode', which see.  */)
 	    {
 	      endpos = emacs_fd_lseek (fd, 0, SEEK_END);
 	      giveup_match_end = endpos < 0;
-	      if (giveup_match_end)
-		seekable = false;
-	      else
+	      if (!giveup_match_end)
 		{
 		  /* Check that read reports EOF soon, to catch platforms
 		     where SEEK_END can report wildly small offsets.  */
 		  ptrdiff_t n = emacs_full_read (fd, read_buf, sizeof read_buf);
 		  if (n < 0)
 		    report_file_error ("Read error", orig_filename);
-		  endpos += n;
+		  curpos = endpos += n;
 
 		  /* Give up if the file grew more than even the test read.  */
 		  giveup_match_end = n == sizeof read_buf;
 
 		  if (!giveup_match_end)
 		    {
-		      file_size_hint = endpos;
-
 		      /* Shrink the file's head if the file shrank to
 			 be smaller than its head.  */
-		      if (endpos < same_at_start_pos)
-			{
-			  same_at_start_pos = endpos;
-			  same_at_start = endpos - beg_offset + BEGV_BYTE;
-			}
+		      off_t offset_from_beg = endpos - beg_offset;
+		      if (offset_from_beg < same_at_start - BEGV_BYTE)
+			same_at_start = max (0, offset_from_beg) + BEGV_BYTE;
 		    }
 		}
 	    }
@@ -4541,35 +4556,30 @@ by calling `format-decode', which see.  */)
       while (!giveup_match_end)
 	{
 	  ptrdiff_t nread, bufpos, trial;
-	  off_t curpos;
-
-	  /* At what file position are we now scanning?  */
-	  curpos = endpos - (ZV_BYTE - same_at_end);
 
 	  /* How much can we scan in the next step?  Compare with poslim
 	     to prevent overlap of the matching head with the matching tail.
 	     The 'same_at_start_pos' limit prevents overlap in the buffer's
-	     head and tail, and the 'endpos - (same_at_end - same_at_start)'
-	     limit prevents overlap in the inserted file's head and tail.  */
-	  off_t poslim = max (same_at_start_pos,
-			      endpos - (same_at_end - same_at_start));
+	     head and tail, and the 'file_overlap_pos' limit prevents
+	     overlap in the inserted file's head and tail.  */
+	  off_t same_at_start_pos = beg_offset + (same_at_start - BEGV_BYTE);
+	  off_t file_overlap_pos = endpos - (same_at_end - same_at_start);
+	  off_t poslim = max (same_at_start_pos, file_overlap_pos);
 	  /* Do not scan more than sizeof read_buf at a time, and stop
 	     the scan if it can go no more.  */
 	  trial = min (curpos - poslim, sizeof read_buf);
 	  if (trial == 0)
 	    break;
 
-	  curpos = emacs_fd_lseek (fd, curpos - trial, SEEK_SET);
-	  if (curpos < 0)
-	    report_file_error ("Setting file position", orig_filename);
+	  curpos = xlseek (fd, -trial, SEEK_CUR, orig_filename);
 
 	  nread = emacs_full_read (fd, read_buf, trial);
+	  curpos += nread;
 	  if (nread < trial)
 	    {
 	      if (nread < 0)
 		report_file_error ("Read error", orig_filename);
 	      /* The file unexpectedly shrank.  */
-	      file_size_hint = curpos + nread;
 	      giveup_match_end = true;
 	      break;
 	    }
@@ -4623,6 +4633,7 @@ by calling `format-decode', which see.  */)
 	  /* Arrange to read only the nonmatching middle part of the file.  */
 	  beg_offset += same_at_start - BEGV_BYTE;
 	  end_offset = endpos - (ZV_BYTE - same_at_end);
+	  eassert (beg_offset <= end_offset);
 
           if (!NILP (visit) && BEG == BEGV && Z == ZV)
             /* This binding is to avoid ask-user-about-supersession-threat
@@ -4681,26 +4692,34 @@ by calling `format-decode', which see.  */)
       /* First read the whole file, performing code conversion into
 	 CONVERSION_BUFFER.  */
 
-      if (emacs_fd_lseek (fd, beg_offset, SEEK_SET) < 0)
-	report_file_error ("Setting file position", orig_filename);
+      if (beg_offset != curpos)
+	{
+	  if (!NILP (beg) || 0 <= curpos)
+	    curpos = xlseek (fd, beg_offset, SEEK_SET, orig_filename);
+	  else
+	    {
+	      beg_offset = curpos = xlseek (fd, 0, SEEK_CUR, orig_filename);
+	      end_offset = max (end_offset, beg_offset);
+	    }
+	}
 
       inserted = 0;		/* Bytes put into CONVERSION_BUFFER so far.  */
       unprocessed = 0;		/* Bytes not processed in previous loop.  */
-      file_size_hint = beg_offset;
 
       while (true)
 	{
 	  /* Read one buffer a time, to allow
 	     quitting while reading a huge file.  */
 
-	  ptrdiff_t trial = sizeof read_buf - unprocessed;
-	  this = emacs_full_read (fd, read_buf + unprocessed, trial);
+	  ptrdiff_t trial = min (end_offset - curpos,
+				 sizeof read_buf - unprocessed);
+	  this = trial ? emacs_fd_read (fd, read_buf + unprocessed, trial) : 0;
 	  if (this < 0)
 	    report_file_error ("Read error", orig_filename);
 	  if (this == 0)
 	    break;
+	  curpos += this;
 
-	  file_size_hint += this;
 	  BUF_TEMP_SET_PT (XBUFFER (conversion_buffer),
 			   BUF_Z (XBUFFER (conversion_buffer)));
 	  decode_coding_c_string (&coding, (unsigned char *) read_buf,
@@ -4708,8 +4727,6 @@ by calling `format-decode', which see.  */)
 	  unprocessed = coding.carryover_bytes;
 	  if (coding.carryover_bytes > 0)
 	    memcpy (read_buf, coding.carryover, unprocessed);
-	  if (this < trial)
-	    break;
 	}
 
       emacs_fd_close (fd);
@@ -4837,6 +4854,20 @@ by calling `format-decode', which see.  */)
       goto handled;
     }
 
+  if (beg_offset != curpos)
+    {
+      if (!NILP (beg) || 0 <= curpos)
+	xlseek (fd, beg_offset, SEEK_SET, orig_filename);
+      else if (end_offset != TYPE_MAXIMUM (off_t))
+	{
+	  curpos = emacs_fd_lseek (fd, 0, SEEK_CUR);
+	  beg_offset = max (0, curpos);
+	  end_offset = max (end_offset, beg_offset);
+	}
+    }
+  /* curpos effectively goes out of scope now, as it is no longer needed,
+     so do not bother to update curpos from now on.  */
+
   total = end_offset - beg_offset;
 
   if (NILP (visit) && total > 0)
@@ -4861,20 +4892,13 @@ by calling `format-decode', which see.  */)
   /* Ensure the gap is at least one byte larger than needed for the
      estimated insertion, so that in the usual case we read
      without reallocating.  */
-  off_t inserted_estimate = min (end_offset, file_size_hint) - beg_offset;
+  off_t inserted_estimate = likely_end - beg_offset;
   if (GAP_SIZE <= inserted_estimate)
     {
       ptrdiff_t growth;
       if (ckd_sub (&growth, inserted_estimate, GAP_SIZE - 1))
 	buffer_overflow ();
       make_gap (growth);
-    }
-
-  if (beg_offset != 0 || (!NILP (replace)
-			  && !BASE_EQ (replace, Qunbound)))
-    {
-      if (emacs_fd_lseek (fd, beg_offset, SEEK_SET) < 0)
-	report_file_error ("Setting file position", orig_filename);
     }
 
   /* Total bytes inserted.  */
@@ -4897,19 +4921,21 @@ by calling `format-decode', which see.  */)
 	else
 	  {
 	    buf = (char *) BEG_ADDR + PT_BYTE - BEG_BYTE + inserted;
-	    bufsize = min (gap_size, IO_BUFSIZE);
+	    bufsize = min (gap_size, INSERT_READ_SIZE_MAX);
 	  }
 	bufsize = min (bufsize, total - inserted);
 
-	if (!seekable && end_offset == TYPE_MAXIMUM (off_t))
+	if (!regular)
 	  {
 	    Lisp_Object nbytes;
 	    intmax_t number;
 
 	    /* Read from the file, capturing `quit'.  When an
 	       error occurs, end the loop, and arrange for a quit
-	       to be signaled after decoding the text we read.  */
-	    union read_non_regular data = {{fd, buf, bufsize}};
+	       to be signaled after decoding the text we read.
+	       This way, we do not lose any data read.  */
+	    union read_non_regular data
+	      = {{fd, buf == read_buf ? buf : NULL, inserted, bufsize}};
 	    nbytes = internal_condition_case_1
 	      (read_non_regular, make_pointer_integer (&data),
 	       Qerror, read_non_regular_quit);
@@ -4926,7 +4952,8 @@ by calling `format-decode', which see.  */)
 	else
 	  /* Allow quitting out of the actual I/O.  We don't make text
 	     part of the buffer until all the reading is done, so a
-	     C-g here doesn't do any harm.  */
+	     C-g here doesn't do any harm: though the data read are discarded,
+	     the original data is still in the input file.  */
 	  {
 	    this = emacs_fd_read (fd, buf, bufsize);
 	    if (this < 0)
@@ -4957,8 +4984,6 @@ by calling `format-decode', which see.  */)
 	inserted += this;
       }
   }
-
-  file_size_hint = beg_offset + inserted;
 
   /* Now we have either read all the file data into the gap,
      or stop reading on I/O error or quit.  If nothing was
@@ -5119,7 +5144,7 @@ by calling `format-decode', which see.  */)
       if (NILP (handler))
 	{
 	  current_buffer->modtime = mtime;
-	  current_buffer->modtime_size = file_size_hint;
+	  current_buffer->modtime_size = st_size;
 	  bset_filename (current_buffer, orig_filename);
 	}
 
@@ -5634,7 +5659,7 @@ write_region (Lisp_Object start, Lisp_Object end, Lisp_Object filename,
 	  int lseek_errno = errno;
 	  if (file_locked)
 	    Funlock_file (lockname);
-	  report_file_errno ("Lseek error", filename, lseek_errno);
+	  report_file_errno ("Setting file position", filename, lseek_errno);
 	}
     }
 
