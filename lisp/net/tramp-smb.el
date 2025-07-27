@@ -2169,9 +2169,11 @@ Removes smb prompt.  Returns nil if an error message has appeared."
     ;; This the default value of %PATHEXT% in MS Windows 11, plus ".py"
     ;; for Python.  Once we have remote processes, we might set this
     ;; host-specific using that remote environment variable.
+    ;; The suffix "" is added for the benefit of local processes,
+    ;; started in a remote buffer.  (Bug#78886)
     (exec-suffixes
      . (".com" ".exe" ".bat" ".cmd" ".vbs" ".vbe"
-        ".js" ".jse" ".wsf" ".wsh" ".msc" ".py")))
+        ".js" ".jse" ".wsf" ".wsh" ".msc" ".py" "")))
   "Default connection-local system variables for remote smb connections.")
 
 (connection-local-set-profile-variables

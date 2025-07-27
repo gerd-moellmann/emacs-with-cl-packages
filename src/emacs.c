@@ -739,7 +739,65 @@ argmatch (char **argv, int argc, const char *sstr, const char *lstr,
     }
 }
 
+/* Return the default PATH if it can be determined, NULL otherwise.  */
+
+static char const *
+default_PATH (void)
+{
+  static char const *path;
+
+  /* A static buffer big enough so that confstr is called just once
+     in GNU/Linux, where the default PATH is "/bin:/usr/bin".
+     If staticbuf[0], path is already initialized.  */
+  static char staticbuf[16];
+
+  if (!staticbuf[0])
+    {
+#ifdef _CS_PATH
+      char *buf = staticbuf;
+      size_t bufsize = sizeof staticbuf, s;
+
+      /* If necessary call confstr a second time with a bigger buffer.  */
+      while (bufsize < (s = confstr (_CS_PATH, buf, bufsize)))
+	{
+	  buf = xmalloc (s);
+	  bufsize = s;
+	}
+
+      if (s == 0)
+	{
+	  staticbuf[0] = 1;
+	  buf = NULL;
+	}
+
+      path = buf;
+#endif
+    }
+
+  return path;
+}
+
 #if !defined HAVE_ANDROID || defined ANDROID_STUBIFY
+
+# ifndef WINDOWSNT
+/* If NAME is a symlink return a non-symlink name of the file it points to,
+   allocated as if by malloc.  Otherwise, or if there is an error
+   resolving the name, set errno and return a null pointer.  */
+static char *
+follow_if_symlink (char const *name)
+{
+  /* For speed, resolve symlinks only if the name is itself a symlink,
+     and test this via readlink instead of via lstat+S_ISLNK
+     as lstat can fail with EOVERFLOW when given a symlink.
+     Use realpath to resolve symlinks; although this is overkill as
+     realpath also canonicalizes the resulting parent directory,
+     there's no easy way here to avoid the overkill.  */
+  char linkbuf[1];
+  return (readlink (name, linkbuf, sizeof linkbuf) < 0
+	  ? NULL
+	  : realpath (name, NULL));
+}
+# endif
 
 /* Find a name (absolute or relative) of the Emacs executable whose
    name (as passed into this program) is ARGV0.  Called early in
@@ -768,25 +826,20 @@ find_emacs_executable (char const *argv0, ptrdiff_t *candidate_size)
   eassert (argv0);
   if (strchr (argv0, DIRECTORY_SEP))
     {
-      char *real_name = realpath (argv0, NULL);
-
-      if (real_name)
-	{
-	  *candidate_size = strlen (real_name) + 1;
-	  return real_name;
-	}
-
-      char *val = xstrdup (argv0);
+      char *val = follow_if_symlink (argv0);
+      if (!val)
+	val = xstrdup (argv0);
       *candidate_size = strlen (val) + 1;
       return val;
     }
   ptrdiff_t argv0_length = strlen (argv0);
 
   const char *path = getenv ("PATH");
+  if (! (path && *path))
+    path = default_PATH ();
   if (!path)
     {
-      /* Default PATH is implementation-defined, so we don't know how
-         to conduct the search.  */
+      /* We don't know how to conduct the search.  */
       return NULL;
     }
 
@@ -822,15 +875,12 @@ find_emacs_executable (char const *argv0, ptrdiff_t *candidate_size)
 	  /* People put on PATH a symlink to the real Emacs
 	     executable, with all the auxiliary files where the real
 	     executable lives.  Support that.  */
-	  if (lstat (candidate, &st) == 0 && S_ISLNK (st.st_mode))
+	  char *val = follow_if_symlink (candidate);
+	  if (val)
 	    {
-	      char *real_name = realpath (candidate, NULL);
-
-	      if (real_name)
-		{
-		  *candidate_size = strlen (real_name) + 1;
-		  return real_name;
-		}
+	      xfree (candidate);
+	      *candidate_size = strlen (val) + 1;
+	      return val;
 	    }
 	  return candidate;
 	}
@@ -3252,15 +3302,19 @@ decode_env_path (const char *evarname, const char *defalt, bool empty)
      to initialize variables when Emacs starts up, and isn't called
      after that.  */
   if (evarname != 0)
-    path = getenv (evarname);
+    {
+      path = getenv (evarname);
+      if (! (path && *path) && strcmp (evarname, "PATH") == 0)
+	path = default_PATH ();
+    }
   else
     path = 0;
   if (!path)
     {
-#ifdef NS_SELF_CONTAINED
-      path = ns_relocate (defalt);
-#else
       path = defalt;
+#ifdef NS_SELF_CONTAINED
+      if (path)
+	path = ns_relocate (path);
 #endif
 #ifdef WINDOWSNT
       defaulted = 1;
@@ -3312,7 +3366,7 @@ decode_env_path (const char *evarname, const char *defalt, bool empty)
     }
 #endif
   lpath = Qnil;
-  while (1)
+  for (; path; path = *p ? p + 1 : NULL)
     {
       p = strchr (path, SEPCHAR);
       if (!p)
@@ -3355,10 +3409,6 @@ decode_env_path (const char *evarname, const char *defalt, bool empty)
         } /* !NILP (element) */
 
       lpath = Fcons (element, lpath);
-      if (*p)
-	path = p + 1;
-      else
-	break;
     }
 
   return Fnreverse (lpath);
