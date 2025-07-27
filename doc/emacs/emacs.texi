@@ -221,7 +221,8 @@ Appendices
 * Emacs Invocation::    Hairy startup options.
 * X Resources::         X resources for customizing Emacs.
 * Antinews::            Information about Emacs version 29.
-* Mac OS / GNUstep::     Using Emacs under macOS and GNUstep.
+* Mac Port::            Using Emacs and macOS with the Mac port.
+* Mac OS / GNUstep::    Using Emacs under macOS and GNUstep.
 * Haiku::               Using Emacs on Haiku.
 * Android::             Using Emacs on Android.
 * Microsoft Windows::   Using Emacs on Microsoft Windows and MS-DOS.
