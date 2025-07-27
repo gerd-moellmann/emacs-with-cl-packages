@@ -7566,7 +7566,7 @@ ns_in_echo_area (void)
   if (NS_KEYLOG)
     NSLog (@"selectedRange request");
 
-  struct window *w = XWINDOW (FRAME_SELECTED_WINDOW (emacsframe));
+  struct window *w = XWINDOW (FRAME_SELECTED_WINDOW (*emacsframe));
   struct buffer *buf = XBUFFER (w->contents);
   ptrdiff_t point = BUF_PT (buf);
 
