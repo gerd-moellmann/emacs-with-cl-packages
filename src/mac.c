@@ -676,6 +676,8 @@ init_coercion_handler (void)
 {
   OSErr err;
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wcast-function-type-mismatch"
   static AECoercePtrUPP coerce_file_name_ptrUPP = NULL;
   static AECoerceDescUPP coerce_file_name_descUPP = NULL;
 
@@ -698,6 +700,7 @@ init_coercion_handler (void)
   if (err == noErr)
     err = AEInstallCoercionHandler (typeWildCard, TYPE_FILE_NAME,
 				    coerce_file_name_descUPP, 0, true, false);
+#pragma clang diagnostic pop
   return err;
 }
 
