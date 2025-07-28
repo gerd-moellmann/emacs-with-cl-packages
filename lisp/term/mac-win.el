@@ -2888,6 +2888,24 @@ visibility, then remap this command to `mac-previous-tab'."
   (mac-send-action 'arrangeInFront))
 
 
+;;; Windows
+(defun mac-toggle-frame-fullscreen (&optional frame)
+  "Toggle native macOS fullscreen state of FRAME.
+This works like `toggle-frame-fullscreen', except it uses native
+space-based full screen, by setting the `fullscreen' frame parameter to
+`fullscreen'."
+  (interactive)
+  (let ((fullscreen (frame-parameter frame 'fullscreen)))
+    (if (memq fullscreen '(fullscreen fullboth))
+	(let ((fullscreen-restore (frame-parameter frame 'fullscreen-restore)))
+	  (if (memq fullscreen-restore '(maximized fullheight fullwidth))
+	      (set-frame-parameter frame 'fullscreen fullscreen-restore)
+	    (set-frame-parameter frame 'fullscreen nil)))
+      (modify-frame-parameters
+       frame `((fullscreen . fullscreen) (fullscreen-restore . ,fullscreen))))))
+
+(define-key global-map [remap toggle-frame-fullscreen] 'mac-toggle-frame-fullscreen)
+
 ;;; Window system initialization.
 
 (defun mac-win-suspend-error ()
