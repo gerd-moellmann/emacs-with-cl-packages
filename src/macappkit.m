@@ -1146,8 +1146,11 @@ static bool handling_queued_nsevents_p;
   if (err == noErr)
     {
       AEInitializeDesc (&reply);
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnonnull"
       [manager dispatchRawAppleEvent:&appleEvent withRawReply:&reply
 	       handlerRefCon:0];
+#pragma clang diagnostic pop
       AEDisposeDesc (&reply);
       AEDisposeDesc (&appleEvent);
     }
