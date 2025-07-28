@@ -10064,10 +10064,10 @@ mac_run_loop_run_once (EventTimeout timeout)
      Dock icon clicks (though it reacts to Command-Tab) if we directly
      run a run loop and the application windows are covered by other
      applications for a while.  */
-    mac_within_app (^{
-	[[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
-				 beforeDate:expiration];
-      });
+  mac_within_app (^{
+      [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
+			       beforeDate:expiration];
+    });
 
   if (timeout > 0)
     {
@@ -13986,6 +13986,9 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
     width = ceil (NSWidth (bounds)), height = ceil (NSHeight (bounds));
   else
     width = ceil (NSHeight (bounds)), height = ceil (NSWidth (bounds));
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wmisleading-indentation"
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101200
   if ([page respondsToSelector:@selector(drawWithBox:toContext:)])
 #endif
@@ -14013,6 +14016,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
       [NSGraphicsContext restoreGraphicsState];
     }
 #endif
+#pragma clang diagnostic pop
 }
 
 @end				// EmacsPDFDocument
