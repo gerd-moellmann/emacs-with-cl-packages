@@ -817,3 +817,5 @@ extern void rows_from_pos_range (struct window *, ptrdiff_t , ptrdiff_t,
 
 /* Defined in font.c */
 extern int font_unparse_fcname (Lisp_Object, int, char *, int);
+
+extern frame_parm_handler mac_frame_parm_handlers[];
