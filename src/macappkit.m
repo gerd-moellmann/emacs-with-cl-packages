@@ -109,10 +109,10 @@ enum {
   (@"NSTouchBarItemIdentifierCandidateList")
 #endif
 
-static void mac_within_gui_and_here (void (^ CF_NOESCAPE) (void),
-				     void (^ CF_NOESCAPE) (void));
-static void mac_within_gui_allowing_inner_lisp (void (^ CF_NOESCAPE) (void));
-static void mac_within_lisp (void (^ CF_NOESCAPE) (void));
+static void mac_within_gui_and_here (void (^) (void),
+				     void (^) (void));
+static void mac_within_gui_allowing_inner_lisp (void (^) (void));
+static void mac_within_lisp (void (^) (void));
 static void mac_within_lisp_deferred_unless_popup (void (^) (void));
 
 #define MAC_SELECT_ALLOW_LISP_EVALUATION 1
@@ -901,7 +901,7 @@ has_notch_support_p (void)
 
 #if MAC_USE_AUTORELEASE_LOOP
 void
-mac_autorelease_loop (Lisp_Object (CF_NOESCAPE ^body) (void))
+mac_autorelease_loop (Lisp_Object (^body) (void))
 {
   Lisp_Object val;
 
@@ -16638,7 +16638,7 @@ mac_gui_loop_once (void)
    they are retained for non-ARC environments.  */
 
 void
-mac_within_gui (void (^ CF_NOESCAPE block) (void))
+mac_within_gui (void (^block) (void))
 {
   mac_within_gui_and_here (block, NULL);
 }
@@ -16649,8 +16649,8 @@ mac_within_gui (void (^ CF_NOESCAPE block) (void))
    returns when the both executions has finished.  */
 
 static void
-mac_within_gui_and_here (void (^ CF_NOESCAPE block_gui) (void),
-			 void (^ CF_NOESCAPE block_here) (void))
+mac_within_gui_and_here (void (^block_gui) (void),
+			 void (^block_here) (void))
 {
   eassert (!pthread_main_np ());
   eassert (mac_gui_queue.count <= 1);
@@ -16685,7 +16685,7 @@ mac_within_gui_and_here (void (^ CF_NOESCAPE block_gui) (void),
    must not be the GUI thread.  */
 
 static void
-mac_within_gui_allowing_inner_lisp (void (^ CF_NOESCAPE block) (void))
+mac_within_gui_allowing_inner_lisp (void (^block) (void))
 {
   eassert (!pthread_main_np ());
   bool __block completed_p = false;
@@ -16711,7 +16711,7 @@ mac_within_gui_allowing_inner_lisp (void (^ CF_NOESCAPE block) (void))
    etc. in the context of BLOCK.  */
 
 static void
-mac_within_lisp (void (^ CF_NOESCAPE block) (void))
+mac_within_lisp (void (^block) (void))
 {
   eassert (pthread_main_np ());
   eassert (mac_lisp_queue.count == 0);

@@ -138,7 +138,7 @@ mac_string_to_four_char_code (Lisp_Object string, FourCharCode *code)
 
 static bool
 mac_foreach_window_1 (struct window *w,
-		      bool (CF_NOESCAPE ^block) (struct window *))
+		      bool (^block) (struct window *))
 {
   bool cont;
 
@@ -161,7 +161,7 @@ mac_foreach_window_1 (struct window *w,
 
 void
 mac_foreach_window (struct frame *f,
-		    bool (CF_NOESCAPE ^block) (struct window *))
+		    bool (^block) (struct window *))
 {
   AUTO_LIST2 (rest, f->tool_bar_window, f->tab_bar_window);
 
@@ -196,7 +196,7 @@ mac_map_keymap_function (Lisp_Object key, Lisp_Object val,
 
 void
 mac_map_keymap (Lisp_Object map, bool autoload,
-		void (CF_NOESCAPE ^block) (Lisp_Object key, Lisp_Object val))
+		void (^block) (Lisp_Object key, Lisp_Object val))
 {
   map_keymap (map, mac_map_keymap_function, Qnil, block, autoload);
 }

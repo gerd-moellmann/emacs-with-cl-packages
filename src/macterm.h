@@ -563,9 +563,9 @@ extern struct mac_operating_system_version
 extern Lisp_Object mac_four_char_code_to_string (FourCharCode);
 extern bool mac_string_to_four_char_code (Lisp_Object, FourCharCode *);
 extern void mac_foreach_window (struct frame *,
-				bool (CF_NOESCAPE ^) (struct window *));
+				bool (^) (struct window *));
 extern void mac_map_keymap (Lisp_Object, bool,
-			    void (CF_NOESCAPE ^) (Lisp_Object, Lisp_Object));
+			    void (^) (Lisp_Object, Lisp_Object));
 extern Lisp_Object mac_aedesc_to_lisp (const AEDesc *);
 extern OSErr mac_ae_put_lisp (AEDescList *, UInt32, Lisp_Object);
 extern OSErr create_apple_event_from_lisp (Lisp_Object, AppleEvent *);
@@ -753,7 +753,7 @@ extern void mac_update_accessibility_status (struct frame *);
 extern void mac_start_animation (Lisp_Object, Lisp_Object);
 extern CFTypeRef mac_sound_create (Lisp_Object, Lisp_Object);
 extern void mac_sound_play (CFTypeRef, Lisp_Object, Lisp_Object);
-extern void mac_within_gui (void (^ CF_NOESCAPE block) (void));
+extern void mac_within_gui (void (^block) (void));
 
 #if DRAWING_USE_GCD
 #define MAC_BEGIN_DRAW_TO_FRAME(f, gc, rect, context)			\
