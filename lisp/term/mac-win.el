@@ -94,7 +94,7 @@
 
 ;; Define the macos-specific Window menu and add it to the global menu-bar map
 (defvar-keymap mac-window-menu-map :name "Window")
-(bindings--define-key global-map [menu-bar window]
+(define-key global-map [menu-bar window]
   (cons "Window" mac-window-menu-map))
 
 
@@ -691,7 +691,7 @@ language."
 (defun mac-select-convert-to-pasteboard-filenames (selection type value)
   (setq value (or (and (stringp value) (get-text-property 0 'FILE_NAME value))
                   value))
-  (if-let ((filename (cdr (xselect-convert-to-filename selection type value))))
+  (if-let* ((filename (cdr (xselect-convert-to-filename selection type value))))
       (let* ((coding (or file-name-coding-system
                          default-file-name-coding-system))
              (filenames (vconcat (mapcar
@@ -702,7 +702,7 @@ language."
         (cons type (mac-convert-property-list `(array . ,filenames) 'xml1)))))
 
 (setq selection-converter-alist
-      (nconc
+      (append
        '((NSStringPboardType . mac-select-convert-to-string)
 	 (NSTIFFPboardType . nil)
 	 (NSFilenamesPboardType . mac-select-convert-to-pasteboard-filenames)
@@ -1685,7 +1685,7 @@ modifiers, it changes the global tool-bar visibility setting."
 (defun mac-handle-new-frame (_event)
   "Create a new frame and activate."
   (interactive "e")
-  (when-let ((frame (make-frame)))
+  (when-let* ((frame (make-frame)))
     (mac-send-action 'activate)
     (raise-frame frame)))
 
@@ -1974,7 +1974,7 @@ reference URLs of the form \"file:///.file/id=...\"."
   (let ((filename (mac-coerce-ae-data "furl" data 'undecoded-file-name)))
     (if filename
         (let ((file-url (mac-local-file-name-to-file-url filename)))
-          (dnd-handle-one-url window action file-url)))))
+          (dnd-handle-multiple-urls window (list file-url) action)))))
 
 (defun mac-dnd-insert-TIFF (window action data)
   (dnd-insert-text window action (mac-TIFF-to-string data)))
@@ -2626,7 +2626,7 @@ tapped window."
 (defun mac-simulate-pinch-event (event)
   "Convert EVENT to a pinch event and unread it."
   (interactive "e")
-  (when-let ((phase (plist-get (nth 3 event) :phase)))
+  (when-let* ((phase (plist-get (nth 3 event) :phase)))
     (let ((magnification (plist-get (nth 3 event) :magnification))
           (modifiers (event-modifiers event))
           (type-strings '("pinch"))
