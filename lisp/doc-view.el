@@ -1344,7 +1344,7 @@ The test is performed using `doc-view-pdfdraw-program'."
                                     (expand-file-name
                                      doc-view-epub-user-stylesheet)))))))
     (doc-view-multiplex-conversion
-     (lambda (png callback &optional resolution)
+     (lambda (_png callback &optional resolution)
        (doc-view-start-process
         "pdf->png" doc-view-pdfdraw-program
         `(,@(doc-view-pdfdraw-program-subcommand)
