@@ -392,5 +392,5 @@ exec/config.h.in
 exec/config-mips.m4
 exec/configure
 exec/*.s.s
-/carbon/
+/carbon/Emacs.app
 /mac/Emacs.app/Contents/MacOS/libexec/
