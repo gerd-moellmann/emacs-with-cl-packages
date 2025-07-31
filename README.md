@@ -129,10 +129,10 @@ early version.
 
 ## Emacs Mac Pprt
 
-This branch is merged with https://github.com/jdtsmith/emacs-mac. It
-builds and runs the mac port, but only without igc. IOW, igc has not
-been ported to the mac front end. I have no concrete plans if or when
-to port igc to mac.
+The branch `cl-packages-mac` is merged with
+https://github.com/jdtsmith/emacs-mac. It builds and runs the mac port,
+but only without igc. IOW, igc has not been ported to the mac front
+end. I have no concrete plans if or when to port igc to mac.
 
 It builds NS as before, with and without igc.
 
