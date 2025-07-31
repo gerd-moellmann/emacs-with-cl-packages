@@ -99,9 +99,9 @@ static struct bstree_node **
 bstree_find (struct bstree_node **bstree, Lisp_Object obj)
 {
   while (*bstree)
-    if (XHASH (obj) < XHASH ((*bstree)->obj))
+    if (sxhash (obj) < sxhash ((*bstree)->obj))
       bstree = &(*bstree)->left;
-    else if (XHASH (obj) > XHASH ((*bstree)->obj))
+    else if (sxhash (obj) > sxhash ((*bstree)->obj))
       bstree = &(*bstree)->right;
     else
       break;
