@@ -2685,7 +2685,7 @@ fix_xwidget (mps_ss_t ss, struct xwidget *w)
   MPS_SCAN_BEGIN (ss)
   {
     IGC_FIX_CALL_FN (ss, struct Lisp_Vector, w, fix_vectorlike);
-# if defined (NS_IMPL_COCOA)
+# if defined (HAVE_MACGUI) || defined (NS_IMPL_COCOA)
     IGC_FIX12_PVEC (ss, &w->xv);
 # elif defined USE_GTK
     IGC_FIX12_PVEC (ss, &w->embedder);
