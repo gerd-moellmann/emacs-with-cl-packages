@@ -928,6 +928,7 @@ was inserted."
       (setq data-p (intern (format "image/%s"
                                    (file-name-extension filename)))))
     (setq type (if (featurep 'mac)
+                   (declare-function imagemagick-types "image.c")
                    (let ((image-type (image-type file-or-data nil data-p)))
                      (if (and (image--imagemagick-wanted-p filename)
                               (memq (intern (upcase (symbol-name image-type)))

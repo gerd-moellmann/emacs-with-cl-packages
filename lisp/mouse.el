@@ -32,6 +32,8 @@
 (eval-when-compile (require 'rect))
 (eval-when-compile (require 'send-to))
 
+(declare-function mac-mouse-context-menu "mac-win")
+
 ;; Indent track-mouse like progn.
 (put 'track-mouse 'lisp-indent-function 0)
 
