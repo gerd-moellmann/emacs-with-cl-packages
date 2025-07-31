@@ -92,10 +92,9 @@
 (defvar mac-frame-tabbing)
 
 
-;; Define the macos-specific Window menu and add it to the global menu-bar map
+;; Define the macOS-specific Window menu and add it to the global menu-bar map
 (defvar-keymap mac-window-menu-map :name "Window")
-(bindings--define-key global-map [menu-bar window]
-  (cons "Window" mac-window-menu-map))
+(define-key global-map [menu-bar window] (cons "Window" mac-window-menu-map))
 
 
 ;;
