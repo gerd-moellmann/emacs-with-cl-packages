@@ -803,7 +803,7 @@ hash_native_abi (void)
 
   Lisp_Object version = Vemacs_version;
 
-#ifdef NS_SELF_CONTAINED
+#if defined MAC_SELF_CONTAINED || defined NS_SELF_CONTAINED
   /* MacOS self contained app bundles do not like having dots in the
      directory names under the Contents/Frameworks directory, so
      convert them to underscores.  */

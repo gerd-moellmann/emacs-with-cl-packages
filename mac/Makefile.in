@@ -1,0 +1,98 @@
+### mac/Makefile for GNU Emacs Mac port
+
+## Copyright (C) 2012-2025  YAMAMOTO Mitsuharu
+
+## This file is part of GNU Emacs Mac port.
+
+## GNU Emacs Mac port is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+
+## GNU Emacs Mac port is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+
+## You should have received a copy of the GNU General Public License
+## along with GNU Emacs Mac port.  If not, see <http://www.gnu.org/licenses/>.
+
+### Commentary:
+
+### Code:
+SHELL = /bin/sh
+
+srcdir = @srcdir@
+EXEEXT = @EXEEXT@
+DUMPING = @DUMPING@
+
+MKDIR_P = @MKDIR_P@
+
+configuration=@configuration@
+mac_self_contained=@mac_self_contained@
+
+ifeq ($(DUMPING),pdumper)
+ifeq (${mac_self_contained},no)
+bundle_pdmp := Emacs.app/Contents/MacOS/Emacs.pdmp
+else
+bundle_pdmp := Emacs.app/Contents/MacOS/libexec/${configuration}/Emacs.pdmp
+endif
+else
+bundle_pdmp :=
+endif
+
+lprojs = English Dutch French German Italian Japanese Spanish \
+  ar ca cs da el en_AU en_GB es_419 es_MX fi fr_CA he hi hr hu id ko ms no \
+  pl pt pt_BR pt_PT ro ru sk sv th tr uk vi zh_CN zh_HK zh_TW
+lprojdirs = $(patsubst %,Emacs.app/Contents/Resources/%.lproj,${lprojs})
+
+${lprojdirs}:
+	${MKDIR_P} $@
+
+ifneq ($(CURDIR), $(realpath ${srcdir}))
+Emacs.app/Contents/MacOS/Emacs.sh: ${srcdir}/Emacs.app/Contents/MacOS/Emacs.sh
+	${MKDIR_P} Emacs.app/Contents/MacOS
+	cp $< $@
+Emacs.app/Contents/PkgInfo: ${srcdir}/Emacs.app/Contents/PkgInfo
+	cp $< $@
+Emacs.app/Contents/Resources/Emacs.icns: ${srcdir}/Emacs.app/Contents/Resources/Emacs.icns
+	${MKDIR_P} Emacs.app/Contents/Resources
+	cp $< $@
+Emacs.app/Contents/Resources/document.icns: ${srcdir}/Emacs.app/Contents/Resources/document.icns
+	${MKDIR_P} Emacs.app/Contents/Resources
+	cp $< $@
+endif
+
+macosx-bundle: ${lprojdirs} Emacs.app/Contents/MacOS/Emacs.sh \
+	Emacs.app/Contents/PkgInfo Emacs.app/Contents/Resources/Emacs.icns \
+	Emacs.app/Contents/Resources/document.icns
+macosx-app: macosx-bundle Emacs.app/Contents/MacOS/Emacs $(bundle_pdmp)
+Emacs.app/Contents/MacOS/Emacs: ../src/emacs${EXEEXT}
+	${MKDIR_P} Emacs.app/Contents/MacOS
+	rm -f $@
+	cp $< $@
+ifeq ($(DUMPING),pdumper)
+$(bundle_pdmp): ../src/emacs${EXEEXT}.pdmp
+	${MKDIR_P} $(dir $@)
+	cp $< $@
+endif
+
+.PHONY: all
+
+all: macosx-app
+
+
+.PHONY: clean distclean bootstrap-clean maintainer-clean
+
+clean:
+	rm -rf ${lprojdirs}
+	rm -f Emacs.app/Contents/MacOS/Emacs $(bundle_pdmp)
+
+distclean: clean
+	rm -f Makefile
+	rm -f Emacs.app/Contents/Info.plist \
+	  Emacs.app/Contents/Resources/English.lproj/InfoPlist.strings
+
+bootstrap-clean maintainer-clean: distclean
+
+### Makefile.in ends here

@@ -29,6 +29,9 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "blockinput.h"
 #include "systime.h"
 #include "process.h"
+#ifdef HAVE_MACGUI
+#include "macterm.h"
+#endif
 
 static ptrdiff_t threads_holding_glib_lock;
 static GMainContext *glib_main_context;
@@ -181,7 +184,13 @@ xg_select (int fds_lim, fd_set *rfds, fd_set *wfds, fd_set *efds,
 
 #ifndef USE_GTK
   fds_lim = max_fds + 1;
-  nfds = thread_select (pselect, fds_lim,
+  nfds =
+#ifdef HAVE_MACGUI
+	 mac_select (
+#else
+	 thread_select (pselect,
+#endif
+			fds_lim,
 			&all_rfds, have_wfds ? &all_wfds : NULL, efds,
 			tmop, sigmask);
 #else

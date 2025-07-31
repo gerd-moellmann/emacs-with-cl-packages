@@ -221,7 +221,8 @@ Appendices
 * Emacs Invocation::    Hairy startup options.
 * X Resources::         X resources for customizing Emacs.
 * Antinews::            Information about Emacs version 29.
-* Mac OS / GNUstep::     Using Emacs under macOS and GNUstep.
+* Mac Port::            Using Emacs and macOS with the Mac port.
+* Mac OS / GNUstep::    Using Emacs under macOS and GNUstep.
 * Haiku::               Using Emacs on Haiku.
 * Android::             Using Emacs on Android.
 * Microsoft Windows::   Using Emacs on Microsoft Windows and MS-DOS.
@@ -1268,6 +1269,16 @@ GTK resources
 * GTK Names in Emacs::    GTK+ widgets used by Emacs.
 * GTK styles::            What can be customized in a GTK+ widget.
 
+Emacs and macOS with the Mac port
+
+* Mac Invocation::        Invocation of Emacs Mac port.
+* Mac Input::             Keyboard and mouse input on the Mac port.
+* Mac Fonts::             Specifying fonts on the Mac port.
+* Mac Images::            Image support on the Mac port.
+* Mac Colors::            Colors on the Mac port.
+* Mac Fullscreen::        Fullscreen support on the Mac port.
+* Mac Functions::         Lisp functions specific to the Mac port.
+
 Emacs and macOS / GNUstep
 
 * Mac / GNUstep Basics::        Basic Emacs usage under GNUstep or macOS.
@@ -1661,6 +1672,7 @@ Lisp programming.
 @include xresources.texi
 
 @include anti.texi
+@include macport.texi
 @include macos.texi
 @include haiku.texi
 @include android.texi

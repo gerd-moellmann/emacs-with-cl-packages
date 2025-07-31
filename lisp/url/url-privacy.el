@@ -54,6 +54,7 @@
 	 (t
 	  (pcase (or window-system 'tty)
 	    ('x "X11")
+            ('mac "Mac")
 	    ('ns "OpenStep")
             ('pgtk "PureGTK")
 	    ('tty "TTY")

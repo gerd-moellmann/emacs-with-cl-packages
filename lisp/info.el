@@ -682,7 +682,7 @@ in `Info-file-supports-index-cookies-list'."
   (let* ((config-dir
 	  (file-name-as-directory
 	   ;; Self-contained NS build with info/ in the app-bundle.
-	   (or (and (featurep 'ns)
+	   (or (and (or (featurep 'ns) (featurep 'mac))
 		    (let ((dir (expand-file-name "../info" data-directory)))
 		      (if (file-directory-p dir) dir)))
 	       configure-info-directory)))
@@ -770,7 +770,7 @@ in `Info-file-supports-index-cookies-list'."
       ;; but there's no way to get it at the head of Info-directory-list
       ;; except by doing it here.
       (and path
-	   (featurep 'ns)
+	   (or (featurep 'ns) (featurep 'mac))
 	   (let ((dir (expand-file-name "../info" data-directory)))
 	     (and (file-directory-p dir)
 		  (not (member dir (split-string path ":" t)))

@@ -238,7 +238,7 @@ options through Custom does this automatically."
      t t ""]
     ["\\.xz\\'"
      ;; On MacOS, gzip can uncompress xz files.
-     "XZ compressing" ,(if (featurep 'ns) "gzip" "xz") ("-c" "-q")
+     "XZ compressing" ,(if (or (featurep 'mac) (featurep 'ns)) "gzip" "xz") ("-c" "-q")
      "XZ uncompressing"   "xz"           ("-c" "-q" "-d")
      t t "\3757zXZ\0"]
     ["\\.txz\\'"

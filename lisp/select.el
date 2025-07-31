@@ -220,40 +220,46 @@ text/plain\\;charset=utf-8)."
                       (const text/plain\;charset=utf-8)))
   :group 'killing)
 
+(declare-function mac-selection-value-internal "term/mac-win" (type))
+(declare-function mac-pasteboard-string-to-string "term/mac-win"
+                  (data &optional coding-system))
+
 (defun gui--selection-value-internal (type)
   "Get a selection value of type TYPE.
 Call `gui-get-selection' with an appropriate DATA-TYPE argument
 decided by `x-select-request-type'.  The return value is already
 decoded.  If `gui-get-selection' signals an error, return nil."
-  ;; The doc string of `interprogram-paste-function' says to return
-  ;; nil if no other program has provided text to paste.
-  (unless (and gui-last-cut-in-clipboard
-               ;; `gui-backend-selection-owner-p' might be unreliable on
-               ;; some other window systems.
-               (memq window-system '(x haiku))
-               (eq type 'CLIPBOARD)
-               ;; Should we unify this with gui--clipboard-selection-unchanged-p?
-               (gui-backend-selection-owner-p type))
-    (let ((request-type (if (memq window-system '(x pgtk haiku))
-                            (or x-select-request-type
-                                '(UTF8_STRING COMPOUND_TEXT STRING text/plain\;charset=utf-8))
-                          'STRING))
-	  text)
-      (with-demoted-errors "gui-get-selection: %S"
-        (if (consp request-type)
-            (while (and request-type (not text))
-              (setq text (gui-get-selection type (car request-type)))
-              (setq request-type (cdr request-type)))
-          (setq text (gui-get-selection type request-type))))
-      (if text
-	  (remove-text-properties 0 (length text) '(foreign-selection nil) text))
-      text)))
+  (if (eq window-system 'mac)
+      (mac-selection-value-internal type)
+    ;; The doc string of `interprogram-paste-function' says to return
+    ;; nil if no other program has provided text to paste.
+    (unless (and gui-last-cut-in-clipboard
+                 ;; `gui-backend-selection-owner-p' might be unreliable on
+                 ;; some other window systems.
+                 (memq window-system '(x haiku))
+                 (eq type 'CLIPBOARD)
+                 ;; Should we unify this with gui--clipboard-selection-unchanged-p?
+                 (gui-backend-selection-owner-p type))
+      (let ((request-type (if (memq window-system '(x pgtk haiku))
+                              (or x-select-request-type
+                                  '(UTF8_STRING COMPOUND_TEXT STRING text/plain\;charset=utf-8))
+                            'STRING))
+	    text)
+        (with-demoted-errors "gui-get-selection: %S"
+          (if (consp request-type)
+              (while (and request-type (not text))
+                (setq text (gui-get-selection type (car request-type)))
+                (setq request-type (cdr request-type)))
+            (setq text (gui-get-selection type request-type))))
+        (if text
+	    (remove-text-properties 0 (length text) '(foreign-selection nil) text))
+        text))))
 
 (defun gui-selection-value ()
   (let ((clip-text
          (when select-enable-clipboard
            (let ((text (gui--selection-value-internal 'CLIPBOARD)))
-             (when (string= text "")
+             (when (equal text "")
                (setq text nil))
              ;; Check the CLIPBOARD selection for 'newness', i.e.,
              ;; whether it is different from the last time we did a
@@ -277,7 +283,7 @@ decoded.  If `gui-get-selection' signals an error, return nil."
         (primary-text
          (when select-enable-primary
            (let ((text (gui--selection-value-internal 'PRIMARY)))
-             (if (string= text "") (setq text nil))
+             (if (equal text "") (setq text nil))
              ;; Check the PRIMARY selection for 'newness', is it different
              ;; from what we remembered them to be last time we did a
              ;; cut/paste operation.
@@ -304,8 +310,13 @@ decoded.  If `gui-get-selection' signals an error, return nil."
     ;; way to know what the 'correct' value to return is.  The nice
     ;; thing to do would be to tell the user we saw multiple possible
     ;; selections and ask the user which was the one they wanted.
-    (or clip-text primary-text)
-    ))
+    (let ((selection-value (or clip-text primary-text)))
+      ;; If the selection-value contains multiple items, we need to
+      ;; protect the saved gui-last-selected-text-clipboard/primary
+      ;; from caller's nreverse.
+      (if (listp selection-value)
+          (setq selection-value (copy-sequence selection-value)))
+      selection-value)))
 
 (define-obsolete-function-alias 'x-selection-value 'gui-selection-value "25.1")
 
@@ -388,29 +399,35 @@ which reports the formats available in the clipboard if TYPE is `CLIPBOARD'."
                ;; be decoded -- otherwise it has already been decoded
                ;; by the lower level functions.
                (get-text-property 0 'foreign-selection data))
-      (let ((coding (or next-selection-coding-system
-                        selection-coding-system
-                        (pcase data-type
-                          ('UTF8_STRING 'utf-8)
-                          ('text/plain\;charset=utf-8 'utf-8)
-                          ('COMPOUND_TEXT 'compound-text-with-extensions)
-                          ('C_STRING nil)
-                          ('STRING 'iso-8859-1)))))
-        (setq data
-              (cond (coding (decode-coding-string data coding))
-                     ;; We want to convert each non-ASCII byte to the
-                     ;; corresponding eight-bit character, which has
-                     ;; a codepoint >= #x3FFF00.
-                    ((eq data-type 'C_STRING)
-                     (string-to-multibyte data))
-                    ;; Guess at the charset for types like text/html
-                    ;; -- it can be anything, and different
-                    ;; applications use different encodings.
-                    ((string-match-p "\\`text/" (symbol-name data-type))
-                     (decode-coding-string
-                      data (car (detect-coding-string data))))
-                    ;; Do nothing.
-                    (t data))))
+      (if (eq window-system 'mac)
+          (let ((coding (or next-selection-coding-system
+                            selection-coding-system)))
+            (if (eq (get-text-property 0 'foreign-selection data)
+                    'NSStringPboardType)
+                (setq data (mac-pasteboard-string-to-string data coding))))
+        (let ((coding (or next-selection-coding-system
+                          selection-coding-system
+                          (pcase data-type
+                            ('UTF8_STRING 'utf-8)
+                            ('text/plain\;charset=utf-8 'utf-8)
+                            ('COMPOUND_TEXT 'compound-text-with-extensions)
+                            ('C_STRING nil)
+                            ('STRING 'iso-8859-1)))))
+          (setq data
+                (cond (coding (decode-coding-string data coding))
+                      ;; We want to convert each non-ASCII byte to the
+                      ;; corresponding eight-bit character, which has
+                      ;; a codepoint >= #x3FFF00.
+                      ((eq data-type 'C_STRING)
+                       (string-to-multibyte data))
+                      ;; Guess at the charset for types like text/html
+                      ;; -- it can be anything, and different
+                      ;; applications use different encodings.
+                      ((string-match-p "\\`text/" (symbol-name data-type))
+                       (decode-coding-string
+                        data (car (detect-coding-string data))))
+                      ;; Do nothing.
+                      (t data)))))
       (setq next-selection-coding-system nil)
       (put-text-property 0 (length data) 'foreign-selection data-type data))
     data))
@@ -698,7 +715,7 @@ two markers or an overlay.  Otherwise, it is nil."
 
 (defun xselect-convert-to-targets (selection _type value)
   ;; Return a vector of atoms, but remove duplicates first.
-  (if (eq selection 'XdndSelection)
+  (if (and (eq selection 'XdndSelection) (not (eq window-system 'mac)))
       ;; This isn't required by the XDND protocol, and sure enough no
       ;; clients seem to dependent on it, but Emacs implements the
       ;; receiver side of the Motif drop protocol by looking at the

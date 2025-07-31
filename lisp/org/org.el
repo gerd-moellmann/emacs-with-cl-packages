@@ -16212,6 +16212,10 @@ fragments in the buffer."
       (org--latex-preview-region beg end)
       (message "Creating LaTeX previews in section... done.")))))
 
+(declare-function mac-possibly-use-high-resolution-monitors-p
+		  "term/mac-win" ())
+(declare-function mac-high-resolution-image-file-name
+		  "term/mac-win" (filename &optional scale))
 (defun org-format-latex
     (prefix &optional beg end dir overlays msg forbuffer processing-type)
   "Replace LaTeX fragments with links to an image.
@@ -16306,6 +16310,11 @@ Some of the options can be changed using the variable
 			 (absprefix (expand-file-name prefix dir))
 			 (linkfile (format "%s_%s.%s" prefix hash imagetype))
 			 (movefile (format "%s_%s.%s" absprefix hash imagetype))
+			 (move2xfile
+			  (and (fboundp 'mac-high-resolution-image-file-name)
+			       (not (string= imagetype "svg"))
+			       (mac-possibly-use-high-resolution-monitors-p)
+			       (mac-high-resolution-image-file-name movefile)))
 			 (sep (and block-type "\n\n"))
 			 (link (concat sep "[[file:" linkfile "]]" sep))
 			 (options
@@ -16318,7 +16327,12 @@ Some of the options can be changed using the variable
 		      (let ((todir (file-name-directory absprefix)))
 			(unless (file-directory-p todir)
 			  (make-directory todir t))))
-		    (unless (file-exists-p movefile)
+		    (unless (and (file-exists-p movefile)
+				 (or (null move2xfile)
+				     (file-exists-p move2xfile)))
+		      (if move2xfile
+			  (setq options
+				(plist-put options :to2xfile move2xfile)))
 		      (org-create-formula-image
 		       value movefile options forbuffer processing-type))
                     (org-place-formula-image link block-type beg end value overlays movefile imagetype)))
@@ -16516,6 +16530,7 @@ a HTML file."
           (or (and (string= bg "Transparent")
                    (plist-get processing-info :transparent-image-converter))
               (plist-get processing-info :image-converter)))
+	 (to2xfile (plist-get options :to2xfile))
          (log-buf (get-buffer-create "*Org Preview LaTeX Output*"))
 	 (resize-mini-windows nil)) ;Fix Emacs flicker when creating image.
     (dolist (program programs)
@@ -16553,8 +16568,17 @@ a HTML file."
 	    (org-compile-file
 	     image-input-file image-converter image-output-type err-msg log-buf
 	     `((?D . ,(shell-quote-argument (format "%s" dpi)))
-	       (?S . ,(shell-quote-argument (format "%s" (/ dpi 140.0))))))))
+	       (?S . ,(shell-quote-argument (format "%s" (/ dpi 140.0)))))))
+	   (image-output-2x-file
+	    (and
+	     to2xfile
+	     (org-compile-file
+	      image-input-file image-converter image-output-type err-msg log-buf
+	      `((?D . ,(shell-quote-argument (format "%s" (* dpi 2))))
+		(?S . ,(shell-quote-argument (format "%s" (/ dpi 140.0)))))))))
       (copy-file image-output-file tofile 'replace)
+      (if to2xfile
+	  (copy-file image-output-2x-file to2xfile 'replace))
       (dolist (e post-clean)
 	(when (file-exists-p (concat texfilebase e))
 	  (delete-file (concat texfilebase e))))

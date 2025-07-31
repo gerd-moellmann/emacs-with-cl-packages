@@ -478,6 +478,8 @@ return values.  */)
       return Qw32;
     case output_msdos_raw:
       return Qpc;
+    case output_mac:
+      return Qmac;
     case output_ns:
       return Qns;
     case output_pgtk:

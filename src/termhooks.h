@@ -61,6 +61,7 @@ enum output_method
   output_x_window,
   output_msdos_raw,
   output_w32,
+  output_mac,
   output_ns,
   output_pgtk,
   output_haiku,
@@ -244,6 +245,16 @@ enum event_kind
   /* Queued from XTread_socket when session manager sends
      save yourself before shutdown. */
   SAVE_SESSION_EVENT
+
+#ifdef HAVE_MACGUI
+  /* Generated when an Apple event, a HICommand event, or a Services
+     menu event is received and the corresponding handler is
+     registered.  Members `x' and `y' are for the event class and ID
+     symbols, respectively.  Member `arg' is a Lisp object converted
+     from the received Apple event.  Parameters for non-Apple events
+     are converted to those in Apple events.  */
+  , MAC_APPLE_EVENT
+#endif
 
 #ifdef HAVE_DBUS
   , DBUS_EVENT
@@ -485,12 +496,21 @@ struct terminal
   /* This is an association list containing the X selections that
      Emacs might own on this terminal.  Each element has the form
        (SELECTION-NAME SELECTION-VALUE SELECTION-TIMESTAMP FRAME)
+     In the Mac port, each element has the form
+       (SELECTION-NAME SELECTION-VALUE SELECTION-TIMESTAMP FRAME OWNERSHIP-INFO)
      SELECTION-NAME is a lisp symbol, whose name is the name of an X Atom.
      SELECTION-VALUE is the value that emacs owns for that selection.
       It may be any kind of Lisp object.
      SELECTION-TIMESTAMP is the time at which emacs began owning this
       selection, as a cons of two 16-bit numbers (making a 32 bit
       time.)
+     OWNERSHIP-INFO is a value saved when emacs owns for that selection.
+      If another application takes the ownership of that selection
+      later, then newly examined ownership info value should be
+      different from the saved one.
+     If there is an entry in this alist, the current ownership info for
+      the selection coincides with OWNERSHIP-INFO, then it can be
+      assumed that Emacs owns that selection.
      FRAME is the frame for which we made the selection.  If there is
       an entry in this alist, then it can be assumed that Emacs owns
       that selection.
@@ -532,6 +552,7 @@ struct terminal
     struct tty_display_info *tty;		/* termchar.h */
     struct x_display_info *x;			/* xterm.h */
     struct w32_display_info *w32;		/* w32term.h */
+    struct mac_display_info *mac;		/* macterm.h */
     struct ns_display_info *ns;			/* nsterm.h */
     struct pgtk_display_info *pgtk;		/* pgtkterm.h */
     struct haiku_display_info *haiku;		/* haikuterm.h */
@@ -609,7 +630,7 @@ struct terminal
      BGCOLOR.  */
   void (*query_frame_background_color) (struct frame *f, Emacs_Color *bgcolor);
 
-#if defined (HAVE_X_WINDOWS) || defined (HAVE_NTGUI) || defined (HAVE_PGTK) \
+#if defined (HAVE_X_WINDOWS) || defined (HAVE_NTGUI) || defined (HAVE_MACGUI) || defined (HAVE_PGTK) \
   || defined (HAVE_ANDROID)
   /* On frame F, translate pixel colors to RGB values for the NCOLORS
      colors in COLORS.  Use cached information, if available.  */
@@ -936,6 +957,9 @@ extern struct terminal *terminal_list;
 #elif defined (HAVE_NTGUI)
 #define TERMINAL_FONT_CACHE(t)						\
   (t->type == output_w32 ? t->display_info.w32->name_list_element : Qnil)
+#elif defined HAVE_MACGUI
+#define TERMINAL_FONT_CACHE(t)						\
+  (t->type == output_mac ? t->display_info.mac->name_list_element : Qnil)
 #elif defined (HAVE_NS)
 #define TERMINAL_FONT_CACHE(t)						\
   (t->type == output_ns ? t->display_info.ns->name_list_element : Qnil)

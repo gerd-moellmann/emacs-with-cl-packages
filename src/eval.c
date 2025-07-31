@@ -1921,6 +1921,12 @@ static bool maybe_call_debugger (Lisp_Object conditions, Lisp_Object error);
 static void
 process_quit_flag (void)
 {
+#ifdef HAVE_MACGUI
+  /* Don't process quit flag in the GUI thread, especially when called
+     from maybe_quit.  */
+  if (mac_gui_thread_p ())
+    return;
+#endif
   Lisp_Object flag = Vquit_flag;
   Vquit_flag = Qnil;
   if (EQ (flag, Qkill_emacs))
@@ -3289,8 +3295,13 @@ safe_eval (Lisp_Object sexp)
 /* Apply a C subroutine SUBR to the NUMARGS evaluated arguments in ARG_VECTOR
    and return the result of evaluation.  */
 
+#ifndef HAVE_MACGUI
 Lisp_Object
 funcall_subr (struct Lisp_Subr *subr, ptrdiff_t numargs, Lisp_Object *args)
+#else
+static Lisp_Object
+funcall_subr_1 (struct Lisp_Subr *subr, ptrdiff_t numargs, Lisp_Object *args)
+#endif
 {
   eassume (numargs >= 0);
   if (numargs >= subr->min_args)
@@ -3349,6 +3360,30 @@ funcall_subr (struct Lisp_Subr *subr, ptrdiff_t numargs, Lisp_Object *args)
   else
     xsignal2 (Qwrong_number_of_arguments, fun, make_fixnum (numargs));
 }
+
+#ifdef HAVE_MACGUI
+Lisp_Object
+funcall_subr (struct Lisp_Subr *subr, ptrdiff_t numargs, Lisp_Object *args)
+{
+#if MAC_USE_AUTORELEASE_LOOP
+  Lisp_Object __block result;
+
+  mac_autorelease_loop (^{
+      result = funcall_subr_1 (subr, numargs, args);
+
+      return Qnil;
+    });
+#else
+  Lisp_Object result;
+  void *pool = mac_alloc_autorelease_pool ();
+
+  result = funcall_subr_1 (subr, numargs, args);
+  mac_release_autorelease_pool (pool);
+#endif
+
+  return result;
+}
+#endif
 
 static Lisp_Object
 apply_lambda (Lisp_Object fun, Lisp_Object args, specpdl_ref count)

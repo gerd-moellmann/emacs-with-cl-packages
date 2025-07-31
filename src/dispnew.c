@@ -813,7 +813,7 @@ clear_current_matrices (register struct frame *f)
     clear_glyph_matrix (XWINDOW (f->tab_bar_window)->current_matrix);
 #endif
 
-#if defined (HAVE_WINDOW_SYSTEM) && ! defined (HAVE_EXT_TOOL_BAR)
+#ifdef HAVE_INT_TOOL_BAR
   /* Clear the matrix of the tool-bar window, if any.  */
   if (WINDOWP (f->tool_bar_window))
     clear_glyph_matrix (XWINDOW (f->tool_bar_window)->current_matrix);
@@ -843,7 +843,7 @@ clear_desired_matrices (register struct frame *f)
     clear_glyph_matrix (XWINDOW (f->tab_bar_window)->desired_matrix);
 #endif
 
-#if defined (HAVE_WINDOW_SYSTEM) && ! defined (HAVE_EXT_TOOL_BAR)
+#ifdef HAVE_INT_TOOL_BAR
   if (WINDOWP (f->tool_bar_window))
     clear_glyph_matrix (XWINDOW (f->tool_bar_window)->desired_matrix);
 #endif
@@ -2279,7 +2279,7 @@ adjust_frame_glyphs_for_window_redisplay (struct frame *f)
   }
 #endif
 
-#if defined (HAVE_WINDOW_SYSTEM) && ! defined (HAVE_EXT_TOOL_BAR)
+#ifdef HAVE_INT_TOOL_BAR
   {
     /* Allocate/ reallocate matrices of the tool bar window.  If we
        don't have a tool bar window yet, make one.  */
@@ -2394,7 +2394,7 @@ free_glyphs (struct frame *f)
 	}
 #endif
 
-#if defined (HAVE_WINDOW_SYSTEM) && ! defined (HAVE_EXT_TOOL_BAR)
+#ifdef HAVE_INT_TOOL_BAR
       /* Free the tool bar window and its glyph matrices.  */
       if (!NILP (f->tool_bar_window))
 	{
@@ -7291,6 +7291,14 @@ init_display_interactive (void)
     }
 #endif /* HAVE_NTGUI */
 
+#ifdef HAVE_MACGUI
+  if (!inhibit_window_system)
+    {
+      Vinitial_window_system = Qmac;
+      return;
+    }
+#endif /* HAVE_MACGUI */
+
 #ifdef HAVE_NS
   if (!inhibit_window_system && !will_dump_p ())
     {
@@ -7515,6 +7523,7 @@ The value is a symbol:
  nil for a termcap frame (a character-only terminal),
  `x' for an Emacs frame that is really an X window,
  `w32' for an Emacs frame that is a window on MS-Windows display,
+ `mac' for an Emacs frame on a Mac display,
  `ns' for an Emacs frame on a GNUstep or Macintosh Cocoa display,
  `pc' for a direct-write MS-DOS frame.
  `pgtk' for an Emacs frame using pure GTK facilities.
@@ -7530,6 +7539,7 @@ The value is a symbol:
  nil for a termcap frame (a character-only terminal),
  `x' for an Emacs frame that is really an X window,
  `w32' for an Emacs frame that is a window on MS-Windows display,
+ `mac' for an Emacs frame on a Mac display,
  `ns' for an Emacs frame on a GNUstep or Macintosh Cocoa display,
  `pc' for a direct-write MS-DOS frame.
  `pgtk' for an Emacs frame using pure GTK facilities.

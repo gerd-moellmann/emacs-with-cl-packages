@@ -1,0 +1,14 @@
+* emacs-hires-icons-2.0 (2017-04-15)
+Update TIFF icons to the ones generated from adwaita-icon-theme 3.28.0.
+Add alpha-channeled splash.png.
+Add Emacs.icns and document.icns that was generated from emacs.svg and
+emacs-document.svg, respectively in GNU Emacs 25.1.
+
+
+* emacs-hires-icons-2.0 (2016-07-25)
+Update splash@2x.png to the one generated from splash.svg in Emacs 25.1.
+Update TIFF icons to the ones generated from adwaita-icon-theme 3.21.2.
+
+
+* emacs-hires-icons-1.0 (2014-04-14)
+Initial release

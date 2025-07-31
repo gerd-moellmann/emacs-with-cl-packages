@@ -1994,8 +1994,17 @@ a face or button specification."
 		(if (image-type-available-p 'xpm)
 		    "splash.xpm"
 		  "splash.pbm"))
-	       ((or (image-type-available-p 'svg)
-		    (image-type-available-p 'imagemagick))
+	       ((and
+		 ;; It takes time to setup WebKit for SVG images on
+		 ;; the first invocation of the Mac port.  We avoid it
+		 ;; for startup.
+		 (or (not (eq initial-window-system 'mac))
+		     (string-match "About" (buffer-name)))
+		 (or (image-type-available-p 'svg)
+		     (and
+		      ;; Genuine ImageMagick, not emulated by Image I/O.
+		      (boundp 'imagemagick-render-type)
+		      (image-type-available-p 'imagemagick))))
 		"splash.svg")
 	       ((image-type-available-p 'png)
 		"splash.png")

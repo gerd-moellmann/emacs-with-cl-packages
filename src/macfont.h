@@ -45,44 +45,40 @@ struct mac_glyph_layout
   CGGlyph glyph_id;
 };
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1080
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 101300
 enum {
-  kCTFontTraitItalic = kCTFontItalicTrait,
-  kCTFontTraitBold = kCTFontBoldTrait,
-  kCTFontTraitMonoSpace = kCTFontMonoSpaceTrait,
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
-  kCTFontTraitColorGlyphs = kCTFontColorGlyphsTrait
-#else
-  kCTFontTraitColorGlyphs = (1 << 13)
-#endif
-};
-
-enum {
-  kCTCharacterCollectionIdentityMapping = kCTIdentityMappingCharacterCollection,
-  kCTCharacterCollectionAdobeJapan1 = kCTAdobeJapan1CharacterCollection
-};
-
-enum {
-  kCTFontOrientationDefault = kCTFontDefaultOrientation
+  kCTFontTableSVG = 'SVG '
 };
 #endif
 
-#if USE_CT_GLYPH_INFO
-#define mac_font_get_glyph_for_cid mac_ctfont_get_glyph_for_cid
-#endif
+/* Values for `dir' argument to shaper functions.  */
+enum lgstring_direction
+  {
+    DIR_R2L = -1, DIR_UNKNOWN = 0, DIR_L2R = 1,
+  };
 
-#ifndef kCTVersionNumber10_9
-#define kCTVersionNumber10_9 0x00060000
-#endif
 #define MAC_FONT_CHARACTER_SET_STRING_ATTRIBUTE \
   CFSTR ("MAC_FONT_CHARACTER_SET_STRING_ATTRIBUTE")
 
 typedef const struct _EmacsScreenFont *ScreenFontRef; /* opaque */
 
+#ifndef HAVE_NS
+extern CFIndex mac_font_get_weight (CTFontRef);
+extern ScreenFontRef mac_screen_font_create_with_name (CFStringRef,
+						       CGFloat);
+extern CGFloat mac_screen_font_get_advance_width_for_glyph (ScreenFontRef,
+							    CGGlyph);
+Boolean mac_screen_font_get_metrics (ScreenFontRef, CGFloat *,
+				     CGFloat *, CGFloat *);
+CFIndex mac_screen_font_shape (ScreenFontRef, CFStringRef,
+			       struct mac_glyph_layout *, CFIndex,
+			       enum lgstring_direction);
+#else  /* HAVE_NS */
 extern void mac_register_font_driver (struct frame *f);
 extern void *macfont_get_nsctfont (struct font *font);
 extern void macfont_update_antialias_threshold (void);
 
 /* This is an undocumented function. */
 extern void CGContextSetFontSmoothingStyle(CGContextRef, int)
-  __attribute__ ((weak_import));
+  __attribute__((weak_import));
+#endif  /* HAVE_NS */

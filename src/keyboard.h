@@ -389,7 +389,7 @@ extern void unuse_menu_items (void);
    confined to an extended version of this with sections of code below
    using it unconditionally.  */
 #ifndef HAVE_NTGUI
-#if defined (USE_GTK) || defined (HAVE_NS)
+#if defined USE_GTK || defined HAVE_MACGUI || defined HAVE_NS
 # define ENCODE_MENU_STRING(str) ENCODE_UTF_8 (str)
 #elif defined HAVE_X_I18N
 #define ENCODE_MENU_STRING(str) ENCODE_SYSTEM (str)

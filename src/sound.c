@@ -51,7 +51,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 
 /* BEGIN: Non Windows Includes */
-#ifndef WINDOWSNT
+#if !defined WINDOWSNT && !defined HAVE_MACGUI
 
 #include <byteswap.h>
 
@@ -75,7 +75,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 /* END: Non Windows Includes */
 
-#else /* WINDOWSNT */
+#elif defined WINDOWSNT
 
 /* BEGIN: Windows Specific Includes */
 #include <stdio.h>
@@ -94,7 +94,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #define SND_SENTRY 0x00080000
 #endif
 
-#endif /* WINDOWSNT */
+#else /* HAVE_MACGUI */
+#include "blockinput.h"
+#include "macterm.h"
+#endif /* HAVE_MACGUI */
 
 /* BEGIN: Common Definitions */
 
@@ -112,7 +115,7 @@ enum sound_attr
 /* END: Common Definitions */
 
 /* BEGIN: Non Windows Definitions */
-#ifndef WINDOWSNT
+#if !defined WINDOWSNT && !defined HAVE_MACGUI
 
 /* Structure forward declarations.  */
 
@@ -278,7 +281,7 @@ static bool au_init (struct sound *);
 static void au_play (struct sound *, struct sound_device *);
 
 /* END: Non Windows Definitions */
-#else /* WINDOWSNT */
+#elif defined WINDOWSNT
 
 /* BEGIN: Windows Specific Definitions */
 static int do_play_sound (const char *, unsigned long, bool);
@@ -293,7 +296,7 @@ static int do_play_sound (const char *, unsigned long, bool);
 
 /* BEGIN: Common functions */
 
-#ifndef WINDOWSNT
+#if !defined WINDOWSNT && !defined HAVE_MACGUI
 /* Like perror, but signals an error.  */
 
 static AVOID
@@ -327,7 +330,7 @@ sound_warning (const char *msg)
 {
   message1 (msg);
 }
-#endif	/* !WINDOWSNT */
+#endif	/* !WINDOWSNT && !HAVE_MACGUI */
 
 
 /* Parse sound specification SOUND, and fill ATTRS with what is
@@ -411,7 +414,7 @@ parse_sound (Lisp_Object sound, Lisp_Object *attrs)
 /* END: Common functions */
 
 /* BEGIN: Non Windows functions */
-#ifndef WINDOWSNT
+#if !defined WINDOWSNT && !defined HAVE_MACGUI
 
 /* Return S's value as a string if S is a string, otherwise DEFAULT_VALUE.  */
 
@@ -1204,7 +1207,7 @@ alsa_init (struct sound_device *sd)
 
 
 /* END: Non Windows functions */
-#else /* WINDOWSNT */
+#elif defined WINDOWSNT
 
 /* BEGIN: Windows specific functions */
 
@@ -1370,6 +1373,9 @@ Internal use only, use `play-sound' instead.  */)
   Lisp_Object attrs[SOUND_ATTR_SENTINEL];
   specpdl_ref count = SPECPDL_INDEX ();
 
+#ifdef HAVE_MACGUI
+  CFTypeRef mac_sound;
+#endif
 #ifdef WINDOWSNT
   unsigned long ui_volume = 0;
 #endif /* WINDOWSNT */
@@ -1380,7 +1386,7 @@ Internal use only, use `play-sound' instead.  */)
 
   Lisp_Object file = Qnil;
 
-#ifndef WINDOWSNT
+#if !defined WINDOWSNT && !defined HAVE_MACGUI
   current_sound_device = xzalloc (sizeof *current_sound_device);
   current_sound = xzalloc (sizeof *current_sound);
   record_unwind_protect_void (sound_cleanup);
@@ -1436,7 +1442,7 @@ Internal use only, use `play-sound' instead.  */)
   /* Play the sound.  */
   current_sound->play (current_sound, current_sound_device);
 
-#else /* WINDOWSNT */
+#elif defined WINDOWSNT
 
 
   if (FIXNUMP (attrs[SOUND_VOLUME]))
@@ -1464,7 +1470,40 @@ Internal use only, use `play-sound' instead.  */)
   else
     do_play_sound (SDATA (attrs[SOUND_DATA]), ui_volume, true);
 
-#endif /* WINDOWSNT */
+#else /* HAVE_MACGUI */
+  if (inhibit_window_system || noninteractive)
+    error ("Sound support on Mac requires a window system");
+
+  if (STRINGP (attrs[SOUND_FILE]))
+    {
+      /* Open the sound file.  */
+      int fd =
+	openp (list1 (Vdata_directory), attrs[SOUND_FILE], Qnil, &file, Qnil,
+	       false, false, NULL);
+
+      if (fd < 0)
+	{
+	  if (errno == 0)
+	    error ("Could not open sound file");
+	  else
+	    error ("Could not open sound file: %s", strerror (errno));
+	}
+      emacs_close (fd);
+    }
+
+  block_input ();
+  mac_sound = mac_sound_create (file, attrs[SOUND_DATA]);
+  unblock_input ();
+  if (mac_sound == NULL)
+    error ("Unknown sound format");
+
+  CALLN (Frun_hook_with_args, Qplay_sound_functions, sound);
+
+  block_input ();
+  mac_sound_play (mac_sound, attrs[SOUND_VOLUME], attrs[SOUND_DEVICE]);
+  CFRelease (mac_sound);
+  unblock_input ();
+#endif /* HAVE_MACGUI */
 
   return unbind_to (count, Qnil);
 }

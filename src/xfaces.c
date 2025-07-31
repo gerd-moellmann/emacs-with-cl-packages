@@ -567,6 +567,30 @@ x_free_gc (struct frame *f, Emacs_GC *gc)
 
 #endif  /* HAVE_NTGUI */
 
+#ifdef HAVE_MACGUI
+/* macOS emulation of GCs */
+
+static GC
+x_create_gc (struct frame *f, unsigned long mask, Emacs_GC *egc)
+{
+  GC gc;
+  block_input ();
+  gc = mac_create_gc (mask, egc);
+  unblock_input ();
+  IF_DEBUG (++ngcs);
+  return gc;
+}
+
+static void
+x_free_gc (struct frame *f, GC gc)
+{
+  eassert (input_blocked_p ());
+  IF_DEBUG ((--ngcs, eassert (ngcs >= 0)));
+  mac_free_gc (gc);
+}
+
+#endif  /* HAVE_MACGUI */
+
 #if defined (HAVE_NS) || defined (HAVE_HAIKU)
 /* NS and Haiku emulation of GCs */
 
@@ -865,6 +889,9 @@ static ptrdiff_t
 load_pixmap (struct frame *f, Lisp_Object name)
 {
   ptrdiff_t bitmap_id;
+#ifdef HAVE_MACGUI
+  double alpha = -1;
+#endif
 
   if (NILP (name))
     return 0;
@@ -883,15 +910,51 @@ load_pixmap (struct frame *f, Lisp_Object name)
       h = XFIXNUM (Fcar (Fcdr (name)));
       bits = Fcar (Fcdr (Fcdr (name)));
 
+#ifndef HAVE_MACGUI
       bitmap_id = image_create_bitmap_from_data (f, SSDATA (bits),
                                                  w, h);
+#else  /* HAVE_MACGUI */
+      Lisp_Object bits_2x =
+	Fget_text_property (make_fixnum (0), QCdata_2x, bits);
+      if (NILP (Fbitmap_spec_p (list3 (make_fixnum (w * 2), make_fixnum (h * 2),
+				       bits_2x))))
+	bits_2x = Qnil;
+      bitmap_id = mac_create_bitmap_from_data (f, SSDATA (bits),
+					       (STRINGP (bits_2x)
+						? SSDATA (bits_2x) : NULL),
+					       w, h);
+#endif	/* HAVE_MACGUI */
     }
   else
     {
+#ifdef HAVE_MACGUI
+      int nconsumed;
+
+      if (sscanf (SSDATA (name), "alpha : %lf%n", &alpha, &nconsumed) == 1)
+	{
+	  if (nconsumed + 1 == SBYTES (name))
+	    {
+	      if (SREF (name, nconsumed) == '%')
+		alpha /= 100;
+	      else
+		alpha = -1;
+	    }
+	  else if (nconsumed != SBYTES (name))
+	    alpha = -1;
+	  if (alpha > 1)
+	    alpha = -1;
+	}
+      if (alpha < 0)
+#endif
       /* It must be a string -- a file name.  */
       bitmap_id = image_create_bitmap_from_file (f, name);
     }
   unblock_input ();
+
+#ifdef HAVE_MACGUI
+  if (alpha >= 0)
+    return ~((ptrdiff_t) (alpha * 255.0 + 0.5));
+#endif
 
   if (bitmap_id < 0)
     {
@@ -4699,7 +4762,19 @@ prepare_face_for_display (struct frame *f, struct face *face)
 #endif /* !ANDROID_STUBIFY */
 	  mask |= GCFillStyle | GCStipple;
 	}
-#endif /* HAVE_X_WINDOWS || HAVE_ANDROID */
+#elif defined HAVE_MACGUI
+      if (face->stipple > 0)
+	{
+	  egc.fill_style = FillOpaqueStippled;
+	  egc.stipple = mac_bitmap_stipple (f, face->stipple);
+	  mask |= GCFillStyle | GCStipple;
+	}
+      else if (face->stipple < 0)
+	{
+	  egc.background_transparency = face->stipple;
+	  mask |= GCBackgroundTransparency;
+	}
+#endif
       face->gc = x_create_gc (f, mask, &egc);
       if (face->font)
 	font_prepare_for_face (f, face);

@@ -927,9 +927,16 @@ was inserted."
     (when (and data-p filename)
       (setq data-p (intern (format "image/%s"
                                    (file-name-extension filename)))))
-    (setq type (if (image--imagemagick-wanted-p filename)
-		   'imagemagick
-		 (image-type file-or-data nil data-p)))
+    (setq type (if (featurep 'mac)
+                   (let ((image-type (image-type file-or-data nil data-p)))
+                     (if (and (image--imagemagick-wanted-p filename)
+                              (memq (intern (upcase (symbol-name image-type)))
+                                    (imagemagick-types)))
+                         'imagemagick
+                       image-type))
+                 (if (image--imagemagick-wanted-p filename)
+                     'imagemagick
+                   (image-type file-or-data nil data-p))))
 
     ;; Get the rotation data from the file, if any.
     (when (zerop image-transform-rotation) ; don't reset modified value

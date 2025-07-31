@@ -212,7 +212,7 @@ bool display_arg;
 
    On Haiku, the table of semaphores used for looper locks doesn't
    persist across forked processes.  */
-#if defined NS_IMPL_COCOA || defined CYGWIN || defined HAVE_HAIKU
+#if defined NS_IMPL_COCOA || defined CYGWIN || defined HAVE_MACGUI || defined HAVE_HAIKU
 # define DAEMON_MUST_EXEC
 #endif
 
@@ -569,6 +569,21 @@ init_cmdargs (int argc, char **argv, int skip_args, char const *original_pwd)
 		dir = calln (Qfile_truename, dir);
 	    }
 	  dir = Fexpand_file_name (build_string ("../.."), dir);
+	}
+#elif defined HAVE_MACGUI
+      /* If we are running from the build directory, set DIR to the
+	 src subdirectory of the Emacs tree.  */
+      if (SBYTES (dir) > sizeof ("/mac/Emacs.app/Contents/MacOS/") - 1
+	  && 0 == strcmp ((SSDATA (dir) + SBYTES (dir)
+			   - sizeof ("/mac/Emacs.app/Contents/MacOS/") + 1),
+			  "/mac/Emacs.app/Contents/MacOS/"))
+	{
+	  if (NILP (Vpurify_flag))
+	    {
+	      if (!NILP (Ffboundp (Qfile_truename)))
+		dir = calln (Qfile_truename, dir);
+	    }
+	  dir = Fexpand_file_name (build_string ("../../../../src"), dir);
 	}
 #endif
       name = Fexpand_file_name (Vinvocation_name, dir);
@@ -977,7 +992,7 @@ load_pdump (int argc, char **argv, char *dump_file)
 #endif
     ;
   const char *argv0_base =
-#ifdef NS_SELF_CONTAINED
+#if defined MAC_SELF_CONTAINED || defined NS_SELF_CONTAINED
     "Emacs"
 #else
     "emacs"
@@ -1054,6 +1069,8 @@ load_pdump (int argc, char **argv, char *dump_file)
   /* On MS-Windows, PATH_EXEC normally starts with a literal
      "%emacs_dir%", so it will never work without some tweaking.  */
   path_exec = w32_relocate (path_exec);
+#elif defined HAVE_MACGUI
+  path_exec = mac_relocate (path_exec);
 #elif defined (HAVE_NS)
   path_exec = ns_relocate (path_exec);
 #endif
@@ -1079,7 +1096,7 @@ load_pdump (int argc, char **argv, char *dump_file)
     }
   sprintf (dump_file, "%s%c%s-%s%s",
            path_exec, DIRECTORY_SEP, argv0_base, hexbuf, suffix);
-#if !defined (NS_SELF_CONTAINED)
+#if !defined (MAC_SELF_CONTAINED) && !defined (NS_SELF_CONTAINED)
   if (!(emacs_executable && *emacs_executable))
     {
       /* If we didn't find the Emacs binary, assume that it lives in a
@@ -1318,7 +1335,10 @@ maybe_load_seccomp (int argc, char **argv)
 
 #endif  /* SECCOMP_USABLE */
 
-#if !defined HAVE_ANDROID || defined ANDROID_STUBIFY
+#if defined HAVE_MACGUI
+int
+emacs_main (int argc, char **argv)
+#elif !defined HAVE_ANDROID || defined ANDROID_STUBIFY
 int
 main (int argc, char **argv)
 #else
@@ -2098,6 +2118,20 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
     }
 #endif /* HAVE_NS */
 
+#ifdef HAVE_MACGUI
+  if (!noninteractive)
+    {
+      /* Started from GUI? */
+      /* FIXME: Do the right thing if get_homedir returns "", or if
+         chdir fails.  */
+      if (! inhibit_window_system && ! isatty (STDIN_FILENO) && ! ch_to_dir)
+	{
+	  chdir (get_homedir ());
+	  emacs_wd = emacs_get_current_dir_name ();
+	}
+    }
+#endif
+
   /* Stupid kludge to catch command-line display spec.  We can't
      handle this argument entirely in window system dependent code
      because we don't even know which window system dependent code
@@ -2182,6 +2216,11 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
 
 #ifdef HAVE_GFILENOTIFY
   globals_of_gfilenotify ();
+#endif
+
+#ifdef HAVE_MACGUI
+  if (initialized)
+    init_mac_osx_environment ();
 #endif
 
   /* Initialize and GC-protect Vinitial_environment and
@@ -2424,6 +2463,15 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
 #if defined WINDOWSNT || defined HAVE_NTGUI
       syms_of_w32select ();
 #endif
+
+#ifdef HAVE_MACGUI
+      syms_of_mac ();
+      syms_of_macterm ();
+      syms_of_macfns ();
+      syms_of_macmenu ();
+      syms_of_macselect ();
+      syms_of_fontset ();
+#endif /* HAVE_MACGUI */
 
 #ifdef MSDOS
       syms_of_xmenu ();
@@ -3317,10 +3365,13 @@ decode_env_path (const char *evarname, const char *defalt, bool empty)
     path = 0;
   if (!path)
     {
+
+#ifdef MAC_SELF_CONTAINED
+      path = mac_relocate (defalt);
+#elif defined NS_SELF_COqqNTAINED
+      path = ns_relocate (defalt);
+#else
       path = defalt;
-#ifdef NS_SELF_CONTAINED
-      if (path)
-	path = ns_relocate (path);
 #endif
 #ifdef WINDOWSNT
       defaulted = 1;

@@ -303,7 +303,11 @@ Return the image."
            (message "Error: cannot create icon for %s: %s"
                     feed-name-symbol error-data)))))
     ;; Fallback: default icon.
-    (find-image '((:type png :file "newsticker/rss-feed.png" :ascent center)))))
+    (find-image
+     (if (featurep 'mac)
+         ;; Prefer the SVG image for better high-resolution support.
+         '((:type svg :file "newsticker/rss-feed.svg" :ascent center))
+       '((:type png :file "newsticker/rss-feed.png" :ascent center))))))
 
 ;; the functions we need for retrieval and display
 ;;;###autoload

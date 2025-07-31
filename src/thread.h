@@ -341,6 +341,10 @@ extern void init_threads (void);
 extern void syms_of_threads (void);
 extern bool main_thread_p (const void *);
 extern bool in_current_thread (void);
+#ifdef HAVE_MACGUI
+extern int thread_try_acquire_global_lock (void);
+extern int thread_release_global_lock (void);
+#endif
 
 typedef int select_func (int, fd_set *, fd_set *, fd_set *,
 			 const struct timespec *, const sigset_t *);

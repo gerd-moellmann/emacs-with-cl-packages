@@ -910,10 +910,15 @@ static bool
 file_name_completion_dirp (int fd, struct dirent *dp, ptrdiff_t len)
 {
   USE_SAFE_ALLOCA;
+#if defined DARWIN_OS && !defined HAVE_FACCESSAT
+  char *subdir_name = SAFE_ALLOCA (len + 4);
+  memcpy (subdir_name, dp->d_name, len);
+  strcpy (subdir_name + len, "/./");
+#else
   char *subdir_name = SAFE_ALLOCA (len + 2);
   memcpy (subdir_name, dp->d_name, len);
   strcpy (subdir_name + len, "/");
-
+#endif
   bool dirp = sys_faccessat (fd, subdir_name,
 			     F_OK, AT_EACCESS) == 0;
   SAFE_FREE ();

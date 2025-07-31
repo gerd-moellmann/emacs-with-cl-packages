@@ -139,6 +139,7 @@ EMACSSOURCES= \
 	${srcdir}/cmdargs.texi \
 	${srcdir}/xresources.texi \
 	${srcdir}/anti.texi \
+	${srcdir}/macport.texi \
 	${srcdir}/macos.texi \
 	$(srcdir)/haiku.texi \
 	${srcdir}/msdos.texi \
@@ -169,7 +170,7 @@ ${buildinfodir}:
 # There is no provision for Info files to exist in the build directory.
 # In a distribution of Emacs, the Info files should be up to date.
 $(buildinfodir)/emacs.info: ${EMACSSOURCES} | ${buildinfodir}
-	$(AM_V_GEN)$(MAKEINFO) $(MAKEINFO_OPTS) $(INFO_OPTS) -o $@ $<
+	$(AM_V_GEN)LANG=C $(MAKEINFO) $(MAKEINFO_OPTS) $(INFO_OPTS) -o $@ $<
 
 emacs.dvi: ${EMACSSOURCES}
 	$(ENVADD) $(TEXI2DVI) $<

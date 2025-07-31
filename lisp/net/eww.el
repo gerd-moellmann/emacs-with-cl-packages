@@ -304,7 +304,7 @@ by default."
   :version "30.1")
 
 (defface eww-form-submit
-  '((((type x w32 ns haiku pgtk android) (class color))	; Like default mode line
+  '((((type x w32 mac ns haiku pgtk android) (class color))	; Like default mode line
      :box (:line-width 2 :style released-button)
      :background "#808080" :foreground "black"))
   "Face for eww buffer buttons."
@@ -318,14 +318,14 @@ by default."
   :version "25.1")
 
 (defface eww-form-checkbox
-  '((((type x w32 ns haiku pgtk android) (class color))	; Like default mode line
+  '((((type x w32 mac ns haiku pgtk android) (class color))	; Like default mode line
      :box (:line-width 2 :style released-button)
      :background "lightgrey" :foreground "black"))
   "Face for eww buffer buttons."
   :version "24.4")
 
 (defface eww-form-select
-  '((((type x w32 ns haiku pgtk android) (class color))	; Like default mode line
+  '((((type x w32 mac ns haiku pgtk android) (class color))	; Like default mode line
      :box (:line-width 2 :style released-button)
      :background "lightgrey" :foreground "black"))
   "Face for eww buffer buttons."

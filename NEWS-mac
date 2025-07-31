@@ -1,0 +1,2696 @@
+* emacs-29.1-mac-10.0 (2023-08-05)
+Based on Emacs 29.1.
+Currently, pixel-based mouse wheel smooth scrolling and pinch gesture
+are supported via traditional Mac port code rather than newly-added
+upstream one.  This may change in a future version.
+WebP image support does not require libwebp on macOS 11 and later.
+
+** Fixed bugs
+
+*** Wrong live resize transition and export to PDF on macOS 14 Beta.
+
+
+* emacs-28.3-rc1-mac-9.2 (2023-08-02)
+Based on Emacs 28.3 Release Candidate.
+
+** Fixed bugs
+
+*** mouse-drag-and-drop-region across frames does not work.
+
+*** Selection is not properly converted to filename pasteboard data.
+
+*** Wrong sign extension in converting Apple Event bytes to integer.
+
+*** Freeze on macOS 12 and later when waking up from sleep with a
+fullscreen frame on a secondary display.
+Reported by Willem Leitso.
+
+*** Wrong animation effect on macOS 13.
+
+
+* emacs-28.2-mac-9.1 (2022-09-13)
+Based on Emacs 28.2.
+https://lists.gnu.org/r/emacs-devel/2022-09/msg00760.html
+
+** Fixed bugs
+
+*** DJVU to TIFF converter in DocView does not properly support @2x.
+
+*** SVG rendering via WebKit 2 does not support local file references.
+Reported by Howard Melman.
+
+
+* emacs-28.1-mac-9.0 (2022-04-06)
+Based on Emacs 28.1.
+Drop support for Mac OS X 10.6 - OS X 10.9.
+Emoji composition handling is aligned with upstream.  You may find
+some incompatibilities with the previous versions.
+https://lists.gnu.org/r/emacs-devel/2022-04/msg00175.html
+
+** Fixed bugs
+
+*** Rotated SVG is clipped when dimension is specified by percentage.
+
+*** Typing F10 on a full-screen frame causes hang on Monterey.
+Reported by Brandon Bremen.
+It no longer hangs, but still F10 does not activate the menu bar for a
+full-screen frame on Monterey if the "Automatically hide and show the
+menu bar in full screen" setting is checked (default).
+
+*** When posix_spawn is used, emacs-gdb doesn't work properly.
+Apply a fix for Bug#54667.
+
+
+* emacs-27.2-mac-8.3 (2021-11-13)
+https://lists.gnu.org/r/emacs-devel/2021-11/msg00947.html
+
+** Fixed bugs
+
+*** Frame may become blank with rapid repetitive zoomings.
+
+*** Frame may become blank with isearch if the executable is compiled
+with SDK 10.15 or earlier and runs on some later versions of macOS 11,
+or NSWindowSupportsAutomaticInlineTitle is set to NO on macOS 11.
+Note: NSWindowSupportsAutomaticInlineTitle has no effect on macOS 12.
+
+** Improvements
+
+*** Incorporate process creation code that uses posix_spawn.
+This is a workaround for slow process creation on macOS 12, where
+vfork is declared deprecated and mostly identical to fork.  The new
+process creation code is incorporated from the posix-spawn-no-gnulib
+branch upstream, and enabled by default on macOS 10.15 and later.  If
+you have a problem with this new code, then set the variable
+darwin-try-posix-spawn to nil so as to revert to the original one.
+
+*** Avoid copying whole bitmap in application-side double buffering.
+
+*** Update emoji data to version 14.0.
+
+*** Live resize transition animation takes account of tab bar area.
+
+
+* emacs-27.2-mac-8.2 (2021-03-27)
+Based on Emacs 27.2.
+The configure option --with-mac-metal is disabled by default.
+I originally turned it on because it lowered the CPU load.
+But I recently realized that it was caused by its lower frame rate.
+M1 Mac accomplishes 60fps with or without Metal even with large
+frames, and the CPU load does not get an advantage from the use of
+Metal there.
+https://lists.gnu.org/r/emacs-devel/2021-03/msg01331.html
+
+** Fixed bugs
+
+*** Some light weight fonts are not recognized on Big Sur.
+Contributed by Frank Patz-Brockmann.
+
+*** Crash when displaying multiple SVG images on High Sierra/Mojave.
+Reported by Adam Sneller.
+
+*** Unintended frame switch when showing hourglasses.
+Reported by JD Smith.
+
+*** Crash if the stack size limit is not a multiple of page size.
+Reported by Christos Kalkanis.
+
+*** Scroll by scroll bar slot press is too fast on Catalina and later.
+
+*** org-protocol does not open file when there is file-path returned.
+Contributed by Shi Schspa.
+
+*** Sometimes hexadecimal color name is not recognized.
+Reported by Nicolas P. Rougier.
+
+*** Changing tool bar icon size from context menu clobbers display.
+
+** Improvements
+
+*** New hook mac-effective-appearance-change-hook.
+Contributed by Peter Hardy.
+
+
+* emacs-27.1-mac-8.1 (2020-11-12)
+https://lists.gnu.org/r/emacs-devel/2020-11/msg00470.html
+
+** Fixed bugs
+
+*** Crash when emacs --daemon is connected from emacsclient -t.
+Reported by Akinori MUSHA.
+
+*** Hang when preparing the menu bar on macOS Big Sur.
+
+** Improvements
+
+*** Use system symbols as tool bar icons on macOS Big Sur.
+
+*** Update emoji data to version 13.1.
+
+*** The image type `image-io' (and its `imagemagick' fallback) now
+supports SVG with scaling, cropping, and arbitrary rotation.
+
+
+* emacs-27.1-mac-8.0 (2020-08-11)
+Based on Emacs 27.1.
+https://lists.gnu.org/r/emacs-devel/2020-08/msg00246.html
+
+** Fixed bugs
+
+*** Raising a child frame is no-op and lowering it lowers the parent.
+
+*** Crash when creating a GUI frame on macOS Big Sur Beta.
+
+** Improvements
+
+*** image-multi-frame-p also works for HEIC Sequences (macOS 10.15 and
+later) and WebP animations (macOS 11.0 and later).
+
+
+* emacs-26.3-mac-7.9 (2020-03-23)
+https://lists.gnu.org/r/emacs-devel/2020-03/msg00568.html
+
+** Fixed bugs
+
+*** Crash by a file descriptor that is greater than or equal to
+FD_SETSIZE.
+
+*** Can't unexec on macOS 10.15.4.
+
+*** Crash when editing iCloud Drive files on macOS 10.15 - 10.15.3.
+This is due to Mach port leaks on these versions.  A workaround is
+added, and proxy icons are not shown for iCloud Drive files.
+
+*** Selecting a menu item having submenus generates a prefix event.
+Reported by Konrad Podczeck.
+
+** Improvements
+
+*** Update emoji data to version 13.0.
+
+
+* emacs-26.3-mac-7.8 (2019-12-03)
+https://lists.gnu.org/r/emacs-devel/2019-12/msg00104.html
+
+** Fixed bugs
+
+*** mac-auto-operator-composition-mode does not compose sequences
+containing "\".
+
+*** Several animation effect glitches for executables linked on 10.15.
+
+*** Can't switch application in Split View after resizing on macOS
+10.14 and later.
+
+*** Clicking "+" in tab group overview creates a new frame instead of
+tab on macOS 10.15.
+
+*** High CPU load on dialog display.
+Reported by Konrad Podczeck.
+
+*** Mouse pointer color is inverted on Dark Mode.
+Though the old behavior is consistent with emacs -rv on X11, it was
+actually introduced in version 7.2 as a workaround for the
+(set-mouse-color "black") bug, which was fixed in the previous
+version.  So the workaround is no longer necessary.
+
+** Improvements
+
+*** Resize transition is also in effect for unfocused frames in Split
+View on macOS 10.15.
+
+*** Improve typing response on application-side double buffering.
+
+*** Recognize three-finger editing gestures in Sidecar on macOS 10.15.
+
+
+* emacs-26.3-mac-7.7 (2019-08-29)
+Based on Emacs 26.3.
+https://lists.gnu.org/r/emacs-devel/2019-08/msg00580.html
+
+No updates other than release notes (thus the same version number).
+
+
+* emacs-26.3-rc1-mac-7.7 (2019-08-23)
+Based on Emacs 26.3 release candidate.
+https://lists.gnu.org/r/emacs-devel/2019-08/msg00420.html
+
+** Fixed bugs
+
+*** The command move-tab-to-new-frame hangs.
+Reported by JD Smith.
+
+*** Dired on non-ASCII directories may cause an error if
+file-name-coding-system set to utf-8-hfs-unix.
+Reported by Sungbin Jo.
+This is a regression introduced in 6.9.
+
+*** (set-mouse-color "black") on Dark Mode makes the mouse pointer
+invisible.
+
+** Improvements
+
+*** OpenType-SVG color fonts are drawn on macOS 10.14 and later.
+
+*** New configure option --enable-mac-self-contained to have "make
+install" create a self-contained bundle under the "mac" subdirectory.
+(or the directory specified by --enable-mac-app[=DIR]).  The default
+is off.
+Contributed by Xin Xu.
+
+
+* emacs-26.2-mac-7.6 (2019-04-14)
+Based on Emacs 26.2.
+https://lists.gnu.org/r/emacs-devel/2019-04/msg00582.html
+
+** Fixed bugs
+
+*** Candidates window for input methods is often misplaced.
+Add heuristics so it works in many cases including candidates windows
+popped up during isearch.
+We cannot make this placement strictly correct because of a timing
+problem: the system asks for the cursor position while there are still
+some pending Lisp events and the redisplay is not completed yet.
+
+*** New Space is created when making a child frame visible while a
+fullscreen frame is focused.
+
+
+* emacs-26.2-rc1-mac-7.5 (2019-03-22)
+Based on Emacs 26.2 release candidate.
+https://lists.gnu.org/r/emacs-devel/2019-03/msg00795.html
+
+** Fixed bugs
+
+*** Rare crash when popping up a dialog.
+
+*** Rare crash when drawing into a tooltip frame.
+
+*** Fail to insert Apple logo if mac-system-coding-system is mac-roman.
+
+*** The name attribute is missing in display-monitor-attributes-list
+if the display serial number value is negative in signed int.
+
+** Improvements
+
+*** Update emoji data to UTS #51 version 12.0.
+
+*** Add stipple support.  The "@2x" file name convention and the
+`:data-2x' text property at the first byte of the data are also
+available to support optional 2x bitmaps for Retina display.
+
+
+* emacs-26.1-mac-7.4 (2018-11-16)
+Turn on the configure option `--with-mac-metal' by default.
+https://lists.gnu.org/r/emacs-devel/2018-11/msg00246.html
+
+** Fixed bugs
+
+*** Crash when clicking on the menu bar on some environments.
+Reported by John Nicola and Darren Hoo.
+
+*** Redraw needlessly on mouse movement if application-side double
+buffering is used.
+
+*** Synthetic bold is stronger on Retina display if application-side
+double buffering is used.
+
+*** Animation effect is displayed with wrong colors if
+application-side double buffering is used with Metal.
+
+*** SVG rendering via WebKit is slow if built on macOS 10.13 or later.
+Reported by Bibek Pokharel.
+
+
+* emacs-26.1-mac-7.3 (2018-10-24)
+https://lists.gnu.org/r/emacs-devel/2018-10/msg00439.html
+
+** Fixed bugs
+
+*** Underline for converted text is invisible on dark background.
+
+*** Possible stack overflow (Bug#31995 and Bug#32338).
+
+*** Changing tool bar style (either via the variable tool-bar-style or
+tool bar context menu) may make the frame blank with application-side
+double buffering, which is forced on macOS 10.14.
+
+*** CPU load is high if application-side double buffering is used.
+This is mainly caused by the use of layer-backed views together with
+other CALayers involving Core Image filters, and that seems to lead to
+excessive CPU time consumption by the CVDisplayLink thread.  Now
+overlay views, which host CALayers that use Core Image filters for
+several animation effects and drag-and-drop highlighting, are added
+into the view hierarchy in an on-demand way to avoid this phenomenon.
+
+*** Drag-and-drop into Emacs frame does not work on Mac OS X 10.6.
+This is a regression introduced in 7.2.
+
+*** U+1F9B5 and U+1F9B6 are missing from list of emoji modifier bases.
+
+*** Frames that use application-side double buffering cannot do LCD
+font smoothing even on OS X 10.8 - macOS 10.13.
+On macOS 10.14, LCD font smoothing is globally disabled by default.
+You need to execute "$ defaults write org.gnu.Emacs
+CGFontRenderingFontSmoothingDisabled -bool NO" to enable it.
+
+*** Sending Apple Events to other applications causes an error on
+macOS 10.14.
+
+*** Fail to launch on OS X 10.8.
+This is a regression introduced in 7.2.
+
+** Improvement
+
+*** In addition to TIFF, PDF is accepted as pasteboard image data.
+Now "Scan Documents" in the context menu on macOS 10.14 can insert PDF
+data scanned by your nearby iOS devices (Continuity Camera).
+
+*** New experimental configure option `--with-mac-metal' to use GPU
+for pixel copy operations in the frames using application-side double
+buffering on OS X 10.11 or later with supported hardware (see
+https://support.apple.com/HT205073).  If you are using this feature in
+the selected frame, then the expression below will be evaluated to t:
+  (and (frame-monitor-attribute 'metal-device-name)
+       (not (frame-parameter nil 'inhibit-double-buffering)))
+On the Mac port, setting the value of the frame parameter
+`inhibit-double-buffering' is only effective at the frame creation
+time.  So on OS X 10.11 - macOS 10.13, you need to specify it either
+as (make-frame '((inhibit-double-buffering))), by default-frame-alist,
+or by X resources emulation via Preferences system (see Mac port
+section in Info).  On macOS 10.14, there is no choice other than
+application-side double buffering, so you don't need to care about it.
+Currently this feature is only tested in very limited environments.
+In particular, I can't test it with dynamic switching between
+integrated and discrete GPUs.
+
+
+* emacs-26.1-mac-7.2 (2018-09-09)
+https://lists.gnu.org/r/emacs-devel/2018-09/msg00375.html
+
+** Fixed bugs
+
+*** Buffer contents are not displayed on macOS 10.14.
+This is mainly because now NSViews are backed by Core Animation Layer
+(layer-backed) by default and non-deferred drawing into views no
+longer works.  Instead of switching to deferred drawing (i.e., draw
+only inside -[NSView drawRect:]), we draw into our own backing bitmap
+in a non-deferred way as before, and update the view contents with the
+resulting image via -[NSView updateLayer].  This "application-side
+double buffering" is also available on OS X 10.8 - macOS 10.13 if you
+set the frame parameter `inhibit-double-buffering' to nil when
+creating a frame.  Just like on macOS 10.14, such a frame does not do
+LCD smoothing.
+
+*** Screenshot grabbed via Services is displayed in wrong size when we
+have display mirroring between Retina and non-Retina displays.
+
+*** Cursor movement just after frame resize sometimes leaves garbage.
+
+*** Crash by the Fall_threads call from the GUI thread at the select
+emulation when there are multiple Lisp threads.
+
+*** Info title has ASCII underline unlike other window systems.
+
+*** Vertical scroll bar is created as horizontal if frame font height
+is short.
+
+** Improvements
+
+*** macOS 10.14 adds property :appearance to (mac-application-state).
+The value may be "NSAppearanceNameAqua" or "NSAppearanceNameDarkAqua".
+
+*** Add new color format "mac:COLOR-LIST-NAME:COLOR-NAME" and
+"mac:COLOR-NAME" (shorthand for "mac:System:COLOR-NAME").  The actual
+color may be different depending on the global appearance setting on
+macOS 10.14.  For example, "mac:textColor" is black on the Light Mode
+but is white on the Dark Mode.
+
+*** Default frame colors respect appearance setting on macOS 10.14.
+Now the default frame foreground/background color is
+"mac:textColor"/"mac:textBackgroundColor", respectively.  Changes of
+the system setting of the global appearance are dynamically reflected.
+
+*** New function `mac-color-list-alist' to get the available
+combinations of COLOR-LIST-NAMEs and COLOR-NAMEs.  Note that this
+value is dependent on user environment and OS version.  Also, some
+combinations may represent image patterns rather than colors.  For the
+former cases, `(color-values "mac:COLOR-LIST-NAME:COLOR-NAME")'
+returns nil.
+
+
+* emacs-26.1-mac-7.1 (2018-06-10)
+https://lists.gnu.org/r/emacs-devel/2018-06/msg00282.html
+
+** Fixed bugs
+
+*** mouse-wheel-flip-direction does not have any effect.
+Reported by Yuen Ho Wang.
+
+*** C-g does not quit call-process.
+Reported by xristos.
+
+
+* emacs-26.1-mac-7.0 (2018-05-29)
+Based on Emacs 26.1.
+Redesign `select' emulation code to support concurrency on Emacs 26
+properly.  Now the Lisp REPL runs in a non-main thread, so the main
+thread is dedicated to GUI tasks, which might be requested from
+multiple Lisp threads.  The GUI and Lisp threads run mostly
+cooperatively (i.e., do not run simultaneously) except in the `select'
+emulation.
+https://lists.gnu.org/r/emacs-devel/2018-05/msg00784.html
+
+** Fixed bugs
+
+*** Circular dependency in mac/Emacs.app/Contents for in-tree build.
+Contributed by Jose Arroyo.
+
+*** Symlinks autocomplete as directories on OS X 10.9 and earlier
+(Bug#31305).  A workaround is added.
+
+
+* emacs-26.1-rc1-mac-6.90 (2018-04-15)
+Based on Emacs 26.1 release candidate.
+https://lists.gnu.org/r/emacs-devel/2018-04/msg00405.html
+
+
+* emacs-25.3-mac-6.9 (2018-04-15)
+
+** Fixed bugs
+
+*** The function `get-free-disk-space' gives free inode count rather
+than free data block space on OS X 10.8 and later (Bug#28639).
+
+*** Crash on macOS 10.13 with pinch close to invoke tab overview over
+some highlighted text and then clicking the input source menu in the
+menu bar.
+
+*** On macOS 10.13.1, pinch close gesture with shift key causes exit
+and then enter fullboth.
+
+*** Making frame fullboth is slow on macOS 10.13.1.
+
+*** Crash when showing menu help strings while minibuffer is invisible.
+Reported by Konrad Podczeck.
+
+*** Entering fullboth from a fullscreen frame makes it maximized.
+This is a regression introduced in 5.90.
+
+*** Entering and then exiting from fullboth makes the frame shorter.
+
+*** Space width for monospace fonts may be wrong.  This is a
+regression introduced in 6.1 as "ligature glyph width adjustment".
+
+** Improvements
+
+*** Adopt CFBundleDocumentTypes part from the NS port.
+Contributed by Xin Xu.
+
+*** Update emoji data to UTS #51 version 11.0.
+
+*** On macOS 10.13, the pinch close gesture makes the text shrunken
+(rather than triggering tab group overview) if the text is magnified.
+
+*** New variable `mac-ignore-accessibility'.
+Emacspeak users may want to set this variable so it may not interfere
+with the system accessibility services such as VoiceOver.
+
+
+* emacs-25.3-mac-6.8 (2017-09-26)
+https://lists.gnu.org/r/emacs-devel/2017-09/msg00897.html
+
+** Fixed bugs
+
+*** Frame parameter `alpha' does not work in tooltip-frame-parameters.
+
+*** Switching to/from `fullboth' frame does not preserve tool bar.
+
+*** Hourglass (progress indicator) on a dark title bar is invisible.
+
+*** Live resize transition animation does not respect internal border.
+
+*** Some input methods (e.g., Japanese one) on macOS 10.13 do not
+recognize Control+Space even if it is unchecked in the system-wide
+short cut settings.  This issue is registered in the Apple Bug
+Reporter as rdar://33842041, but still open.  A workaround is added.
+
+
+* emacs-25.3-mac-6.7 (2017-09-12)
+Based on Emacs 25.3.
+https://lists.gnu.org/r/emacs-devel/2017-09/msg00218.html
+
+** Fixed bugs
+
+*** The format "%x" in `org-capture-templates' does not work.
+
+** Improvements
+
+*** Support the frame parameter `scroll-bar-background' on OS X 10.10
+and later.
+If it is nil, which is the default, then the frame background color is
+used instead.  Its color also affects the appearance of other GUI
+parts: the title bar, the tool bar, (the tab bar on macOS 10.12 and
+later), scroll bars, and popup menus become light (or dark) if the
+color is considered light (or dark, respectively).  On macOS 10.12 and
+later, the title/tool/tab bars look slightly colored with the value of
+the `scroll-bar-background' frame parameter (or the frame background
+color) if the frame is focused and not in fullscreen.
+
+
+* emacs-25.2-mac-6.6 (2017-08-24)
+https://lists.gnu.org/r/emacs-devel/2017-08/msg00558.html
+
+** Fixed bugs
+
+*** Infinite recursion under prettify-symbols-mode and linum-mode.
+Apply a fix for Bug#27761.
+
+*** Crash when resizing a frame too small by mouse dragging.
+
+*** Can't resize a frame by dragging on macOS 10.13 Beta via Screen
+Sharing.app.
+
+** Improvements
+
+*** The fancy splash screen look vibrant on OS X 10.10 and later.
+For non-Retina display users, it is recommended to replace
+etc/images/splash.png with the alpha-channeled version:
+https://bytebucket.org/mituharu/emacs-mac/raw/82af04a197db41d8b9cc3bc04127be2bf01d255f/etc/images/splash.png
+This effect can be turned off with "Reduce translucency" in the
+Accessibility pane of the System Preferences.
+
+*** On OS X 10.10 and later, if the frame background color is light,
+then scroll bars look slightly translucent.
+This effect can be turned off with "Reduce translucency" in the
+Accessibility pane of the System Preferences.
+
+*** On OS X 10.10 and later, if the frame background color is dark,
+then the title bar, the tool bar, (the tab bar on macOS 10.12), scroll
+bars, and popup menus look also dark.
+The title/tool/tab bars have already looked translucent on macOS 10.12
+regardless of the frame background color types.  Text smoothing in
+these bars for the focused frame seems to be problematic if the
+contents contain Core Animation layers that use Core Image filters
+especially with dark window background colors and non-Retina displays.
+A change in the last version with respect to window/view hierarchy
+manifested this problem, and the use of dark bars works around it.
+
+*** Magnify and rotate events now contain the :phase property.
+Now absence of the :phase property in a magnify event means it is a
+"smart magnify" event rather than what is caused by a pinch gesture.
+On OS X 10.10 and later, its value is either `began', `changed', or
+`ended'.  On earlier versions, it is always `none'.
+
+*** New function mac-send-action that sends the specified Cocoa action
+using the responder chain for action messages.
+Some useful examples of Cocoa actions are `zoom', `hide', `unhide',
+`activate', `hideOtherApplications', `unhideAllApplications', and
+`orderFrontCharacterPalette'.
+
+*** New function mac-frame-tab-group-property to set tab group
+properties.
+
+*** New menu items (mostly in the "Buffers" menu), key bindings
+(Control-Tab, Control-Shift-Tab) for tabbing on macOS 10.12 and later.
+
+*** On macOS 10.13 Beta, the pinch close gesture triggers tab group
+overview.  If you want to make the text size smaller, first pinch open
+and then pinch close without releasing the fingers from the trackpad.
+Alternatively, remap the corresponding command as:
+  (global-set-key [remap mac-magnify-text-scale-or-overview-tab-group]
+                  'mac-magnify-text-scale)
+
+
+* emacs-25.2-mac-6.5 (2017-07-27)
+https://lists.gnu.org/r/emacs-devel/2017-07/msg00997.html
+
+** Fixed bugs
+
+*** The option --chdir is ignored when the stdin is not a tty.
+Reported by Mark Abney.
+
+*** SVG does not import external images specified by relative URLs.
+
+*** "Services" -> "Capture Selection From Screen" inserts a large
+image on a Retina display.
+
+*** Crash when some display vector is an empty string.
+Apply a fix for Bug#27504.
+
+*** "Show All Tabs" in the tab context menu leads to crash on macOS
+10.13 Beta.
+
+** Improvements
+
+*** New function mac-frame-tab-group-property to inspect tab group
+properties.  Corresponding setter function is still in development.
+
+*** Pixel-based mouse wheel smooth scrolling is now snappier
+especially on large frames or when flipping directions.
+
+*** On OS X 10.10 and later, animation by mac-start-animation is no
+longer suppressed when the frame is not completely opaque.
+
+
+* emacs-25.2-mac-6.4 (2017-05-22)
+https://lists.gnu.org/r/emacs-devel/2017-05/msg00611.html
+
+** Fixed bugs
+
+*** call-process(-region) hangs occasionally.  This is a regression
+introduced in the previous version.
+Reported by Andreas Fuchs.
+
+*** Multi-font compositions may be displayed wrong.
+Apply a fix for Bug#26742.
+
+** Improvements
+
+*** Update emoji data to UTS #51 version 5.0.
+
+
+* emacs-25.2-mac-6.3 (2017-04-22)
+Based on Emacs 25.2.
+https://lists.gnu.org/r/emacs-devel/2017-04/msg00626.html
+
+** Fixed bugs
+
+*** call-process is slow especially when there are many/large frames.
+Adapt a fix for Bug#26397.
+
+
+* emacs-25.2-rc2-mac-6.2 (2017-02-27)
+Based on Emacs 25.2 release candidate 2.
+
+No updates other than release notes (thus the same version number).
+
+
+* emacs-25.2-rc1-mac-6.2 (2017-02-04)
+Based on Emacs 25.2 release candidate 1.
+https://lists.gnu.org/r/emacs-devel/2017-02/msg00125.html
+
+** Fixed bugs
+
+*** Can't resize a frame by dragging its edge on macOS 10.12 via
+Screen Sharing.app.
+
+*** mac-auto-operator-composition-mode does not compose "{." for Fira
+Code.
+
+*** On Mac OS X 10.7 - OS X 10.9, Emacs consumes CPU time even when it
+is idle if tool bars are shown.  This is a regression introduced in
+the previous version.
+
+*** Crash when pressing Command + power button on OS X 10.9 and later
+if mac-pass-command-to-system is nil.
+Reported by Leo.
+
+*** Drag-and-dropping URL does not respect dnd-protocol-alist.
+
+*** Lisp representation of CFNumber may overflow on 64-bit binary.
+
+*** Crash when evaluating (mac-coerce-ae-data "furl" "file:///.file/"
+'undecoded-file-name)
+
+*** Closing a tab in a full screen space causes error on macOS 10.12.
+
+** Improvements
+
+*** Show text input candidates and dialog buttons in Touch Bar.
+
+*** Update emoji data to UTR #51 version 4.0.
+
+
+* emacs-25.1-mac-6.1 (2016-10-30)
+https://lists.gnu.org/r/emacs-devel/2016-10/msg01034.html
+
+** Fixed bugs
+
+*** Incremental search with a Japanese text in an empty buffer fails.
+Reported by Takaaki Ishikawa.
+
+*** Crash when showing a tooltip on macOS 10.12 if compiled with
+enable-checking.
+
+*** Crash with C-x 5 5 2 -> C-x 5 2 -> close the first frame with the
+red "x" button on macOS 10.12.
+
+*** Fullscreen transition animation looks awkward on Mac OS X 10.7.
+This is a regression introduced in 6.0 as the fix for "fullscreen
+frames contain space at the top on OS X 10.10".
+
+*** Proxy icon is sometimes not updated.
+
+*** M-x battery RET does not show battery info on macOS 10.12.
+Apply a fix for Bug#24537.
+
+*** Emacs sometimes becomes unresponsive to Dock icon clicks (though
+it reacts to Command-Tab) if its frames are completely covered by
+other applications for a while on macOS 10.12.
+
+** Improvements
+
+*** Ligature glyph width is adjusted to a multiple of space width for
+monospace fonts.
+
+*** Screen update during resize now works on macOS 10.12 if
+frame-resize-pixelwise is nil.
+
+*** Character Picker is shown in Touch Bar.
+
+
+* emacs-25.1-mac-6.0 (2016-09-18)
+Based on Emacs 25.1.
+https://lists.gnu.org/r/emacs-devel/2016-09/msg00480.html
+
+** Fixed bugs
+
+*** Several glitches in frame tabbing on macOS 10.12.
+To address this issue in a simple and consistent way, we now round the
+frame size according to the character size only on resize by mouse
+dragging or changes of the `fullscreen' frame parameter.  This may
+cause some incompatibility.
+
+*** Fullscreen frames contain space at the top on OS X 10.10.
+
+** Improvements
+
+*** New variable `mac-frame-tabbing' specifying tabbing behavior of a
+frame that is becoming visible on macOS 10.12.
+
+*** C-x 5 5 ... behaves like the C-x 5 prefix, but temporarily changes
+tabbing behavior if "5" is typed repeatedly on macOS 10.12.
+
+
+* emacs-25.1-rc2-mac-5.91 (2016-08-22)
+Based on Emacs 25.1 release candidate 2.
+
+** Improvements
+
+*** Update emoji sequence data to version 4.0 draft.
+
+
+* emacs-25.1-rc1-mac-5.90 (2016-07-25)
+Based on Emacs 25.1 release candidate.
+Drop support for Mac OS X 10.4 and 10.5.
+Official git repository is https://bitbucket.org/mituharu/emacs-mac.git
+https://lists.gnu.org/r/emacs-devel/2016-07/msg01087.html
+
+** Fixed bugs
+
+*** Crash when closing a fullscreen frame on macOS 10.12 Beta.
+
+*** Can't resize a frame by dragging its edge on macOS 10.12 Beta.
+
+*** Cyrillic text composition in HELLO file is shown wrong with Menlo.
+
+** Improvements
+
+*** New functions `mac-export-frames', `mac-page-setup-dialog',
+`mac-get-page-setup', and `mac-print-frames-dialog'.  They correspond
+to x-* functions provided in the cairo build together with GTK+.
+
+
+* emacs-24.5-mac-5.18 (2016-06-26)
+https://lists.gnu.org/r/emacs-devel/2016-06/msg00601.html
+
+** Fixed bugs
+
+*** On OS X 10.11, the result of Typometer is much worse than that on
+the NS port, although better than the both ports on OS X 10.10.  This
+is because the Mac port manually defers and coalesces screen flushes
+in order to work around slow flyspell.  This seems to be unnecessary
+on OS X 10.11, and actually gives a reverse effect as above.
+
+** Improvements
+
+*** Emoji data is updated to Unicode 9.0.
+
+
+* emacs-24.5-mac-5.17 (2016-04-30)
+https://lists.gnu.org/r/emacs-devel/2016-04/msg00890.html
+
+** Fixed bugs
+
+*** Shrunken image size on a Retina display is wrong if it is created
+from the raw data using genuine ImageMagick.
+Reported by Sean Farley.
+
+** Improvements
+
+*** When you create an image from the raw data as opposed to a file,
+you can now provide 2x data for high-resolution environments via the
+`:data-2x' property.  It can be specified either as a property of the
+image descriptor or as a text property of the first character of the
+standard resolution data (if it is given as a string).
+
+
+* emacs-24.5-mac-5.16 (2016-04-23)
+https://lists.gnu.org/r/emacs-devel/2016-04/msg00648.html
+
+** Fixed bugs
+
+*** M-x tool-bar-mode RET for a fullheight/maximized frame fails on
+its first invocation.
+
+*** Wrong size calculations for 2x genuine imagemagick images.  For
+example, (image-size (create-image "splash.png" 'imagemagick nil
+:max-height 300)) is larger than the one without the :max-height
+property if the frame is on a Retina display.
+
+** Improvements
+
+*** For frames on a Retina display, image-io/imagemagick image
+descriptors involving non-integral transformations such as shrinking
+or rotation are now processed with 2x pixel buffer even if the source
+image file/data is for 1x.  For example, (insert-image (create-image
+"gnus/gnus.png" 'imagemagick nil :max-height 100)) now looks crisper.
+
+*** Org mode LaTeX fragments preview may also create 2x images.
+
+
+* emacs-24.5-mac-5.15 (2015-12-13)
+https://lists.gnu.org/r/emacs-devel/2015-12/msg00543.html
+
+** Fixed bugs
+
+*** Pure space overflow on 32-bit build.
+
+*** Can't invoke from Finder if user's login shell is fish.
+This is a regression introduced in 5.12.
+
+*** Changing default font causes display corruption in some cases.
+Reported by Leo.
+
+
+* emacs-24.5-mac-5.14 (2015-12-09)
+https://lists.gnu.org/r/emacs-devel/2015-12/msg00334.html
+
+** Fixed bugs
+
+*** mac-auto-operator-composition-mode breaks syntax highlighting.
+Reported by James Reeves.
+
+*** Hang when canceling pop-up dictionary with C-g on OS X 10.11.
+Reported by Max Siegel.
+
+** Improvements
+
+*** Force clicking with a pressure-sensitive trackpad now pops up a
+Quick Look window to look up the word under the pointer in the
+dictionaries.
+Note: This is currently hard-coded.  Also, unlike Command-Control-D or
+three-finger tap, it is not easy or often impossible to specify the
+region of the text you look up because down-mouse-1 event resets it.
+
+
+* emacs-24.5-mac-5.13 (2015-10-31)
+https://lists.gnu.org/r/emacs-devel/2015-10/msg02522.html
+
+** Fixed bugs
+
+*** Closing a fullscreen frame may cause crash or Lisp error in
+frame-live-p.
+
+** Improvements
+
+*** Fullboth frames are no longer eligible to become fullscreen via
+Mission Control on OS X 10.11 (this change is actually made in 5.12).
+
+
+* emacs-24.5-mac-5.12 (2015-10-30)
+https://lists.gnu.org/r/emacs-devel/2015-10/msg02465.html
+
+** Fixed bugs
+
+*** Invoking Ediff from a fullscreen frame creates a fullscreen
+Control Panel on OS X 10.11 (does not happen on OS X 10.11.1).
+
+*** Changing a frame to/from fullboth does not make the frame key
+window on OS X 10.11.
+
+*** Making a fullboth frame fullscreen does not keep the tool bar
+visibility on Mac OS X 10.7 and later.
+
+*** If the executable is built on an older OS/SDK and run on OS X
+10.11, the frame placed in the left part of Split View gets maximized.
+Reported by Alan Schmitt.
+
+*** Crash when making a frame fullscreen/fullboth on Mac OS X 10.4.
+
+*** Crash by infinite recursion while displaying box face.
+Apply a fix for Bug#21428.
+
+*** Crash when redisplaying a window changes faces or fonts.
+Apply a fix for Bug#21428.
+
+** Improvements
+
+*** Fullscreen/fullboth frames no longer hide the Dock unnecessarily
+if compiled and run on OS X 10.11.
+
+*** Fullscreen transition animation looks a bit better on OS X 10.11.
+
+
+* emacs-24.5-mac-5.11 (2015-09-27)
+https://lists.gnu.org/r/emacs-devel/2015-09/msg01020.html
+
+** Fixed bugs
+
+*** Crash when closing a fullscreen frame on OS X 10.11 GM Candidate.
+
+*** Daemon mode does not exec after fork at startup.  This is a
+regression introduced in 3.90.
+
+*** Display corrupts when zooming twice quickly.
+
+*** Crash when displaying etc/HELLO file on OS X 10.11 GM Candidate.
+It crashes when displaying Oriya characters with Arial Unicode MS.
+This happens even with TextEdit.app if you explicitly select the font.
+A workaround is added so Oriya Sangam MN is preferred by default.
+
+** Improvements
+
+*** Extend mode line areas while showing resize transition animation.
+
+
+* emacs-24.5-mac-5.10 (2015-08-25)
+https://lists.gnu.org/r/emacs-devel/2015-08/msg00882.html
+
+** Fixed bugs
+
+*** Crash when pressing Command + power button on OS X 10.9 and later.
+
+** Improvements
+
+*** Accept localized font family names on Mac OS X 10.6 and later.
+
+*** Some resize operations on Mac OS X 10.7 and later now involve
+transition animations by decomposing and distributing the current
+contents.  Examples include dragging with shift/option key pressed,
+zooming, and dragging full screen tiling border on OS X 10.11 Beta.
+
+*** New global minor mode `mac-auto-operator-composition-mode'.  If
+enabled, it composes consecutive ASCII symbolic characters into a
+special glyph when the font supports such a composition typically via
+ligatures for operators in programming languages.  Tested with Hasklig
+and Fira Code.
+
+
+* emacs-24.5-mac-5.9 (2015-07-13)
+https://lists.gnu.org/r/emacs-devel/2015-07/msg00151.html
+
+** Fixed bugs
+
+*** Progress indicator is shown while tracking popup menu.
+
+*** Command-H followed by clicking the dock icon may create a new
+frame on OS X 10.10.
+
+*** Cancel/OK buttons in font dialog look fat on OS X 10.10.
+
+*** Several full screen glitches on OS X 10.11 Beta.
+Custom transition animation is disabled to work around some problems
+including crash.
+
+*** Visible bell not visible on OS X 10.11 Beta.
+
+** Improvements
+
+*** New function `mac-application-state' to obtain the current status
+as a GUI application.
+
+
+
+* emacs-24.5-mac-5.8 (2015-05-17)
+https://lists.gnu.org/r/emacs-devel/2015-05/msg00476.html
+
+** Fixed bugs
+
+*** Display may corrupt just after loading fonts.
+Adapt a fix for Bug#20410.
+
+*** System-wide popups (such as "Emoji & Symbols") are placed wrong
+when the cursor is at end of line.
+
+*** The symbol `left' for mac-right-*-modifier variables is not
+properly presented in customization buffers.
+
+** Improvements
+
+*** Support ZWJ (ZERO WIDTH JOINER) sequences for emoji on OS X 10.10.3.
+
+*** Now the `:button' property in the value of a modifier variable
+(e.g., `mac-option-modifier') can be used for mapping button numbers.
+The default setting maps the primary button with `fn' to mouse-2.
+
+
+* emacs-24.5-mac-5.7 (2015-04-11)
+Based on Emacs 24.5.
+https://lists.gnu.org/r/emacs-devel/2015-04/msg00586.html
+
+** Improvements
+
+*** Update the list of emoji modifier base characters according to UTR
+#51 version 1.0 (draft 8).
+
+
+* emacs-24.5-rc3-mac-5.6 (2015-04-06)
+Based on Emacs 24.5 release candidate 3.
+https://lists.gnu.org/r/emacs-devel/2015-04/msg00300.html
+
+No updates other than release notes (thus the same version number).
+
+
+* emacs-24.5-rc2-mac-5.6 (2015-04-02)
+Based on Emacs 24.5 release candidate 2.
+https://lists.gnu.org/r/emacs-devel/2015-04/msg00079.html
+
+No updates other than release notes (thus the same version number).
+
+
+* emacs-24.5-rc1-mac-5.6 (2015-03-27)
+Based on Emacs 24.5 release candidate 1.
+https://lists.gnu.org/r/emacs-devel/2015-03/msg00827.html
+
+** Fixed bugs
+
+*** Pure space overflow on 32-bit build.
+
+*** LookupViewService invoked by Command-Control-D or three-finger tap
+crashes on OS X 10.10.3.
+Not tested for "force clicking" with pressure-sensitive trackpads,
+which require MacBook Pro (Retina, 13-inch, Early 2015) as of writing.
+
+
+* emacs-24.4.91-mac-5.5 (2015-03-09)
+Based on 24.4.91.
+https://lists.gnu.org/r/emacs-devel/2015-03/msg00194.html
+
+** Fixed bugs
+
+*** Focusing a fullscreen frame whose menu-bar-lines value is 0
+causes bouncing Spaces back.
+Reported by Marius Kjeldahl.
+
+** Improvements
+
+*** Press and hold for accents is no longer unconditionally disabled.
+You can enable it via the Preference system (e.g., "defaults write
+org.gnu.Emacs ApplePressAndHoldEnabled YES").
+
+*** Support emoji modifiers for skin tones (if the system and fonts
+support them).
+
+
+* emacs-24.4.90-mac-5.4 (2015-02-18)
+Based on 24.4.90.
+https://lists.gnu.org/r/emacs-devel/2015-02/msg01082.html
+
+Blend-and-blur of background color on OS X 10.10 is enabled again
+because the mode-line erasure issue (Bug#19721) is fixed upstream.
+The function `do-applescript' is now an alias of `mac-do-applescript',
+which is implemented on top of `mac-osa-script'.
+
+
+* emacs-24.4-mac-5.3 (2015-01-29)
+https://lists.gnu.org/r/emacs-devel/2015-01/msg01040.html
+
+Blend-and-blur of background color on OS X 10.10 is temporarily
+disabled to avoid mode-line erasure on frame focus switch.  For some
+reason, mode-line row's `enabled_p' flag in the current matrix is
+sometimes reset even if it is visible.  This causes blank mode-line on
+"expose" (drawRect:) events.  In principle, this mode-line erasure can
+also happen on older versions of OS X or this version of Emacs Mac
+port.  But it is usually observed on OS X 10.10 together with previous
+5.x versions of Emacs Mac port, because the use of NSVisualEffectView,
+which provides the blend-and-blur feature, triggers full frame
+"exposure" on focus switch.
+
+** Fixed bugs
+
+*** Special-display completion frame becomes transparent.
+Reported by Alan Shumitt.
+Adapt a fix for Bug#16619.
+
+*** `mac-auto-ascii-mode' on TTY terminals disables prefix keys with
+the meta key.
+
+*** Control-F2 is passed to the system even if
+mac-pass-control-to-system is set to nil.
+
+*** Synthetic bold text looks thinner on Retina display/HiDPI mode.
+This is because stroke line width for text drawing is not correctly
+scaled (whereas it is correctly scaled when drawn to bitmaps) on such
+environments.  I've been reporting this to Apple on every OS X update
+since it was 10.7.4, but I couldn't get any response until recently.
+At last Apple answers that there are no plans to address this issue
+(rdar://11644870) currently.  So I added a workaround that would cause
+a bad reverse effect if the original issue were fixed.
+
+*** `mac-ae-set-reply-parameter', which is used for reporting an error
+in Apple event hander, has not been working since emacs-24.2-mac-3.2.
+
+*** Input source functions ignore disabled input source ID strings.
+
+** Improvements
+
+*** URL handler via Apple events now accepts the `org-protocol' scheme
+as well as `mailto'.
+
+
+* emacs-24.4-mac-5.2 (2014-11-21)
+https://lists.gnu.org/r/emacs-devel/2014-11/msg01719.html
+
+** Fixed bugs
+
+*** The function `mac-osa-script' does not process ARGS (6th and later
+arguments) correctly.
+
+** Improvements
+
+*** Even if the current keyboard layout maps some key with the control
+modifier to insertion of a character, which would be recognized as an
+ordinary insertion in applications that use the standard Cocoa text
+view, it is interpreted as a combination with the control modifier.
+This behavior is consistent with the Mac port version 4.x and earlier,
+and also obviates the previous fix for "C-_" on JIS keyboard.
+
+*** If /usr/include does not exist, then the Xcode SDK dir is examined
+as a candidate of libxml2 header location if it does not contain any
+special characters or blanks.
+
+*** The function `mac-osa-script' now accepts compiled code, which can
+be generated by a new function `mac-osa-compile', and a file name as
+well as a script source.
+Note: As of OS X 10.10.1, specifying compiled code generated from a
+JavaScript source causes crash.  I think this is a bug in OSAKit.
+
+*** New function `mac-do-applescript', which is implemented on top of
+`mac-osa-script' and intended as a future replacement of
+`do-applescript'.
+
+*** New functions and hooks for interaction with the Text Input Source
+Services on Mac OS X 10.5 and later: `mac-input-source',
+`mac-input-source-list', `mac-select-input-source',
+`mac-deselect-input-source',
+`mac-selected-keyboard-input-source-change-hook', and
+`mac-enabled-keyboard-input-sources-change-hook'.
+
+*** New global minor mode `mac-auto-ascii-mode' for Mac OS X 10.5 and
+later.  If enabled, it automatically selects the most-recently-used
+ASCII-capable keyboard input source on some occasions: after prefix
+key (bound in the global keymap) press such as C-x and M-g, and at the
+start of minibuffer input.
+Note: Strictly speaking, its implementation has a timing issue: the
+Lisp event queue may already have some input events that have been
+processed by some previous keyboard input source but yet to be
+processed by the Lisp interpreter.
+
+
+* emacs-24.4-mac-5.1 (2014-11-03)
+https://lists.gnu.org/r/emacs-devel/2014-11/msg00062.html
+
+** Fixed bugs
+
+*** "C-_" on JIS keyboard is recognized as "_".
+Reported by OHKAWA Yuichi.
+
+*** Checking "Reduce translucency" in the Accessibility pane in the
+System Preferences on OS X 10.10 makes fringe areas translucent.
+Reported by Nicholas Riley.
+
+** Improvements
+
+*** Blend-and-blur of fringe background on OS X 10.10 is no longer
+hard-coded.  It can be customized per face by specifying a special
+name `alpha:ALPHA' as a value of the background stipple attribute.
+For example,
+  (set-face-stipple 'fringe "alpha:50%")
+or
+  defaults write org.gnu.Emacs Emacs.fringe.attributeStipple alpha:.5
+will (mostly) recover the appearance of the previous release.
+Note: Setting stipple for the default face may not work as you expect.
+This is the same limitation as the standard stipple feature on X11.
+Also, blend-and-blur is temporarily turned off during animations.
+
+*** New experimental functions `mac-osa-language-list' and
+`mac-osa-script'.  The latter is like `do-applescript', but can
+execute JavaScript as well as AppleScript on OS X 10.10.
+
+
+* emacs-24.4-mac-5.0 (2014-10-21)
+Based on Emacs 24.4.
+https://lists.gnu.org/r/emacs-devel/2014-10/msg00725.html
+
+** Fixed bugs
+
+*** Keyboard input via Screen Sharing causes crash.
+Reported by Kazu Yamamoto.
+
+
+* emacs-24.3.94-mac-4.94 [experimental/hackers-only] (2014-10-02)
+Based on Emacs 24.3.94.
+https://lists.gnu.org/r/emacs-devel/2014-10/msg00028.html
+
+** Fixed bugs
+
+*** Right fringe on the row containing a hollow cursor at the tab
+character in a non-selected window sometimes gets erased on wheel
+scrolling.
+
+*** M-x toggle-frame-fullscreen RET -> M-x tool-bar-mode RET -> M-x
+toggle-frame-fullscreen RET does not preserve tool bar visibility on
+Mac OS X 10.7 - 10.9.
+
+** Improvements
+
+*** Add mouse pointer color support.
+
+*** Animation-related properties of animated GIF are added to metadata
+of images in the `image-io' image type.  Likewise for animated PNG on
+OS X 10.10.
+
+
+* emacs-24.3.93-mac-4.93 [experimental/hackers-only] (2014-08-15)
+Based on Emacs 24.3.93.
+Remove mac-ts-script-language-on-focus, which hasn't had any effect
+on 64-bit executables.
+https://lists.gnu.org/r/emacs-devel/2014-08/msg00343.html
+
+** Fixed bugs
+
+*** Several glitches in pixel-based smooth scrolling.
+
+*** Crash when closing a fullscreen frame on OS X 10.10 Beta.
+
+*** Full screen transition animation is broken on OS X 10.10 Beta.
+
+*** Title bar buttons are misplaced if we toggle the tool bar on
+a fullscreen frame on OS X 10.10 Beta.
+I think this is a bug in AppKit.  A workaround is added.
+
+** Improvements
+
+*** Blend and blur fringe background of the focused frame with the
+contents behind it on OS X 10.10 Beta.
+This is currently experimental, hard-coded, and subject to change.
+
+
+* emacs-24.3.92-mac-4.92 [experimental/hackers-only] (2014-06-27)
+Based on Emacs 24.3.92.
+Carbon version in mac-carbon-version-string now uses the bundle
+version rather than what's obtained by Gestalt.
+https://lists.gnu.org/r/emacs-devel/2014-06/msg00529.html
+
+** Fixed bugs
+
+*** Left scroll bar was not included in the window animation area.
+
+** Improvements
+
+*** New full screen transition animation.
+
+
+* emacs-24.3.91-mac-4.91 [experimental/hackers-only] (2014-05-12)
+Based on Emacs 24.3.91.
+https://lists.gnu.org/r/emacs-devel/2014-05/msg00149.html
+
+** Fixed bugs
+
+*** Wrong return value of display-monitor-attributes-list.
+Reported by Leo.
+
+*** If you point to the left "%", which has both left and right
+overhangs for Monaco 12pt, of "%%" in the mode line, then the right
+one is also drawn with upper and lower box.
+
+** Improvements
+
+*** New variables mac-right-control-modifier,
+mac-right-command-modifier, and mac-right-option-modifier.
+Note: the left and right versions cannot be distinguished on some
+environments such as Screen Sharing.  Also, certain combinations of a
+key with both versions of the same modifier do not emit events at the
+system level.
+
+*** A single physical modifier key can be mapped to different Emacs
+modifiers depending on its input type (ordinary keys, function keys,
+or mouse operations) using the property list format `(:ordinary SYMBOL
+:function SYMBOL :mouse SYMBOL)'.  By default, the option key works as
+the normal Mac option key for the ordinary keys, and as the Alt
+modifier for the function keys and the mouse operations.
+
+
+* emacs-24.3.90-mac-4.90 [experimental/hackers-only] (2014-04-14)
+Based on Emacs 24.3.90.
+High-resolution icons are now distributed as a separate package.
+File notification is supported via GLib (you'll also need `pkg-config'
+when running the configure command).
+The `image-io' image type supports `:max-width', `:max-height', and
+`:format' keywords just as in `imagemagick'.
+Now that Image mode supports multi-frame image navigation (`f', 'b',
+and `F'), you can browse multi-page documents in several formats that
+`image-io' supports (e.g., PDF and DOC) with the setting like this:
+  (when (and (image-type-available-p 'image-io)
+	     (not (boundp 'imagemagick-render-type)))
+     ;; Image I/O is used as a fallback of ImageMagick.
+     (setq imagemagick-enabled-types t)
+     (setq imagemagick-types-inhibit
+	  (cons 'XML (delq 'PDF imagemagick-types-inhibit)))
+     (imagemagick-register-types))
+Note: if you have ImageMagick installed, you need to build the Mac
+port executable without the genuine ImageMagick support so `image-io'
+can be used as a fallback of `imagemagick'.
+https://lists.gnu.org/r/emacs-devel/2014-04/msg00176.html
+
+** Improvements
+
+*** Graphical drawing operations might be performed in non-main
+threads via GCD (Grand Central Dispatch) on Mac OS X 10.6 and later.
+You can turn this off by setting `mac-drawing-use-gcd' to nil.
+
+*** DocView mode generates pixel-doubled "@2x" bitmap image files in
+addition to normal ones on high-resolution environments such as Retina
+display or HiDPI mode.
+
+
+* emacs-24.3-mac-4.8 (2014-04-01)
+https://lists.gnu.org/r/emacs-devel/2014-03/msg01271.html
+
+** Fixed bugs
+
+*** Fringe does not get correctly updated under very specific
+circumstances (Bug#16932).
+
+*** In full screen mode, clicking the menu bar hides it on Mac OS X
+10.7.
+
+*** Image background is not correctly drawn when it has a box
+(Bug#17115).
+
+*** While resizing a frame with mouse dragging, display is updated
+only on pauses in motion.
+
+
+* emacs-24.3-mac-4.7 (2014-02-27)
+https://lists.gnu.org/r/emacs-devel/2014-02/msg00592.html
+
+** Fixed bugs
+
+*** Crash if a fullscreen frame is closed by C-x 5 0.
+This is a regression introduced in 4.5 as the fix for invisible
+animation effects on OS X 10.9.
+
+*** M-x menu-bar-open RET always activates the menu bar in the primary
+monitor on OS X 10.9 where a non-primary monitor can also have a menu
+bar.
+
+*** Command-Shift-/ does not activate the help menu for a fullscreen
+frame on OS X 10.8 and later.
+
+** Improvements
+
+*** Moving focus to the menu bar by Control-F2 behaves much like other
+applications.
+
+
+* emacs-24.3-mac-4.6 (2013-12-27)
+https://lists.gnu.org/r/emacs-devel/2013-12/msg00952.html
+
+** Fixed bugs
+
+*** 64-bit binary does not run if compiled on Mac OS X 10.5.
+
+*** Typing Command-H while a tooltip is shown makes it unerasable.
+Reported by Peter Dyballa.
+
+*** Crash when a tooltip is shown in a non-primary monitor with
+explicit geometry specified.
+Reported by Robert Dallas Gray.
+
+
+* emacs-24.3-mac-4.5 (2013-11-06)
+https://lists.gnu.org/r/emacs-devel/2013-11/msg00225.html
+
+** Fixed bugs
+
+*** Resizing a frame from its top or left edge flaps on OS X 10.9.
+
+*** Animation effects become invisible after exiting from full screen
+on OS X 10.9.
+
+*** Memory leaks by multiple installations of memory pressure/status
+dispatch sources on OS X 10.9, caused by repeated start/stop of the
+main event loop.
+I think this is a bug in AppKit.  A workaround is added.
+
+*** (insert-image (create-image "" 'image-io t)) causes crash.
+
+*** Info directory in the application bundle is not respected.
+Reported by Dave Abrahams.
+
+** Improvements
+
+*** Suppress confusing "Tags:" field in the "New File" dialog on OS X
+10.9.
+
+*** The image type `image-io' can now additionally rasterize data in
+PDF format.
+
+*** Document rasterization (including PDF) in the image type
+`image-io' now caches the loaded documents for a while so as to avoid
+loading a multi-page document several times when successively
+rasterizing multiple pages of the document.
+
+*** Respect the "Swipe between pages" setting for touch-sensitive
+mice/trackpads.
+
+*** Fonts used in the "CJK variety" line in the etc/HELLO file are
+selected consistently regardless of the system language setting.
+
+
+* emacs-24.3-mac-4.4 (2013-10-24)
+https://lists.gnu.org/r/emacs-devel/2013-10/msg00743.html
+
+** Fixed bugs
+
+*** Default directory is set to `/' on OS X 10.9.
+
+*** Some animation effects cause crash on OS X 10.9.
+
+*** SVG images (via WebKit) cannot be loaded on OS X 10.9.
+
+*** Clicking a menu bar in an inactive appearance shows bogus menus on
+OS X 10.9.
+
+*** Switching full screen state on multi-monitor environment may cause
+exception on OS X 10.9.
+
+*** Focusing on a `fullboth' frame in a non-primary monitor does not
+hide the menu bars on OS X 10.9.
+Note: the menu bar hidden by a `fullboth' frame in a non-primary
+monitor does not appear automatically by moving the mouse to the place
+where the menu bar was.  I suspect this is a bug in AppKit.
+
+*** Battery status is not shown correctly on OS X 10.9.
+Apply a fix for bug#15694 by Masashi Fujimoto and Glenn Morris.
+
+** Improvements
+
+*** Double clicking an emoji character in the Character Viewer now
+complements the Variation Selector 16 if the character is sensitive to
+the selector.
+
+*** The image type `image-io' can now additionally rasterize data in
+several document formats.  The list of supported formats can be
+obtained by `(image-io-types)'.
+
+
+* emacs-24.3-mac-4.3 (2013-09-21)
+https://lists.gnu.org/r/emacs-devel/2013-09/msg00416.html
+
+** Fixed bugs
+
+*** Invocation via "Login Items" or "Resume" does not respect PATH
+setting in ~/.MacOSX/environment.plist on Mac OS X 10.7 and earlier.
+Note: OS X 10.8 does not use ~/.MacOSX/environment.plist anyway.
+
+*** Spotlight in Help menu is not installed on Mac OS X 10.5 if
+language setting is other than English.
+
+*** Closing a window causes crash if compiled with ARC.
+This primarily happens with the latest clang Apple LLVM version 5.0,
+but also with earlier versions if the memory leak below is fixed.
+
+*** Memory leaks with ARC on clang Apple LLVM version 4.2 (possibly
+compiler bug).
+
+** Improvements
+
+*** Try built-in libxml2 on OS X 10.8 as a fallback.
+
+
+* emacs-24.3-mac-4.2 (2013-05-11)
+https://lists.gnu.org/r/emacs-devel/2013-05/msg00264.html
+
+** Fixed bugs
+
+*** Cursor in the echo area is sometimes partially unerased on Mac OS
+X 10.7 and later, notably on isearch in a large buffer.
+
+** Improvements
+
+*** Add multi-monitor support functions `frame-monitor-attributes' and
+`display-monitor-attributes-list' (to appear in Emacs 24.4).
+
+
+* emacs-24.3-mac-4.1 (2013-04-11)
+https://lists.gnu.org/r/emacs-devel/2013-04/msg00328.html
+
+** Fixed bugs
+
+*** Crash if an unknown font/fontset is set to default-frame-alist.
+
+*** Invoking Service producing output does not replace the selected
+text.
+Reported by Nicholas Riley.
+
+*** Invoking Service via C-mouse-down-1 may not insert the output
+correctly.
+
+** Improvements
+
+*** Add sound support.  Like on other platforms, it is synchronous and
+you cannot quit it with C-g.
+
+*** Round frame bottom corners on Mac OS X 10.7 and later, even when
+internal-border-width is 0.
+
+
+* emacs-24.3-mac-4.0 (2013-03-11)
+Based on Emacs 24.3.
+https://lists.gnu.org/r/emacs-devel/2013-03/msg00251.html
+
+** Fixed bugs
+
+*** Smooth scrolling down the fancy splash screen causes an error.
+
+
+* emacs-24.3-rc1-mac-3.94 [experimental/hackers-only] (2013-03-05)
+Based on Emacs 24.3 release candidate 1.  Remove mac-system-locale.
+When the locale setting is derived from the Preferences AppleLocale or
+AppleLanguages (i.e., none of "LC_ALL", "LC_CTYPE" or "LANG" is set),
+encoding is assumed to be UTF-8.
+https://lists.gnu.org/r/emacs-devel/2013-03/msg00059.html
+
+** Fixed bugs
+
+*** Daemon mode crashes when connected from `emacsclient -c'.
+Reported by Pavlo Martynenko.
+
+*** Waste CPU time when there is an iconified frame.
+Reported by Pavlo Martynenko.
+
+*** Frame display is not updated immediately when deiconified.
+
+
+* emacs-24.2.93-mac-3.93 [experimental/hackers-only] (2013-02-09)
+Based on Emacs 24.2.93.
+https://lists.gnu.org/r/emacs-devel/2013-02/msg00162.html
+
+** Fixed bugs
+
+*** Rare crash in mac_get_selected_range.
+
+*** Breakage of `--with-wide-int' on other builds.
+Reported by Peter Dyballa.
+Note: the option `--with-wide-int' is not eagerly tested on the Mac port.
+Use it at your own risk.
+
+*** `emacsclient -c' does not work.
+Reported by Piotr Kalinowski.
+
+** Improvements
+
+*** Work around the problem that scrolling may leave some spots when
+LCD text smoothing is enabled.
+
+
+* emacs-24.2.92-mac-3.92 [experimental/hackers-only] (2013-01-11)
+Based on Emacs 24.2.92.
+https://lists.gnu.org/r/emacs-devel/2013-01/msg00152.html
+
+** Fixed bugs
+
+*** Two-finger click with a trackpad on the mode-line causes errors on
+OS X 10.8.
+
+*** Key events are discarded while AppleScript is executed.
+
+** Improvements
+
+*** Add an info node for images and colors to the Mac port section.
+
+*** Support Variation Selectors 15 (text-style) and 16 (emoji-style).
+
+
+* emacs-24.2.91-mac-3.91 [experimental/hackers-only] (2012-12-16)
+Based on Emacs 24.2.91.
+https://lists.gnu.org/r/emacs-devel/2012-12/msg00431.html
+
+** Fixed bugs
+
+*** Disabling tool bar mode via the Preference system (X resources
+emulation) does not work.
+Reported by Leo.
+
+*** Tool bar visibility is not preserved when entering/exiting full
+screen on Mac OS X 10.7 and later (actually this is a bug in AppKit).
+
+*** Background color is not in sRGB color space for image types GIF,
+PNG, TIFF, and IMAGE-IO.
+
+** Improvements
+
+*** You can run the executable from the build directory (via `open
+mac/Emacs.app') without doing `make install'.  Forgot to mention in
+the previous release.
+
+*** Support alpha channel masks for image types GIF, PNG, TIFF, and
+IMAGE-IO with keeping the postprocessing functionality (`:conversion'
+and `:mask').  Not for SVG images rendered with WebKit because proper
+text smoothing requires opaque background.
+
+
+* emacs-24.2.90-mac-3.90 [experimental/hackers-only] (2012-11-25)
+Based on Emacs 24.2.90.  Remove mac-{get,set}-file-{creator,type} and
+mac-process-hi-command.  Move the "//#define PURE_SECTION" line from
+src/s/darwin.h to src/conf_post.h.
+https://lists.gnu.org/r/emacs-devel/2012-11/msg00472.html
+
+
+* emacs-24.2-mac-3.3 (2012-10-27)
+https://lists.gnu.org/r/emacs-devel/2012-10/msg00733.html
+
+** Fixed bugs
+
+*** Wrong glyph advancement calculation in text shaping for non-zero
+advance delta cases.
+
+*** Full screen transition animations are not correct on OS X 10.8.
+
+*** XBM foreground and background are not in sRGB color space.
+
+*** mac-file-alias-p returns t for symbolic links on Mac OS X 10.6 and
+later.
+Reported by Leo.
+
+*** Scroll bar thumb dragging is not right on Mac OS X 10.6 and
+earlier (regression by the previous fix for Mac OS X 10.7 and later.)
+
+** Improvements
+
+*** Help key no longer activates "context help mode" (question-mark
+mouse pointer).
+
+*** Popup menu shown by C-mouse-down-1 now includes contextual menu on
+Mac OS X 10.6 and later.  Other popup menus remain quiet.
+
+*** Some combinations of regional indicator symbols such as U+1F1EF
+followed by U+1F1F5 now display national flags in color emoji on Mac
+OS X 10.7 and later.
+
+
+* emacs-24.2-mac-3.2 (2012-08-27)
+Based on Emacs 24.2.
+https://lists.gnu.org/r/emacs-devel/2012-08/msg00803.html
+
+** Fixed bugs
+
+*** Preferred font family selection does not work on OS X 10.8.
+
+** Improvements
+
+*** If Emacs.app is launched from Finder or via Resume on OS X 10.8,
+then it inherits environment variable settings of user's login shell
+regardless of the existence of ~/.MacOSX/environment.plist, which is
+ignored on OS X 10.8 anyway.
+
+*** Use sRGB color space instead of device RGB.  This does not change
+the appearance on OS X 10.8 which regards device RGB as sRGB.
+
+
+* emacs-24.1-mac-3.1 (2012-07-26)
+https://lists.gnu.org/r/emacs-devel/2012-07/msg00561.html
+
+** Fixed bugs
+
+*** Scrolling up the contents of a buffer with a header line by mouse
+wheel is sometimes jumpy.
+
+*** Several glitches on PowerPC (such as not displaying fringe
+bitmaps) due to overlooked WORDS_BIG_ENDIAN -> WORDS_BIGENDIAN change.
+
+*** SVG image (rendered via WebKit) might be clipped if width or
+height is unspecified.
+Reported by Leo.
+Now use max X or Y value of the bounding box if width or height is
+specified as a percentage value or unspecified.
+
+*** Double-tapping either a touch-sensitive mouse with one finger or a
+trackpad with two fingers on Mac OS X 10.8 64-bit build is ignored.
+
+** Improvements
+
+*** Double-tapping either a touch-sensitive mouse with one finger or a
+trackpad with two fingers on Mac OS X 10.7 and later now scales the
+text to 150% if previously unscaled and the pointer lies between the
+indentation and end of line.
+
+*** Text scaling by gestures now tries to keep the vertical position
+of the text under the pointer.
+
+*** Support automatic selection of high resolution versions of images.
+All supported image types respect the "@2x" file name convention.  SVG
+images (via WebKit or librsvg) are rendered according to the backing
+scale factor.  An appropriate image is selected from a multiimage TIFF
+containing both 1x and 2x images if the image spec does not contain an
+explicit `:index' property.
+
+*** Prefer the integrated GPU to the discrete one for saving battery.
+This requires Mac OS X 10.7 and Early 2011 MacBook Pro.
+
+
+* emacs-24.1-mac-3.0 (2012-06-10)
+Based on Emacs 24.1.
+https://lists.gnu.org/r/emacs-devel/2012-06/msg00165.html
+
+** Fixed bugs
+
+*** The `page-curl' transition does not look right on Mac OS X 10.5.
+
+*** Wrong display of the backside image for the
+`page-curl-with-shadow' transition on Mac OS X 10.7 with HiDPI mode.
+
+*** Wrong display of animations on Mac OS X 10.5 and 10.6 when
+resolution independence is in effect.
+
+*** Incomplete input area (aka "active input area", "marked text", or
+"preedit area") does not respect buffer text scaling.
+Apply Chong Yidong's fix for Bug#2066.
+
+
+* emacs-24.1-rc-mac-2.94 [experimental/hackers-only] (2012-06-01)
+Based on Emacs 24.1 release candidate
+https://lists.gnu.org/r/emacs-devel/2012-06/msg00009.html
+
+** Improvements
+
+*** Animation now supports the built-in Core Image transition filters
+via Core Animation.  The "About Emacs" and "Preferences..." menu items
+in the application menu (labeled "Emacs") in the menu bar are
+accompanied with a transition animation effect on Mac OS X 10.5 and
+later.  Animation is suppressed if the frame is not completely opaque,
+because it does not give an intended effect on such frames.
+
+Known issues: The `page-curl' transition does not look right on Mac OS
+X 10.5.  Also, the `page-curl-with-shadow' transition does not look
+right for some angles on Mac OS X 10.7.4.  Both transitions look
+blurry on Mac OS X 10.7.4 with HiDPI mode.
+
+
+* emacs-24.0.97-mac-2.93 [experimental/hackers-only] (2012-05-17)
+Based on Emacs 24.0.97
+https://lists.gnu.org/r/emacs-devel/2012-05/msg00367.html
+
+** Fixed bugs
+
+*** Wrong Command-Control-D pop-up position in right-to-left
+paragraphs.
+
+
+* emacs-24.0.96-mac-2.92 [experimental/hackers-only] (2012-04-28)
+Based on Emacs 24.0.96
+https://lists.gnu.org/r/emacs-devel/2012-04/msg00841.html
+
+** Fixed bugs
+
+*** Arabic Text U+0644 U+0627 is displayed wrong.
+Reported by Joost Kremers.
+
+*** "Options" (in the menu bar) -> "Set Default Font..." just after
+launch fails to change the font on Mac OS X 10.5 and later.
+
+
+* emacs-24.0.95-mac-2.91 [experimental/hackers-only] (2012-04-02)
+Based on Emacs 24.0.95
+https://lists.gnu.org/r/emacs-devel/2012-04/msg00018.html
+
+** Fixed bugs
+
+*** HiDPI mode gives a blurry magnified text look on Mac OS X 10.7.3.
+
+*** HiDPI mode shows wrong animation on transition from/to full screen.
+
+*** M-x electric-pair-mode RET gives the warning "Note, built-in
+variable `imagemagick-render-type' not bound".
+Reported by Leo.
+
+*** Tooltip place adjustment does not take account of multiple
+monitors.
+Reported by Pavel Martynenko.
+
+*** Drag-and-drop highlight is not displayed just after exiting from
+full screen.
+
+*** Momentum scroll events after horizontal flicking interfere with a
+multi-key sequence.
+
+*** "Emacs" (in the menu bar) -> "About Emacs" then typing "q" causes
+an error.
+
+** Improvements
+
+*** Support right-to-left text shaping.
+
+*** New variable `mac-system-move-file-to-trash-use-finder', which
+enables us to use the Finder for trashing so we can `Put Back' the
+trashed items from the context menu.
+
+*** Buffer switching by horizontal swiping/flicking and exiting from
+the splash screen are accompanied with an experimental simple
+animation effect on Mac OS X 10.5 and later.
+
+
+* emacs-24.0.94-mac-2.90 [experimental/hackers-only] (2012-03-03)
+Based on Emacs 24.0.94.  Drop support for Mac OS X 10.2 and 10.3.
+Be aware of the (platform-independent) change in selection:
+mouse-dragging no longer automatically copies the selected text to the
+clipboard without M-w or `Copy' in the menu bar or the tool bar,
+unless you set `mouse-drag-copy-region' to t.
+https://lists.gnu.org/r/emacs-devel/2012-03/msg00030.html
+
+** Fixed bugs
+
+*** If compiled with ARC, "Emacs" (in the menu bar) -> "About Emacs"
+leads to crash.
+
+*** Emacs -q --eval "(set-frame-parameter nil 'fullscreen 'fullboth)"
+does not hide the menu bar.
+Reported by Leo.
+
+** Improvements
+
+*** New image type `image-io', which is parallel to `imagemagick' but
+uses the Image I/O framework.  If not configured to link with the
+ImageMagick library, then `image-io' provides a fallback
+implementation of the `imagemagick' image type.
+
+*** The variable `tool-bar-style' works like in GTK+.  The values
+`both-horiz', `text-image-horiz' are synonymous with `both'.
+
+*** Flicking either a touch-sensitive mouse with one finger or a
+trackpad with two fingers horizontally issues a swipe-left/swipe-right
+event, which is now bound to a simple buffer switching by default.
+
+
+* emacs-23.4-mac-2.0 (2012-01-31)
+Based on Emacs 23.4
+https://lists.gnu.org/r/emacs-devel/2012-01/msg00944.html
+
+** Fixed bugs
+
+*** Wrong relief color calculation.
+
+** Improvements
+
+*** Add sections for the Mac port in the Emacs info.
+
+
+* emacs-23.3.90-mac-1.9998 [experimental/hackers-only] (2012-01-15)
+Based on Emacs 23.3.90
+https://lists.gnu.org/r/emacs-devel/2012-01/msg00554.html
+
+** Fixed bugs
+
+*** Wrong relief display for sliced images.
+Adapt a fix for Bug#10500.
+
+** Improvements
+
+*** If Emacs.app is launched from Finder or via Resume, and there is
+no ~/.MacOSX/environment.plist file, then it inherits environment
+variable settings of user's login shell.  Note that if Emacs.app is
+launched via the `open' command on Mac OS X 10.4 and later, then it
+inherits environment variable settings of the shell where the command
+is invoked, and this behavior is unchanged.
+
+
+* emacs-23.3b-mac-1.9997 [experimental/hackers-only] (2011-11-28)
+https://lists.gnu.org/r/emacs-devel/2011-11/msg00473.html
+
+** Fixed bugs
+
+*** Several redisplay bugs found in the trunk.
+Backport revno 106534, 106517(Bug#10119), 106357, 106345(Bug#9496),
+106279(Bug#9947), 106223, and 106220.
+
+*** Several xfns.c bugs found in the trunk.
+Adapt revno 106352(Bug#9999), 106293(Bug#9943), 106278(Bug#9943) and
+105310 to macfns.c.
+
+** Improvements
+
+*** Toolbars can be hidden/shown from the context menu on Mac OS X
+10.7, which doesn't have a toggle button on the title bar.
+
+
+* emacs-23.3a-mac-1.9996 [experimental/hackers-only] (2011-10-27)
+https://lists.gnu.org/r/emacs-devel/2011-10/msg01106.html
+
+** Fixed bugs
+
+*** The cursor is sometimes unerased.  This bug is not
+platform-specific, but happens more frequently on Mac OS X 10.7.
+Apply a fix for Bug#9415.
+
+*** Crash when a separator is displayed in the tool bar on Mac OS X
+10.7.
+
+*** Can't toggle tool bar visibility for maximized frames on Mac OS X
+10.7.
+
+*** While executing AppleScript, pressing the down arrow key is
+misinterpreted as `C-_' (usually bound to the undo command).
+Reported by Leo.
+
+*** Memory leak by y-or-n-p-with-timeout with GUI (Bug#9830).
+
+** Improvements
+
+*** Can compile with ARC (Automatic Reference Counting) on Xcode 4.2.
+Specify CC="clang -fobjc-arc" on configure.
+
+*** When running Ediff on a fullboth frame, it no longer gets obscured
+by the menu bar or the Dock even if we focus Ediff Control Panel.
+
+*** Unlike fullboth frames, fullscreen frames no longer occupy the
+whole desktop area on Mac OS X 10.7 when the desktop width/height is
+not a multiple of the nominal character width/height, respectively.
+
+
+* emacs-23.3a-mac-1.9995 [experimental/hackers-only] (2011-08-27)
+https://lists.gnu.org/r/emacs-devel/2011-08/msg00977.html
+
+** Fixed bugs
+
+*** Devanagari string U+0936 U+094D U+0930 U+093F (3 consonants
+followed by 1 vowel, but the glyph corresponding to the last vowel
+should be displayed first) is displayed wrong and may cause hang.
+Reported by Tsuyoshi YASUMA.
+
+*** Executables compiled on Mac OS X 10.6 with
+MACOSX_DEPLOYMENT_TARGET=10.5 do not run on Mac OS X 10.5.  This is a
+regression introduced in 1.9994.
+Note: executables compiled on Mac OS X 10.7 with
+MACOSX_DEPLOYMENT_TARGET=10.6 and some optimization flag still do not
+run on Mac OS X 10.6, but I think this is a bug about weak linking in
+the compiler or linker in Xcode 4.1 and already reported to Apple.
+
+*** Updating display while a frame is resized from the bottom-right
+corner does not work via Screen Sharing.  This is a regression
+introduced in 1.9993.
+
+*** Updating display while a frame is resized does not work from
+non-bottom-right corners or edges on Mac OS X 10.7.
+
+*** Some CPU consumption is observed even if executed with -Q -D (no
+timer for cursor blinking) and M-x tool-bar-mode RET on Mac OS X 10.7.
+
+
+* emacs-23.3a-mac-1.9994 [experimental/hackers-only] (2011-08-06)
+https://lists.gnu.org/r/emacs-devel/2011-08/msg00301.html
+
+** Fixed bugs
+
+*** SVG display by WebKit is disabled on 64-bit executables.
+
+*** The "Special Characters ..." item in the "Edit" menu doesn't
+appear in non-English locales.
+
+*** LastResort font is not shown on Mac OS X 10.7.
+
+*** Pointer shape around the edges/corners becomes the pointing arrow
+rather than the resizing arrows on Mac OS X 10.7 when mouse moved.
+
+** Improvements
+
+*** Support for the full screen mode introduced in Mac OS X 10.7.
+Now `fullscreen' and `fullboth' values for the `fullscreen' frame
+parameter have different meanings on Mac OS X 10.7: the former means a
+new system-wide full screen mode with a dedicated desktop (or Space),
+and the latter means the existing fullscreen feature.
+
+Known issues: the menu bar does not appear with Control-F2 or
+Command-Shift-/, and the tool bar is shown when mouse is moved to the
+top even when tool-bar-mode is turned off.  I think these are bugs
+(already reported to Apple), and I'd like to see if the situation
+is changed with some future OS updates rather than tweaking with some
+workarounds.
+
+*** On Mac OS X 10.7, double-tapping either a touch-sensitive mouse
+with one finger or a trackpad with two fingers changes the buffer text
+scaling to unscaled if previously scaled.  And if previously unscaled,
+then the buffer text is scaled so the default font occupies at least
+`mac-text-scale-standard-width' columns in the tapped window.
+
+
+* emacs-23.3-mac-1.9993 [experimental/hackers-only] (2011-07-23)
+https://lists.gnu.org/r/emacs-devel/2011-07/msg00906.html
+
+** Fixed bugs
+
+*** Doesn't compile with Xcode 4.1.
+
+*** Scroll bar thumb dragging doesn't work right on Mac OS X 10.7.
+
+*** Static compositions sometimes get truncated.
+(See also http://proofgeneral.inf.ed.ac.uk/trac/ticket/409)
+Apply Kenichi Handa's fix for Bug#8703.
+
+*** Static compositions by font-lock at the end of buffer cause crash.
+(See also http://proofgeneral.inf.ed.ac.uk/trac/ticket/318)
+Apply Kenichi Handa's fix for Bug#8915.
+
+** Improvements
+
+*** Color bitmap fonts such as Apple Color Emoji can be displayed if
+compiled and run on Mac OS X 10.7.
+
+*** Drag-and-drop highlights the frame under the pointer.
+
+*** Option key temporarily inverts the "Jump to the spot that's
+clicked" setting for scroll bars as in other applications.
+
+*** Option key temporarily changes the behavior of line-up/down scroll
+bar buttons to page-up/down as in other applications.
+
+*** Holding shift key on startup is recognized as -Q option.
+
+** Notes
+
+*** This release is meant to make minimal adjustment for Mac OS X
+10.7.  Don't expect integration with new features of Lion except the
+color emoji display support mentioned above.
+
+*** SVG support by WebKit is disabled on 64-bit executables for now,
+because it may hang while initializing plugins in some cases.  If you
+do need SVG display, then build as a 32-bit executable or use librsvg.
+
+
+* emacs-23.3-mac-1.9992 [experimental/hackers-only] (2011-03-10)
+Based on Emacs 23.3
+https://lists.gnu.org/r/emacs-devel/2011-03/msg00378.html
+
+** Fixed bugs
+
+*** Doesn't compile with Xcode 4.
+
+*** Crash with invalid default-process-coding-system value.
+Apply Kenichi Handa's fix for Bug#8162.
+
+
+* emacs-23.2.93-mac-1.9991 [experimental/hackers-only] (2011-02-01)
+Based on Emacs 23.2.93
+https://lists.gnu.org/r/emacs-devel/2011-02/msg00010.html
+
+** Fixed bugs
+
+*** flyspell-buffer for a large buffer doesn't get faster with a
+faster machine.
+
+** Improvements
+
+*** flyspell-buffer for a large buffer gets even faster.
+Apply Brandon Craig Rhodes's patch in Bug#7343.
+
+*** You can optionally place the pure space to a read-only section by
+uncommenting the line beginning with "//#define PURE_SECTION" in
+src/s/darwin.h.
+
+
+* emacs-23.2.92-mac-1.9990 [experimental/hackers-only] (2011-01-15)
+Based on Emacs 23.2.92
+https://lists.gnu.org/r/emacs-devel/2011-01/msg00472.html
+
+** Fixed bugs
+
+*** Functions `mac-get-preference' and `mac-send-apple-event-internal'
+may fall into unquittable infinite loop for circular args.
+
+** Improvements
+
+*** New function `mac-convert-property-list' for conversion of
+CFPropertyList between several formats: xml1, binary1, and Lisp
+representation.  Might be useful for processing webarchive data.
+
+
+* emacs-23.2.91-mac-1.999 [experimental/hackers-only] (2010-12-12)
+Based on Emacs 23.2.91
+https://lists.gnu.org/r/emacs-devel/2010-12/msg00359.html
+
+** Fixed bugs
+
+*** Pixel-based mouse wheel smooth scrolling behavior is
+unintentionally affected by some scroll-related variables.
+
+
+* emacs-23.2.90-mac-1.998 [experimental/hackers-only] (2010-11-10)
+Based on Emacs 23.2.90
+https://lists.gnu.org/r/emacs-devel/2010-11/msg00269.html
+
+** Fixed bugs
+
+*** Fullscreen frame does not hide the Dock that is on a different
+screen from the one containing the menu bar.
+Note: we cannot hide only the menu bar while showing the Dock.  So the
+Dock might be hidden even when the fullscreen frame is not on the
+screen containing the Dock.
+
+
+* emacs-23.2-mac-1.997 [experimental/hackers-only] (2010-09-27)
+https://lists.gnu.org/r/emacs-devel/2010-09/msg01439.html
+
+** Fixed bugs
+
+*** Text shaping does not respect the :destination setting.
+
+** Improvements
+
+*** One can send an Apple event and handle its reply asynchronously.
+ODB Editor Suite support is added as an example.  (Only tested with
+QuickCursor.  Add "<string>org.gnu.Emacs</string>" to the elements of
+QCEditInChoices in QuickCursor.app/Contents/Info.plist.)
+
+
+* emacs-23.2-mac-1.996 [experimental/hackers-only] (2010-07-31)
+https://lists.gnu.org/r/emacs-devel/2010-07/msg01457.html
+
+** Fixed bugs
+
+*** Boundary indicators in fringes are scrolled out if vscrolled.
+Apply a fix for Bug#5634 and Bug#6325.
+Now that this annoying problem is fixed, pixel-based mouse wheel
+smooth scrolling is enabled by default.  Note that it still has
+several glitches and you can turn it off by setting
+`mac-mouse-wheel-smooth-scroll' to nil.
+
+
+* emacs-23.2-mac-1.995 [experimental/hackers-only] (2010-06-26)
+https://lists.gnu.org/r/emacs-devel/2010-06/msg01000.html
+
+** Fixed bugs
+
+*** Text scaling by pinch out/in and by C-x C-+/C-- are not in sync.
+
+*** Shift-Tab is recognized as Tab, and keyboard navigation after
+Command-Shift-/ doesn't work on Mac OS X 10.6.  These are regressions
+caused by the previous fix for the DefaultKeyBinding.dict problem.
+
+*** Successive paste of the same image from other applications via the
+clipboard causes duplication in the kill ring.  Reported by Leo.  This
+is a regression caused by the previous fix.
+
+*** Fonts in highlighted words with the pop-up dictionary
+(Command-Control-D) are sometimes incorrect.  This is a regression
+caused by refactoring for the accessibility support.
+
+** Improvements
+
+*** Font design destination can be specified via the `:destination'
+font property.  The value 1 means the destination is video text as in
+the XLFD Conventions, and screen font metrics are used in that case.
+You can see the difference with (make-frame '((font
+. "Monaco-9:antialias=off:destination=1"))), for example.
+
+
+* emacs-23.2-mac-1.994 [experimental/hackers-only] (2010-05-29)
+https://lists.gnu.org/r/emacs-devel/2010-05/msg00951.html
+
+** Fixed bugs
+
+*** Prefix keys defined in ~/Library/KeyBindings/DefaultKeyBinding.dict
+need to be typed multiple times.  Reported by Peter Dyballa and Drew Hess.
+
+*** Successive paste of different images from other applications via
+the clipboard only inserts the first image.  Reported by Leo.
+
+*** Successive SVG image loading in `vrend-clock' by Anders Waldenborg
+(https://lists.gnu.org/r/bug-gnu-emacs/2010-05/msg00521.html)
+fails in a few seconds.
+
+*** The variable `face-ignored-fonts' does not work.
+Apply Kenichi Handa's fix for Bug#6287.
+This is useful when you want to turn off synthetic bold for some fonts
+like (add-to-list 'face-ignored-fonts "\\`-[^-]*-monaco-bold-").
+Synthetic bold seems to become lighter if the background is darker
+than the foreground and the LCD font smoothing is turned on.
+
+** Improvements
+
+*** "Speak selected text with when the key is pressed", which can be
+customized in the Speech pane in the System Preferences, now works.
+
+*** New events: magnify-up/down and rotate-left/right.  They are for
+newer trackpads with Mac OS X 10.5.2 and later.  By default,
+magnify-up/down, which are issued by pinch out/in, are bound to
+scaling text size by text-scale-mode.  With the shift key, they turn
+on/off fullscreen status of the frame.
+
+*** Experimental support for accessibility with respect to the custom
+view for Emacs frames.  Still there are several glitches.
+
+
+* emacs-23.2-mac-1.993 [experimental/hackers-only] (2010-05-09)
+Based on Emacs 23.2
+https://lists.gnu.org/r/emacs-devel/2010-05/msg00266.html
+
+** Improvements
+
+*** Very experimental support for mouse wheel smooth scroll.  This
+still has several glitches especially with respect to tall lines, so
+disabled by default for now.  You can try this by setting
+`mac-mouse-wheel-smooth-scroll' to t.  Note that this feature might be
+withdrawn later.
+
+
+* emacs-23.1.97-mac-1.992 [experimental/hackers-only] (2010-05-04)
+Based on Emacs 23.1.97
+https://lists.gnu.org/r/emacs-devel/2010-05/msg00106.html
+
+** Fixed bugs
+
+*** Tooltips don't respect customized `tooltip' face font setting.
+
+*** Font specs specified for non-ASCII characters in a non-default
+fontset are not used in new frames.  Reported by Ichiro Enoki.
+
+** Improvements
+
+*** New function `mac-file-alias-p', which is parallel to
+`file-symlink-p'.
+
+
+* emacs-23.1.96-mac-1.991 [experimental/hackers-only] (2010-04-20)
+Based on Emacs 23.1.96
+https://lists.gnu.org/r/emacs-devel/2010-04/msg00901.html
+
+** Fixed bugs
+
+*** 64-bit binary built on Mac OS X 10.5 does not run on 10.6.
+
+*** `make bootstrap' fails (though it is not required for normal
+installation).  Reported by Leo.
+
+** Improvements
+
+*** `do-applescript' regards a given multibyte string as Unicode text.
+It behaves as in Emacs 22 if the script is given as a unibyte string.
+
+
+* emacs-23.1.95-mac-1.990 [experimental/hackers-only] (2010-04-03)
+Based on Emacs 23.1.95
+https://lists.gnu.org/r/emacs-devel/2010-04/msg00094.html
+
+** Fixed bugs
+
+*** Crash when showing a tooltip on a secondary monitor.
+
+*** Can't quit while establishing a TCP connection.
+Apply a fix for Bug#5723 as well as Helmut Eller's fix for Bug#5173.
+
+** Improvements
+
+*** When a maximized frame is moved with title bar dragging on a
+multiple monitor environment, the destination monitor is determined by
+the mouse position at the end of dragging.  If such a frame is moved
+programmatically, the destination monitor is determined by the maximum
+area of the contained part of the frame as before.
+
+*** Menu item "Open Selected File in Emacs" is shown in Services or
+context menu of other applications by default on Mac OS X 10.6 when
+absolute pathname-like text is selected.
+
+*** Emacs info nodes are accessible via search field in the Help menu
+if compiled and run on Mac OS X 10.6.
+
+*** "Click in the scroll bar to: Jump to the spot that's clicked"
+setting in the System Preferences is supported.
+
+
+* emacs-23.1.94-mac-1.99 [experimental/hackers-only] (2010-03-11)
+Based on Emacs 23.1.94
+https://lists.gnu.org/r/emacs-devel/2010-03/msg00390.html
+
+** Fixed bugs
+
+*** Dictionary popped up with Command-Control-D is misplaced when a
+word in a partially-visible line is looked up.
+
+*** Drag-n-dropping a file into a Message buffer opens the file
+instead of adding it as an attachment.  Reported by Leo.
+
+*** Crash when a text is drag-n-dropped into the Dock icon.
+Reported by Leo.
+
+*** Not registered as a service provider on Mac OS X 10.4 and earlier,
+even if there is no other instance of running Emacs.
+
+*** Modifier mapping for the `fn' key does not work with the `A' key.
+
+** Improvements
+
+*** Reverse conversion in Kotoeri works even without selection.
+Hitting Eisu/Kana key on JIS keyboard (or Control-Shift-;/J/K on US
+keyboard) twice also works.
+
+
+* emacs-23.1.93-mac-1.98 [experimental/hackers-only] (2010-02-27)
+Based on Emacs 23.1.93
+https://lists.gnu.org/r/emacs-devel/2010-02/msg00665.html
+
+** Fixed bugs
+
+*** Menu selection via search field in the Help menu doesn't work on
+Mac OS X 10.6.
+Note: this seems to be still unstable on Mac OS X 10.5.8, crashing at
+the function TestMenuSystemAttributes in the HIToolbox framework.
+I've experienced similar crashes even with Safari on that version.
+
+*** The function `menu-bar-open' does not activate the menu bar.
+
+*** Menu bar does not get updated after Command-H -> Dock icon click
+on Mac OS X 10.5.
+
+** Improvements
+
+*** Scroll bars are excluded from flashed area for visible bell in a
+consistent way.
+
+*** Several keyboard shortcuts (notably those for Keyboard Navigation)
+listed in System Preferences now work.
+
+
+* emacs-23.1.92-mac-1.97 [experimental/hackers-only] (2010-01-30)
+Based on Emacs 23.1.92
+https://lists.gnu.org/r/emacs-devel/2010-01/msg01487.html
+
+** Fixed bugs
+
+*** Turning on the toolbar in a fullscreen frame leaves garbage if it
+has non-zero internal border width.
+
+** Improvements
+
+*** When the clipboard has both textual and image data, yank inserts
+the former and push both into the kill ring so the latter can be
+inserted with yank-pop afterwards.
+
+*** Use non-integral x positions for displaying antialiased
+proportional fonts.  You can see the difference by putting the box
+cursor over Helvetica 12pt `I', whose ideal width is 3.33398 but
+displayed with the rounded width 3, for example.
+
+
+* emacs-23.1.91-mac-1.96 [experimental/hackers-only] (2009-12-31)
+Based on Emacs 23.1.91
+https://lists.gnu.org/r/emacs-devel/2009-12/msg01112.html
+
+** Fixed bugs
+
+*** The `fullboth' frames, which don't have a title bar, are not shown
+in the window list in the Dock menu.
+
+*** Mouse highlighting is not updated on popup (de)activations.
+
+*** With `x-select-font', the first click in a list sometimes results
+in a wrong selection.
+
+*** Command line options specifying temporary preferences settings
+(e.g., -AppleDisplayScaleFactor 1.25 -AppleAntiAliasingThreshold 14),
+just as in other Cocoa applications, are regarded as if they are
+specifying filenames to edit.
+
+** Improvements
+
+*** Change of text smoothing threshold setting in the Appearance pane
+of the System Preferences is now reflected immediately.
+
+
+* emacs-23.1.90-mac-1.95 [experimental/hackers-only] (2009-12-10)
+Based on Emacs 23.1.90
+https://lists.gnu.org/r/emacs-devel/2009-12/msg00466.html
+
+** Fixed bugs
+
+*** Can't get Unicode Variation Sequences subtable for Hanazono font
+(2009-12-01, TTF) on Mac OS X 10.4 and earlier.
+
+** Improvements
+
+*** Fullscreen works like with ewmh-compliant X11 window managers.
+Note: currently, `fullboth' frames, which don't have a title bar, are
+not shown in the window list in the Dock menu.
+
+
+* emacs-23.1-mac-1.94 [experimental/hackers-only] (2009-11-01)
+https://lists.gnu.org/r/emacs-devel/2009-11/msg00001.html
+
+** Fixed bugs
+
+*** Kill/yank in tty frames causes an error.
+
+** Improvements
+
+*** When delete-selection-mode is enabled, then the active region is
+hidden while the marked text is being shown (so "Reverse conversion"
+in Kotoeri looks better).
+
+*** The current cursor position may be returned for a character
+position query for text input even if the marked text is not displayed
+or handled at the Lisp level yet (so auxiliary windows in AquaSKK 4
+are placed better.)
+
+*** SVG images are supported via WebKit on Mac OS X 10.4 and later.
+If you have librsvg installed and you want to use WebKit for rendering
+SVG images, then you need to specify --without-rsvg as a configure
+option.
+
+*** The Mac font backend driver now supports `get_variation_glyphs'
+also on Mac OS X 10.4 and earlier.
+
+*** Ideographic Variation Sequences (IVSes) also work for Hiragino
+fonts, which don't have a format 14 (Unicode Variation Sequences)
+subtable in their cmap table.
+
+
+* emacs-23.1-mac-1.93 [experimental/hackers-only] (2009-09-27)
+https://lists.gnu.org/r/emacs-devel/2009-09/msg00745.html
+
+** Fixed bugs
+
+*** Conversion between Lisp and NSPasteboard strings doesn't preserve
+NUL characters.
+
+*** Mouse face reacts even while tracking Dock menus or Stacks.
+
+*** Control-Q does not work as the quote binding in file dialogs.
+
+*** Synthetic bold does not work for bitmap-only fonts on Mac OS X
+10.6.
+
+** Improvements
+
+*** New events: wheel-left/right as in W32, and
+swipe-up/down/left/right on Mac OS X 10.5.2 and later.
+
+*** The Mac font backend driver now supports `get_variation_glyphs' on
+Mac OS X 10.5 and later.  You need some OpenType font containing a
+format 14 (Unicode Variation Sequences) subtable in its cmap table.
+
+*** Simplified `select' emulation also for Mac OS X 10.5 and earlier.
+Its design is similar to the one in the previous release with Grand
+Central Dispatch.
+
+
+* emacs-23.1-mac-1.92 [experimental/hackers-only] (2009-09-05)
+https://lists.gnu.org/r/emacs-devel/2009-09/msg00105.html
+
+** Fixed bugs
+
+*** Command-Control-D doesn't pop up dictionary on Mac OS X 10.6.
+
+*** Iconified frames aren't considered visible.
+Reported by Benjamin Riefenstahl.
+
+*** Can't make iconified frames invisible.
+
+** Improvements
+
+*** Fall back on mac-system-coding-system if script and language
+information is not available in text input events.
+
+*** New implementation for the `select' emulation using Grand Central
+Dispatch instead of CFSocket.  It is enabled by default if built for
+Mac OS X 10.6.  If you find it unstable/problematic, then you can turn
+it off by compiling with "-DSELECT_USE_GCD=0".
+
+
+* emacs-23.1-mac-1.91 [experimental/hackers-only] (2009-08-29)
+https://lists.gnu.org/r/emacs-devel/2009-08/msg01309.html
+
+** Fixed bugs
+
+*** Doesn't build on Mac OS X 10.6.
+
+*** Multi-page TIFF images are not supported.
+I thought they were, but I actually added the code to another working
+tree and forgot to merge it in the previous version.
+
+*** "Visit New File" shows a wrong dialog.
+Apply Jason Rumney's fix for Bug#3969.
+
+*** Mach port right leaks due to the previous change for the warning
+"CFMessagePort: bootstrap_register(): failed".
+
+** Improvements
+
+*** File and font dialogs can be closed with C-g on Mac OS X 10.5 and later.
+
+
+* emacs-23.1-mac-1.90 [experimental/hackers-only] (2009-08-03)
+Based on Emacs 23.1.  Rename from "Carbon+AppKit port" to "Mac port".
+Drop support for Mac OS X 10.1 and earlier.
+Drop GUI implementation with Carbon HIToolbox.
+Revamp font handing completely.
+https://lists.gnu.org/r/emacs-devel/2009-08/msg00091.html
+
+
+* emacs-22.3-appkit-1.5 (2009-08-03)
+https://lists.gnu.org/r/emacs-devel/2009-08/msg00091.html
+
+** Fixed bugs
+
+*** "open -g" (available on Mac OS X 10.5 and later) does not work.
+
+*** Control-Tab is not recognized on Mac OS X 10.4 and earlier.
+
+** Improvements
+
+*** Resizing truncates the window width/height to multiple of the
+nominal character size instead of rounding unless the resizing is
+triggered by mouse dragging of the resize handle.
+
+*** Warning "CFMessagePort: bootstrap_register(): failed" with
+multiple invocations via command-line or "open -n" is suppressed
+(except for Mac OS X 10.4).
+
+
+* emacs-22.3-appkit-1.4 (2009-06-27)
+https://lists.gnu.org/r/emacs-devel/2009-06/msg00532.html
+
+** Fixed bugs
+
+*** Fringe bitmap display is incorrect if its width is not 8.
+
+*** Crash when calculating Quickdraw font metrics in an invisible frame.
+
+*** Crash when changing internal-border-width of an invisible frame.
+
+*** Assertion failure in mac_set_font.
+
+*** "Hide" in Login Items does not work.
+
+*** (mac-pasteboard-string-to-string "\342\204\246" 'mac-roman) gives
+GREEK CAPITAL LETTER OMEGA instead of OHM SIGN (likewise for
+mac-utxt-to-string).
+
+*** mac-symbol -> emacs-mule mapping is represented wrong for #x30 - #x37.
+
+** Improvements
+
+*** Conversion between CFNumber and Lisp objects now uses Lisp strings
+for integers that don't fit in the Lisp float range.
+
+
+* emacs-22.3-appkit-1.3 (2009-03-27)
+https://lists.gnu.org/r/emacs-devel/2009-03/msg00485.html
+
+** Fixed bugs
+
+*** Popup dialog button labels may get corrupted.
+https://lists.gnu.org/r/emacs-devel/2009-03/msg00261.html
+
+*** Popup dialog does not select the default item with the return key.
+
+*** Tooltip contents are sometimes not shown on 10.4 due to the
+previous change for flyspell-small-region slowness.
+
+** Improvements
+
+*** Hourglass (progress indicator) is shown in the title bar.
+
+*** Add f20 and kp-separator to the keycode-to-xkeysym table.
+
+
+* emacs-22.3-appkit-1.2 (2009-01-24)
+https://lists.gnu.org/r/emacs-devel/2009-01/msg00753.html
+
+** Fixed bugs
+
+*** do-applescript crashes with -nw due to the previous fix for
+(do-applescript "choose file") hang.
+
+*** Cursor erasure sometimes fails on Mac OS X 10.5 due to the
+previous change for flyspell-small-region slowness.
+
+*** Buffer overrun in creation of Vmac_carbon_version_string.
+
+** Improvements
+
+*** Untag Lisp_Object by subtraction instead of masking.
+https://lists.gnu.org/r/emacs-devel/2008-01/msg01876.html
+
+*** `select' emulation waits for user signal delivery as well as
+window system events and process outputs via sockets.
+https://lists.gnu.org/r/emacs-devel/2008-10/msg00198.html
+
+*** Hourglass display is enabled.
+
+*** Let the framework decide whether wheel events to non-focus frames
+are accepted or not.
+
+
+* emacs-22.3-appkit-1.1 (2008-11-27)
+https://lists.gnu.org/r/emacs-devel/2008-11/msg00993.html
+
+** Fixed bugs
+
+*** 64-bit binary doesn't work with AquaSKK Japanese input method.
+
+*** Tooltip contents are chopped off if the fractional part of the
+scaling factor is greater than or equal to 0.5.
+
+*** Crash with tooltip autodisplay that happens when its contents are
+not yet ready.
+
+*** (do-applescript "choose file") -> cancel -> hang on 10.5.
+
+*** With asynchronous subprocesses, the "[Complete, but not unique]"
+message shown by C-x C-f / TAB TAB will disappear on key release.
+(Both Carbon and Carbon+Appkit)
+
+*** Crash with tabbar.el (not specific to the Carbon(+AppKit) port).
+http://emacsbugs.donarmstrong.com/cgi-bin/bugreport.cgi?bug=1337
+
+** Improvements
+
+*** Execution of flyspell-small-region is no longer too slow.
+
+*** The "Visit New File" dialog no longer confirms replacement if an
+existing file is specified (only on 10.3 and later).
+
+*** Update display while the resize control (or the slider in the font
+panel) is being dragged.
+
+*** Align key bindings shown in a menu.
+
+*** Explicitly link with libncurses.5 if MACOSX_DEPLOYMENT_TARGET <
+1040 to avoid runtime link error when running on the versions without
+/usr/lib/libncurses.5.4.dylib.
+
+
+* emacs-22.3-appkit-1.0 (2008-09-07)
+Initial release
+https://lists.gnu.org/r/emacs-devel/2008-09/msg00268.html

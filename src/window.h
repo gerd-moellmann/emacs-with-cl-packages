@@ -432,6 +432,19 @@ struct window
        updated in update_frame.  */
     bool_bf must_be_updated_p : 1;
 
+#ifdef HAVE_MACGUI
+    /* True means this window is currently being updated and thus
+       expose_window should not use the current matrix.  This is used
+       in place of the variable `updated_window', which has been
+       removed in 24.4.  Because the Mac port extensively uses
+       `expose' (e.g., for rounding the bottom corners of a frame or
+       several animation effects such as full screen transitions), we
+       need finer control over the timing when expose is prohibited,
+       so that it may not trigger SET_FRAME_GARBAGED unnecessarily.
+       Otherwise we'll see so many whiteouts.  */
+    bool_bf being_updated_p : 1;
+#endif
+
     /* Flag indicating that this window is not a real one.
        Currently only used for menu bar windows, for tool bar windows,
        and for tooltips.  */
@@ -785,7 +798,7 @@ wset_next_buffers (struct window *w, Lisp_Object val)
 #endif
 
 /* True if W is a tool bar window.  */
-#if defined (HAVE_WINDOW_SYSTEM) && ! defined (HAVE_EXT_TOOL_BAR)
+#ifdef HAVE_INT_TOOL_BAR
 #define WINDOW_TOOL_BAR_P(W) \
   (WINDOWP (WINDOW_XFRAME (W)->tool_bar_window) \
    && (W) == XWINDOW (WINDOW_XFRAME (W)->tool_bar_window))

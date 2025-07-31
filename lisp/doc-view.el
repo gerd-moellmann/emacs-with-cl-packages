@@ -1235,6 +1235,49 @@ Should be invoked when the cached images aren't up-to-date."
 			    (list "-o" pdf dvi)
 			    callback)))
 
+(declare-function mac-possibly-use-high-resolution-monitors-p
+		  "term/mac-win" ())
+(declare-function mac-high-resolution-image-file-name
+		  "term/mac-win" (filename &optional scale))
+(defun doc-view-additional-conversion-targets-mac-2x (target resolution)
+  (list (cons (mac-high-resolution-image-file-name target) (* resolution 2))))
+
+(defvar doc-view-additional-conversion-targets-function
+  (if (and (fboundp 'mac-high-resolution-image-file-name)
+	   (mac-possibly-use-high-resolution-monitors-p))
+      'doc-view-additional-conversion-targets-mac-2x)
+  "Function called to get additional conversion targets.
+The value nil means there are no additional conversion targets.
+If non-nil, it should take two arguments TARGET and RESOLUTION
+representing the base target file name and the base resolution
+value respectively, and return a list of pairs (TARGET
+. RESOLUTION) where TARGET is an additional target file name and
+RESOLUTION is the corresponding resolution value.
+This variable is added by Emacs Mac port for high-resolution
+support.")
+
+(defun doc-view-multiplex-conversion (converter target callback)
+  "Call CONVERTER taking account of additional conversion targets.
+The function CONVERTER is called with the TARGET and nil
+resolution arguments as a base, and additionally called with the
+target and resolution arguments given by
+`doc-view-additional-conversion-targets-function' as additional
+conversion targets.  The callback argument passed to CONVERTER is
+made from CALLBACK so it is called once when all the conversions
+are finished."
+  (if (null doc-view-additional-conversion-targets-function)
+      (funcall converter target callback nil)
+    (let* ((all-targets
+	    (cons (cons target nil)
+		  (funcall doc-view-additional-conversion-targets-function
+			   target doc-view-resolution)))
+	   (count (length all-targets))
+	   (callback-once (lambda () (if (= (setq count (1- count)) 0)
+					 (funcall callback)))))
+      (dolist (target-resolution all-targets)
+	(funcall converter (car target-resolution) callback-once
+		 (cdr target-resolution))))))
+
 (defun doc-view-pdf-password-protected-ghostscript-p (pdf)
   "Return non-nil if a PDF file is password-protected.
 The test is performed using `doc-view-ghostscript-program'."
@@ -1249,17 +1292,20 @@ The test is performed using `doc-view-ghostscript-program'."
 (defun doc-view-pdf->png-converter-ghostscript (pdf png page callback)
   (let ((pdf-passwd (if (doc-view-pdf-password-protected-ghostscript-p pdf)
                         (read-passwd "Enter password for PDF file: "))))
-    (doc-view-start-process
-     "pdf/ps->png" doc-view-ghostscript-program
-     `(,@doc-view-ghostscript-options
-       ,(concat "-sDEVICE=" doc-view-ghostscript-device)
-       ,(format "-r%d" (round doc-view-resolution))
-       ,@(if page `(,(format "-dFirstPage=%d" page)))
-       ,@(if page `(,(format "-dLastPage=%d" page)))
-       ,@(if pdf-passwd `(,(format "-sPDFPassword=%s" pdf-passwd)))
-       ,(concat "-sOutputFile=" png)
-       ,pdf)
-     callback)))
+    (doc-view-multiplex-conversion
+     (lambda (png callback &optional resolution)
+       (doc-view-start-process
+        "pdf/ps->png" doc-view-ghostscript-program
+        `(,@doc-view-ghostscript-options
+          ,(concat "-sDEVICE=" doc-view-ghostscript-device)
+          ,(format "-r%d" (round (or resolution doc-view-resolution)))
+          ,@(if page `(,(format "-dFirstPage=%d" page)))
+          ,@(if page `(,(format "-dLastPage=%d" page)))
+          ,@(if pdf-passwd `(,(format "-sPDFPassword=%s" pdf-passwd)))
+          ,(concat "-sOutputFile=" png)
+          ,pdf)
+        callback))
+     png callback)))
 
 (defalias 'doc-view-ps->png-converter-ghostscript
   'doc-view-pdf->png-converter-ghostscript)
@@ -1268,17 +1314,20 @@ The test is performed using `doc-view-ghostscript-program'."
   "Convert PAGE of a DJVU file to bitmap(s) asynchronously.
 Call CALLBACK with no arguments when done.
 If PAGE is nil, convert the whole document."
-  (doc-view-start-process
-   "djvu->tiff" "ddjvu"
-   `("-format=tiff"
-     ;; ddjvu only accepts the range 1-999.
-     ,(format "-scale=%d" (round doc-view-resolution))
-     ;; -eachpage was only added after djvulibre-3.5.25.3!
-     ,@(unless page '("-eachpage"))
-     ,@(if page `(,(format "-page=%d" page)))
-     ,djvu
-     ,tiff)
-   callback))
+  (doc-view-multiplex-conversion
+   (lambda (tiff callback &optional resolution)
+     (doc-view-start-process
+      "djvu->tiff" "ddjvu"
+      `("-format=tiff"
+        ;; ddjvu only accepts the range 1-999.
+        ,(format "-scale=%d" (round (or resolution doc-view-resolution)))
+        ;; -eachpage was only added after djvulibre-3.5.25.3!
+        ,@(unless page '("-eachpage"))
+        ,@(if page `(,(format "-page=%d" page)))
+        ,djvu
+        ,tiff)
+      callback))
+   tiff callback))
 
 (defun doc-view-pdfdraw-program-subcommand ()
   "Return the mutool subcommand replacing mudraw.
@@ -1301,9 +1350,8 @@ The test is performed using `doc-view-pdfdraw-program'."
 (defun doc-view-pdf->png-converter-mupdf (pdf png page callback)
   (let* ((pdf-passwd (if (doc-view-pdf-password-protected-pdfdraw-p pdf)
                          (read-passwd "Enter password for PDF file: ")))
-         (options `(,(concat "-o" png)
-                    ,(format "-r%d" (round doc-view-resolution))
-                    ,@(if pdf-passwd `("-p" ,pdf-passwd)))))
+         (options0 `(,(concat "-o" png)))
+         (options `(,@(if pdf-passwd `("-p" ,pdf-passwd)))))
     (when (eq doc-view-doc-type 'epub)
       (when doc-view-epub-font-size
         (setq options (append options
@@ -1314,14 +1362,18 @@ The test is performed using `doc-view-pdfdraw-program'."
                       (list (format "-U%s"
                                     (expand-file-name
                                      doc-view-epub-user-stylesheet)))))))
-    (doc-view-start-process
-     (concat "pdf->" (symbol-name doc-view--image-type))
-     doc-view-pdfdraw-program
-     `(,@(doc-view-pdfdraw-program-subcommand)
-       ,@options
-       ,pdf
-       ,@(if page `(,(format "%d" page))))
-     callback)))
+    (doc-view-multiplex-conversion
+     (lambda (_png callback &optional resolution)
+       (doc-view-start-process
+        "pdf->png" doc-view-pdfdraw-program
+        `(,@(doc-view-pdfdraw-program-subcommand)
+          ,@options0
+          ,(format "-r%d" (round (or resolution doc-view-resolution)))
+          ,@options
+          ,pdf
+          ,@(if page `(,(format "%d" page))))
+        callback))
+     png callback)))
 
 (defun doc-view-odf->pdf-converter-unoconv (odf callback)
   "Convert ODF to PDF asynchronously and call CALLBACK when finished.

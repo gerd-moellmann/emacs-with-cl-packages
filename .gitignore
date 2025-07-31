@@ -249,6 +249,7 @@ lib-src/profile
 lib-src/seccomp-filter
 lib-src/test-distrib
 lib-src/update-game-score
+mac/Emacs.app/Contents/MacOS/Emacs
 nextstep/Cocoa/Emacs.base/Contents/Info.plist
 nextstep/Cocoa/Emacs.base/Contents/Resources/English.lproj
 nextstep/Emacs.app/
@@ -399,3 +400,5 @@ exec/*.s.s
 /nextstep/Emacs PKG.app/
 /src/mpsio.txt
 /src/run-emacs.lldb
+/carbon/Emacs.app
+/mac/Emacs.app/Contents/MacOS/libexec/

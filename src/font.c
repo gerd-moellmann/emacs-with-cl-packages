@@ -156,7 +156,10 @@ valid_font_driver (struct font_driver const *drv)
 
 /* Creators of font-related Lisp object.  */
 
-static Lisp_Object
+#ifndef HAVE_MACGUI
+static
+#endif
+Lisp_Object
 font_make_spec (void)
 {
   Lisp_Object font_spec;
@@ -239,9 +242,12 @@ font_make_object (int size, Lisp_Object entity, int pixelsize)
   return font_object;
 }
 
-#if defined (HAVE_XFT) || defined (HAVE_FREETYPE) || defined (HAVE_NS)
+#if defined HAVE_XFT || defined HAVE_FREETYPE || defined HAVE_MACGUI || defined HAVE_NS
 
-static int font_unparse_fcname (Lisp_Object, int, char *, int);
+#ifndef HAVE_MACGUI
+static
+#endif
+int font_unparse_fcname (Lisp_Object, int, char *, int);
 
 /* Like above, but also set `type', `name' and `fullname' properties
    of font-object.  */
@@ -1867,14 +1873,17 @@ font_parse_fcname (char *name, ptrdiff_t len, Lisp_Object font)
   return 0;
 }
 
-#if defined HAVE_XFT || defined HAVE_FREETYPE || defined HAVE_NS
+#if defined HAVE_XFT || defined HAVE_FREETYPE || defined HAVE_MACGUI || defined HAVE_NS
 
 /* Store fontconfig's font name of FONT (font-spec or font-entity) in
    NAME (NBYTES length), and return the name length.  If
    FONT_SIZE_INDEX of FONT is 0, use PIXEL_SIZE instead.
    Return a negative value on error.  */
 
-static int
+#ifndef HAVE_MACGUI
+static
+#endif
+int
 font_unparse_fcname (Lisp_Object font, int pixel_size, char *name, int nbytes)
 {
   Lisp_Object family, foundry;
@@ -3969,7 +3978,7 @@ font_range (ptrdiff_t pos, ptrdiff_t pos_byte, ptrdiff_t *limit,
       Lisp_Object category = CHAR_TABLE_REF (Vunicode_category_table, c);
       if (FIXNUMP (category)
 	  && (XFIXNUM (category) == UNICODE_CATEGORY_Cf
-	      || CHAR_VARIATION_SELECTOR_P (c)))
+	      || (! NILP (font_object) && CHAR_VARIATION_SELECTOR_P (c))))
 	continue;
       if (NILP (font_object))
 	{
@@ -6015,7 +6024,7 @@ this variable non-nil.
 Disabling compaction of font caches might enlarge the Emacs memory
 footprint in sessions that use lots of different fonts.  */);
 
-#ifdef WINDOWSNT
+#if defined WINDOWSNT || defined HAVE_MACGUI
   /* Compacting font caches causes slow redisplay on Windows with many
      large fonts, so we disable it by default.  */
   inhibit_compacting_font_caches = 1;
@@ -6065,6 +6074,9 @@ match.  */);
 #ifdef HAVE_NTGUI
   syms_of_w32font ();
 #endif	/* HAVE_NTGUI */
+#ifdef HAVE_MACGUI
+  syms_of_macfont ();
+#endif	/* HAVE_MACGUI */
 #ifdef USE_BE_CAIRO
   syms_of_ftcrfont ();
 #endif

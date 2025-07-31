@@ -738,6 +738,7 @@ fontset_find_font (Lisp_Object fontset, int c, struct face *face,
   return Qnil;
 
  found:
+#ifndef HAVE_MACGUI
   if (fallback && found_index > 0)
     {
       /* The order of fonts in the fallback font-group is not that
@@ -748,6 +749,7 @@ fontset_find_font (Lisp_Object fontset, int c, struct face *face,
 	ASET (vec, i, AREF (vec, i - 1));
       ASET (vec, 0, rfont_def);
     }
+#endif
   return rfont_def;
 }
 

@@ -4126,8 +4126,16 @@ usage: (make-network-process &rest ARGS)  */)
 	 Convert to a C string for later use by getaddrinfo.  */
       if (EQ (service, Qt))
 	{
+#ifdef HAVE_GETADDRINFO_A
 	  portstring = "0";
 	  portstringlen = 1;
+#else
+	  /* We pass NULL for unspecified port, because some versions of
+	     Darwin return EAI_NONAME for getaddrinfo ("localhost", "0",
+	     ...).  */
+	  portstring = NULL;
+	  portstringlen = 0;
+#endif
 	}
       else if (FIXNUMP (service))
 	{
@@ -4703,21 +4711,42 @@ network_lookup_address_info_1 (Lisp_Object host, const char *service,
   ret = getaddrinfo (SSDATA (host), service, hints, res);
   if (ret)
     {
+      /* We pass NULL for unspecified port, because some versions of
+	 Darwin return EAI_NONAME for getaddrinfo ("localhost", "0",
+	 ...).  */
+#if 0
       if (service == NULL)
         service = "0";
+#endif
 #ifdef HAVE_GAI_STRERROR
       synchronize_system_messages_locale ();
       char const *str = gai_strerror (ret);
       if (! NILP (Vlocale_coding_system))
         str = SSDATA (code_convert_string_norecord
                       (build_string (str), Vlocale_coding_system, 0));
-      AUTO_STRING (format, "%s/%s %s");
-      msg = CALLN (Fformat, format, host, build_string (service),
-		   build_string (str));
+      if (service)
+	{
+	  AUTO_STRING (format, "%s/%s %s");
+	  msg = CALLN (Fformat, format, host, build_string (service),
+		       build_string (str));
+	}
+      else
+	{
+	  AUTO_STRING (format, "%s %s");
+	  msg = CALLN (Fformat, format, host, build_string (str));
+	}
 #else
-      AUTO_STRING (format, "%s/%s getaddrinfo error %d");
-      msg = CALLN (Fformat, format, host, build_string (service),
-		   make_int (ret));
+      if (service)
+	{
+	  AUTO_STRING (format, "%s/%s getaddrinfo error %d");
+	  msg = CALLN (Fformat, format, host, build_string (service),
+		       make_int (ret));
+	}
+      else
+	{
+	  AUTO_STRING (format, "%s getaddrinfo error %d");
+	  msg = CALLN (Fformat, format, host, make_int (ret));
+	}
 #endif
     }
    return msg;
@@ -5504,7 +5533,13 @@ wait_reading_process_output (intmax_t time_limit, int nsecs, int read_kbd,
 	    FD_CLR (fd, &Atemp);
 
 	  timeout = make_timespec (0, 0);
-	  if ((thread_select (pselect, max_desc + 1,
+	  if ((
+#ifdef HAVE_MACGUI
+	       mac_select (
+#else
+	       thread_select (pselect,
+#endif
+			      max_desc + 1,
 			      &Atemp,
 			      (num_pending_connects > 0 ? &Ctemp : NULL),
 			      NULL, &timeout, NULL)
@@ -5771,6 +5806,10 @@ wait_reading_process_output (intmax_t time_limit, int nsecs, int read_kbd,
           nfds = ns_select (max_desc + 1,
 			    &Available, (check_write ? &Writeok : 0),
 			    NULL, &timeout, NULL);
+#elif defined HAVE_MACGUI
+	  nfds = mac_select (max_desc + 1,
+			     &Available, (check_write ? &Writeok : 0),
+			     NULL, &timeout, NULL);
 #else  /* !HAVE_GLIB */
 	  nfds = thread_select (pselect, max_desc + 1,
 				&Available,

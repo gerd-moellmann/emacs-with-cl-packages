@@ -1,0 +1,168 @@
+#+TITLE: Updating emacs-mac
+
+~emacs-mac~ differs substantially from the main Emacs builds, including the official NS/NextStep build that supports Mac (see =README-mac= for more details).
+
+This document chronicles experiences merging upstream emacs into ~emacs-mac~, beginning with Emacs v30.1, which was released in Feb, 2025.  While most elisp changes typically merge smoothly, underlying Mac-specific C and ObjC code as well as build system details sometimes need more significant updates as the main project continues to evolve.
+
+* Merging 30.1
+
+<2025-03-06 Thu>
+
+Merged from the upstream ~emacs-30~ branch into the ~emacs-mac~ ~work~ branch, which at the time of merge was based on upstream's v29.4.
+
+A number of issues were encountered:
+
+** Merge issues
+
+- This is the first Emacs version supporting Android, which caused numerous conflicts in places where systems are differentiated.  Many conflicts were resolved by adding various flags or symbols such as:
+  - ~HAVE_MACGUI~ or ~defined(HAVE_MACGUI)~.
+  - Referencing the =mac= directory in build configuration.
+  - ~(featurep 'mac-win)~ for e.g. mouse events.
+  - ~[frame]~-~type~ ~mac~ and ~window-system~ ~mac~ in various locations, e.g. for ~framep-on-display~ and ~eww~ browser.
+  - Mac-related doc entries that had been update or mangled.
+- ~docview~ has some special code for ~image-io~ support (untested) which had been updated.
+- Mouse events have been simplified to only ~wheel-up/down/left/right~ on most systems (including emacs-mac).
+- =Makefile= build flags like ~$(MAC_OBJ)~ needed to be re-included.
+- An updated file function ~sys_faccessat~ is now used.
+- Restore build flags like ~MAC_SELF_CONTAINED~.
+- Restore ~funcall_subr~.
+- Including structure entries like:
+  :  struct mac_output *mac;     /* From macterm.h.  */
+  :  struct mac_display_info *mac;     /* macterm.h */
+- =image.c= has lots of changes, including releasing images, masks, color processing, ~image_io~ support that needed restoring, and _2x file processing.  Needs testing.
+- Care was taken to to re-incorporate ~FRAME_OBSCURED_P~ in =xdisp=.
+- ~macfont.m~ has new font metrics for different weights.
+- Restore stipple support in =xfaces.c= (untested).
+
+** Build issues
+
+After the merge, additional issues were uncovered that prevented compilation from completing:
+
+- There were missing build config options like =mac/Makefile= and the ~MAC_OBJC_OBJ~ ~make~ variable.
+- Major updates to the underlying hash table API have appeared in v30 which required addressing.  These include:
+  + a new ~hash_hash_t~ type
+  + removal of size and threshold arguments for ~make_hash_table~
+  + new /separate/ ~hash_lookup_get_hash~ and ~hash_lookup~ functions
+  + etc.
+- Toolbars: unusually, this build enables both ~HAVE_EXT_TOOL_BAR~ and ~HAVE_INT_TOOL_BAR~, which are both required to have access to e.g. ~fset_tool_bar_window~.  Updated pre-processor tests made this combination fail, and required correction.
+- Some commands have changed arguments (e.g. to accommodate Android builds), like ~openp~, ~compute_image_size~, and ~window_from_coordinates~.
+- Some constants changed names, e.g. ~FACE_UNDERLINE_*~.
+- The compiler complained about a number of constants not being declared ~static~.
+
+* Differences from NS port
+
+From Dec, 2019 post to emacs-devel by Yamamoto-san:
+
+#+begin_quote
+NS port-specific Obj-C files and LOC (as of Emacs 26.3):
+
+    1514 nsfont.m
+     197 nsgui.h
+     513 nsimage.m
+    1893 nsmenu.m
+     511 nsselect.m
+    1323 nsterm.h
+    9460 nsterm.m
+   18754 total
+
+Mac port-specific C/Obj-C files and LOC (as of Emacs 26.3 Mac 7.8):
+
+    3237 mac.c
+    1436 macappkit.h
+   17097 macappkit.m
+    5434 macfns.c
+     279 macgui.h
+     896 macmenu.c
+    1141 macselect.c
+    6326 macterm.c
+     793 macterm.h
+   36639 total
+#+end_quote
+
+Currently (as of v30.1) this is quite similar:
+
+#+begin_quote
+    1765 nsfont.m
+     143 nsgui.h
+     610 nsimage.m
+    2039 nsmenu.m
+     825 nsselect.m
+    1387 nsterm.h
+   11261 nsterm.m
+   18030 total
+
+    3149 mac.c
+    1236 macappkit.h
+   17226 macappkit.m
+    5510 macfns.c
+     254 macgui.h
+     869 macmenu.c
+    1171 macselect.c
+    6242 macterm.c
+     819 macterm.h
+   36476 total
+#+end_quote
+
+
+
+* Tips
+
+- Invoke ~make~ via =M-x compile= so you can =C-x `= and directly visit errors.
+- ~consult-rg~ makes quick work of finding the parent function declaration.
+- From there, ~magit-blame~ can be used to quickly identify the recent commit which changed the calling convention, etc.
+- This commit often includes many examples of fixing code elsewhere to conform to the new conventions.  These can be used as a guide to update affected code (usually in ~macwin~, ~macterm~, etc).
+
+* Other notes
+
+** SVG handling
+
+~CoreGraphics~ does not (as yet) support SVG natively (despite the existence of =PrivateFrameworks/CoreSVG.framework=).  Right now, SVG display is fairly convoluted, and works as follows:
+
+- Image-IO (which drives core graphics) is mapped to an ~image-io~ type in emacs-mac.  The ~imagemagick~ type is aliased to it as well, unless imagemagick is explicitly compiled in.  This allows direct image manipulation (scaling, etc.).
+- ~image_io_load~ is used to load either type of svg file.
+- For images of type ~svg~, ~svg_load~ is registered if =RSVG= support is compiled in.
+- There is also a ~native-image~ type, which also just displays via ~image-io~.
+- When looking up an image type, if it can use the ~native_api~ and has no library compiled explicitly to support it, it does so.
+- If and when we land in ~image-io~ (e.g. because we don't have =RSVG= and ~svg_load~, or because ~image-mode~ has created an ~:imagemagick~ type image):
+  1. If the object is not directly loadable by Core Graphics (as indicated by its UTI not being on the ~CGImageSourceCopyTypeIdentifiers~ return list, or being an ~svg~ type), it creates an ~EmacsDocumentRef~
+  2. It adds a style sheet (with CSS!), and then calls ~mac_document_create_with_data~ or ~mac_document_create_with_url~.
+  3. The latter two look through the list of "document types":
+
+     * ~EmacsPDFDocument.class~
+     * ~EmacsSVGDocument.class~
+     * ~EmacsDocumentRasterizer.class~
+
+     attempting to create a class of type ~EmacsDocumentRasterizer~ (using either the ~URL~ or ~Data~ of the SVG file), and taking the first one that returns a valid document (running it in the main GUI thread if necessary).
+- Meanwhile, back in ~EmacsSVGDocument~, we see if we have =USE_WK_API= set, and if so, we create a ~WKWebView~ (vs. a plain ~WebView~).
+- In stock emacs-mac, we /do/ have =USE_WK_API= set.  It used to test:
+
+  : #if WK_API_ENABLED && MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+
+  but now tests:
+
+  : #if MAC_OS_X_VERSION_MAX_ALLOWED >= 101500 || (WK_API_ENABLED && MAC_OS_X_VERSION_MIN_REQUIRED >= 101300)
+
+  (since ~WK_API_ENABLED~ was removed as a compiler var in MacOS v10.15).
+- With =USE_WK_API=, we set up some fancy webkit webview (cached to avoid constantly recreating).
+- We then create a literal giant string of JavaScript (!), which turns a bunch of CSS and bounding box stuff into a JSON string, via JavaScript!
+- The data is loaded into the WebView, and a JSON object is encoded from the string, simply to ask it for the bounding box, width, and height.
+- And then, yet more JavaScript, creating an SVG and replacing the root node with it.
+
+To summarize:
+
+1. For file-based images (what you get if you just ~find-file~ on =.svg=), the JS+WKWebView route is used.
+2. For inline svg image (~:type svg~, as created with, e.g. with ~svg-image~), we can display /directly/, if =RSVG= is compiled and available.
+3. If =RSVG= is /not available/, =UTI_SVG= is returned from ~mac_get_uti_from_image_type~, indicating that emacs-mac can display them natively, using the ~image-io~ svg chicanery above.
+
+
+** Fixing Bug #67604
+
+Compiled a debug build, using lldb to debug.  Found that a wide glyph on the first line has its ~pixel_width~ incorrectly reported (or not, just has issues with where the line is wrapped and is off by one char, which can be a wide glyph).
+
+** MacOS Window Menu Bar
+In macOS 15, the Window menu allows MacOS keybindings for windows management to work in emacs. See https://support.apple.com/en-is/guide/mac-help/mchl9674d0b0/mac.
+
+To support this feature:
+
+In mac-win.el, we've added a "Window" menu-bar. This menu holds MacOS's native Windows Menu Items, along with all native tab commands. See ~mac-window-menu-map~.
+In macappkit.m, we look for the "Window" menu-item defined in mac-win.el and bind it to the mac app via ~[NSApp setWindowsMenu]~

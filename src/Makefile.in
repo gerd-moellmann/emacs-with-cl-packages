@@ -1,4 +1,4 @@
-### @configure_input@
+## @configure_input@
 
 # Copyright (C) 1985, 1987-1988, 1993-1995, 1999-2025 Free Software
 # Foundation, Inc.
@@ -94,6 +94,7 @@ C_SWITCH_MACHINE=@C_SWITCH_MACHINE@
 ## System-specific CFLAGS.
 C_SWITCH_SYSTEM=@C_SWITCH_SYSTEM@
 
+MAC_CFLAGS=@MAC_CFLAGS@
 GNUSTEP_CFLAGS=@GNUSTEP_CFLAGS@
 PNG_CFLAGS=@PNG_CFLAGS@
 
@@ -315,6 +316,12 @@ MSDOS_OBJ =
 ## w16select.o termcap.o if MSDOS && HAVE_X_WINDOWS.
 MSDOS_X_OBJ =
 
+## mac.o macterm.o macfns.o macmenu.o macselect.o macfont.o fontset.o
+## fringe.o image.o if HAVE_MACGUI, otherwise empty.
+MAC_OBJ=@MAC_OBJ@
+## macappkit.o if HAVE_MACGUI, otherwise empty.
+MAC_OBJC_OBJ=@MAC_OBJC_OBJ@
+
 NS_OBJ=@NS_OBJ@
 ## nsterm.o nsfns.o nsmenu.o nsselect.o nsimage.o ns_fontfile if HAVE_NS.
 NS_OBJC_OBJ=@NS_OBJC_OBJ@
@@ -461,7 +468,7 @@ NON_CXX_CFLAGS = -Wmissing-prototypes -Wnested-externs -Wold-style-definition \
 EMACS_CFLAGS=-Demacs $(MYCPPFLAGS) -I. -I$(srcdir) \
   -I$(lib) -I$(top_srcdir)/lib \
   $(C_SWITCH_MACHINE) $(C_SWITCH_SYSTEM) $(C_SWITCH_X_SITE) \
-  $(GNUSTEP_CFLAGS) $(CFLAGS_SOUND) $(RSVG_CFLAGS) $(IMAGEMAGICK_CFLAGS) \
+  $(MAC_CFLAGS) $(GNUSTEP_CFLAGS) $(CFLAGS_SOUND) $(RSVG_CFLAGS) $(IMAGEMAGICK_CFLAGS) \
   $(PNG_CFLAGS) $(LIBXML2_CFLAGS) $(LIBGCCJIT_CFLAGS) $(DBUS_CFLAGS) \
   $(XRANDR_CFLAGS) $(XINERAMA_CFLAGS) $(XFIXES_CFLAGS) $(XDBE_CFLAGS) \
   $(XINPUT_CFLAGS) $(WEBP_CFLAGS) $(WEBKIT_CFLAGS) $(LCMS2_CFLAGS) \
@@ -506,10 +513,10 @@ base_obj = dispnew.o frame.o scroll.o xdisp.o menu.o $(XMENU_OBJ) window.o     \
 	thread.o systhread.o sqlite.o  treesit.o			       \
 	itree.o json.o 							       \
 	marker-vector.o 						       \
-	$(MSDOS_OBJ) $(MSDOS_X_OBJ) $(NS_OBJ) $(CYGWIN_OBJ) $(FONT_OBJ)        \
+	$(MSDOS_OBJ) $(MSDOS_X_OBJ) $(MAC_OBJ) $(NS_OBJ) $(CYGWIN_OBJ) $(FONT_OBJ)        \
 	$(W32_OBJ) $(WINDOW_SYSTEM_OBJ) $(XGSELOBJ)			       \
 	$(HAIKU_OBJ) $(PGTK_OBJ) $(ANDROID_OBJ)
-doc_obj = $(base_obj) $(NS_OBJC_OBJ)
+doc_obj = $(base_obj) $(MAC_OBJC_OBJ) $(NS_OBJC_OBJ)
 obj = $(doc_obj) $(HAIKU_CXX_OBJ) $(DTRACE_OBJ)
 
 ## Object files used on some machine or other.
@@ -518,7 +525,7 @@ obj = $(doc_obj) $(HAIKU_CXX_OBJ) $(DTRACE_OBJ)
 ## in the list, in case they ever add any such entries.
 SOME_MACHINE_OBJECTS = dosfns.o msdos.o \
   xterm.o xfns.o xmenu.o xselect.o xrdb.o xsmfns.o fringe.o image.o \
-  fontset.o dbusbind.o cygw32.o \
+  mac.o macterm.o macfns.o macmenu.o macselect.o fontset.o dbusbind.o cygw32.o \
   nsterm.o nsfns.o nsmenu.o nsselect.o nsimage.o nsfont.o macfont.o \
   nsxwidget.o \
   w32.o w32console.o w32cygwinx.o w32fns.o w32heap.o w32inevt.o w32notify.o \
@@ -722,7 +729,7 @@ buildobj.h: Makefile
 	done >$@.tmp
 	$(AM_V_at)mv $@.tmp $@
 
-GLOBAL_SOURCES = $(base_obj:.o=.c) $(NS_OBJC_OBJ:.o=.m)
+GLOBAL_SOURCES = $(base_obj:.o=.c) $(MAC_OBJC_OBJ:.o=.m) $(NS_OBJC_OBJ:.o=.m)
 
 gl-stamp: $(libsrc)/make-docfile$(EXEEXT) $(GLOBAL_SOURCES)
 	$(AM_V_GLOBALS)$(libsrc)/make-docfile -d $(srcdir) -g $(doc_obj) > globals.tmp
@@ -828,6 +835,10 @@ doc.o: buildobj.h
 
 emacs.res: FORCE
 	$(MAKE) -C ../nt ../src/emacs.res
+
+.PHONY: macosx-app
+macosx-app: emacs$(EXEEXT) $(pdmp)
+	$(MAKE) -C ../mac all
 
 .PHONY: ns-app
 ns-app: emacs$(EXEEXT) $(pdmp)

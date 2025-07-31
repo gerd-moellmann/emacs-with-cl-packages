@@ -844,7 +844,10 @@ extern Lisp_Object font_make_entity (void);
 extern Lisp_Object font_make_entity_android (int);
 #endif
 extern Lisp_Object font_make_object (int, Lisp_Object, int);
-#if defined (HAVE_XFT) || defined (HAVE_FREETYPE) || defined (HAVE_NS)
+#ifdef HAVE_MACGUI
+extern Lisp_Object font_make_spec (void);
+#endif
+#if defined HAVE_XFT || defined HAVE_FREETYPE || defined HAVE_MACGUI || defined HAVE_NS
 extern Lisp_Object font_build_object (int, Lisp_Object, Lisp_Object, double);
 #endif
 
@@ -981,6 +984,10 @@ extern struct font_driver harfbuzz_font_driver;
 #endif
 extern void syms_of_w32font (void);
 #endif	/* HAVE_NTGUI */
+#ifdef HAVE_MACGUI
+extern void mac_register_font_driver (struct frame *);
+extern void syms_of_macfont (void);
+#endif	/* HAVE_MACGUI */
 #ifdef HAVE_NS
 extern struct font_driver const nsfont_driver;
 extern void syms_of_nsfont (void);

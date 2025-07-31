@@ -393,6 +393,229 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 					    (const :tag "only shift-selection or mouse-drag" only)
 					    (const :tag "off" nil))
 				    "24.1")
+	     ;; mac.c
+	     (mac-system-move-file-to-trash-use-finder mac boolean "23.4")
+	     ;; macselect.c
+	     (mac-dnd-known-types mac (repeat string) "25.2")
+	     ;; macterm.c
+	     (mac-control-modifier
+	      mac (choice (const :tag "No modifier" nil)
+			  (const control) (const meta) (const alt)
+			  (const hyper) (const super)
+			  (plist :tag "Per event type"
+				 :value
+				 (:ordinary control :function control :mouse control)
+				 :options
+				 (:ordinary
+				  :function :mouse
+				  (:button
+				   (choice
+				    :value 2
+				    (integer :menu-tag "Primary button only"
+					     :tag "Map primary button only to"
+					     :value 2)
+				    (group
+				     :menu-tag "Multiple buttons"
+				     (integer :tag "Map primary button to"
+					      :value 2)
+				     (repeat :inline t
+					     :tag "Other buttons"
+					     (integer :tag "Map next button to"
+						      :value 4))))))
+				 :value-type
+				 (choice (const :tag "No modifier" nil)
+					 (const control) (const meta)
+					 (const alt) (const hyper)
+					 (const super)))) "22.1")
+	     (mac-right-control-modifier
+	      mac (choice (const :tag "Same as left one" left)
+			  (const :tag "No modifier" nil)
+			  (const control) (const meta) (const alt)
+			  (const hyper) (const super)
+			  (plist :tag "Per event type"
+				 :value
+				 (:ordinary left :function left :mouse left)
+				 :options
+				 (:ordinary
+				  :function :mouse
+				  (:button
+				   (choice
+				    :value 2
+				    (integer :menu-tag "Primary button only"
+					     :tag "Map primary button only to"
+					     :value 2)
+				    (group
+				     :menu-tag "Multiple buttons"
+				     (integer :tag "Map primary button to"
+					      :value 2)
+				     (repeat :inline t
+					     :tag "Other buttons"
+					     (integer :tag "Map next button to"
+						      :value 4))))))
+				 :value-type
+				 (choice (const :tag "Same as left one" left)
+					 (const :tag "No modifier" nil)
+					 (const control) (const meta)
+					 (const alt) (const hyper)
+					 (const super)))) "24.4")
+	     (mac-command-modifier
+	      mac (choice (const :tag "No modifier" nil)
+			  (const control) (const meta) (const alt)
+			  (const hyper) (const super)
+			  (plist :tag "Per event type"
+				 :value
+				 (:ordinary meta :function meta :mouse meta)
+				 :options
+				 (:ordinary
+				  :function :mouse
+				  (:button
+				   (choice
+				    :value 2
+				    (integer :menu-tag "Primary button only"
+					     :tag "Map primary button only to"
+					     :value 2)
+				    (group
+				     :menu-tag "Multiple buttons"
+				     (integer :tag "Map primary button to"
+					      :value 2)
+				     (repeat :inline t
+					     :tag "Other buttons"
+					     (integer :tag "Map next button to"
+						      :value 4))))))
+				 :value-type
+				 (choice (const :tag "No modifier" nil)
+					 (const control) (const meta)
+					 (const alt) (const hyper)
+					 (const super)))) "22.1")
+	     (mac-right-command-modifier
+	      mac (choice (const :tag "Same as left one" left)
+			  (const :tag "No modifier" nil)
+			  (const control) (const meta) (const alt)
+			  (const hyper) (const super)
+			  (plist :tag "Per event type"
+				 :value
+				 (:ordinary left :function left :mouse left)
+				 :options
+				 (:ordinary
+				  :function :mouse
+				  (:button
+				   (choice
+				    :value 2
+				    (integer :menu-tag "Primary button only"
+					     :tag "Map primary button only to"
+					     :value 2)
+				    (group
+				     :menu-tag "Multiple buttons"
+				     (integer :tag "Map primary button to"
+					      :value 2)
+				     (repeat :inline t
+					     :tag "Other buttons"
+					     (integer :tag "Map next button to"
+						      :value 4))))))
+				 :value-type
+				 (choice (const :tag "Same as left one" left)
+					 (const :tag "No modifier" nil)
+					 (const control) (const meta)
+					 (const alt) (const hyper)
+					 (const super)))) "24.4")
+	     (mac-option-modifier
+	      mac (choice (const :tag "No modifier (work as option)" nil)
+			  (const control) (const meta) (const alt)
+			  (const hyper) (const super)
+			  (plist :tag "Per event type"
+				 :value (:function alt :mouse alt)
+				 :options
+				 (:ordinary
+				  :function :mouse
+				  (:button
+				   (choice
+				    :value 2
+				    (integer :menu-tag "Primary button only"
+					     :tag "Map primary button only to"
+					     :value 2)
+				    (group
+				     :menu-tag "Multiple buttons"
+				     (integer :tag "Map primary button to"
+					      :value 2)
+				     (repeat :inline t
+					     :tag "Other buttons"
+					     (integer :tag "Map next button to"
+						      :value 4))))))
+				 :value-type
+				 (choice (const :tag "No modifier (work as option)" nil)
+					 (const control) (const meta)
+					 (const alt) (const hyper)
+					 (const super)))) "22.1")
+	     (mac-right-option-modifier
+	      mac (choice (const :tag "Same as left one" left)
+			  (const :tag "No modifier (work as option)" nil)
+			  (const control) (const meta) (const alt)
+			  (const hyper) (const super)
+			  (plist :tag "Per event type"
+				 :value
+				 (:ordinary left :function left :mouse left)
+				 :options
+				 (:ordinary
+				  :function :mouse
+				  (:button
+				   (choice
+				    :value 2
+				    (integer :menu-tag "Primary button only"
+					     :tag "Map primary button only to"
+					     :value 2)
+				    (group
+				     :menu-tag "Multiple buttons"
+				     (integer :tag "Map primary button to"
+					      :value 2)
+				     (repeat :inline t
+					     :tag "Other buttons"
+					     (integer :tag "Map next button to"
+						      :value 4))))))
+				 :value-type
+				 (choice (const :tag "Same as left one" left)
+					 (const :tag "No modifier (work as option)" nil)
+					 (const control) (const meta)
+					 (const alt) (const hyper)
+					 (const super)))) "24.4")
+	     (mac-function-modifier
+	      mac (choice (const :tag "No modifier (work as function)" nil)
+			  (const control) (const meta) (const alt)
+			  (const hyper) (const super)
+			  (plist :tag "Per event type"
+				 :value (:button 2)
+				 :options
+				 (:ordinary
+				  :function :mouse
+				  (:button
+				   (choice
+				    :value 2
+				    (integer :menu-tag "Primary button only"
+					     :tag "Map primary button only to"
+					     :value 2)
+				    (group
+				     :menu-tag "Multiple buttons"
+				     (integer :tag "Map primary button to"
+					      :value 2)
+				     (repeat :inline t
+					     :tag "Other buttons"
+					     (integer :tag "Map next button to"
+						      :value 4))))))
+				 :value-type
+				 (choice (const :tag "No modifier (work as function)" nil)
+					 (const control) (const meta)
+					 (const alt) (const hyper)
+					 (const super)))) "22.1")
+	     (mac-emulate-three-button-mouse
+	      mac (choice (const :tag "Use modifier variable settings" nil)
+			  (const :tag "Option->2, Command->3" t)
+			  (const :tag "Command->2, Option->3" reverse)) "22.1")
+	     (mac-wheel-button-is-mouse-2 mac boolean "22.1")
+	     (mac-pass-command-to-system mac boolean "22.1")
+	     (mac-pass-control-to-system mac boolean "22.1")
+	     (mac-drawing-use-gcd mac boolean "24.4")
+	     (mac-frame-tabbing mac (choice (const automatic) (const inverted)
+                                            (const nil) (const t)) "24.5")
+	     (mac-ignore-accessibility mac boolean "25.3")
              (debug-on-event debug
                              (choice (const :tag "None" nil)
                                      (const :tag "When sent SIGUSR1" sigusr1)
@@ -883,6 +1106,8 @@ since it could result in memory overflow and make Emacs crash."
 		       (eq system-type 'ms-dos))
 		      ((string-match "\\`w32-" (symbol-name symbol))
 		       (eq system-type 'windows-nt))
+		      ((string-match "\\`mac-" (symbol-name symbol))
+		       (boundp 'mac-carbon-version-string))
 		      ((string-match "\\`ns-" (symbol-name symbol))
 		       (featurep 'ns))
                       ((string-match "\\`haiku-" (symbol-name symbol))
@@ -912,7 +1137,10 @@ since it could result in memory overflow and make Emacs crash."
 		      ((string-match "fringe" (symbol-name symbol))
 		       (boundp 'fringe-bitmaps))
 		      ((string-match "\\`imagemagick" (symbol-name symbol))
-		       (fboundp 'imagemagick-types))
+		       ;; The function `imagemagick-types' exists in
+		       ;; imagemagick emulation by image-io, but the
+		       ;; variable `imagemagick-render-type' doesn't.
+		       (boundp 'imagemagick-render-type))
 		      ((equal "font-use-system-font" (symbol-name symbol))
 		       (featurep 'system-font-setting))
 		      ;; Conditioned on x-create-frame, because that's

@@ -886,13 +886,13 @@ The selected font will be the default on both the existing and future frames."
     (define-key menu [customize]
       '(menu-item "Customize" menu-bar-window-divider-customize
                   :help "Customize window dividers"
-                  :visible (memq (window-system) '(x w32))))
+                  :visible (memq (window-system) '(x w32 mac))))
 
     (define-key menu [bottom-and-right]
       '(menu-item "Bottom and Right"
                   menu-bar-bottom-and-right-window-divider
                   :help "Display window divider on the bottom and right of each window"
-                  :visible (memq (window-system) '(x w32))
+                  :visible (memq (window-system) '(x w32 mac))
                   :button (:radio
 			   . (and (window-divider-width-valid-p
 				   (cdr (assq 'bottom-divider-width
@@ -904,7 +904,7 @@ The selected font will be the default on both the existing and future frames."
       '(menu-item "Right Only"
                   menu-bar-right-window-divider
                   :help "Display window divider on the right of each window only"
-                  :visible (memq (window-system) '(x w32))
+                  :visible (memq (window-system) '(x w32 mac))
                   :button (:radio
 			   . (and (not (window-divider-width-valid-p
 					(cdr (assq 'bottom-divider-width
@@ -916,7 +916,7 @@ The selected font will be the default on both the existing and future frames."
       '(menu-item "Bottom Only"
                   menu-bar-bottom-window-divider
                   :help "Display window divider on the bottom of each window only"
-                  :visible (memq (window-system) '(x w32))
+                  :visible (memq (window-system) '(x w32 mac))
                   :button (:radio
 			   . (and (window-divider-width-valid-p
 				   (cdr (assq 'bottom-divider-width
@@ -928,7 +928,7 @@ The selected font will be the default on both the existing and future frames."
       '(menu-item "None"
                   menu-bar-no-window-divider
                   :help "Do not display window dividers"
-                  :visible (memq (window-system) '(x w32))
+                  :visible (memq (window-system) '(x w32 mac))
                   :button (:radio
 			   . (and (not (window-divider-width-valid-p
 					(cdr (assq 'bottom-divider-width
@@ -1369,7 +1369,7 @@ mail status in mode line"))
 
     (define-key menu [showhide-window-divider]
       `(menu-item "Window Divider" ,menu-bar-showhide-window-divider-menu
-                  :visible (memq (window-system) '(x w32))))
+                  :visible (memq (window-system) '(x w32 mac))))
 
     (define-key menu [showhide-fringe]
       `(menu-item "Fringe" ,menu-bar-showhide-fringe-menu
@@ -2675,6 +2675,7 @@ See `menu-bar-mode' for more information."
 
 (declare-function x-menu-bar-open "term/x-win" (&optional frame))
 (declare-function w32-menu-bar-open "term/w32-win" (&optional frame))
+(declare-function mac-menu-bar-open "term/mac-win" (&optional frame))
 (declare-function pgtk-menu-bar-open "term/pgtk-win" (&optional frame))
 (declare-function haiku-menu-bar-open "haikumenu.c" (&optional frame))
 
@@ -2857,6 +2858,7 @@ If FRAME is nil or not given, use the selected frame."
     (cond
      ((eq type 'x) (x-menu-bar-open frame))
      ((eq type 'w32) (w32-menu-bar-open frame))
+     ((eq type 'mac) (mac-menu-bar-open frame))
      ((eq type 'haiku) (haiku-menu-bar-open frame))
      ((eq type 'pgtk) (pgtk-menu-bar-open frame))
      ((and (null tty-menu-open-use-tmm)

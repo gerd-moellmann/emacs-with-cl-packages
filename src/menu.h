@@ -54,6 +54,11 @@ extern Lisp_Object w32_menu_show (struct frame *, int, int, int,
 				  Lisp_Object, const char **);
 extern void w32_activate_menubar (struct frame *);
 #endif
+#ifdef HAVE_MACGUI
+extern Lisp_Object mac_menu_show (struct frame *, int, int, int,
+				  Lisp_Object, const char **);
+extern void mac_activate_menubar (struct frame *);
+#endif
 #ifdef HAVE_NS
 extern Lisp_Object ns_menu_show (struct frame *, int, int, int,
 				 Lisp_Object, const char **);

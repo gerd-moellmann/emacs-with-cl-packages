@@ -117,6 +117,15 @@ ANDROID = @ANDROID@
 
 # ==================== Where To Install Things ====================
 
+# Location to install Emacs.app on macOS
+mac_appdir=@mac_appdir@
+mac_appbindir=@mac_appbindir@
+mac_applibexecdir=@mac_applibexecdir@
+mac_appresdir=@mac_appresdir@
+mac_applibdir=@mac_applibdir@
+# Either yes or no depending on whether this is a relocatable Emacs.app.
+mac_self_contained=@mac_self_contained@
+
 # Location to install Emacs.app under GNUstep / macOS.
 # Later values may use these.
 ns_appdir=@ns_appdir@
@@ -339,6 +348,9 @@ endif
 SUBDIR_MAKEFILES_IN = @SUBDIR_MAKEFILES_IN@
 SUBDIR_MAKEFILES = $(patsubst ${srcdir}/%,%,${SUBDIR_MAKEFILES_IN:.in=})
 
+# Mac template files from which config.status generates config files.
+MAC_TEMPLATE_FILES = @MAC_TEMPLATE_FILES@
+
 # Non-makefile files created by config.status.
 CONFIG_STATUS_FILES_IN = \
  ${srcdir}/nt/emacs.rc.in ${srcdir}/nt/emacsclient.rc.in \
@@ -352,12 +364,17 @@ CONFIG_STATUS_FILES_IN = \
 COPYDIR = ${srcdir}/etc ${srcdir}/lisp
 COPYDESTS = "$(DESTDIR)${etcdir}" "$(DESTDIR)${lispdir}"
 
+ifeq (${mac_self_contained},no)
 ifeq (${ns_self_contained},no)
 BIN_DESTDIR = $(DESTDIR)${bindir}/
 ELN_DESTDIR = $(DESTDIR)${libdir}/emacs/${version}/
 else
 BIN_DESTDIR = ${ns_appbindir}/
 ELN_DESTDIR = ${ns_applibdir}/
+endif
+else
+BIN_DESTDIR='${mac_appbindir}/'
+ELN_DESTDIR = ${mac_applibdir}/
 endif
 
 gsettings_SCHEMAS = etc/org.gnu.emacs.defaults.gschema.xml
@@ -426,7 +443,7 @@ sanity-check:
 	echo >&2 '***'; \
 	exit 1
 
-.PHONY: all ${SUBDIR} blessmail epaths-force epaths-force-w32 epaths-force-ns-self-contained etc-emacsver
+.PHONY: all ${SUBDIR} blessmail epaths-force epaths-force-w32 epaths-force-mac-self-contained epaths-force-ns-self-contained etc-emacsver
 
 # Changes in lisp may require us to reconsider the build in src.  For
 # example, if loaddefs.{el,elc} were built in lisp, we need a new
@@ -508,6 +525,11 @@ epaths-force-w32:
 # The paths are mostly the same, and the bundle paths are different
 # between macOS and GNUstep, so just replace any references to the app
 # bundle root itself with the relative path.
+epaths-force-mac-self-contained: epaths-force
+	@(sed < src/epaths.h > epaths.h.$$$$		\
+	  -e 's;${mac_appdir}/Emacs.app/;;') &&			\
+	${srcdir}/build-aux/move-if-change epaths.h.$$$$ src/epaths.h
+
 epaths-force-ns-self-contained: epaths-force
 	@(sed < src/epaths.h > epaths.h.$$$$		\
 	  -e 's;${ns_appdir}/;;') &&			\
@@ -565,7 +587,7 @@ blessmail: Makefile src
 MAKEFILE_NAME = Makefile
 $(MAKEFILE_NAME): config.status $(srcdir)/configure \
 	 $(srcdir)/lib/gnulib.mk.in \
-         $(srcdir)/Makefile.in $(SUBDIR_MAKEFILES_IN) $(CONFIG_STATUS_FILES_IN)
+         $(srcdir)/Makefile.in $(SUBDIR_MAKEFILES_IN) $(CONFIG_STATUS_FILES_IN)  $(MAC_TEMPLATE_FILES)
 	MAKE='$(MAKE)' ./config.status
 
 # Don't erase these files if make is interrupted while refreshing them.
@@ -618,6 +640,13 @@ write_subdir=if [ -f "$${subdir}/subdirs.el" ]; \
 install-arch-dep: src install-arch-indep install-etcdoc install-$(NTDIR)
 	umask 022; ${MKDIR_P} "$(DESTDIR)${bindir}"
 	$(MAKE) -C lib-src install
+	if test "$(realpath $(DESTDIR)${mac_appdir})" != "`cd mac && /bin/pwd`"; then \
+	  umask 022; ${MKDIR_P} $(DESTDIR)${mac_appdir}/Emacs.app; \
+	  (cd mac/Emacs.app; (tar -chf - . | \
+		(cd $(DESTDIR)${mac_appdir}/Emacs.app; umask 022; tar -xvf - \
+			&& cat > /dev/null))) || exit 1; \
+	fi
+ifeq (${mac_self_contained},no)
 ifeq (${ns_self_contained},no)
 	${INSTALL_PROGRAM} $(INSTALL_STRIP) src/emacs${EXEEXT} "$(DESTDIR)${bindir}/$(EMACSFULL)"
 ifeq (${HAVE_BE_APP},yes)
@@ -640,6 +669,10 @@ ifeq (${DUMPING},pdumper)
 endif
 	subdir=${ns_appresdir}/site-lisp && ${write_subdir}
 	rm -rf ${ns_appresdir}/share
+endif
+else
+	subdir=${mac_appresdir}/site-lisp && ${write_subdir}
+	rm -rf ${mac_appresdir}/share
 endif
 
 ### Windows-specific install target for installing programs produced
@@ -1026,7 +1059,7 @@ mostlyclean: $(mostlyclean_dirs:=_mostlyclean)
 ###      with them.
 ###
 ###      Delete '.dvi' files here if they are not part of the distribution.
-clean_dirs = $(mostlyclean_dirs) java cross nextstep admin/charsets \
+clean_dirs = $(mostlyclean_dirs) java cross mac nextstep admin/charsets \
   admin/unidata
 
 $(foreach dir,$(clean_dirs),$(eval $(call submake_template,$(dir),clean)))

@@ -1728,7 +1728,7 @@ window_from_coordinates (struct frame *f, int x, int y,
     }
 #endif
 
-#if defined (HAVE_WINDOW_SYSTEM) && ! defined (HAVE_EXT_TOOL_BAR)
+#ifdef HAVE_INT_TOOL_BAR
   /* If not found above, see if it's in the tool bar window, if a tool
      bar exists.  */
   if (NILP (window)
@@ -7020,7 +7020,7 @@ and redisplay normally--don't erase and redraw the frame.  */)
 #if defined (HAVE_WINDOW_SYSTEM)
 	  WINDOW_XFRAME (w)->minimize_tab_bar_window_p = 1;
 #endif
-#if defined (HAVE_WINDOW_SYSTEM) && ! defined (HAVE_EXT_TOOL_BAR)
+#ifdef HAVE_INT_TOOL_BAR
 	  WINDOW_XFRAME (w)->minimize_tool_bar_window_p = 1;
 #endif
 	  Fredraw_frame (WINDOW_FRAME (w));

@@ -38,7 +38,7 @@ struct window;
 #else
 #include "pgtkterm.h"
 #endif
-#elif defined (NS_IMPL_COCOA) && defined (__OBJC__)
+#elif (defined HAVE_MACGUI || defined NS_IMPL_COCOA) && defined (__OBJC__)
 #import <AppKit/NSView.h>
 #import "nsxwidget.h"
 #endif
@@ -79,7 +79,7 @@ struct xwidget
   struct frame *embedder;
   struct xwidget_view *embedder_view;
   guint hit_result;
-#elif defined (NS_IMPL_COCOA)
+#elif defined (HAVE_MACGUI) || defined (NS_IMPL_COCOA)
 # ifdef __OBJC__
   /* For offscreen widgets, unused if not osr.  */
   NSView *xwWidget;
@@ -134,7 +134,7 @@ struct xwidget_view
   cairo_surface_t *cr_surface;
   cairo_t *cr_context;
   int just_resized;
-#elif defined (NS_IMPL_COCOA)
+#elif defined (HAVE_MACGUI) || defined (NS_IMPL_COCOA)
 # ifdef __OBJC__
   XvWindow *xvWindow;
   NSView *emacswindow;

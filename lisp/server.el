@@ -964,13 +964,16 @@ This handles splitting the command if it would be bigger than
     ;; does not understand and throws an error.
     ;; It may also be a valid X display, but if Emacs is compiled for ns, it
     ;; can not make X frames.
-    (if (featurep 'ns-win)
-	(setq w 'ns display "ns")
+    (cond ((featurep 'ns-win)
+	   (setq w 'ns display "ns"))
+	  ((eq window-system 'mac)
+	   (setq w 'mac display "Mac"))
+          (t
       ;; FIXME! Not sure what this was for, and not sure how it should work
       ;; in the cl-defmethod new world!
       ;;(unless (assq w window-system-initialization-alist)
       ;;  (setq w nil))
-      )
+      ))
 
     (cond (w
            (condition-case nil
@@ -1348,6 +1351,7 @@ The following commands are accepted by the client:
                  (when (or (and (eq system-type 'windows-nt)
                                 (or (daemonp)
                                     (eq window-system 'w32)))
+                           (eq window-system 'mac)
                            ;; Client runs on Windows, but the server
                            ;; runs on a Posix host.
                            (equal tty-name "CONOUT$"))

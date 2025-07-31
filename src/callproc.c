@@ -34,17 +34,30 @@ extern char **environ;
 
 /* In order to be able to use `posix_spawn', it needs to support some
    variant of `chdir' as well as `setsid'.  */
-#if defined HAVE_SPAWN_H && defined HAVE_POSIX_SPAWN        \
-  && defined HAVE_POSIX_SPAWNATTR_SETFLAGS                  \
-  && (defined HAVE_POSIX_SPAWN_FILE_ACTIONS_ADDCHDIR        \
-      || defined HAVE_POSIX_SPAWN_FILE_ACTIONS_ADDCHDIR_NP) \
-  && defined HAVE_DECL_POSIX_SPAWN_SETSID                   \
-  && HAVE_DECL_POSIX_SPAWN_SETSID == 1			    \
-  /* posix_spawnattr_setflags rejects POSIX_SPAWN_SETSID on \
-     Haiku */						    \
-  && !defined HAIKU
+/* On Darwin, availability of a variant of `chdir' is checked at
+   runtime so executables compiled on older versions can use
+   `posix_spawn' when running on Darwin 19 (macOS 10.15) or later.  */
+#if defined HAVE_SPAWN_H && defined HAVE_POSIX_SPAWN			\
+  && defined HAVE_POSIX_SPAWNATTR_SETFLAGS				\
+  && (defined DARWIN_OS							\
+      || ((defined HAVE_POSIX_SPAWN_FILE_ACTIONS_ADDCHDIR		\
+	   || defined HAVE_POSIX_SPAWN_FILE_ACTIONS_ADDCHDIR_NP)	\
+	  && defined HAVE_DECL_POSIX_SPAWN_SETSID			\
+	  && HAVE_DECL_POSIX_SPAWN_SETSID == 1)				\
+	  /* posix_spawnattr_setflags rejects POSIX_SPAWN_SETSID on	\
+	     Haiku */							\
+	  && !defined HAIKU)
 # include <spawn.h>
 # define USABLE_POSIX_SPAWN 1
+# ifdef DARWIN_OS
+#  ifndef HAVE_POSIX_SPAWN_FILE_ACTIONS_ADDCHDIR_NP
+#   include <dlfcn.h>
+static int (*darwin_posix_spawn_file_actions_addchdir_np_func) (posix_spawn_file_actions_t *, const char * __restrict);
+#  endif
+#  ifndef POSIX_SPAWN_SETSID
+#   define POSIX_SPAWN_SETSID 0x0400
+#  endif
+# endif
 #else
 # define USABLE_POSIX_SPAWN 0
 #endif
@@ -1368,8 +1381,12 @@ emacs_posix_spawn_init_actions (posix_spawn_file_actions_t *actions,
      but it always fails.  So use the _np function instead.  */
 #if defined HAVE_POSIX_SPAWN_FILE_ACTIONS_ADDCHDIR && !defined HAIKU
   error = posix_spawn_file_actions_addchdir (actions, cwd);
-#else
+#elif defined HAVE_POSIX_SPAWN_FILE_ACTIONS_ADDCHDIR_NP
   error = posix_spawn_file_actions_addchdir_np (actions, cwd);
+#elif defined DARWIN_OS
+  error = (*darwin_posix_spawn_file_actions_addchdir_np_func) (actions, cwd);
+#else
+# error "posix_spawn_file_actions_addchdir(_np) not available"
 #endif
   if (error != 0)
     goto out;
@@ -1478,6 +1495,11 @@ emacs_spawn (pid_t *newpid, int std_in, int std_out, int std_err,
 
   posix_spawn_file_actions_t actions;
   posix_spawnattr_t attributes;
+
+#if defined DARWIN_OS && !defined HAVE_POSIX_SPAWN_FILE_ACTIONS_ADDCHDIR_NP
+  use_posix_spawn = (use_posix_spawn
+		     && darwin_posix_spawn_file_actions_addchdir_np_func);
+#endif
 
   if (use_posix_spawn)
     {
@@ -2090,6 +2112,17 @@ init_callproc (void)
 	dir_warning ("game dir", path_game);
     }
   Vshared_game_score_directory = gamedir;
+#if defined DARWIN_OS && !defined HAVE_POSIX_SPAWN_FILE_ACTIONS_ADDCHDIR_NP
+  darwin_posix_spawn_file_actions_addchdir_np_func = NULL;
+  void *handle = dlopen ("/usr/lib/system/libsystem_kernel.dylib",
+			 RTLD_LOCAL | RTLD_NODELETE);
+  if (handle)
+    {
+      darwin_posix_spawn_file_actions_addchdir_np_func
+	= dlsym (handle, "posix_spawn_file_actions_addchdir_np");
+      dlclose (handle);
+    }
+#endif
 }
 
 void

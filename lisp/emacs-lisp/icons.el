@@ -33,7 +33,7 @@
   :group 'customize)
 
 (defface icon-button
-  '((((type x w32 ns haiku pgtk) (class color))
+  '((((type x w32 mac ns haiku pgtk) (class color))
      :inherit icon
      :box (:line-width (3 . -1) :color "#404040" :style flat-button)
      :background "#808080"

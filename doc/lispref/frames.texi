@@ -61,6 +61,8 @@ The frame is displayed on a text terminal.
 The frame is displayed on an X graphical terminal.
 @item w32
 The frame is displayed on a MS-Windows graphical terminal.
+@item mac
+The frame is displayed on a macOS graphical terminal.
 @item ns
 The frame is displayed on a GNUstep or Macintosh Cocoa graphical
 terminal.
@@ -254,8 +256,8 @@ The terminal and keyboard coding systems used on the terminal.
 @item
 The kind of display associated with the terminal.  This is the symbol
 returned by the function @code{terminal-live-p} (i.e., @code{x},
-@code{t}, @code{w32}, @code{ns}, @code{pc}, @code{haiku}, @code{pgtk},
-or @code{android}).  @xref{Frames}.
+@code{t}, @code{w32}, @code{mac}, @code{ns}, @code{pc}, @code{haiku},
+@code{pgtk}, or @code{android}).  @xref{Frames}.
 
 @item
 A list of terminal parameters.  @xref{Terminal Parameters}.
@@ -4793,14 +4795,14 @@ bounds of the selection data in the buffer @var{buf}.
 @node Other Selections
 @subsection Other Selections
 
-  Selections under such window systems as MS-Windows, Nextstep, Haiku
-and Android are not aligned with those under X@.  Each of these window
-system improvises its own selection mechanism without employing the
-``selection converter'' mechanism illustrated in the preceding node.
+  Selections under such window systems as MS-Windows, Mac, Nextstep,
+Haiku and Android are not aligned with those under X@.  Each of these
+window system improvises its own selection mechanism without employing
+the ``selection converter'' mechanism illustrated in the preceding node.
 Only the @code{PRIMARY}, @code{CLIPBOARD}, and @code{SECONDARY}
 selections are generally supported, with the @code{XdndSelection}
-selection that records drag-and-drop data also available under
-Nextstep and Haiku.
+selection that records drag-and-drop data also available under Nextstep
+and Haiku.
 
 @cindex PGTK selections
   GTK seeks to emulate the X selection system, but its emulations are
@@ -4847,6 +4849,29 @@ decoded by that same coding system; this variable and its cousin
 @code{next-selection-coding-system} merit particular scrutiny when
 difficulties are encountered with saving selection text into the
 clipboard.
+
+@cindex pasteboard support (for macOS)
+On macOS, selection-like data transfer between applications is
+performed through a mechanism called @dfn{pasteboards}.  The clipboard
+is a particular pasteboard named @code{Apple CFPasteboard general}.
+Types of pasteboard data are called @dfn{pasteboard data types}, which
+are identified by strings such as @code{NSStringPboardType}.  The Mac
+port of Emacs associates a selection with a pasteboard, and a
+selection type with a pasteboard data type via
+@code{mac-pasteboard-name} and @code{mac-pasteboard-data-type}
+properties, respectively.
+
+@example
+(get 'CLIPBOARD 'mac-pasteboard-name)
+     @result{} "Apple CFPasteboard general"
+(get 'NSStringPboardType 'mac-pasteboard-data-type)
+     @result{} "NSStringPboardType"
+@end example
+
+Conventionally, selection types for pasteboard data types on macOS are
+named according to the identifiers defined in the NSPasteboard class,
+(e.g., @code{NSStringPboardType}, @code{NSTIFFPboardType}, and
+@code{NSFilenamesPboardType}).
 
 @cindex Nextstep selections
   All three selections standard in X exist in Nextstep as well, but
