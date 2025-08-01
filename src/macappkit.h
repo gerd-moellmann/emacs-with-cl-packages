@@ -546,6 +546,7 @@ typedef NSInteger NSGlyphProperty;
 @interface EmacsController : NSObject <NSApplicationDelegate, NSUserInterfaceValidations>
 {
   /* Points to HOLD_QUIT arg passed to read_socket_hook.  */
+  // FIXME/macigc
   struct input_event *hold_quit;
 
   /* Number of events stored during a
@@ -561,6 +562,7 @@ typedef NSInteger NSGlyphProperty;
   bool any_help_event_p;
 
   /* The frame on which a HELP_EVENT occurs.  */
+  // FIXME/macigc
   struct frame *emacsHelpFrame;
 
   /* The item selected in the popup menu.  */
@@ -677,6 +679,7 @@ typedef NSInteger NSGlyphProperty;
 {
   /* The Emacs frame corresponding to the NSWindow that
      EmacsFrameController object is associated with as delegate.  */
+  // FIXME/macigc
   struct frame *emacsFrame;
 
   /* Window and view for the Emacs frame.  */
@@ -873,6 +876,7 @@ typedef NSInteger NSGlyphProperty;
 
   /* Stores the Emacs input event that the action method is expected
      to process.  */
+  // FIXME/macigc
   struct input_event inputEvent;
 
   /* Whether key events were interpreted by intepretKeyEvents:.  */
@@ -970,6 +974,7 @@ typedef NSInteger NSGlyphProperty;
 @interface EmacsScroller : NonmodalScroller
 {
   /* Emacs scroll bar for the scroller.  */
+  // FIXME/macigc
   struct scroll_bar *emacsScrollBar;
 
   /* The size of the scroller knob track area in pixels.  */
@@ -987,6 +992,7 @@ typedef NSInteger NSGlyphProperty;
 
   /* This is used for saving the `code' and `modifiers' members of an
      input event for a scroller click with the control modifier.  */
+  // FIXME/macigc
   struct input_event inputEvent;
 
   /* Values in the last mac_set_scroll_bar_thumb call.  */
@@ -1087,6 +1093,7 @@ typedef NSInteger NSGlyphProperty;
 @end
 
 /* Lisp_Object wrapper that does not protect the contents from GC.  */
+// FIXME/macigc
 
 @interface EmacsWeakLispObject : NSObject
 {
