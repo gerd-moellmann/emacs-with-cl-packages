@@ -4622,7 +4622,9 @@ static const struct frame_parm_table frame_parms[] =
   {"tool-bar-position",		SYMBOL_INDEX (Qtool_bar_position)},
   {"inhibit-double-buffering",  SYMBOL_INDEX (Qinhibit_double_buffering)},
   {"undecorated",		SYMBOL_INDEX (Qundecorated)},
+#ifdef HAVE_NS
   {"undecorated-round",		SYMBOL_INDEX (Qundecorated_round)},
+#endif
   {"parent-frame",		SYMBOL_INDEX (Qparent_frame)},
   {"skip-taskbar",		SYMBOL_INDEX (Qskip_taskbar)},
   {"no-focus-on-map",		SYMBOL_INDEX (Qno_focus_on_map)},
