@@ -772,7 +772,7 @@ typedef NSInteger NSGlyphProperty;
 @end
 
 
-/* Class for applicaion-side double buffering.  */
+/* Class for application-side double buffering.  */
 
 @interface EmacsBacking : NSObject
 {
