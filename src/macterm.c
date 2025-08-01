@@ -5610,6 +5610,13 @@ mac_term_init (Lisp_Object display_name, char *xrm_option, char *resource_name)
 
   dpyinfo = &one_mac_display_info;
   memset (dpyinfo, 0, sizeof (*dpyinfo));
+#ifdef HAVE_MPS
+  {
+    char *start = (char *) dpyinfo;
+    char *end = start + sizeof *dpyinfo;
+    igc_root_create_ambig (start, end, "mac:one_display_info");
+  }
+#endif
   terminal = mac_create_terminal (dpyinfo);
 
   terminal->kboard = allocate_kboard (Qmac);
