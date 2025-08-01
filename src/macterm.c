@@ -5725,8 +5725,6 @@ record_startup_key_modifiers (void)
 
 /* Set up use of X before we make the first connection.  */
 
-extern frame_parm_handler mac_frame_parm_handlers[];
-
 static struct redisplay_interface mac_redisplay_interface =
   {
     mac_frame_parm_handlers,

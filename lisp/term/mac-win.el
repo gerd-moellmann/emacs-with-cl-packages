@@ -92,10 +92,9 @@
 (defvar mac-frame-tabbing)
 
 
-;; Define the macos-specific Window menu and add it to the global menu-bar map
+;; Define the macOS-specific Window menu and add it to the global menu-bar map
 (defvar-keymap mac-window-menu-map :name "Window")
-(define-key global-map [menu-bar window]
-  (cons "Window" mac-window-menu-map))
+(define-key global-map [menu-bar window] (cons "Window" mac-window-menu-map))
 
 
 ;;
@@ -2888,6 +2887,24 @@ visibility, then remap this command to `mac-previous-tab'."
   (mac-send-action 'arrangeInFront))
 
 
+;;; Windows
+(defun mac-toggle-frame-fullscreen (&optional frame)
+  "Toggle native macOS fullscreen state of FRAME.
+This works like `toggle-frame-fullscreen', except it uses native
+space-based full screen, by setting the `fullscreen' frame parameter to
+`fullscreen'."
+  (interactive)
+  (let ((fullscreen (frame-parameter frame 'fullscreen)))
+    (if (memq fullscreen '(fullscreen fullboth))
+	(let ((fullscreen-restore (frame-parameter frame 'fullscreen-restore)))
+	  (if (memq fullscreen-restore '(maximized fullheight fullwidth))
+	      (set-frame-parameter frame 'fullscreen fullscreen-restore)
+	    (set-frame-parameter frame 'fullscreen nil)))
+      (modify-frame-parameters
+       frame `((fullscreen . fullscreen) (fullscreen-restore . ,fullscreen))))))
+
+(define-key global-map [remap toggle-frame-fullscreen] 'mac-toggle-frame-fullscreen)
+
 ;;; Window system initialization.
 
 (defun mac-win-suspend-error ()
@@ -3103,11 +3120,11 @@ standard ones in `x-handle-args'."
     (define-key-after mac-window-menu-map [mac-next-tab]
       '(menu-item "Show Next Tab" mac-next-tab-or-toggle-tab-bar
                   :enable (mac-frame-multiple-tabs-p)))
-    (global-set-key [(control tab)] 'mac-next-tab-or-toggle-tab-bar)
+    ;; (global-set-key [(control tab)] 'mac-next-tab-or-toggle-tab-bar)
     (define-key-after mac-window-menu-map [mac-previous-tab]
       '(menu-item "Show Previous Tab" mac-previous-tab-or-toggle-tab-bar
                   :enable (mac-frame-multiple-tabs-p)))
-    (global-set-key [(control shift tab)] 'mac-previous-tab-or-toggle-tab-bar)
+    ;; (global-set-key [(control shift tab)] 'mac-previous-tab-or-toggle-tab-bar)
     (define-key-after mac-window-menu-map [mac-move-tab-to-new-frame]
       '(menu-item "Move Tab to New Frame" mac-move-tab-to-new-frame
                   :enable (mac-frame-multiple-tabs-p)))

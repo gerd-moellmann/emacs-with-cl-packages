@@ -22,7 +22,7 @@ This build is kept current with the [`master`](https://github.com/emacs-mirror/e
 
 For an experimental build synced with Emacs master, see [this branch](https://github.com/jdtsmith/emacs-mac/tree/emacs-mac-gnu_master_exp).
 
-## Install
+## Install & Config
 
 See the `emacs-mac-30_1_exp` or `emacs-mac-gnu_master_exp` branch and the file `README-mac` for additional compile instructions.  
 
@@ -98,6 +98,11 @@ If you choose not to `make install`, but instead want to run the application dir
 ```
 
 to associate the native lisp files.  This is useful for debugging, to quickly rebuild and test, for example (saving the install step).  But a [self-contained app](#Self-contained) build is easier, and recommended for most uses.
+
+## Tips
+
+- The new builtin `pixel-scroll-precision-mode` does not work with `emacs-mac`, which has its own flavor of scroll event.  Instead, check out [`ultra-scroll`](https://github.com/jdtsmith/ultra-scroll), which was designed for `emacs-mac` originally.
+- Some tools want a proper `emacs` command.  If you build self-contained, you can link `/usr/local/bin/emacs` -> `/Applications/Emacs.app/Contents/MacOS/Emacs`.
 
 ## Additions
 
