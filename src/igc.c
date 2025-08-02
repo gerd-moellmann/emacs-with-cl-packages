@@ -3466,7 +3466,7 @@ void *
 igc_xpalloc_ambig (void *old_pa, ptrdiff_t *nitems, ptrdiff_t nitems_incr_min,
 		   ptrdiff_t nitems_max, ptrdiff_t item_size)
 {
-  ptrdiff_t old_nitems = old_pa == NULL ? 0 : *nitems;
+  ptrdiff_t old_nitems = old_pa ? *nitems : 0;
   ptrdiff_t new_nitems = *nitems;
   ptrdiff_t nbytes = xpalloc_nbytes (old_pa, &new_nitems, nitems_incr_min,
 				     nitems_max, item_size);
@@ -3489,7 +3489,7 @@ igc_xpalloc_exact (void **pa_cell, ptrdiff_t *nitems,
 		   void *closure)
 {
   void *old_pa = *pa_cell;
-  ptrdiff_t old_nitems = *nitems;
+  ptrdiff_t old_nitems = old_pa ? *nitems : 0;
   ptrdiff_t new_nitems = *nitems;
   ptrdiff_t nbytes = xpalloc_nbytes (old_pa, &new_nitems, nitems_incr_min,
 				     nitems_max, item_size);
@@ -3549,7 +3549,7 @@ igc_xpalloc_lisp_objs_exact (Lisp_Object *pa, ptrdiff_t *nitems,
 			     ptrdiff_t nitems_incr_min, ptrdiff_t nitems_max,
 			     const char *label)
 {
-  ptrdiff_t nitems_old = *nitems;
+  ptrdiff_t nitems_old = pa ? *nitems : 0;
   ptrdiff_t nitems_new = nitems_old;
   ptrdiff_t nbytes
     = xpalloc_nbytes (pa, &nitems_new, nitems_incr_min, nitems_max, word_size);
