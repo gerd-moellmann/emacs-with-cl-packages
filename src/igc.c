@@ -5411,22 +5411,18 @@ init_global_igc (void)
 
 #ifdef HAVE_MACGUI
 
-/* This is called in main, in the GUI (main) thread.  */
-
-void
-igc_init_mac_early (void)
+static struct igc_thread_list *
+add_mac_gui_thread (void)
 {
-  /* Returns previous handler.  */
-  (void) mps_lib_assert_fail_install (igc_assert_fail);
-  global_igc = make_igc ();
-  struct igc *gc = global_igc;
-
-  /* Register thread with MPS, and in the registry.  */
   mps_thr_t thr;
   mps_res_t res = mps_thread_reg (&thr, global_igc->arena);
   IGC_CHECK_RES (res);
-  struct igc_thread_list *t = register_thread (global_igc, thr, NULL);
+  return register_thread (global_igc, thr, NULL);
+}
 
+static void
+add_mac_gui_thread_root (struct igc_thread_list *t)
+{
   /* Make sure the stack bottom is properly aligned as GC expects.  */
   union
   {
@@ -5436,26 +5432,45 @@ igc_init_mac_early (void)
   } stack_pos;
   void *cold = (void *) &stack_pos.o;
 
+  struct igc *gc = global_igc;
   mps_root_t root;
-  res = mps_root_create_thread_scanned (&root, gc->arena, mps_rank_ambig (), 0,
-					thr, scan_ambig, 0, cold);
+  mps_res_t res
+    = mps_root_create_thread_scanned (&root, gc->arena, mps_rank_ambig (), 0,
+				      t->d.thr, scan_ambig, 0, cold);
   IGC_CHECK_RES (res);
   t->d.stack_root = register_root (gc, root, cold, NULL, true, "GUI control stack");
+}
+
+/* This is called in main, in the GUI thread. This thread is not
+   normal in that it does not have an Emacs thread_state.  */
+
+void
+igc_init_mac_early (void)
+{
+  /* Returns previous handler.  */
+  (void) mps_lib_assert_fail_install (igc_assert_fail);
+  global_igc = make_igc ();
+  struct igc_thread_list *t = add_mac_gui_thread ();
+  add_mac_gui_thread_root (t);
   create_thread_aps (&t->d);
   set_state (IGC_STATE_USABLE_PARKED);
 }
 
-/* This is called in main, in the GUI (main) thread.  */
+/* This is called in emacs_main. igc_init_mac_early may or may not have
+   been called.
+
+   If global_igc is non-null, then it has been called, and we are
+   currently in mac's Lisp thread, which we need to register normally,
+
+   Otherwise, if global_igc is null, igc_init_mac_early has not been
+   called. A GUI thread does not exist, and we can perform the normal
+   initialization. */
 
 void
 igc_init_mac_late (void)
 {
   if (global_igc)
-    {
-      igc_assert (global_igc);
-      igc_assert (igc_state == IGC_STATE_USABLE_PARKED);
-      add_main_thread ();
-    }
+    add_main_thread ();
   else
     init_global_igc ();
 }
