@@ -17262,7 +17262,7 @@ main (int argc, char **argv)
     }
 
 #ifdef HAVE_MPS
-  igc_early_init ();
+  igc_init_mac_early ();
  #endif
 
   if (!err)

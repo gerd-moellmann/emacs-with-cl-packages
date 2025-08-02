@@ -1455,7 +1455,11 @@ android_emacs_init (int argc, char **argv, char *dump_file)
   init_signals ();
 
 #ifdef HAVE_MPS
-  init_igc ();
+# ifdef HAVE_MACGUI
+  igc_init_mac_late ();
+# else
+  igc_init ();
+# endif
 #endif
 
   /* This is needed early because load_pdump can call 'float-time' (via

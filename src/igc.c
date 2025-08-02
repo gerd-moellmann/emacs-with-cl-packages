@@ -5399,12 +5399,22 @@ DEFUN ("igc-test-probe", Figc_test_probe, Sigc_test_probe, 1, 1, 0, doc: /* */)
 				  Init
  ***********************************************************************/
 
+static void
+init_global_igc (void)
+{
+  /* Returns previous handler.  */
+  (void) mps_lib_assert_fail_install (igc_assert_fail);
+  global_igc = make_igc ();
+  add_main_thread ();
+  set_state (IGC_STATE_USABLE_PARKED);
+}
+
 #ifdef HAVE_MACGUI
 
 /* This is called in main, in the GUI (main) thread.  */
 
 void
-igc_early_init (void)
+igc_init_mac_early (void)
 {
   /* Returns previous handler.  */
   (void) mps_lib_assert_fail_install (igc_assert_fail);
@@ -5438,22 +5448,24 @@ igc_early_init (void)
 /* This is called in main, in the GUI (main) thread.  */
 
 void
-init_igc (void)
+igc_init_mac_late (void)
 {
-  igc_assert (global_igc);
-  igc_assert (igc_state == IGC_STATE_USABLE_PARKED);
-  add_main_thread ();
+  if (global_igc)
+    {
+      igc_assert (global_igc);
+      igc_assert (igc_state == IGC_STATE_USABLE_PARKED);
+      add_main_thread ();
+    }
+  else
+    init_global_igc ();
 }
 
 #else // not HAVE_MACGUI
+
 void
 init_igc (void)
 {
-  /* Returns previous handler.  */
-  (void) mps_lib_assert_fail_install (igc_assert_fail);
-  global_igc = make_igc ();
-  add_main_thread ();
-  set_state (IGC_STATE_USABLE_PARKED);
+  init_global_igc ();
 }
 
 #endif // not HAVE_MACGUI

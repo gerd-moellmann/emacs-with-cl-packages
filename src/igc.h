@@ -61,7 +61,7 @@ enum igc_obj_type
 #ifdef HAVE_MPS
 
 void igc_break (void);
-void init_igc (void);
+void igc_init (void);
 void syms_of_igc (void);
 void *igc_thread_add (struct thread_state *ts);
 void igc_thread_remove (void **info);
@@ -177,7 +177,8 @@ Lisp_Object igc_discard_killed_buffers (Lisp_Object list);
 # define eassert_not_mps() eassert (false)
 
 #  ifdef HAVE_MACGUI
-void igc_early_init (void);
+void igc_init_mac_early (void);
+void igc_init_mac_late (void);
 #  endif
 
 #else
