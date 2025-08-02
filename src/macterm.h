@@ -54,7 +54,7 @@ struct mac_bitmap_record
 /* For each display (currently only one on mac), we have a structure that
    records information about it.  */
 
-xstruct mac_display_info
+struct mac_display_info
 {
   /* Chain of all mac_display_info structures.  */
   struct mac_display_info *next;
