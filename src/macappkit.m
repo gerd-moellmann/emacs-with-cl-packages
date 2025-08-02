@@ -11313,20 +11313,21 @@ void
 mac_fill_menubar (widget_value *first_wv, bool deep_p)
 {
   mac_within_gui (^{
-      NSMenu *newMenu, *mainMenu = [NSApp mainMenu], *helpMenu, *windowMenu = nil;
-      NSInteger index = 1, nitems = [mainMenu numberOfItems];
+      NSMenu *mainMenu = [NSApp mainMenu];
+      NSMenu *helpMenu = nil;
+      NSMenu *windowMenu = nil;
       bool needs_update_p = deep_p;
 
-      newMenu = [[EmacsMenu alloc] init];
+      NSMenu *newMenu = [[EmacsMenu alloc] init];
       [newMenu setAutoenablesItems:NO];
 
+      NSInteger index = 1;
+      NSInteger nitems = [mainMenu numberOfItems];
       for (widget_value *wv = first_wv; wv != NULL; wv = wv->next, index++)
 	{
 	  NSString *title = CFBridgingRelease (CFStringCreateWithCString
 					       (NULL, wv->name,
 						kCFStringEncodingMacRoman));
-	  NSMenu *submenu;
-
 	  /* The title of the Help menu needs to be localized in order
 	     for Spotlight for Help to be installed on Mac OS X
 	     10.5.  */
@@ -11343,20 +11344,19 @@ mac_fill_menubar (widget_value *first_wv, bool deep_p)
 	  else if ([title isEqualToString:@"Window"])
 	    title = localizedMenuTitleForWindow;
 
-
 	  if (!needs_update_p)
 	    {
 	      if (index >= nitems)
 		needs_update_p = true;
 	      else
 		{
-		  submenu = [mainMenu itemAtIndex:index].submenu;
+		  NSMenu *submenu = [mainMenu itemAtIndex:index].submenu;
 		  if (!(submenu && [title isEqualToString:submenu.title]))
 		    needs_update_p = true;
 		}
 	    }
 
-	  submenu = [[NSMenu alloc] initWithTitle:title];
+	  NSMenu *submenu = [[NSMenu alloc] initWithTitle:title];
 	  [submenu setAutoenablesItems:NO];
 
 	  if (title == localizedMenuTitleForHelp)
@@ -11371,7 +11371,9 @@ mac_fill_menubar (widget_value *first_wv, bool deep_p)
 	  if (wv->contents)
 	    [submenu fillWithWidgetValue:wv->contents];
 
-	  MRC_RELEASE (submenu);
+	  /* Don't release menus that are used after the loop. */
+	  if (submenu != helpMenu && submenu != windowMenu)
+	    MRC_RELEASE (submenu);
 	}
 
       if (!needs_update_p && index != nitems)
@@ -11393,6 +11395,12 @@ mac_fill_menubar (widget_value *first_wv, bool deep_p)
 	  if (helpMenu)
 	    [NSApp setHelpMenu:helpMenu];
 	}
+
+      /* If these were set in the loop above, release them now. */
+      if (helpMenu)
+	MRC_RELEASE (helpMenu);
+      if (windowMenu)
+	MRC_RELEASE (windowMenu);
 
       MRC_RELEASE (newMenu);
     });
