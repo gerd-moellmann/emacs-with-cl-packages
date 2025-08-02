@@ -54,18 +54,15 @@ struct mac_bitmap_record
 /* For each display (currently only one on mac), we have a structure that
    records information about it.  */
 
-struct mac_display_info
+xstruct mac_display_info
 {
   /* Chain of all mac_display_info structures.  */
-  // FIXME/macigc
   struct mac_display_info *next;
 
   /* The generic display parameters corresponding to this display. */
-  // FIXME/macigc
   struct terminal *terminal;
 
   /* This is a cons cell of the form (NAME . FONT-LIST-CACHE).  */
-  // FIXME/macigc
   Lisp_Object name_list_element;
 
   /* Number of frames that are on this display.  */
@@ -109,7 +106,6 @@ struct mac_display_info
 
   /* Information about the range of text currently shown in
      mouse-face.  */
-  // FIXME/macigc
   Mouse_HLInfo mouse_highlight;
 
   /* Default name for all frames on this display.  */
@@ -132,14 +128,12 @@ struct mac_display_info
      that a mere EnterNotify event can set this; if you need to know the
      last frame specified in a FocusIn or FocusOut event, use
      mac_focus_event_frame.  */
-  // FIXME/macigc
   struct frame *mac_focus_frame;
 
   /* The last frame mentioned in a FocusIn or FocusOut event.  This is
      separate from mac_focus_frame, because whether or not LeaveNotify
      events cause us to lose focus depends on whether or not we have
      received a FocusIn event for it.  */
-  // FIXME/macigc
   struct frame *mac_focus_event_frame;
 
   /* The frame which currently has the visual highlight, and should get
@@ -147,19 +141,15 @@ struct mac_display_info
      event).  It points to the focus frame's selected window's
      frame.  It differs from mac_focus_frame when we're using a global
      minibuffer.  */
-  // FIXME/macigc
   struct frame *highlight_frame;
 
   /* The frame waiting to be auto-raised in XTread_socket.  */
-  // FIXME/macigc
   struct frame *mac_pending_autoraise_frame;
 
   /* The frame where the mouse was last time we reported a ButtonPress event.  */
-  // FIXME/macigc
   struct frame *last_mouse_frame;
 
   /* The frame where the mouse was last time we reported a mouse position.  */
-  // FIXME/macigc
   struct frame *last_mouse_glyph_frame;
 
   /* Where the mouse was last time we reported a mouse position.
