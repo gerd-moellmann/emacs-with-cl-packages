@@ -92,10 +92,9 @@
 (defvar mac-frame-tabbing)
 
 
-;; Define the macos-specific Window menu and add it to the global menu-bar map
+;; Define the macOS-specific Window menu and add it to the global menu-bar map
 (defvar-keymap mac-window-menu-map :name "Window")
-(define-key global-map [menu-bar window]
-  (cons "Window" mac-window-menu-map))
+(define-key global-map [menu-bar window] (cons "Window" mac-window-menu-map))
 
 
 ;;
@@ -3121,11 +3120,11 @@ standard ones in `x-handle-args'."
     (define-key-after mac-window-menu-map [mac-next-tab]
       '(menu-item "Show Next Tab" mac-next-tab-or-toggle-tab-bar
                   :enable (mac-frame-multiple-tabs-p)))
-    (global-set-key [(control tab)] 'mac-next-tab-or-toggle-tab-bar)
+    ;; (global-set-key [(control tab)] 'mac-next-tab-or-toggle-tab-bar)
     (define-key-after mac-window-menu-map [mac-previous-tab]
       '(menu-item "Show Previous Tab" mac-previous-tab-or-toggle-tab-bar
                   :enable (mac-frame-multiple-tabs-p)))
-    (global-set-key [(control shift tab)] 'mac-previous-tab-or-toggle-tab-bar)
+    ;; (global-set-key [(control shift tab)] 'mac-previous-tab-or-toggle-tab-bar)
     (define-key-after mac-window-menu-map [mac-move-tab-to-new-frame]
       '(menu-item "Move Tab to New Frame" mac-move-tab-to-new-frame
                   :enable (mac-frame-multiple-tabs-p)))
