@@ -175,6 +175,11 @@ bool igc_busy_p (void);
 Lisp_Object igc_discard_killed_buffers (Lisp_Object list);
 
 # define eassert_not_mps() eassert (false)
+
+#  ifdef HAVE_MACGUI
+void igc_early_init (void);
+#  endif
+
 #else
 # define igc_break() (void) 0
 # define eassert_not_mps() (void) 0

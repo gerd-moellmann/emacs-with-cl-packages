@@ -932,7 +932,7 @@ struct igc_thread
   igc_root_list *stack_root;
 
   /* Back pointer to Emacs' thread object.  Allocated so that it doesn't
-     move in memory.  */
+     move in memory.  Maybe NULL for the GUI thread in the 'mac' port.  */
   struct thread_state *ts;
 };
 
@@ -1522,6 +1522,7 @@ scan_specpdl (mps_ss_t ss, void *start, void *end, void *closure)
        do.  That does not mean one can rely on the thread's specpdl_ptr
        here because it may be updated after this function runs.  */
     struct igc_thread_list *t = closure;
+    igc_assert (t->d.ts != NULL);
     igc_assert (start == (void *) t->d.ts->m_specpdl);
     igc_assert (end == (void *) t->d.ts->m_specpdl_end);
 
@@ -1657,6 +1658,7 @@ scan_bc (mps_ss_t ss, void *start, void *end, void *closure)
   MPS_SCAN_BEGIN (ss)
   {
     struct igc_thread_list *t = closure;
+    igc_assert (t->d.ts != NULL);
     struct bc_thread_state *bc = &t->d.ts->bc;
     igc_assert (start == (void *) bc->stack);
     igc_assert (end == (void *) bc->stack_end);
@@ -3019,6 +3021,7 @@ root_create_specpdl (struct igc_thread_list *t)
 {
   struct igc *gc = t->d.gc;
   struct thread_state *ts = t->d.ts;
+  igc_assert (ts != NULL);
   igc_assert (ts->m_specpdl != NULL);
   igc_assert (t->d.specpdl_root == NULL);
   mps_root_t root;
@@ -3035,6 +3038,7 @@ static void
 root_create_bc (struct igc_thread_list *t)
 {
   struct igc *gc = t->d.gc;
+  igc_assert (t->d.ts != NULL);
   struct bc_thread_state *bc = &t->d.ts->bc;
   igc_assert (bc->stack != NULL);
   mps_root_t root;
@@ -5395,6 +5399,53 @@ DEFUN ("igc-test-probe", Figc_test_probe, Sigc_test_probe, 1, 1, 0, doc: /* */)
 				  Init
  ***********************************************************************/
 
+#ifdef HAVE_MACGUI
+
+/* This is called in main, in the GUI (main) thread.  */
+
+void
+igc_early_init (void)
+{
+  /* Returns previous handler.  */
+  (void) mps_lib_assert_fail_install (igc_assert_fail);
+  global_igc = make_igc ();
+  struct igc *gc = global_igc;
+
+  /* Register thread with MPS, and in the registry.  */
+  mps_thr_t thr;
+  mps_res_t res = mps_thread_reg (&thr, global_igc->arena);
+  IGC_CHECK_RES (res);
+  struct igc_thread_list *t = register_thread (global_igc, thr, NULL);
+
+  /* Make sure the stack bottom is properly aligned as GC expects.  */
+  union
+  {
+    Lisp_Object o;
+    void *p;
+    char c;
+  } stack_pos;
+  void *cold = (void *) &stack_pos.o;
+
+  mps_root_t root;
+  res = mps_root_create_thread_scanned (&root, gc->arena, mps_rank_ambig (), 0,
+					thr, scan_ambig, 0, cold);
+  IGC_CHECK_RES (res);
+  t->d.stack_root = register_root (gc, root, cold, NULL, true, "GUI control stack");
+  create_thread_aps (&t->d);
+  set_state (IGC_STATE_USABLE_PARKED);
+}
+
+/* This is called in main, in the GUI (main) thread.  */
+
+void
+init_igc (void)
+{
+  igc_assert (global_igc);
+  igc_assert (igc_state == IGC_STATE_USABLE_PARKED);
+  add_main_thread ();
+}
+
+#else // not HAVE_MACGUI
 void
 init_igc (void)
 {
@@ -5404,6 +5455,8 @@ init_igc (void)
   add_main_thread ();
   set_state (IGC_STATE_USABLE_PARKED);
 }
+
+#endif // not HAVE_MACGUI
 
 void
 syms_of_igc (void)

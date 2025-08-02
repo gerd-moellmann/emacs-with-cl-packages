@@ -37,6 +37,7 @@ along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "menu.h"
 #include "atimer.h"
 #include "regex-emacs.h"
+#include "igc.h"
 
 #import "macappkit.h"
 #import <objc/runtime.h>
@@ -17259,6 +17260,11 @@ main (int argc, char **argv)
 
       err = pthread_attr_setstacksize (&attr, rlim.rlim_cur);
     }
+
+#ifdef HAVE_MPS
+  igc_early_init ();
+ #endif
+
   if (!err)
     err = pthread_create (&mac_lisp_main_thread_id, &attr, mac_start_lisp_main,
 			  argv);

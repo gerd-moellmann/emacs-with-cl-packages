@@ -47,6 +47,7 @@ along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "atimer.h"
 #include "font.h"
 #include "menu.h"
+#include "igc.h"
 
 
 
