@@ -496,7 +496,7 @@ mac_cgevent_set_unicode_string_from_event_ref (CGEventRef cgevent,
   [self postEvent:event atStart:YES];
 }
 
-- (void)stopAfterCallingBlock:(void (NS_NOESCAPE ^)(void))block
+- (void)stopAfterCallingBlock:(void (^)(void))block
 {
   block ();
   [self stop:nil];
@@ -627,7 +627,7 @@ mac_within_app (void (^block) (void))
    descendant windows.  Set *stop to YES in the block to abort further
    processing of the child windows subtree.  */
 
-- (void)enumerateChildWindowsUsingBlock:(NS_NOESCAPE void
+- (void)enumerateChildWindowsUsingBlock:(void
 					 (^)(NSWindow *child, BOOL *stop))block
 {
   for (NSWindow *childWindow in self.childWindows)
@@ -1017,7 +1017,7 @@ mac_trash_file (const char *filename, CFErrorRef *cferror)
 
 static void
 mac_with_current_drawing_appearance (NSAppearance *appearance,
-				     void (NS_NOESCAPE ^block) (void))
+				     void (^block) (void))
 {
   if (
 #if __clang_major__ >= 9

@@ -143,7 +143,7 @@ typedef NSInteger NSWindowListOptions;
 
 @interface NSApplication (AvailableOn101200AndLater)
 - (void)enumerateWindowsWithOptions:(NSWindowListOptions)options
-			 usingBlock:(void (NS_NOESCAPE ^) (NSWindow *window,
+			 usingBlock:(void (^) (NSWindow *window,
 							   BOOL *stop))block;
 @end
 #endif
@@ -221,7 +221,7 @@ typedef NSInteger NSWindowTabbingMode;
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 110000
 @interface NSAppearance (AvailableOn110000AndLater)
 + (NSAppearance *)currentDrawingAppearance;
-- (void)performAsCurrentDrawingAppearance:(void (NS_NOESCAPE ^)(void))block;
+- (void)performAsCurrentDrawingAppearance:(void (^)(void))block;
 @end
 #endif
 
@@ -508,7 +508,7 @@ typedef NSInteger NSGlyphProperty;
 @interface NSWindow (Emacs)
 - (Lisp_Object)lispFrame;
 - (NSWindow *)topLevelWindow;
-- (void)enumerateChildWindowsUsingBlock:(NS_NOESCAPE void
+- (void)enumerateChildWindowsUsingBlock:(void
 					 (^)(NSWindow *child, BOOL *stop))block;
 @end
 
