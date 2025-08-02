@@ -3466,7 +3466,7 @@ void *
 igc_xpalloc_ambig (void *old_pa, ptrdiff_t *nitems, ptrdiff_t nitems_incr_min,
 		   ptrdiff_t nitems_max, ptrdiff_t item_size)
 {
-  ptrdiff_t old_nitems = *nitems;
+  ptrdiff_t old_nitems = old_pa == NULL ? 0 : *nitems;
   ptrdiff_t new_nitems = *nitems;
   ptrdiff_t nbytes = xpalloc_nbytes (old_pa, &new_nitems, nitems_incr_min,
 				     nitems_max, item_size);
