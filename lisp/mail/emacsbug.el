@@ -224,7 +224,7 @@ Already submitted bugs can be found in the Emacs bug tracker:
   ;; latter could be mistakenly stripped by mailing software.
   (setq topic (concat emacs-version "; " topic))
   (let* ((mac-port-p (featurep 'mac))
-	 (reporting-address (if mac-port-p
+	 (reporting-address (if (and mac-port-p (not (featurep 'symbol-packages)))
 				report-emacs-bug-mac-address
 			      report-emacs-bug-address))
          (from-buffer (current-buffer))
