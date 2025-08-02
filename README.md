@@ -129,12 +129,7 @@ early version.
 
 ## Emacs Mac Pprt
 
-The branch `cl-packages-mac` is merged with
-https://github.com/jdtsmith/emacs-mac. It builds and runs the mac port,
-but only without igc. IOW, igc has not been ported to the mac front
-end. I have no concrete plans if or when to port igc to mac.
-
-It builds NS as before, with and without igc.
-
-Caveat: It is not 100% clear if the mac Lisp changes interfere with
-NS.
+Now merged https://github.com/jdtsmith/emacs-mac, so one can build
+`--with-mac` as an alternative to `with-ns`. Everything seems to work,
+except that one cannot use MPS at the moment, simply because igc hasn't
+been implemented yet for mac.
