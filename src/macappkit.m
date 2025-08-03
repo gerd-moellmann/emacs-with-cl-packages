@@ -1181,6 +1181,9 @@ static bool handling_queued_nsevents_p;
 
 - (EmacsController*)init
 {
+  self = [super init];
+  if (self == nil)
+    return nil;
 #ifdef HAVE_MPS
   emacsHelpFrame = igc_xalloc_raw_exact (1);
 #else
@@ -6501,15 +6504,35 @@ static BOOL emacsViewUpdateLayerDisabled;
   return self;
 }
 
-#if !USE_ARC
+- (EmacsMainView *)init
+{
+  self = [super init];
+  if (self == nil)
+    return nil;
+
+#ifdef HAVE_MPS
+  ptrdiff_t nitems = 1;
+  inputEvent = igc_xpalloc_ambig (NULL, &nitems, 1, -1, sizeof *inputEvent);
+#else
+  inputEvent = xzalloc (sizeof *inputEvent);
+#endif
+  return self;
+}
+
 - (void)dealloc
 {
+#ifdef HAVE_MPS
+  igc_xfree (inputEvent);
+#else
+  xfree (inputEvent);
+#endif
+#if !USE_ARC
   [candidateListTouchBarItem release];
   [rawKeyEvent release];
   [markedText release];
   [super dealloc];
-}
 #endif
+}
 
 - (void)setMarkedText:(id)aString
 {
@@ -6552,7 +6575,7 @@ static BOOL emacsViewUpdateLayerDisabled;
 
 - (struct input_event *)inputEvent
 {
-  return &inputEvent;
+  return inputEvent;
 }
 
 - (void)mouseDown:(NSEvent *)theEvent
@@ -6571,17 +6594,17 @@ static BOOL emacsViewUpdateLayerDisabled;
 
   dpyinfo->last_mouse_glyph_frame = NULL;
 
-  EVENT_INIT (inputEvent);
-  inputEvent.arg = Qnil;
-  mac_cgevent_to_input_event ([theEvent coreGraphicsEvent], &inputEvent);
+  EVENT_INIT (*inputEvent);
+  inputEvent->arg = Qnil;
+  mac_cgevent_to_input_event ([theEvent coreGraphicsEvent], inputEvent);
 
   {
     Lisp_Object window;
     EMACS_INT x = point.x;
     EMACS_INT y = point.y;
 
-    XSETINT (inputEvent.x, x);
-    XSETINT (inputEvent.y, y);
+    XSETINT (inputEvent->x, x);
+    XSETINT (inputEvent->y, y);
 
     window = window_from_coordinates (f, x, y, 0, false, true, true);
     if (EQ (window, f->tab_bar_window))
@@ -6600,12 +6623,12 @@ static BOOL emacsViewUpdateLayerDisabled;
 	      tab_bar_arg = handle_tab_bar_click (f, x, y, 1, 0);
 	    else
 	      tab_bar_arg = handle_tab_bar_click (f, x, y, 0,
-						  inputEvent.modifiers);
+						  inputEvent->modifiers);
 	    if (!NILP (tab_bar_arg))
 	      {
-		XSETFRAME (inputEvent.frame_or_window, f);
-		inputEvent.kind = MOUSE_CLICK_EVENT;
-		inputEvent.arg = tab_bar_arg;
+		XSETFRAME (inputEvent->frame_or_window, f);
+		inputEvent->kind = MOUSE_CLICK_EVENT;
+		inputEvent->arg = tab_bar_arg;
 	      }
 	  }
 	else
@@ -6613,15 +6636,15 @@ static BOOL emacsViewUpdateLayerDisabled;
 	    if (down_p)
 	      handle_tool_bar_click (f, x, y, 1, 0);
 	    else
-	      handle_tool_bar_click (f, x, y, 0, inputEvent.modifiers);
+	      handle_tool_bar_click (f, x, y, 0, inputEvent->modifiers);
 	  }
 	unset_global_focus_view_frame ();
 	[self unlockFocusOnBacking];
       }
     else
       {
-	XSETFRAME (inputEvent.frame_or_window, f);
-	inputEvent.kind = MOUSE_CLICK_EVENT;
+	XSETFRAME (inputEvent->frame_or_window, f);
+	inputEvent->kind = MOUSE_CLICK_EVENT;
       }
   }
 
@@ -6644,8 +6667,8 @@ static BOOL emacsViewUpdateLayerDisabled;
   if (f != 0)
     f->mouse_moved = false;
 
-  inputEvent.modifiers |= (down_p ? down_modifier : up_modifier);
-  if (inputEvent.kind == MOUSE_CLICK_EVENT)
+  inputEvent->modifiers |= (down_p ? down_modifier : up_modifier);
+  if (inputEvent->kind == MOUSE_CLICK_EVENT)
     [self sendAction:action to:target];
 }
 
@@ -6785,7 +6808,7 @@ event_phase_to_symbol (NSEventPhase phase)
   if (EQ (window, f->tab_bar_window) || EQ (window, f->tool_bar_window))
     return;
 
-  EVENT_INIT (inputEvent);
+  EVENT_INIT (*inputEvent);
   if (type == NSEventTypeScrollWheel || type == NSEventTypeSwipe)
     {
       if (isDirectionInvertedFromDevice)
@@ -6818,11 +6841,11 @@ event_phase_to_symbol (NSEventPhase phase)
     arg = list4 (QCrotation, make_float (deltaX), QCphase, phase);
   else
     arg = Qnil;
-  inputEvent.kind = (deltaY != 0 || scrollingDeltaY != 0
-		     || type == NSEventTypeMagnify || type == NSEventTypeGesture
-		     ? WHEEL_EVENT : HORIZ_WHEEL_EVENT);
-  inputEvent.code = 0;
-  inputEvent.modifiers =
+  inputEvent->kind = (deltaY != 0 || scrollingDeltaY != 0
+		      || type == NSEventTypeMagnify || type == NSEventTypeGesture
+		      ? WHEEL_EVENT : HORIZ_WHEEL_EVENT);
+  inputEvent->code = 0;
+  inputEvent->modifiers =
     (modifiers
      | (deltaY < 0 || scrollingDeltaY < 0 ? down_modifier
 	: (deltaY > 0 || scrollingDeltaY > 0 ? up_modifier
@@ -6830,11 +6853,11 @@ event_phase_to_symbol (NSEventPhase phase)
 	      : up_modifier)))
      | (type == NSEventTypeScrollWheel ? 0
 	: (type == NSEventTypeSwipe ? drag_modifier : click_modifier)));
-  XSETINT (inputEvent.x, point.x);
-  XSETINT (inputEvent.y, point.y);
-  XSETFRAME (inputEvent.frame_or_window, f);
-  inputEvent.arg = make_vector (1, arg);
-  inputEvent.timestamp = theEvent.timestamp * 1000;
+  XSETINT (inputEvent->x, point.x);
+  XSETINT (inputEvent->y, point.y);
+  XSETFRAME (inputEvent->frame_or_window, f);
+  inputEvent->arg = make_vector (1, arg);
+  inputEvent->timestamp = theEvent.timestamp * 1000;
   [self sendAction:action to:target];
 }
 
@@ -6910,10 +6933,10 @@ event_phase_to_symbol (NSEventPhase phase)
 	  && !EQ (window, last_mouse_window)
 	  && !EQ (window, selected_window))
 	{
-	  EVENT_INIT (inputEvent);
-	  inputEvent.arg = Qnil;
-	  inputEvent.kind = SELECT_WINDOW_EVENT;
-	  inputEvent.frame_or_window = window;
+	  EVENT_INIT (*inputEvent);
+	  inputEvent->arg = Qnil;
+	  inputEvent->kind = SELECT_WINDOW_EVENT;
+	  inputEvent->frame_or_window = window;
 	  [self sendAction:action to:target];
 	}
       /* Remember the last window where we saw the mouse.  */
@@ -6929,10 +6952,10 @@ event_phase_to_symbol (NSEventPhase phase)
      changed, generate a HELP_EVENT.  */
   if (!NILP (help_echo_string) || !NILP (previous_help_echo_string))
     {
-      EVENT_INIT (inputEvent);
-      inputEvent.arg = Qnil;
-      inputEvent.kind = HELP_EVENT;
-      XSETFRAME (inputEvent.frame_or_window, f);
+      EVENT_INIT (*inputEvent);
+      inputEvent->arg = Qnil;
+      inputEvent->kind = HELP_EVENT;
+      XSETFRAME (inputEvent->frame_or_window, f);
       [self sendAction:action to:target];
     }
 }
@@ -7022,11 +7045,11 @@ event_phase_to_symbol (NSEventPhase phase)
   if ([theEvent type] == NSEventTypeKeyUp)
     return;
 
-  EVENT_INIT (inputEvent);
-  inputEvent.arg = Qnil;
-  XSETFRAME (inputEvent.frame_or_window, f);
-  mac_cgevent_to_input_event (cgevent, &inputEvent);
-  if (inputEvent.kind != NO_EVENT)
+  EVENT_INIT (*inputEvent);
+  inputEvent->arg = Qnil;
+  XSETFRAME (inputEvent->frame_or_window, f);
+  mac_cgevent_to_input_event (cgevent, inputEvent);
+  if (inputEvent->kind != NO_EVENT)
     [self sendAction:action to:target];
 }
 
@@ -7075,10 +7098,10 @@ event_phase_to_symbol (NSEventPhase phase)
 
   [self setMarkedText:nil];
 
-  EVENT_INIT (inputEvent);
-  inputEvent.arg = Qnil;
-  inputEvent.timestamp = [[NSApp currentEvent] timestamp] * 1000;
-  XSETFRAME (inputEvent.frame_or_window, f);
+  EVENT_INIT (*inputEvent);
+  inputEvent->arg = Qnil;
+  inputEvent->timestamp = [[NSApp currentEvent] timestamp] * 1000;
+  XSETFRAME (inputEvent->frame_or_window, f);
 
   if ([aString isKindOfClass:NSString.class])
     {
@@ -7108,10 +7131,10 @@ event_phase_to_symbol (NSEventPhase phase)
 				      make_fixnum (replacementRange.length)))),
 		 arg);
 
-  inputEvent.kind = MAC_APPLE_EVENT;
-  inputEvent.x = Qtext_input;
-  inputEvent.y = Qinsert_text;
-  inputEvent.arg =
+  inputEvent->kind = MAC_APPLE_EVENT;
+  inputEvent->x = Qtext_input;
+  inputEvent->y = Qinsert_text;
+  inputEvent->arg =
     Fcons (build_string ("aevt"),
 	   Fcons (Fcons (build_string ("----"),
 			 Fcons (build_string ("Lisp"),
@@ -7122,10 +7145,10 @@ event_phase_to_symbol (NSEventPhase phase)
     {
       NSUInteger i, length = [charactersForASCIIKeystroke length];
 
-      inputEvent.kind = ASCII_KEYSTROKE_EVENT;
+      inputEvent->kind = ASCII_KEYSTROKE_EVENT;
       for (i = 0; i < length; i++)
 	{
-	  inputEvent.code = [charactersForASCIIKeystroke characterAtIndex:i];
+	  inputEvent->code = [charactersForASCIIKeystroke characterAtIndex:i];
 	  [self sendAction:action to:target];
 	}
     }
@@ -7161,17 +7184,17 @@ event_phase_to_symbol (NSEventPhase phase)
 				    make_fixnum (selectedRange.length)))),
 	       arg);
 
-  EVENT_INIT (inputEvent);
-  inputEvent.kind = MAC_APPLE_EVENT;
-  inputEvent.x = Qtext_input;
-  inputEvent.y = Qset_marked_text;
-  inputEvent.arg = Fcons (build_string ("aevt"),
-			  Fcons (Fcons (build_string ("----"),
-					Fcons (build_string ("Lisp"),
-					       [aString UTF16LispString])),
-				 arg));
-  inputEvent.timestamp = [[NSApp currentEvent] timestamp] * 1000;
-  XSETFRAME (inputEvent.frame_or_window, f);
+  EVENT_INIT (*inputEvent);
+  inputEvent->kind = MAC_APPLE_EVENT;
+  inputEvent->x = Qtext_input;
+  inputEvent->y = Qset_marked_text;
+  inputEvent->arg = Fcons (build_string ("aevt"),
+			   Fcons (Fcons (build_string ("----"),
+					 Fcons (build_string ("Lisp"),
+						[aString UTF16LispString])),
+				  arg));
+  inputEvent->timestamp = [[NSApp currentEvent] timestamp] * 1000;
+  XSETFRAME (inputEvent->frame_or_window, f);
   [self sendAction:action to:target];
   /* This is necessary for candidate selection from touch bar to be
      responsive.  */
@@ -8862,23 +8885,23 @@ scroller_part_to_horizontal_scroll_bar_part (NSScrollerPart part,
   NSEvent *currentEvent = [NSApp currentEvent];
   NSEventModifierFlags modifierFlags = [currentEvent modifierFlags];
 
-  EVENT_INIT (inputEvent);
-  inputEvent.arg = Qnil;
-  inputEvent.frame_or_window = bar->window;
+  EVENT_INIT (*inputEvent);
+  inputEvent->arg = Qnil;
+  inputEvent->frame_or_window = bar->window;
   if (bar->horizontal)
     {
-      inputEvent.kind = HORIZONTAL_SCROLL_BAR_CLICK_EVENT;
-      inputEvent.part =
+      inputEvent->kind = HORIZONTAL_SCROLL_BAR_CLICK_EVENT;
+      inputEvent->part =
 	scroller_part_to_horizontal_scroll_bar_part (hitPart, modifierFlags);
     }
   else
     {
-      inputEvent.kind = SCROLL_BAR_CLICK_EVENT;
-      inputEvent.part =
+      inputEvent->kind = SCROLL_BAR_CLICK_EVENT;
+      inputEvent->part =
 	scroller_part_to_scroll_bar_part (hitPart, modifierFlags);
     }
-  inputEvent.timestamp = [currentEvent timestamp] * 1000;
-  inputEvent.modifiers = modifiers;
+  inputEvent->timestamp = [currentEvent timestamp] * 1000;
+  inputEvent->modifiers = modifiers;
 
   if (modifiers)
     {
@@ -8891,11 +8914,11 @@ scroller_part_to_horizontal_scroll_bar_part (NSScrollerPart part,
       if (clickPositionInFrame > frameSpan)
 	clickPositionInFrame = frameSpan;
 
-      XSETINT (inputEvent.x, clickPositionInFrame);
-      XSETINT (inputEvent.y, frameSpan);
-      if (inputEvent.part == scroll_bar_end_scroll)
-	inputEvent.part = scroll_bar_handle;
-      inputEvent.code = inputEventCode;
+      XSETINT (inputEvent->x, clickPositionInFrame);
+      XSETINT (inputEvent->y, frameSpan);
+      if (inputEvent->part == scroll_bar_end_scroll)
+	inputEvent->part = scroll_bar_handle;
+      inputEvent->code = inputEventCode;
     }
   else if (hitPart == NSScrollerKnob)
     {
@@ -8919,13 +8942,13 @@ scroller_part_to_horizontal_scroll_bar_part (NSScrollerPart part,
 
 	  if (position > whole - portion)
 	    position = whole - portion;
-	  XSETINT (inputEvent.x, position);
-	  XSETINT (inputEvent.y, whole);
+	  XSETINT (inputEvent->x, position);
+	  XSETINT (inputEvent->y, whole);
 	}
       else
 	{
-	  XSETINT (inputEvent.x, minEdge);
-	  XSETINT (inputEvent.y, maximum);
+	  XSETINT (inputEvent->x, minEdge);
+	  XSETINT (inputEvent->y, maximum);
 	}
     }
 
@@ -12663,14 +12686,14 @@ drag_operation_to_actions (NSDragOperation operation)
   arg = list2 (QCitems, Fnreverse (items));
   arg = Fcons (QCactions, Fcons (drag_operation_to_actions (operation), arg));
 
-  EVENT_INIT (inputEvent);
-  inputEvent.kind = DRAG_N_DROP_EVENT;
-  inputEvent.modifiers = 0;
-  inputEvent.timestamp = [[NSApp currentEvent] timestamp] * 1000;
-  XSETINT (inputEvent.x, point.x);
-  XSETINT (inputEvent.y, point.y);
-  XSETFRAME (inputEvent.frame_or_window, f);
-  inputEvent.arg = arg;
+  EVENT_INIT (*inputEvent);
+  inputEvent->kind = DRAG_N_DROP_EVENT;
+  inputEvent->modifiers = 0;
+  inputEvent->timestamp = [[NSApp currentEvent] timestamp] * 1000;
+  XSETINT (inputEvent->x, point.x);
+  XSETINT (inputEvent->y, point.y);
+  XSETFRAME (inputEvent->frame_or_window, f);
+  inputEvent->arg = arg;
   [self sendAction:action to:target];
 
   return YES;

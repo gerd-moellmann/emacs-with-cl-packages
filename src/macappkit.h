@@ -874,8 +874,7 @@ typedef NSInteger NSGlyphProperty;
 
   /* Stores the Emacs input event that the action method is expected
      to process.  */
-  // FIXME/macigc:
-  struct input_event inputEvent;
+  struct input_event *inputEvent;
 
   /* Whether key events were interpreted by intepretKeyEvents:.  */
   BOOL keyEventsInterpreted;
