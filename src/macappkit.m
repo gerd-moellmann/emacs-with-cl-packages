@@ -11022,14 +11022,31 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp, *localiz
   if (self == nil)
     return nil;
 
-  object = anObject;
+#ifdef HAVE_MPS
+  object = igc_xalloc_lisp_objs_exact (1, "EmacsWeakLispObject");
+#else
+  object = xzalloc (sizeof *object);
+#endif
 
+  *object = anObject;
   return self;
 }
 
 - (Lisp_Object)lispObject
 {
-  return object;
+  return *object;
+}
+
+- (void)dealloc
+{
+#ifdef HAVE_MPS
+  igc_xfree (object);
+#else
+  xfree (object);
+#endif
+#if !USE_ARC
+  [super dealloc];
+#endif
 }
 
 @end				// EmacsWeakLispObject
