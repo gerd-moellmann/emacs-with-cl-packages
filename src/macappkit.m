@@ -1179,11 +1179,26 @@ static bool handling_queued_nsevents_p;
 
 @implementation EmacsController
 
+- (EmacsController*)init
+{
+#ifdef HAVE_MPS
+  emacsHelpFrame = igc_xalloc_raw_exact (1);
+#else
+  emacsHelpFrame = xzalloc (sizeof *emacsHelpFrame);
+#endif
+  return self;
+}
+
 - (void)dealloc
 {
   [[NSNotificationCenter defaultCenter] removeObserver:self];
   for (NSString *keyPath in observedKeyPaths)
     [NSApp removeObserver:self forKeyPath:keyPath];
+#ifdef HAVE_MPS
+  igc_xfree (emacsHelpFrame);
+#else
+  xfree (emacsHelpFrame);
+#endif
 #if !USE_ARC
   [observedKeyPaths release];
   [super dealloc];
@@ -1452,7 +1467,7 @@ static EventRef peek_if_next_event_activates_menu_bar (void);
   if (bufp->kind == HELP_EVENT)
     {
       do_help = 1;
-      emacsHelpFrame = XFRAME (bufp->frame_or_window);
+      *emacsHelpFrame = XFRAME (bufp->frame_or_window);
     }
   else
     {
@@ -1507,7 +1522,7 @@ static BOOL extendReadSocketIntervalOnce;
   struct input_event inev;
 
   do_help = 0;
-  emacsHelpFrame = NULL;
+  *emacsHelpFrame = NULL;
 
   EVENT_INIT (inev);
   inev.arg = Qnil;
@@ -1551,8 +1566,8 @@ static BOOL extendReadSocketIntervalOnce;
     {
       Lisp_Object frame;
 
-      if (emacsHelpFrame)
-	XSETFRAME (frame, emacsHelpFrame);
+      if (*emacsHelpFrame)
+	XSETFRAME (frame, *emacsHelpFrame);
       else
 	frame = Qnil;
 

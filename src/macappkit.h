@@ -561,8 +561,7 @@ typedef NSInteger NSGlyphProperty;
   bool any_help_event_p;
 
   /* The frame on which a HELP_EVENT occurs.  */
-  // FIXME/macigc:
-  struct frame *emacsHelpFrame;
+  struct frame **emacsHelpFrame;
 
   /* The item selected in the popup menu.  */
   int menuItemSelection;
@@ -599,6 +598,7 @@ typedef NSInteger NSGlyphProperty;
      `application-kvo' subkeymap in mac-apple-event-map.  */
   NSSetOf (NSString *) *observedKeyPaths;
 }
+- (EmacsController*)init;
 - (void)updateObservedKeyPaths;
 - (int)getAndClearMenuItemSelection;
 - (void)storeInputEvent:(id)sender;
