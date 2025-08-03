@@ -2393,7 +2393,13 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   if (self == nil)
     return nil;
 
-  emacsFrame = f;
+#ifdef HAVE_MPS
+  emacsFrame = igc_xalloc_raw_exact (1);
+#else
+  emacsFrame = xzalloc (sizeof *emacsFrame);
+#endif
+
+  *emacsFrame = f;
 
   [self setupEmacsView];
   [self setupWindow];
@@ -2403,7 +2409,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
 - (void)setupEmacsView
 {
-  struct frame *f = emacsFrame;
+  struct frame *f = *emacsFrame;
 
   if (!FRAME_TOOLTIP_P (f))
     {
@@ -2535,7 +2541,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
 - (void)setupWindow
 {
-  struct frame *f = emacsFrame;
+  struct frame *f = *emacsFrame;
   EmacsWindow *oldWindow = emacsWindow;
   NSRect contentRect;
   NSWindowStyleMask windowStyle;
@@ -2691,7 +2697,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
 - (struct frame *)emacsFrame
 {
-  return emacsFrame;
+  return *emacsFrame;
 }
 
 - (EmacsWindow *)emacsWindow
@@ -2704,6 +2710,12 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   [overlayView.layer removeObserver:self forKeyPath:@"sublayers"];
   [animationLayer removeObserver:self forKeyPath:@"sublayers"];
   [overlayView.layer removeObserver:self forKeyPath:@"showingBorder"];
+
+#ifdef HAVE_MPS
+  igc_xfree (emacsFrame);
+#else
+  xfree (emacsFrame);
+#endif
 #if !USE_ARC
   [savedChildWindowAlphaMap release];
   [emacsView release];
@@ -2716,14 +2728,14 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
 - (BOOL)acceptsFocus
 {
-  struct frame *f = emacsFrame;
+  struct frame *f = *emacsFrame;
 
   return !FRAME_TOOLTIP_P (f) && !FRAME_NO_ACCEPT_FOCUS (f);
 }
 
 - (NSSize)hintedWindowFrameSize:(NSSize)frameSize allowsLarger:(BOOL)flag
 {
-  struct frame *f = emacsFrame;
+  struct frame *f = *emacsFrame;
   XSizeHints *size_hints = FRAME_SIZE_HINTS (f);
   NSRect windowFrame, emacsViewBounds;
   NSSize emacsViewSizeInPixels, emacsViewSize;
@@ -2981,7 +2993,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
 - (void)setWindowManagerState:(WMState)newState
 {
-  struct frame *f = emacsFrame;
+  struct frame *f = *emacsFrame;
   WMState oldState, diff, fullScreenState;
   const WMState collectionBehaviorStates =
     (WM_STATE_STICKY | WM_STATE_NO_MENUBAR
@@ -3077,7 +3089,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
 - (void)updateBackingScaleFactor
 {
-  struct frame *f = emacsFrame;
+  struct frame *f = *emacsFrame;
 
   FRAME_BACKING_SCALE_FACTOR (f) = emacsWindow.backingScaleFactor;
 }
@@ -3205,7 +3217,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
 - (void)windowDidBecomeKey:(NSNotification *)notification
 {
-  struct frame *f = emacsFrame;
+  struct frame *f = *emacsFrame;
 
   mac_within_lisp_deferred_unless_popup (^{
       struct input_event inev;
@@ -3228,7 +3240,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
 - (void)windowDidResignKey:(NSNotification *)notification
 {
-  struct frame *f = emacsFrame;
+  struct frame *f = *emacsFrame;
 
   mac_within_lisp_deferred_unless_popup (^{
       struct input_event inev;
@@ -3247,14 +3259,14 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
 - (void)windowDidMove:(NSNotification *)notification
 {
-  struct frame *f = emacsFrame;
+  struct frame *f = *emacsFrame;
 
   mac_handle_origin_change (f);
 }
 
 - (void)windowDidResize:(NSNotification *)notification
 {
-  struct frame *f = emacsFrame;
+  struct frame *f = *emacsFrame;
 
   /* `windowDidMove:' above is not called when both size and location
      are changed.  */
@@ -3265,14 +3277,14 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
 - (void)windowDidMiniaturize:(NSNotification *)notification
 {
-  struct frame *f = emacsFrame;
+  struct frame *f = *emacsFrame;
 
   mac_handle_visibility_change (f);
 }
 
 - (void)windowDidDeminiaturize:(NSNotification *)notification
 {
-  struct frame *f = emacsFrame;
+  struct frame *f = *emacsFrame;
 
   mac_handle_visibility_change (f);
 }
@@ -3294,7 +3306,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
 - (BOOL)windowShouldClose:(id)sender
 {
-  struct frame *f = emacsFrame;
+  struct frame *f = *emacsFrame;
   struct input_event inev;
 
   EVENT_INIT (inev);
@@ -3325,7 +3337,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
 - (void)windowWillMove:(NSNotification *)notification
 {
-  struct frame *f = emacsFrame;
+  struct frame *f = *emacsFrame;
 
   f->output_data.mac->toolbar_win_gravity = 0;
 }
@@ -3375,8 +3387,8 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 	 introduced in macOS 10.12, so we suppress it when pixelwise
 	 frame resizing is in effect.  */
       && (floor (NSAppKitVersionNumber) <= NSAppKitVersionNumber10_11
-	  || (FRAME_SIZE_HINTS (emacsFrame)->width_inc != 1
-	      && FRAME_SIZE_HINTS (emacsFrame)->height_inc != 1))
+	  || (FRAME_SIZE_HINTS (*emacsFrame)->width_inc != 1
+	      && FRAME_SIZE_HINTS (*emacsFrame)->height_inc != 1))
       && (!([currentEvent modifierFlags]
 	    & (NSEventModifierFlagShift | NSEventModifierFlagOption))))
     {
@@ -3396,7 +3408,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 - (NSRect)windowWillUseStandardFrame:(NSWindow *)sender
 			defaultFrame:(NSRect)defaultFrame
 {
-  struct frame *f = emacsFrame;
+  struct frame *f = *emacsFrame;
   NSRect windowFrame, emacsViewBounds;
   NSSize emacsViewSizeInPixels, emacsViewSize;
   CGFloat dw, dh, dx, dy;
@@ -3442,7 +3454,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
 - (NSBitmapImageRep *)bitmapImageRepInEmacsViewRect:(NSRect)rect
 {
-  struct frame *f = emacsFrame;
+  struct frame *f = *emacsFrame;
   NSBitmapImageRep *bitmap =
     [emacsView bitmapImageRepForCachingDisplayInRect:rect];
   bool saved_synthetic_bold_workaround_disabled_p =
@@ -3476,7 +3488,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
 - (void)storeModifyFrameParametersEvent:(Lisp_Object)alist
 {
-  struct frame *f = emacsFrame;
+  struct frame *f = *emacsFrame;
   struct input_event inev;
   Lisp_Object tag_Lisp = build_string ("Lisp");
   Lisp_Object arg;
@@ -3494,7 +3506,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
 - (CALayer *)liveResizeTransitionLayerWithDefaultBackground:(BOOL)flag
 {
-  struct frame *f = emacsFrame;
+  struct frame *f = *emacsFrame;
   CALayer *rootLayer, *contentLayer;
   CGSize contentLayerSize;
   NSView *contentView = [emacsWindow contentView];
@@ -3840,7 +3852,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
 - (void)storeParentFrameFrameParameter
 {
-  struct frame *f = emacsFrame;
+  struct frame *f = *emacsFrame;
 
   if (!NILP (f->parent_frame))
     {
@@ -4221,7 +4233,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
 - (BOOL)shouldBeTitled
 {
-  struct frame *f = emacsFrame;
+  struct frame *f = *emacsFrame;
 
   if (FRAME_PARENT_FRAME (f))
     return NO;
@@ -4233,7 +4245,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
 - (BOOL)shouldHaveShadow
 {
-  struct frame *f = emacsFrame;
+  struct frame *f = *emacsFrame;
 
   if (FRAME_PARENT_FRAME (f))
     return NO;
@@ -4249,7 +4261,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
   if (emacsWindow.hasTitleBar != shouldBeTitled)
     {
-      struct frame *f = emacsFrame;
+      struct frame *f = *emacsFrame;
       Lisp_Object tool_bar_lines = get_frame_param (f, Qtool_bar_lines);
 
       if (FIXNUMP (tool_bar_lines) && XFIXNUM (tool_bar_lines) > 0)
@@ -9249,7 +9261,7 @@ mac_get_default_scroll_bar_height (struct frame *f)
 - (void)storeToolBarEvent:(id)sender
 {
   NSInteger i = [sender tag];
-  struct frame *f = emacsFrame;
+  struct frame *f = *emacsFrame;
 
 #define PROP(IDX) AREF (f->tool_bar_items, i * TOOL_BAR_ITEM_NSLOTS + (IDX))
   if (i < f->n_tool_bar_items && !NILP (PROP (TOOL_BAR_ITEM_ENABLED_P)))
@@ -9274,7 +9286,7 @@ mac_get_default_scroll_bar_height (struct frame *f)
 
 - (void)noteToolBarMouseMovement:(NSEvent *)event
 {
-  struct frame *f = emacsFrame;
+  struct frame *f = *emacsFrame;
   NSView *hitView;
 
   /* Return if mouse dragged.  */
@@ -9768,7 +9780,7 @@ free_frame_tool_bar (struct frame *f)
 - (NSFont *)fontForFace:(int)faceId character:(int)c
 	       position:(int)pos object:(Lisp_Object)object
 {
-  struct frame *f = emacsFrame;
+  struct frame *f = *emacsFrame;
 
   if (FRAME_FACE_CACHE (f) && CHAR_VALID_P (c))
     {
@@ -9936,7 +9948,7 @@ static void update_dragged_types (void);
 
 - (void)noteLeaveEmacsView
 {
-  struct frame *f = emacsFrame;
+  struct frame *f = *emacsFrame;
   struct mac_display_info *dpyinfo = FRAME_DISPLAY_INFO (f);
   Mouse_HLInfo *hlinfo = &dpyinfo->mouse_highlight;
 
@@ -9974,7 +9986,7 @@ static void update_dragged_types (void);
 
 - (BOOL)noteMouseMovement:(NSPoint)point
 {
-  struct frame *f = emacsFrame;
+  struct frame *f = *emacsFrame;
   struct mac_display_info *dpyinfo = FRAME_DISPLAY_INFO (f);
   Mouse_HLInfo *hlinfo = &dpyinfo->mouse_highlight;
   NSRect emacsViewBounds = [emacsView bounds];
@@ -10020,7 +10032,7 @@ static void update_dragged_types (void);
 
 - (BOOL)clearMouseFace:(Mouse_HLInfo *)hlinfo
 {
-  struct frame *f = emacsFrame;
+  struct frame *f = *emacsFrame;
   BOOL result;
 
   [emacsView lockFocusOnBacking];
@@ -10034,7 +10046,7 @@ static void update_dragged_types (void);
 
 - (void)noteMouseHighlightAtX:(int)x y:(int)y
 {
-  struct frame *f = emacsFrame;
+  struct frame *f = *emacsFrame;
 
   f->mouse_moved = true;
   [emacsView lockFocusOnBacking];
@@ -15785,7 +15797,7 @@ get_symbol_from_filter_input_key (NSString *key)
 
 - (CIFilter *)transitionFilterFromProperties:(Lisp_Object)properties
 {
-  struct frame *f = emacsFrame;
+  struct frame *f = *emacsFrame;
   NSString *filterName;
   CIFilter *filter;
   NSDictionaryOf (NSString *, id) *attributes;

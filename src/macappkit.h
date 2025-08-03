@@ -678,8 +678,7 @@ typedef NSInteger NSGlyphProperty;
 {
   /* The Emacs frame corresponding to the NSWindow that
      EmacsFrameController object is associated with as delegate.  */
-  // FIXME/macigc:
-  struct frame *emacsFrame;
+  struct frame **emacsFrame;
 
   /* Window and view for the Emacs frame.  */
   EmacsWindow *emacsWindow;
