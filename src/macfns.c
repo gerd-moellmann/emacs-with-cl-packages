@@ -36,6 +36,7 @@ along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "termhooks.h"
 #include "font.h"
 #include "process.h"
+#include "igc.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -2385,7 +2386,11 @@ DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame,
   f->terminal = dpyinfo->terminal;
 
   f->output_method = output_mac;
+#ifdef HAVE_MPS
+  f->output_data.mac = igc_xzalloc_ambig (sizeof *f->output_data.mac);
+#else
   f->output_data.mac = xzalloc (sizeof *f->output_data.mac);
+#endif
   FRAME_FONTSET (f) = -1;
   f->output_data.mac->white_relief.pixel = -1;
   f->output_data.mac->black_relief.pixel = -1;
