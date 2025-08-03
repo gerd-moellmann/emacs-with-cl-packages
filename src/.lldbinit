@@ -111,10 +111,10 @@ process handle SIGINT --pass true --stop false --notify false
 
 # Attach to future Emacs
 
-target create temacs
-settings set -- target.run-args --batch  -l loadup --temacs=pbootstrap --bin-dest '/Users/gerd/emacs/github/cl-packages/carbon/Emacs.app/Contents/MacOS/' --eln-dest '/Users/gerd/emacs/github/cl-packages/carbon/Emacs.app/Contents/Frameworks/'
-command alias go process launch --working-dir .
-##settings set target.disable-aslr false
+# target create temacs
+# settings set -- target.run-args --batch  -l loadup --temacs=pbootstrap --bin-dest '/Users/gerd/emacs/github/cl-packages/carbon/Emacs.app/Contents/MacOS/' --eln-dest '/Users/gerd/emacs/github/cl-packages/carbon/Emacs.app/Contents/Frameworks/'
+# command alias go process launch --working-dir .
+# ##settings set target.disable-aslr false
 
 #target create bootstrap-emacs
 #settings set -- target.run-args -batch --no-site-file --no-site-lisp -l titdic-cnv -f batch-tit-miscdic-convert -dir ./../lisp/leim/quail MISC-DIC/cangjie-table.b5

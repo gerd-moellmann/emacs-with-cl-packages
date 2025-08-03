@@ -6486,6 +6486,13 @@ static BOOL emacsViewUpdateLayerDisabled;
 
 - (instancetype)initWithFrame:(NSRect)frameRect
 {
+#ifdef HAVE_MPS
+  ptrdiff_t nitems = 1;
+  inputEvent = igc_xpalloc_ambig (NULL, &nitems, 1, -1, sizeof *inputEvent);
+#else
+  inputEvent = xzalloc (sizeof *inputEvent);
+#endif
+
   NSTrackingArea *trackingAreaForCursor;
 
   self = [super initWithFrame:frameRect];
@@ -6501,21 +6508,6 @@ static BOOL emacsViewUpdateLayerDisabled;
   [self addTrackingArea:trackingAreaForCursor];
   MRC_RELEASE (trackingAreaForCursor);
 
-  return self;
-}
-
-- (instancetype)init
-{
-  self = [super init];
-  if (self == nil)
-    return nil;
-
-#ifdef HAVE_MPS
-  ptrdiff_t nitems = 1;
-  inputEvent = igc_xpalloc_ambig (NULL, &nitems, 1, -1, sizeof *inputEvent);
-#else
-  inputEvent = xzalloc (sizeof *inputEvent);
-#endif
   return self;
 }
 
