@@ -8614,8 +8614,11 @@ static BOOL NonmodalScrollerPagingBehavior;
 {
 #ifdef HAVE_MPS
   emacsScrollBar = igc_xalloc_raw_exact (1);
+  ptrdiff_t nitems = 1;
+  inputEvent = igc_xpalloc_ambig (NULL, &nitems, 1, -1, sizeof *inputEvent);
 #else
   emacsScrollBar = xzalloc (sizeof *emacsScrollBar);
+  inputEvent = xzalloc (sizeof *inputEvent);
 #endif
 
 
@@ -8639,8 +8642,10 @@ static BOOL NonmodalScrollerPagingBehavior;
   [[NSNotificationCenter defaultCenter] removeObserver:self];
 #ifdef HAVE_MPS
   igc_xfree (emacsScrollBar);
+  igc_xfree (inputEvent);
 #else
   xfree (emacsScrollBar);
+  xfree (inputEvent);
 #endif
 #if !USE_ARC
   [super dealloc];
@@ -8767,12 +8772,12 @@ static BOOL NonmodalScrollerPagingBehavior;
 
 - (int)inputEventModifiers
 {
-  return inputEvent.modifiers;
+  return inputEvent->modifiers;
 }
 
 - (ptrdiff_t)inputEventCode
 {
-  return inputEvent.code;
+  return inputEvent->code;
 }
 
 - (void)mouseClick:(NSEvent *)theEvent
@@ -8801,32 +8806,32 @@ static BOOL NonmodalScrollerPagingBehavior;
 
   dpyinfo->last_mouse_glyph_frame = NULL;
 
-  mac_cgevent_to_input_event ([theEvent coreGraphicsEvent], &inputEvent);
+  mac_cgevent_to_input_event ([theEvent coreGraphicsEvent], inputEvent);
   /* Make the "Ctrl-Mouse-2 splits window" work for toolkit scroll bars.  */
-  if (inputEvent.modifiers & ctrl_modifier)
+  if (inputEvent->modifiers & ctrl_modifier)
     {
-      inputEvent.modifiers |= down_modifier;
+      inputEvent->modifiers |= down_modifier;
       [self mouseClick:theEvent];
     }
   else
     {
-      inputEvent.modifiers = 0;
+      inputEvent->modifiers = 0;
       [super mouseDown:theEvent];
     }
 }
 
 - (void)mouseDragged:(NSEvent *)theEvent
 {
-  if (inputEvent.modifiers == 0)
+  if (inputEvent->modifiers == 0)
     [super mouseDragged:theEvent];
 }
 
 - (void)mouseUp:(NSEvent *)theEvent
 {
-  if (inputEvent.modifiers != 0)
+  if (inputEvent->modifiers != 0)
     {
-      mac_cgevent_to_input_event ([theEvent coreGraphicsEvent], &inputEvent);
-      inputEvent.modifiers |= up_modifier;
+      mac_cgevent_to_input_event ([theEvent coreGraphicsEvent], inputEvent);
+      inputEvent->modifiers |= up_modifier;
       [self mouseClick:theEvent];
     }
   else

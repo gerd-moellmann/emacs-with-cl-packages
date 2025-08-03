@@ -988,8 +988,7 @@ typedef NSInteger NSGlyphProperty;
 
   /* This is used for saving the `code' and `modifiers' members of an
      input event for a scroller click with the control modifier.  */
-  // FIXME/macigc:
-  struct input_event inputEvent;
+  struct input_event *inputEvent;
 
   /* Values in the last mac_set_scroll_bar_thumb call.  */
   int whole, portion;
