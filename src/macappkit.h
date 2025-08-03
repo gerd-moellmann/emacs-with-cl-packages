@@ -971,8 +971,7 @@ typedef NSInteger NSGlyphProperty;
 @interface EmacsScroller : NonmodalScroller
 {
   /* Emacs scroll bar for the scroller.  */
-  // FIXME/macigc:
-  struct scroll_bar *emacsScrollBar;
+  struct scroll_bar **emacsScrollBar;
 
   /* The size of the scroller knob track area in pixels.  */
   CGFloat knobSlotSpan;

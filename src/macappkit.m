@@ -8612,6 +8612,13 @@ static BOOL NonmodalScrollerPagingBehavior;
 
 - (instancetype)initWithFrame:(NSRect)frameRect
 {
+#ifdef HAVE_MPS
+  emacsScrollBar = igc_xalloc_raw_exact (1);
+#else
+  emacsScrollBar = xzalloc (sizeof *emacsScrollBar);
+#endif
+
+
   self = [super initWithFrame:frameRect];
   if (self == nil)
     return nil;
@@ -8630,6 +8637,11 @@ static BOOL NonmodalScrollerPagingBehavior;
 - (void)dealloc
 {
   [[NSNotificationCenter defaultCenter] removeObserver:self];
+#ifdef HAVE_MPS
+  igc_xfree (emacsScrollBar);
+#else
+  xfree (emacsScrollBar);
+#endif
 #if !USE_ARC
   [super dealloc];
 #endif
@@ -8673,12 +8685,12 @@ static BOOL NonmodalScrollerPagingBehavior;
 
 - (void)setEmacsScrollBar:(struct scroll_bar *)bar
 {
-  emacsScrollBar = bar;
+  *emacsScrollBar = bar;
 }
 
 - (struct scroll_bar *)emacsScrollBar
 {
-  return emacsScrollBar;
+  return *emacsScrollBar;
 }
 
 - (BOOL)dragUpdatesFloatValue
