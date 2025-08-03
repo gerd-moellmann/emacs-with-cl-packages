@@ -189,7 +189,7 @@ struct mac_output
      and the window has not yet been created.  */
   Window window_desc;
 
-  // FIXME/macigc
+  // FIXME/macigc:
 #ifdef HAVE_XWIDGETS
   /* NSView for this window.  Don't use this outside nsxwidget.m.  */
   void *view;
@@ -202,7 +202,7 @@ struct mac_output
   Window parent_desc;
 
   /* Default ASCII font of this frame. */
-  // FIXME/macigc
+  // FIXME/macigc:
   struct font *font;
 
   /* The baseline offset of the default ASCII font.  */
