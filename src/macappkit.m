@@ -1179,7 +1179,7 @@ static bool handling_queued_nsevents_p;
 
 @implementation EmacsController
 
-- (EmacsController*)init
+- (instancetype)init
 {
   self = [super init];
   if (self == nil)
@@ -6504,7 +6504,7 @@ static BOOL emacsViewUpdateLayerDisabled;
   return self;
 }
 
-- (EmacsMainView *)init
+- (instancetype)init
 {
   self = [super init];
   if (self == nil)
