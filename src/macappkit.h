@@ -546,7 +546,6 @@ typedef NSInteger NSGlyphProperty;
 @interface EmacsController : NSObject <NSApplicationDelegate, NSUserInterfaceValidations>
 {
   /* Points to HOLD_QUIT arg passed to read_socket_hook.  */
-  // FIXME/macigc:
   struct input_event *hold_quit;
 
   /* Number of events stored during a
