@@ -3714,6 +3714,52 @@ is_symbol_constituent (int c)
   return true;
 }
 
+static bool
+find_shorthand (const char *in, ptrdiff_t nbytes,
+		char **out, ptrdiff_t *nbytes_out)
+{
+  *out = NULL;
+
+  Lisp_Object tail = Vread_symbol_shorthands;
+  FOR_EACH_TAIL_SAFE (tail)
+    {
+      Lisp_Object pair = XCAR (tail);
+      /* Be lenient to 'read-symbol-shorthands': if some element isn't a
+	 cons, or some member of that cons isn't a string, just skip
+	 to the next element.  */
+      if (!CONSP (pair))
+	continue;
+
+      Lisp_Object sh_prefix = XCAR (pair);
+      Lisp_Object lh_prefix = XCDR (pair);
+      if (!STRINGP (sh_prefix) || !STRINGP (lh_prefix))
+	continue;
+
+      /* Compare the prefix of the transformation pair to the symbol
+	 name.  If a match occurs, do the renaming and exit the loop.
+	 In other words, only one such transformation may take place.
+	 Calculate the amount of memory to allocate for the longhand
+	 version of the symbol name with xrealloc.  This isn't
+	 strictly needed, but it could later be used as a way for
+	 multiple transformations on a single symbol name.  */
+      ptrdiff_t sh_prefix_size = SBYTES (sh_prefix);
+      if (sh_prefix_size <= nbytes
+	  && memcmp (SSDATA (sh_prefix), in, sh_prefix_size) == 0)
+	{
+	  ptrdiff_t lh_prefix_size = SBYTES (lh_prefix);
+	  ptrdiff_t suffix_size = nbytes - sh_prefix_size;
+	  *out = xrealloc (*out, lh_prefix_size + suffix_size + 1);
+	  memcpy (*out, SSDATA(lh_prefix), lh_prefix_size);
+	  memcpy (*out + lh_prefix_size, in + sh_prefix_size, suffix_size);
+	  *nbytes_out = lh_prefix_size + suffix_size;
+	  (*out)[*nbytes_out] = '\0';
+	  break;
+	}
+    }
+
+  return *out != NULL;
+}
+
 /* Read a Lisp object.
    If LOCATE_SYMS is true, symbols are read with position.  */
 static Lisp_Object
@@ -4242,6 +4288,20 @@ read0 (source_t *source, bool locate_syms)
 	   if there is none.  */
 	Lisp_Object package = Qnil;
 
+	/* Very limited support for "shorthands" because Magit started
+	   to use them around 2025-08-01.  Note that longhand is
+	   malloc'd. It can leak if we signal between here and where it
+	   is freed. I don't care. */
+	char* longhand = NULL;
+	ptrdiff_t longhand_bytes = 0;
+	if (!NILP (Vread_symbol_shorthands)
+	    &&  find_shorthand (symbol_start, symbol_end - symbol_start,
+				&longhand, &longhand_bytes))
+	  {
+	    symbol_start = longhand;
+	    symbol_end = longhand + longhand_bytes;
+	  }
+
 	/* If a package prefix was found, determine the package it
 	   names.  It is an error if a package of that name does not
 	   exist, or ':' is used for an internal symbol.
@@ -4272,7 +4332,10 @@ read0 (source_t *source, bool locate_syms)
 	       there a better way? */
 	    package = pkg_find_package (pkg_name);
 	    if (NILP (package))
-	      pkg_error ("unknown package '%s'", rb.start);
+	      {
+		xfree (longhand);
+		pkg_error ("unknown package '%s'", rb.start);
+	      }
 
 	    /* Symbol name starts after the package prefix.  */
 	    symbol_start = rb.start + colon_offset + ncolons;
@@ -4298,6 +4361,7 @@ read0 (source_t *source, bool locate_syms)
 		if (!NILP (result) && len == symbol_nbytes)
 		  {
 		    obj = result;
+		    xfree (longhand);
 		    break;
 		  }
 	      }
@@ -4322,6 +4386,9 @@ read0 (source_t *source, bool locate_syms)
 
 	if (locate_syms && !NILP (result))
 	  result = build_symbol_with_pos (result, make_fixnum (start_position));
+
+	if (longhand)
+	  xfree (longhand);
 
 	obj = result;
 	break;
