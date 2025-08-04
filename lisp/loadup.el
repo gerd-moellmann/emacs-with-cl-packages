@@ -388,7 +388,7 @@
 (load "electric")
 (load "paren")
 
-;(load "emacs-lisp/shorthands")
+(load "emacs-lisp/shorthands")
 
 (load "emacs-lisp/eldoc")
 (load "emacs-lisp/cconv")
