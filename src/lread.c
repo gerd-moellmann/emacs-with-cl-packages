@@ -3715,11 +3715,11 @@ is_symbol_constituent (int c)
   return true;
 }
 
-static bool
-find_shorthand (const char *name, ptrdiff_t nbytes,
-		char **out, ptrdiff_t *nbytes_out)
+static Lisp_Object
+find_shorthand (const char *name, ptrdiff_t nbytes)
 {
-  *out = NULL;
+  static char *buf = NULL;
+  static ptrdiff_t bufsize = 0;
 
   Lisp_Object tail = Vread_symbol_shorthands;
   FOR_EACH_TAIL_SAFE (tail)
@@ -3747,18 +3747,22 @@ find_shorthand (const char *name, ptrdiff_t nbytes,
       if (sh_prefix_size <= nbytes
 	  && memcmp (SSDATA (sh_prefix), name, sh_prefix_size) == 0)
 	{
-	  ptrdiff_t lh_prefix_size = SBYTES (lh_prefix);
-	  ptrdiff_t suffix_size = nbytes - sh_prefix_size;
-	  *out = xrealloc (*out, lh_prefix_size + suffix_size + 1);
-	  memcpy (*out, SSDATA(lh_prefix), lh_prefix_size);
-	  memcpy (*out + lh_prefix_size, name + sh_prefix_size, suffix_size);
-	  *nbytes_out = lh_prefix_size + suffix_size;
-	  (*out)[*nbytes_out] = '\0';
-	  break;
+	  const ptrdiff_t lh_prefix_size = SBYTES (lh_prefix);
+	  const ptrdiff_t suffix_size = nbytes - sh_prefix_size;
+	  const ptrdiff_t needed = 1 + lh_prefix_size + suffix_size;
+	  if (bufsize < needed)
+	    {
+	      buf = xrealloc (buf, needed);
+	      bufsize = needed;
+	    }
+	  memcpy (buf, SSDATA(lh_prefix), lh_prefix_size);
+	  memcpy (buf + lh_prefix_size, name + sh_prefix_size, suffix_size);
+	  buf[lh_prefix_size + suffix_size] = '\0';
+	  return build_string (buf);
 	}
     }
 
-  return *out != NULL;
+  return Qnil;
 }
 
 static Lisp_Object
@@ -3766,16 +3770,8 @@ translate_shorthand (Lisp_Object name)
 {
   if (NILP (Vread_symbol_shorthands) || !STRINGP (name))
     return name;
-
-  char *real = NULL;
-  ptrdiff_t nbytes;
-  if (find_shorthand ((char *) SDATA (name), SBYTES (name), &real, &nbytes))
-    {
-      name = build_string (real);
-      xfree (real);
-    }
-
-  return name;
+  Lisp_Object found = find_shorthand ((char *) SDATA (name), SBYTES (name));
+  return STRINGP (found) ? found : name;
 }
 
 /* Read a Lisp object.
@@ -4306,18 +4302,16 @@ read0 (source_t *source, bool locate_syms)
 	   if there is none.  */
 	Lisp_Object package = Qnil;
 
-	/* Support shorthands as far as needed because Magit started to
-	   use them around 2025-08-01.  Note that longhand is
-	   malloc'd. It can leak if we signal between here and where it
-	   is freed. I don't care. */
-	char* real = NULL;
-	ptrdiff_t nbytes_real = 0;
-	if (!NILP (Vread_symbol_shorthands)
-	    && find_shorthand (symbol_start, symbol_end - symbol_start,
-			       &real, &nbytes_real))
+	/* Shorthands */
+	Lisp_Object found = Qnil;
+	if (!NILP (Vread_symbol_shorthands))
 	  {
-	    symbol_start = real;
-	    symbol_end = real + nbytes_real;
+	    found = find_shorthand (symbol_start, symbol_end - symbol_start);
+	    if (STRINGP (found))
+	      {
+		symbol_start = (char *) SDATA (found);
+		symbol_end = symbol_start + SBYTES (found);
+	      }
 	  }
 
 	/* If a package prefix was found, determine the package it
@@ -4350,10 +4344,7 @@ read0 (source_t *source, bool locate_syms)
 	       there a better way? */
 	    package = pkg_find_package (pkg_name);
 	    if (NILP (package))
-	      {
-		xfree (real);
-		pkg_error ("unknown package '%s'", rb.start);
-	      }
+	      pkg_error ("unknown package '%s'", rb.start);
 
 	    /* Symbol name starts after the package prefix.  */
 	    symbol_start = rb.start + colon_offset + ncolons;
@@ -4379,7 +4370,6 @@ read0 (source_t *source, bool locate_syms)
 		if (!NILP (result) && len == symbol_nbytes)
 		  {
 		    obj = result;
-		    xfree (real);
 		    break;
 		  }
 	      }
@@ -4404,9 +4394,6 @@ read0 (source_t *source, bool locate_syms)
 
 	if (locate_syms && !NILP (result))
 	  result = build_symbol_with_pos (result, make_fixnum (start_position));
-
-	if (real)
-	  xfree (real);
 
 	obj = result;
 	break;
