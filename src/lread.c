@@ -279,7 +279,65 @@ static int source_function_get (source_t *src);
 static void source_function_unget (source_t *src, int c);
 static int source_file_get (source_t *src);
 static void source_file_unget (source_t *src, int c);
-static Lisp_Object translate_shorthand (Lisp_Object string);
+
+static Lisp_Object
+find_shorthand (const char *name, ptrdiff_t nbytes)
+{
+  static char *buf = NULL;
+  static ptrdiff_t bufsize = 0;
+
+  Lisp_Object tail = Vread_symbol_shorthands;
+  FOR_EACH_TAIL_SAFE (tail)
+    {
+      Lisp_Object pair = XCAR (tail);
+      /* Be lenient to 'read-symbol-shorthands': if some element isn't a
+	 cons, or some member of that cons isn't a string, just skip
+	 to the next element.  */
+      if (!CONSP (pair))
+	continue;
+
+      Lisp_Object sh_prefix = XCAR (pair);
+      Lisp_Object lh_prefix = XCDR (pair);
+      if (!STRINGP (sh_prefix) || !STRINGP (lh_prefix))
+	continue;
+
+      /* Compare the prefix of the transformation pair to the symbol
+	 name.  If a match occurs, do the renaming and exit the loop.
+	 In other words, only one such transformation may take place.
+	 Calculate the amount of memory to allocate for the longhand
+	 version of the symbol name with xrealloc.  This isn't
+	 strictly needed, but it could later be used as a way for
+	 multiple transformations on a single symbol name.  */
+      ptrdiff_t sh_prefix_size = SBYTES (sh_prefix);
+      if (sh_prefix_size <= nbytes
+	  && memcmp (SSDATA (sh_prefix), name, sh_prefix_size) == 0)
+	{
+	  const ptrdiff_t lh_prefix_size = SBYTES (lh_prefix);
+	  const ptrdiff_t suffix_size = nbytes - sh_prefix_size;
+	  const ptrdiff_t needed = 1 + lh_prefix_size + suffix_size;
+	  if (bufsize < needed)
+	    {
+	      buf = xrealloc (buf, needed);
+	      bufsize = needed;
+	    }
+	  memcpy (buf, SSDATA(lh_prefix), lh_prefix_size);
+	  memcpy (buf + lh_prefix_size, name + sh_prefix_size, suffix_size);
+	  buf[lh_prefix_size + suffix_size] = '\0';
+	  return build_string (buf);
+	}
+    }
+
+  return Qnil;
+}
+
+static Lisp_Object
+translate_shorthand (Lisp_Object name)
+{
+  if (NILP (Vread_symbol_shorthands) || !STRINGP (name))
+    return name;
+  Lisp_Object found = find_shorthand ((char *) SDATA (name), SBYTES (name));
+  return STRINGP (found) ? found : name;
+}
 
 static void
 init_source (source_t *src, Lisp_Object readcharfun)
@@ -3715,65 +3773,6 @@ is_symbol_constituent (int c)
   return true;
 }
 
-static Lisp_Object
-find_shorthand (const char *name, ptrdiff_t nbytes)
-{
-  static char *buf = NULL;
-  static ptrdiff_t bufsize = 0;
-
-  Lisp_Object tail = Vread_symbol_shorthands;
-  FOR_EACH_TAIL_SAFE (tail)
-    {
-      Lisp_Object pair = XCAR (tail);
-      /* Be lenient to 'read-symbol-shorthands': if some element isn't a
-	 cons, or some member of that cons isn't a string, just skip
-	 to the next element.  */
-      if (!CONSP (pair))
-	continue;
-
-      Lisp_Object sh_prefix = XCAR (pair);
-      Lisp_Object lh_prefix = XCDR (pair);
-      if (!STRINGP (sh_prefix) || !STRINGP (lh_prefix))
-	continue;
-
-      /* Compare the prefix of the transformation pair to the symbol
-	 name.  If a match occurs, do the renaming and exit the loop.
-	 In other words, only one such transformation may take place.
-	 Calculate the amount of memory to allocate for the longhand
-	 version of the symbol name with xrealloc.  This isn't
-	 strictly needed, but it could later be used as a way for
-	 multiple transformations on a single symbol name.  */
-      ptrdiff_t sh_prefix_size = SBYTES (sh_prefix);
-      if (sh_prefix_size <= nbytes
-	  && memcmp (SSDATA (sh_prefix), name, sh_prefix_size) == 0)
-	{
-	  const ptrdiff_t lh_prefix_size = SBYTES (lh_prefix);
-	  const ptrdiff_t suffix_size = nbytes - sh_prefix_size;
-	  const ptrdiff_t needed = 1 + lh_prefix_size + suffix_size;
-	  if (bufsize < needed)
-	    {
-	      buf = xrealloc (buf, needed);
-	      bufsize = needed;
-	    }
-	  memcpy (buf, SSDATA(lh_prefix), lh_prefix_size);
-	  memcpy (buf + lh_prefix_size, name + sh_prefix_size, suffix_size);
-	  buf[lh_prefix_size + suffix_size] = '\0';
-	  return build_string (buf);
-	}
-    }
-
-  return Qnil;
-}
-
-static Lisp_Object
-translate_shorthand (Lisp_Object name)
-{
-  if (NILP (Vread_symbol_shorthands) || !STRINGP (name))
-    return name;
-  Lisp_Object found = find_shorthand ((char *) SDATA (name), SBYTES (name));
-  return STRINGP (found) ? found : name;
-}
-
 /* Read a Lisp object.
    If LOCATE_SYMS is true, symbols are read with position.  */
 static Lisp_Object
@@ -4304,7 +4303,7 @@ read0 (source_t *source, bool locate_syms)
 
 	/* Shorthands */
 	Lisp_Object found = Qnil;
-	if (!NILP (Vread_symbol_shorthands))
+	if (!NILP (Vread_symbol_shorthands) && !skip_shorthand)
 	  {
 	    found = find_shorthand (symbol_start, symbol_end - symbol_start);
 	    if (STRINGP (found))
