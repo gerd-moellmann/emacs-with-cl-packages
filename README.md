@@ -21,7 +21,6 @@ etc., so I'd say it's pretty backwards compatible.
 
 * Documentation
 * Tests
-* Support for symbol shortcuts
 
 ## Common Lisp packages
 
