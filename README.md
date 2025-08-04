@@ -127,9 +127,9 @@ Monnier seems interested, and has run some benchmarks that look
 good. One notorious case was sped up by 2 orders of magnitude in an
 early version.
 
-## Emacs Mac Pprt
+## Emacs Mac Port
 
-Now merged https://github.com/jdtsmith/emacs-mac, so one can build
-`--with-mac` as an alternative to `with-ns`. Everything seems to work,
-except that one cannot use MPS at the moment, simply because igc hasn't
-been implemented yet for mac.
+Now merged https://github.com/jdtsmith/emacs-mac, so you can build
+`--with-mac` as an alternative to `with-ns`.
+
+I have ported `igc` to `mac`.
