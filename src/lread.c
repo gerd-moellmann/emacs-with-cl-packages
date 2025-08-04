@@ -279,6 +279,7 @@ static int source_function_get (source_t *src);
 static void source_function_unget (source_t *src, int c);
 static int source_file_get (source_t *src);
 static void source_file_unget (source_t *src, int c);
+static Lisp_Object translate_shorthand (Lisp_Object string);
 
 static void
 init_source (source_t *src, Lisp_Object readcharfun)
@@ -3715,7 +3716,7 @@ is_symbol_constituent (int c)
 }
 
 static bool
-find_shorthand (const char *in, ptrdiff_t nbytes,
+find_shorthand (const char *name, ptrdiff_t nbytes,
 		char **out, ptrdiff_t *nbytes_out)
 {
   *out = NULL;
@@ -3744,13 +3745,13 @@ find_shorthand (const char *in, ptrdiff_t nbytes,
 	 multiple transformations on a single symbol name.  */
       ptrdiff_t sh_prefix_size = SBYTES (sh_prefix);
       if (sh_prefix_size <= nbytes
-	  && memcmp (SSDATA (sh_prefix), in, sh_prefix_size) == 0)
+	  && memcmp (SSDATA (sh_prefix), name, sh_prefix_size) == 0)
 	{
 	  ptrdiff_t lh_prefix_size = SBYTES (lh_prefix);
 	  ptrdiff_t suffix_size = nbytes - sh_prefix_size;
 	  *out = xrealloc (*out, lh_prefix_size + suffix_size + 1);
 	  memcpy (*out, SSDATA(lh_prefix), lh_prefix_size);
-	  memcpy (*out + lh_prefix_size, in + sh_prefix_size, suffix_size);
+	  memcpy (*out + lh_prefix_size, name + sh_prefix_size, suffix_size);
 	  *nbytes_out = lh_prefix_size + suffix_size;
 	  (*out)[*nbytes_out] = '\0';
 	  break;
@@ -3758,6 +3759,23 @@ find_shorthand (const char *in, ptrdiff_t nbytes,
     }
 
   return *out != NULL;
+}
+
+static Lisp_Object
+translate_shorthand (Lisp_Object name)
+{
+  if (NILP (Vread_symbol_shorthands) || !STRINGP (name))
+    return name;
+
+  char *real = NULL;
+  ptrdiff_t nbytes;
+  if (find_shorthand ((char *) SDATA (name), SBYTES (name), &real, &nbytes))
+    {
+      name = build_string (real);
+      xfree (real);
+    }
+
+  return name;
 }
 
 /* Read a Lisp object.
@@ -4288,18 +4306,18 @@ read0 (source_t *source, bool locate_syms)
 	   if there is none.  */
 	Lisp_Object package = Qnil;
 
-	/* Very limited support for "shorthands" because Magit started
-	   to use them around 2025-08-01.  Note that longhand is
+	/* Support shorthands as far as needed because Magit started to
+	   use them around 2025-08-01.  Note that longhand is
 	   malloc'd. It can leak if we signal between here and where it
 	   is freed. I don't care. */
-	char* longhand = NULL;
-	ptrdiff_t longhand_bytes = 0;
+	char* real = NULL;
+	ptrdiff_t nbytes_real = 0;
 	if (!NILP (Vread_symbol_shorthands)
-	    &&  find_shorthand (symbol_start, symbol_end - symbol_start,
-				&longhand, &longhand_bytes))
+	    && find_shorthand (symbol_start, symbol_end - symbol_start,
+			       &real, &nbytes_real))
 	  {
-	    symbol_start = longhand;
-	    symbol_end = longhand + longhand_bytes;
+	    symbol_start = real;
+	    symbol_end = real + nbytes_real;
 	  }
 
 	/* If a package prefix was found, determine the package it
@@ -4333,7 +4351,7 @@ read0 (source_t *source, bool locate_syms)
 	    package = pkg_find_package (pkg_name);
 	    if (NILP (package))
 	      {
-		xfree (longhand);
+		xfree (real);
 		pkg_error ("unknown package '%s'", rb.start);
 	      }
 
@@ -4361,7 +4379,7 @@ read0 (source_t *source, bool locate_syms)
 		if (!NILP (result) && len == symbol_nbytes)
 		  {
 		    obj = result;
-		    xfree (longhand);
+		    xfree (real);
 		    break;
 		  }
 	      }
@@ -4387,8 +4405,8 @@ read0 (source_t *source, bool locate_syms)
 	if (locate_syms && !NILP (result))
 	  result = build_symbol_with_pos (result, make_fixnum (start_position));
 
-	if (longhand)
-	  xfree (longhand);
+	if (real)
+	  xfree (real);
 
 	obj = result;
 	break;
@@ -4849,6 +4867,7 @@ A second optional argument specifies the obarray to use;
 it defaults to the value of `obarray'.  */)
   (Lisp_Object string, Lisp_Object package)
 {
+  string = translate_shorthand (string);
   return pkg_emacs_intern (string, package);
 }
 
@@ -4860,6 +4879,7 @@ A second optional argument specifies the obarray to use;
 it defaults to the value of `obarray'.  */)
   (Lisp_Object name, Lisp_Object obarray)
 {
+  name = translate_shorthand (name);
   return pkg_emacs_intern_soft (name, obarray);
 }
 
@@ -4871,6 +4891,7 @@ is deleted, if it belongs to OBARRAY--no other symbol is deleted.
 OBARRAY, if nil, defaults to the value of the variable `obarray'.  */)
   (Lisp_Object name, Lisp_Object obarray)
 {
+  name = translate_shorthand (name);
   return pkg_emacs_unintern (name, obarray);
 }
 
