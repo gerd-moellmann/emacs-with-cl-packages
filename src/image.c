@@ -8351,8 +8351,8 @@ image_to_emacs_colors (struct frame *f, struct image *img, bool rgb_p)
   HGDIOBJ prev;
 #endif /* HAVE_NTGUI */
 
-  if (ckd_mul (&nbytes, sizeof *colors, img->width)
-      || ckd_mul (&nbytes, nbytes, img->height)
+  if (ckd_mul (&nbytes, sizeof *colors, IMAGE_BITMAP_WIDTH(img))
+      || ckd_mul (&nbytes, nbytes, IMAGE_BITMAP_HEIGHT(img))
       || SIZE_MAX < nbytes)
     memory_full (SIZE_MAX);
   colors = xmalloc (nbytes);
@@ -8504,8 +8504,8 @@ image_detect_edges (struct frame *f, struct image *img,
 
 #define COLOR(A, X, Y) ((A) + (Y) * IMAGE_BITMAP_WIDTH (img) + (X))
 
-  if (ckd_mul (&nbytes, sizeof *new, img->width)
-      || ckd_mul (&nbytes, nbytes, img->height))
+  if (ckd_mul (&nbytes, sizeof *new, IMAGE_BITMAP_WIDTH(img))
+      || ckd_mul (&nbytes, nbytes, IMAGE_BITMAP_HEIGHT(img)))
     memory_full (SIZE_MAX);
   new = xmalloc (nbytes);
 
