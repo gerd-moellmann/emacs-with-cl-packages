@@ -1293,18 +1293,6 @@ static bool handling_queued_nsevents_p;
       setrlimit (RLIMIT_NOFILE, &rlim);
     }
 
-  if ([NSApp activationPolicy] == NSApplicationActivationPolicyProhibited) {
-    /* Set the app's activation policy to regular when we run outside
-       of a bundle.  This is already done for us by Info.plist when we
-       run inside a bundle.  */
-    [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
-#if 0
-    NSString *filename = @"icons/hicolor/128x128/apps/emacs.png";
-    NSImage *image = [[NSImage alloc] initByReferencingFile:filename];
-    [NSApp setApplicationIconImage:image];
-#endif
-  }
-
   /* Exit from the main event loop.  */
   [NSApp stop:nil];
   [NSApp postDummyEvent];
