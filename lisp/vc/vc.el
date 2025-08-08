@@ -4344,8 +4344,9 @@ Return a list of the form (FILE VC-STATE EXTRA) for each file.
 VC-STATE is the current VC state of the file, and EXTRA is optional,
 backend-specific information.
 Normally files in the `up-to-date' and `ignored' states are not
-included.  If the optional argument FILES is non-nil, report on only
-those files, and don't exclude them for being in one of those states.
+included.
+If the optional argument FILES is non-nil, report on only items in
+FILES, and don't exclude any for being `up-to-date' or `ignored'.
 BACKEND is the VC backend; if nil or omitted, it defaults to the result
 of calling `vc-responsible-backend' with DIRECTORY as its first and only
 argument.
@@ -4408,6 +4409,22 @@ When called from Lisp, BACKEND is the VC backend."
 
   (vc-dir directory backend))
 
+(defvar project-prompter)
+
+(defun vc--prompt-other-working-tree (backend prompt)
+  "Invoke `project-prompter' to choose another working tree.
+BACKEND is the VC backend.
+PROMPT is the prompt string for `project-prompter'."
+  (let ((trees (vc-call-backend backend 'known-other-working-trees)))
+    (require 'project)
+    (dolist (tree trees)
+      (when-let* ((p (project-current nil tree)))
+        (project-remember-project p)))
+    (funcall project-prompter prompt
+             (lambda (k &optional _v)
+               (member (or (car-safe k) k) trees))
+             t)))
+
 (defvar project-current-directory-override)
 
 ;;;###autoload
@@ -4421,11 +4438,8 @@ to the root of this working tree."
   ;; FIXME: Switch between directory analogues, too, in Dired buffers.
   (interactive
    (list
-    ;; FIXME: This should respect `project-prompter'.  See bug#79024.
-    (completing-read "Other working tree to visit: "
-                     (vc-call-backend (vc-responsible-backend default-directory)
-                                      'known-other-working-trees)
-                     nil t)))
+    (vc--prompt-other-working-tree (vc-responsible-backend default-directory)
+                                   "Other working tree to visit")))
   (let ((project-current-directory-override directory))
     (project-find-matching-file)))
 
@@ -4438,10 +4452,7 @@ BACKEND is the VC backend."
   (interactive
    (let ((backend (vc-responsible-backend default-directory)))
      (list backend
-           ;; FIXME: This should respect `project-prompter'.  See bug#79024.
-           (completing-read "Delete working tree: "
-                            (vc-call-backend backend 'known-other-working-trees)
-                            nil t))))
+           (vc--prompt-other-working-tree backend "Delete working tree"))))
   ;; We could consider not prompting here, thus always failing when
   ;; there is uncommitted work, and requiring the user to review and
   ;; revert the uncommitted changes before invoking this command again.
@@ -4467,10 +4478,7 @@ BACKEND is the VC backend."
   (interactive
    (let ((backend (vc-responsible-backend default-directory)))
      (list backend
-           ;; FIXME: This should respect `project-prompter'.  See bug#79024.
-           (completing-read "Relocate working tree: "
-                            (vc-call-backend backend 'known-other-working-trees)
-                            nil t)
+           (vc--prompt-other-working-tree backend "Relocate working tree")
            (read-directory-name "New location for working tree: "
                                 (file-name-parent-directory (vc-root-dir))))))
   (let ((inhibit-message t))
