@@ -13830,6 +13830,7 @@ unwind_format_mode_line (Lisp_Object vector)
 
 	      current_buffer = XBUFFER (buffer);
 	      set_point_from_marker (AREF (vector, 11));
+	      detach_marker (AREF (vector, 11));
 	      ASET (vector, 11, Qnil);
 	      current_buffer = cb;
 	    }
