@@ -1307,33 +1307,96 @@ directories listed in `vc-directory-exclusion-list'."
         (user-error "You didn't specify the file")
       (find-file file))))
 
+(defvar project-find-matching-buffer-function
+  #'project-find-matching-file-or-directory
+  "Function to switch to a matching buffer in another project.
+Usually set buffer-locally by non-file-visiting major modes.
+The function will be called with two arguments, the project instance for
+this buffer's project, and the project instance for the matching buffer.
+
+The default value works for file-visiting and Dired buffers.
+Non-file-visiting major modes (other than `dired-mode'), where there is
+a sensible notion of a matching buffer, can set this.
+File-visiting major modes shouldn't set it, except possibly some highly
+specialized ones.")
+
 ;;;###autoload
-(defun project-find-matching-file ()
-  "Visit the file that matches the current one, in another project.
-It will skip to the same line number as well.
-A matching file has the same file name relative to the project root.
+(defun project-find-matching-buffer ()
+  "Switch to a matching buffer in another project.
+For most file-visiting buffers, the matching buffer is one visiting a
+file in the other project which has the same file name relative to the
+project root.  See `project-find-matching-file' for details.
+Non-file-visiting major modes may configure a different notion of
+matching buffer; see `project-find-matching-buffer-function'.
+
 When called during switching to another project, this command will
-detect it and use the override.  Otherwise, it prompts for the project
-to use from the known list."
+detect that, and use the override.  Otherwise, it prompts for the
+project to use from the list of known projects.
+When calling from Lisp, bind `project-current-directory-override' to a
+directory under the target project to preempt this prompting."
   (interactive)
-  (let* ((pr (project-current))
-         (line (line-number-at-pos nil t))
-         relative-name mirror-name)
-    (if project-current-directory-override
-        (let* (project-current-directory-override
-               (real-project (project-current t)))
-          (setq relative-name (file-relative-name buffer-file-name
-                                                  (project-root real-project))))
-      (setq relative-name (file-relative-name buffer-file-name (project-root pr)))
-      (setq pr (project-read-project)))
-    (setq mirror-name (expand-file-name relative-name (project-root pr)))
-    (if (not (file-exists-p mirror-name))
-        (user-error "File `%s' not found in `%s'" relative-name (project-root pr))
-      (find-file mirror-name)
-      (save-restriction
-        (widen)
-        (goto-char (point-min))
-        (forward-line (1- line))))))
+  (let ((pr (project-current)))
+    (apply project-find-matching-buffer-function
+           (if project-current-directory-override
+               (let (project-current-directory-override)
+                 (list (project-current t) pr))
+             (list pr (project-read-project))))))
+
+(declare-function dired-current-directory "dired")
+
+(defun project-find-matching-file-or-directory (current-project mirror-project)
+  "Visit file or directory in another project that matches the current one.
+A file-visiting buffer's matching file has the same file name relative
+to the project root.  A non-file-visiting buffer's matching directory
+has the same `default-directory' relative to the project root.
+As a special case, when point is on an inserted subdirectory in a Dired
+buffer, use that subdirectory instead of `default-directory'.
+CURRENT-PROJECT is the project instance for the current project.
+MIRROR-PROJECT is the project instance for the project to visit.
+Also skip to the same line number.
+
+If the matching file does not exist in the other project, try going up
+the directory tree until encountering a file or directory that exists.
+For example, from a buffer visiting a file \"lisp/vc/vc.el\", if in the
+other project this file does not exist, try visiting \"lisp/vc\" if that
+exists as a file or directory.
+
+If a matching directory does not exist in the other project, try going
+up the directory tree until encountering a directory that exists.  For
+example, from a Dired buffer visiting a subdirectory named \"lisp/vc/\",
+if in the other project \"lisp/vc\" is missing or not a directory, try
+visiting a directory named \"lisp/\" in the other project.
+
+This function is intended to be used as the value of
+`project-find-matching-buffer-function'."
+  (let* ((line (line-number-at-pos nil t))
+         (dirp (not (buffer-file-name)))
+         (mirror-root (project-root mirror-project))
+         (relative-name
+          (file-relative-name (cond ((derived-mode-p 'dired-mode)
+                                     (dired-current-directory))
+                                    ((buffer-file-name))
+                                    (t default-directory))
+                              (project-root current-project)))
+         (mirror-name (expand-file-name relative-name mirror-root))
+         (orig-mirror-name mirror-name))
+    (while (not (if dirp (file-directory-p mirror-name)
+                  (file-exists-p mirror-name)))
+      (setq mirror-name (directory-file-name
+                         (file-name-parent-directory mirror-name)))
+      (unless (file-in-directory-p mirror-name mirror-root)
+        (user-error "`%s' not found in `%s'" relative-name mirror-root)))
+    (find-file mirror-name)
+    (save-restriction
+      (widen)
+      (goto-char (point-min))
+      (forward-line (1- line)))
+    (unless (equal mirror-name orig-mirror-name)
+      (message "`%s' not found; visiting `%s' instead"
+               (abbreviate-file-name orig-mirror-name)
+               (abbreviate-file-name (if (file-directory-p mirror-name)
+                                         (file-name-as-directory mirror-name)
+                                       mirror-name))))))
 
 (defun project--completing-read-strict (prompt
                                         collection &optional predicate
@@ -1986,26 +2049,34 @@ With some possible metadata (to be decided).")
             (current-buffer)))
       (write-region nil nil filename nil 'silent))))
 
-(defun project--remember-dir (root &optional no-write)
+(defun project--remember-dir (root &optional no-write stable)
   "Add project root ROOT to the front of the project list.
 Save the result in `project-list-file' if the list of projects
-has changed, and NO-WRITE is nil."
+has changed, unless NO-WRITE is non-nil.
+If STABLE is non-nil, don't move ROOT to the front of the project list
+if it's already present further down the project list."
   (project--ensure-read-project-list)
   (let ((dir (abbreviate-file-name root)))
-    (unless (equal (caar project--list) dir)
-      (dolist (ent project--list)
-        (when (equal dir (car ent))
-          (setq project--list (delq ent project--list))))
+    (unless (if stable (assoc dir project--list)
+              (equal (caar project--list) dir))
+      (unless stable
+        (dolist (ent project--list)
+          (when (equal dir (car ent))
+            (setq project--list (delq ent project--list)))))
       (push (list dir) project--list)
       (unless no-write
         (project--write-project-list)))))
 
 ;;;###autoload
-(defun project-remember-project (pr &optional no-write)
+(defun project-remember-project (pr &optional no-write stable)
   "Add project PR to the front of the project list.
 If project PR satisfies `project-list-exclude', then nothing is done.
 Save the result in `project-list-file' if the list of projects
-has changed, and NO-WRITE is nil."
+has changed.
+When called from Lisp, optional argument NO-WRITE non-nil means to
+suppress saving `project-list-file'.
+Optional argument STABLE means don't move PR to the front of the project
+list if it's already present further down the project list."
   (interactive (list (project-current t)))
   (let ((root (project-root pr))
         (interact (called-interactively-p 'any)))
@@ -2016,9 +2087,9 @@ has changed, and NO-WRITE is nil."
                   project-list-exclude)
         (when interact
           (message "Current project is blacklisted!"))
+      (project--remember-dir root no-write stable)
       (when interact
-        (message "Current project remembered"))
-      (project--remember-dir root no-write))))
+        (message "Current project remembered")))))
 
 (defun project--remove-from-project-list (project-root report-message)
   "Remove directory PROJECT-ROOT of a missing project from the project list.
