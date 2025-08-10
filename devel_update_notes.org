@@ -112,6 +112,57 @@ Currently (as of v30.1) this is quite similar:
 - From there, ~magit-blame~ can be used to quickly identify the recent commit which changed the calling convention, etc.
 - This commit often includes many examples of fixing code elsewhere to conform to the new conventions.  These can be used as a guide to update affected code (usually in ~macwin~, ~macterm~, etc).
 
+    
+*  Getting ~lldb~ working (code signatures)
+
+** Launching lldb without losing the (lldb) prompt
+
+Just disable stdio:
+
+#+begin_src lldb
+   process launch -n -- -Q -l ~/code/emacs/test/inline-image-motion-bugs.el
+#+end_src
+
+** Using lldb via GUD or REALGUD
+
+By default, ~lldb~ works well from ~Terminal.app~ to run debug-builds of Emacs, but not Emacs itself.
+
+In principle, you can launch one (non-debug) emacs, and use ~realgud~ or ~gud~ via =M-x lldb= to run another, but you get the dreaded:
+
+: Process 13127 exited with status = 5 (0x00000005) Terminated due to signal 5
+
+error (also from ~eshell~, etc.).  This relates to ~SIGTRAP~ not being allowed via the launching code, which is used to attach to the debug interface.  So you must add to the controlling application's "entitlements", using a self-signed process.
+
+Create a file =entitlements.xml=:
+
+#+begin_src xml
+  <?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
+	<key>com.apple.security.cs.debugger</key>
+	<true/>
+	<key>com.apple.security.get-task-allow</key>
+	<true/>
+</dict>
+</plist>
+#+end_src
+
+that adds in particular ~cs.debugger~ support.  Then attach it like:
+
+#+begin_src shell
+codesign -fs - --entitlements entitlements.xml /Applications/Emacs_Carbon.app
+#+end_src
+
+or whatever is the path to the Emacs you'll be using to run ~lldb~ via.
+
+You may get some errors about resource fork, etc., or "bundle format unrecognized, invalid, or unsuitable".  To solve this, temporarily move out the =Frameworks= and =libexec= folders from =Emacs.app/Contents=.  Sign as above, then move them back in place.  You should now be able to launch a subordinate debug version of emacs via ~lldb~ (e.g. in ~eshell~).
+
+*Update*: this doesn't work reliably.  Instead, I had to disable ~-debug~ SIP restrictions using ~csrutil~.  Then it can work via, e.g. ~DAPE~.
+
+
 * Other notes
 
 ** SVG handling
