@@ -397,7 +397,9 @@ more details.
                      [&optional ("interactive" interactive)]
                      def-body))
            (doc-string 3)
-           (indent 2))
+           (indent 2)
+           ;; expand to function definition on autoload gen
+           (autoload-macro expand))
   `(defun ,name ,@(cl--transform-lambda (cons args body) name)))
 
 ;;;###autoload
@@ -415,7 +417,9 @@ and BODY is implicitly surrounded by (cl-block NAME ...).
                      [&optional ("interactive" interactive)]
                      def-body))
            (doc-string 3)
-           (indent 2))
+           (indent 2)
+           ;; expand (eventually) to function definition on autoload gen
+           (autoload-macro expand))
   (require 'generator)
   `(iter-defun ,name ,@(cl--transform-lambda (cons args body) name)))
 
@@ -474,7 +478,8 @@ more details.
   (declare (debug
             (&define name cl-macro-list cl-declarations-or-string def-body))
            (doc-string 3)
-           (indent 2))
+           (indent 2)
+           (autoload-macro expand))   ; expand to defmacro on autoload gen
   `(defmacro ,name ,@(cl--transform-lambda (cons args body) name)))
 
 (def-edebug-elem-spec 'cl-lambda-expr
@@ -3097,7 +3102,9 @@ To see the documentation for a defined struct type, use
                         sexp])]
              [&optional stringp]
              ;; All the above is for the following def-form.
-             &rest &or symbolp (symbolp &optional def-form &rest sexp))))
+             &rest &or symbolp (symbolp &optional def-form &rest sexp)))
+           ;; expand to function definitions and related forms on autoload gen
+           (autoload-macro expand))
   (let* ((name (if (consp struct) (car struct) struct))
 	 (warning nil)
 	 (opts (cdr-safe struct))
