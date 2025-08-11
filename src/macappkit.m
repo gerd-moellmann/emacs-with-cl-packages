@@ -109,10 +109,10 @@ enum {
   (@"NSTouchBarItemIdentifierCandidateList")
 #endif
 
-static void mac_within_gui_and_here (void (^ CF_NOESCAPE) (void),
-				     void (^ CF_NOESCAPE) (void));
-static void mac_within_gui_allowing_inner_lisp (void (^ CF_NOESCAPE) (void));
-static void mac_within_lisp (void (^ CF_NOESCAPE) (void));
+static void mac_within_gui_and_here (void (^) (void),
+                                     void (CF_NOESCAPE ^) (void));
+static void mac_within_gui_allowing_inner_lisp (void (^) (void));
+static void mac_within_lisp (void (^) (void));
 static void mac_within_lisp_deferred_unless_popup (void (^) (void));
 
 #define MAC_SELECT_ALLOW_LISP_EVALUATION 1
@@ -627,8 +627,8 @@ mac_within_app (void (^block) (void))
    descendant windows.  Set *stop to YES in the block to abort further
    processing of the child windows subtree.  */
 
-- (void)enumerateChildWindowsUsingBlock:(NS_NOESCAPE void
-					 (^)(NSWindow *child, BOOL *stop))block
+- (void)enumerateChildWindowsUsingBlock:(void
+					 (NS_NOESCAPE ^)(NSWindow *child, BOOL *stop))block
 {
   for (NSWindow *childWindow in self.childWindows)
     {
@@ -1017,7 +1017,7 @@ mac_trash_file (const char *filename, CFErrorRef *cferror)
 
 static void
 mac_with_current_drawing_appearance (NSAppearance *appearance,
-				     void (NS_NOESCAPE ^block) (void))
+                                     void (NS_NOESCAPE ^block) (void))
 {
   if (
 #if __clang_major__ >= 9
@@ -16647,7 +16647,7 @@ mac_gui_loop_once (void)
    they are retained for non-ARC environments.  */
 
 void
-mac_within_gui (void (^ CF_NOESCAPE block) (void))
+mac_within_gui (void (^block) (void))
 {
   mac_within_gui_and_here (block, NULL);
 }
@@ -16658,8 +16658,8 @@ mac_within_gui (void (^ CF_NOESCAPE block) (void))
    returns when the both executions has finished.  */
 
 static void
-mac_within_gui_and_here (void (^ CF_NOESCAPE block_gui) (void),
-			 void (^ CF_NOESCAPE block_here) (void))
+mac_within_gui_and_here (void (^block_gui) (void),
+                         void (CF_NOESCAPE ^block_here) (void))
 {
   eassert (!pthread_main_np ());
   eassert (mac_gui_queue.count <= 1);
@@ -16694,7 +16694,7 @@ mac_within_gui_and_here (void (^ CF_NOESCAPE block_gui) (void),
    must not be the GUI thread.  */
 
 static void
-mac_within_gui_allowing_inner_lisp (void (^ CF_NOESCAPE block) (void))
+mac_within_gui_allowing_inner_lisp (void (^block) (void))
 {
   eassert (!pthread_main_np ());
   bool __block completed_p = false;
@@ -16720,7 +16720,7 @@ mac_within_gui_allowing_inner_lisp (void (^ CF_NOESCAPE block) (void))
    etc. in the context of BLOCK.  */
 
 static void
-mac_within_lisp (void (^ CF_NOESCAPE block) (void))
+mac_within_lisp (void (^block) (void))
 {
   eassert (pthread_main_np ());
   eassert (mac_lisp_queue.count == 0);

@@ -508,8 +508,8 @@ typedef NSInteger NSGlyphProperty;
 @interface NSWindow (Emacs)
 - (Lisp_Object)lispFrame;
 - (NSWindow *)topLevelWindow;
-- (void)enumerateChildWindowsUsingBlock:(NS_NOESCAPE void
-					 (^)(NSWindow *child, BOOL *stop))block;
+- (void)enumerateChildWindowsUsingBlock:(void
+					 (NS_NOESCAPE ^)(NSWindow *child, BOOL *stop))block;
 @end
 
 @interface NSCursor (Emacs)

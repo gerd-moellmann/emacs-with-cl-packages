@@ -368,7 +368,7 @@ static NSString *xwScript;
 
 #ifdef HAVE_MACGUI
 static void
-mac_within_gui_check_thread (void (^ CF_NOESCAPE block) (void))
+mac_within_gui_check_thread (void (^block) (void))
 {
   if (!pthread_main_np ())
     mac_within_gui (block);
