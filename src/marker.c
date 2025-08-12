@@ -454,10 +454,15 @@ Value is nil if no such marker exists.  */)
   (Lisp_Object id)
 {
   CHECK_FIXNUM (id);
-  struct Lisp_Marker *m = marker_vector_marker_with_id (current_buffer, XFIXNUM (id));
-  if (m == NULL)
-    return Qnil;
-  return make_lisp_ptr (m, Lisp_Vectorlike);
+
+  DO_MARKERS (current_buffer, m)
+    {
+      if (m->id == XFIXNUM (id))
+	return make_lisp_ptr (m, Lisp_Vectorlike);
+    }
+  END_DO_MARKERS;
+
+  return Qnil;
 }
 
 DEFUN ("marker-buffer", Fmarker_buffer, Smarker_buffer, 1, 1, 0,
