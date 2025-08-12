@@ -3956,8 +3956,9 @@ build_overlay (bool front_advance, bool rear_advance,
 static ptrdiff_t
 next_marker_id (void)
 {
-  static ptrdiff_t next = 0;
-  return next++;
+  if (next__marker_id == PTRDIFF_MAX)
+    next__marker_id = 0;
+  return next__marker_id++;
 }
 
 DEFUN ("make-marker", Fmake_marker, Smake_marker, 0, 0, 0,
@@ -7894,6 +7895,10 @@ N should be nonnegative.  */);
 #endif
   DEFSYM (Qalloc, "alloc");
   DEFSYM (QCemergency, ":emergency");
+
+  DEFVAR_INT ("next--marker-id", next__marker_id,
+	      doc: /* Next marker id (internal use only..  */);
+  next__marker_id = 0;
 }
 
 #ifdef HAVE_MPS
