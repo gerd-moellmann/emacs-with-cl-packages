@@ -3944,12 +3944,20 @@ build_overlay (bool front_advance, bool rear_advance,
   return overlay;
 }
 
+static ptrdiff_t
+next_marker_id (void)
+{
+  static ptrdiff_t next = 0;
+  return next++;
+}
+
 DEFUN ("make-marker", Fmake_marker, Smake_marker, 0, 0, 0,
        doc: /* Return a newly allocated marker which does not point at any place.  */)
   (void)
 {
   struct Lisp_Marker *p = ALLOCATE_PLAIN_PSEUDOVECTOR (struct Lisp_Marker,
 						       PVEC_MARKER);
+  p->id = next_marker_id ();
   p->buffer = 0;
   p->entry = 0;
   p->insertion_type = 0;
@@ -3968,6 +3976,7 @@ build_marker (struct buffer *buf, ptrdiff_t charpos)
 
   struct Lisp_Marker *m = ALLOCATE_PLAIN_PSEUDOVECTOR (struct Lisp_Marker,
 						       PVEC_MARKER);
+  m->id = next_marker_id ();
   m->buffer = buf;
   m->insertion_type = 0;
   m->need_adjustment = 0;

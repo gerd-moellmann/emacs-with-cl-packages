@@ -375,3 +375,14 @@ marker_vector_adjust_for_replace (struct buffer *b,
 	CHARPOS (v, m->entry) = make_fixnum (from_charpos);
     }
 }
+
+struct Lisp_Marker *
+marker_vector_marker_with_id (struct buffer *b, ptrdiff_t id)
+{
+  FOR_EACH_MARKER (b, m)
+    {
+      if (id == m->id)
+	return m;
+    }
+  return NULL;
+}

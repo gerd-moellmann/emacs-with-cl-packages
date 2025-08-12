@@ -146,10 +146,10 @@ record_marker_adjustments (ptrdiff_t from, ptrdiff_t to)
 
           if (adjustment)
             {
-	      Lisp_Object marker = make_lisp_ptr (m, Lisp_Vectorlike);
+	      Lisp_Object id = make_fixnum (m->id);
               bset_undo_list
                 (current_buffer,
-                 Fcons (Fcons (marker, make_fixnum (adjustment)),
+                 Fcons (Fcons (Qadjust_marker, Fcons (id, make_fixnum (adjustment))),
                         BVAR (current_buffer, undo_list)));
             }
         }
@@ -432,6 +432,7 @@ syms_of_undo (void)
 
   /* Marker for function call undo list elements.  */
   DEFSYM (Qapply, "apply");
+  DEFSYM (Qadjust_marker, "adjust_marker");
 
   pending_boundary = Qnil;
   staticpro (&pending_boundary);

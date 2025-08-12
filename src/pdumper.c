@@ -2228,6 +2228,8 @@ dump_marker (struct dump_context *ctx, const struct Lisp_Marker *marker)
   dump_pseudovector_lisp_fields (ctx, &out->header, &marker->header);
   DUMP_FIELD_COPY (out, marker, need_adjustment);
   DUMP_FIELD_COPY (out, marker, insertion_type);
+  DUMP_FIELD_COPY (out, marker, id);
+  out->id *= -1;
   if (marker->buffer)
     {
       dump_field_lv_rawptr (ctx, out, marker, &marker->buffer,

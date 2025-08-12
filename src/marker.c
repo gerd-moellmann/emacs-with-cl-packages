@@ -101,6 +101,26 @@ buf_bytepos_to_charpos (struct buffer *b, ptrdiff_t bytepos)
 
 /* Operations on markers.  */
 
+DEFUN ("marker-id", Fmarker_id, Smarker_id, 1, 1, 0,
+       doc: /* Return the id of MARKER.  */)
+  (Lisp_Object marker)
+{
+  CHECK_MARKER (marker);
+  return make_fixnum (XMARKER (marker)->id);
+}
+
+DEFUN ("marker-with-id", Fmarker_with_id, Smarker_with_id, 1, 1, 0,
+       doc: /* Return the marker in the current buffer with id ID.
+Value is nil if no such marker exists.  */)
+  (Lisp_Object id)
+{
+  CHECK_FIXNUM (id);
+  struct Lisp_Marker *m = marker_vector_marker_with_id (current_buffer, XFIXNUM (id));
+  if (m == NULL)
+    return Qnil;
+  return make_lisp_ptr (m, Lisp_Vectorlike);
+}
+
 DEFUN ("marker-buffer", Fmarker_buffer, Smarker_buffer, 1, 1, 0,
        doc: /* Return the buffer that MARKER points into, or nil if none.
 Returns nil if MARKER points into a dead buffer.  */)
@@ -463,6 +483,8 @@ syms_of_marker (void)
 {
   defsubr (&Smarker_position);
   defsubr (&Smarker_last_position);
+  defsubr (&Smarker_id);
+  defsubr (&Smarker_with_id);
   defsubr (&Smarker_buffer);
   defsubr (&Sset_marker);
   defsubr (&Scopy_marker);

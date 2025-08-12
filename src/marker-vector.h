@@ -102,5 +102,8 @@ void marker_vector_adjust_for_insert (struct buffer *b, const ptrdiff_t from,
 void marker_vector_adjust_for_replace (struct buffer *b, ptrdiff_t from,
 				       ptrdiff_t old_chars, ptrdiff_t new_chars);
 ptrdiff_t marker_vector_last_charpos (const struct Lisp_Marker *m);
+struct Lisp_Marker *
+marker_vector_marker_with_id (struct buffer *b, ptrdiff_t id);
+
 
 #endif /* EMACS_MARKER_VECTOR_H */
