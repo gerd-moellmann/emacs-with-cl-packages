@@ -3727,13 +3727,16 @@ Return what remains of the list."
              ;; the markers haven't moved.  We check their validity
              ;; before reinserting the string so as we don't need to
              ;; mind marker insertion-type.
-             (while (and (markerp (car-safe (car list)))
-                         (integerp (cdr-safe (car list))))
-               (let* ((marker-adj (pop list))
-                      (m (car marker-adj)))
-                 (and (eq (marker-buffer m) (current-buffer))
-                      (= apos m)
-                      (push marker-adj valid-marker-adjustments))))
+             (while (eq 'adjust-marker (car-safe (car list)))
+               (let* ((entry (cdr-safe (car list)))
+                      (id (car entry))
+                      (offset (cdr entry))
+                      (marker (marker-with-id id)))
+                 (pop list)
+                 (when (and marker
+                            (eq (marker-buffer marker) (current-buffer))
+                            (= apos marker))
+                   (push (cons marker offset) valid-marker-adjustments))))
              ;; Insert string and adjust point
              (if (< pos 0)
                  (progn

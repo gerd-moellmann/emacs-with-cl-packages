@@ -3066,6 +3066,8 @@ struct Lisp_Marker
 {
   struct vectorlike_header header;
 
+  ptrdiff_t id;
+
   /* This is the buffer that the marker points into, or 0 if it points nowhere.
      Note: a chain of markers can contain markers pointing into different
      buffers (the chain is per buffer_text rather than per buffer, so it's
