@@ -1870,7 +1870,14 @@ compact_buffer (struct buffer *buffer)
 	 Qt tends to return NULL, which effectively turns undo back on.
 	 So don't call truncate_undo_list if undo_list is Qt.  */
       if (!EQ (BVAR(buffer, undo_list), Qt))
-	truncate_undo_list (buffer);
+	{
+#ifdef HAVE_MPS
+	  Lisp_Object buf;
+	  XSETBUFFER (buf, buffer);
+	  compact_undo_list (buf);
+#endif
+	  truncate_undo_list (buffer);
+	}
 
       /* Shrink buffer gaps.  */
       if (!buffer->text->inhibit_shrinking)

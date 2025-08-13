@@ -5816,7 +5816,7 @@ compact_font_caches (void)
 /* Remove marker adjustment entries with unmarked MARKER
    from buffer undo LIST and return changed list.  */
 
-static Lisp_Object
+Lisp_Object
 compact_undo_list (Lisp_Object buffer)
 {
   struct buffer *b = XBUFFER (buffer);

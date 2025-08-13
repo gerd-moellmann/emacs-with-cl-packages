@@ -4761,6 +4761,7 @@ extern void parse_str_as_multibyte (const unsigned char *, ptrdiff_t,
 				    ptrdiff_t *, ptrdiff_t *);
 
 /* Defined in alloc.c.  */
+Lisp_Object compact_undo_list (Lisp_Object buffer);
 extern ptrdiff_t pure_bytes_used_lisp;
 struct Lisp_Vector *allocate_vectorlike (ptrdiff_t len, bool clearit);
 extern void run_finalizer_function (Lisp_Object function);
