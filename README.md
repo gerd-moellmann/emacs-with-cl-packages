@@ -31,6 +31,12 @@ See the `emacs-mac-30_1_exp` or `emacs-mac-gnu_master_exp` branch and the file `
 
 Briefly:
 
+### Install build tools
+
+```bash
+brew install pkgconf texinfo
+```
+
 ### Install (optional) libraries
 
 If you'd like to build with tree-sitter support, native-compilation, and RSVG (all recommended), first install the necessary libraries, here demonstrated using HomeBrew:
