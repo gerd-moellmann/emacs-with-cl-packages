@@ -5839,25 +5839,38 @@ compact_font_caches (void)
 
 #endif /* HAVE_WINDOW_SYSTEM */
 
-/* Remove (MARKER . DATA) entries with unmarked MARKER
+/* Remove marker adjustment entries with unmarked MARKER
    from buffer undo LIST and return changed list.  */
 
 static Lisp_Object
-compact_undo_list (Lisp_Object list)
+compact_undo_list (Lisp_Object buffer)
 {
-#ifndef HAVE_MPS
+  struct buffer *b = XBUFFER (buffer);
+  Lisp_Object list = BVAR (b, undo_list);
   Lisp_Object tail, *prev = &list;
 
   for (tail = list; CONSP (tail); tail = XCDR (tail))
     {
-      if (CONSP (XCAR (tail))
-	  && MARKERP (XCAR (XCAR (tail)))
-	  && !vectorlike_marked_p (&XMARKER (XCAR (XCAR (tail)))->header))
-	*prev = XCDR (tail);
-      else
-	prev = xcdr_addr (tail);
-    }
+      Lisp_Object entry = XCAR (tail);
+      if (CONSP (entry) && EQ (Qadjust_marker, XCAR (entry)))
+	{
+	  Lisp_Object id = XCAR (XCDR (entry));
+	  Lisp_Object marker = Fmarker_with_id (id, buffer);
+#ifdef HAVE_MPS
+	  if (NILP (marker))
+	    *prev = XCDR (tail);
+	  else
+	    prev = xcdr_addr (tail);
+#else
+	  if (MARKERP (marker)
+	      && !vectorlike_marked_p (&XMARKER (marker)->header))
+	    *prev = XCDR (tail);
+	  else
+	    prev = xcdr_addr (tail);
 #endif
+	}
+    }
+
   return list;
 }
 
@@ -6209,7 +6222,7 @@ garbage_collect (void)
     {
       struct buffer *nextb = XBUFFER (buffer);
       if (!EQ (BVAR (nextb, undo_list), Qt))
-	bset_undo_list (nextb, compact_undo_list (BVAR (nextb, undo_list)));
+	bset_undo_list (nextb, compact_undo_list (buffer));
 #ifndef HAVE_MPS
       /* Now that we have stripped the elements that need not be
 	 in the undo_list any more, we can finally mark the list.  */

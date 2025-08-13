@@ -448,14 +448,15 @@ DEFUN ("marker-id", Fmarker_id, Smarker_id, 1, 1, 0,
   return make_fixnum (XMARKER (marker)->id);
 }
 
-DEFUN ("marker-with-id", Fmarker_with_id, Smarker_with_id, 1, 1, 0,
-       doc: /* Return the marker in the current buffer with id ID.
+DEFUN ("marker-with-id", Fmarker_with_id, Smarker_with_id, 2, 2, 0,
+       doc: /* Return the marker with id ID in BUFFER.
 Value is nil if no such marker exists.  */)
-  (Lisp_Object id)
+  (Lisp_Object id, Lisp_Object buffer)
 {
   CHECK_FIXNUM (id);
-
-  DO_MARKERS (current_buffer, m)
+  CHECK_BUFFER (buffer);
+  struct buffer *b = XBUFFER (buffer);
+  DO_MARKERS (b, m)
     {
       if (m->id == XFIXNUM (id))
 	return make_lisp_ptr (m, Lisp_Vectorlike);

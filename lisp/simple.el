@@ -3731,7 +3731,7 @@ Return what remains of the list."
                (let* ((entry (cdr-safe (car list)))
                       (id (car entry))
                       (offset (cdr entry))
-                      (marker (marker-with-id id)))
+                      (marker (marker-with-id id (current-buffer))))
                  (pop list)
                  (when (and marker
                             (eq (marker-buffer marker) (current-buffer))
