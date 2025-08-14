@@ -376,6 +376,7 @@ truncate_undo_list (struct buffer *b)
     last_boundary = prev;
 
   /* Keep additional undo data, if it fits in the limits.  */
+  ptrdiff_t ngroups = 0;
   while (CONSP (next))
     {
       Lisp_Object elt;
@@ -387,6 +388,8 @@ truncate_undo_list (struct buffer *b)
 	 the higher threshold undo_strong_limit, we truncate before it.  */
       if (NILP (elt))
 	{
+	  if (++ngroups > undo_group_limit)
+	    break;
 	  if (size_so_far > undo_strong_limit)
 	    break;
 	  last_boundary = prev;
@@ -459,6 +462,15 @@ is never discarded for this reason.
 The size is counted as the number of bytes occupied,
 which includes both saved text and other data.  */);
   undo_strong_limit = 240000;
+
+  DEFVAR_INT ("undo-group-limit", undo_group_limit,
+	      doc : /* Don't keep more than this number of undo information.
+This limit is applied when garbage collection happens.
+When a previous command increases the total undo list size past this
+value, that command and the earlier commands that came before it are forgotten.
+However, the most recent buffer-modifying command's undo info
+is never discarded for this reason. */);
+  undo_group_limit = 100;
 
   DEFVAR_LISP ("undo-outer-limit", Vundo_outer_limit,
 	      doc: /* Outer limit on size of undo information for one command.
