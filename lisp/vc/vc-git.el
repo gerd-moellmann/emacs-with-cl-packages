@@ -2081,10 +2081,6 @@ Will not rewrite likely-public history; see option `vc-allow-rewriting-published
           ;; On MS-Windows, pass the message through a file, to work
           ;; around how command line arguments must be in the system
           ;; codepage, and therefore might not support non-ASCII.
-          ;;
-          ;; As our other arguments are static, we need not be concerned
-          ;; about the encoding of command line arguments in general.
-          ;; See `vc-git-checkin' for the more complex case.
           (and (eq system-type 'windows-nt)
                (let ((default-directory
                       (or (file-name-directory (or (car files)
@@ -2122,12 +2118,18 @@ Rebase may --autosquash your other squash!/fixup!/amend!; proceed?")))
               (write-region message nil msg-file)))
           ;; Regardless of the state of the index and working tree, this
           ;; will always create an empty commit, thanks to --only.
-          (apply #'vc-git-command nil 0 nil
-                 "commit" "--only" "--allow-empty"
-                 (nconc (if msg-file
-                            (list "-F" (file-local-name msg-file))
-                          (list "-m" message))
-                        args)))
+          (let ((coding-system-for-write
+                 ;; On MS-Windows, we must encode command-line arguments in
+                 ;; the system codepage.
+                 (if (eq system-type 'windows-nt)
+                     locale-coding-system
+                   coding-system-for-write)))
+            (apply #'vc-git-command nil 0 nil
+                   "commit" "--only" "--allow-empty"
+                   (nconc (if msg-file
+                              (list "-F" (file-local-name msg-file))
+                            (list "-m" message))
+                          args))))
       (when (and msg-file (file-exists-p msg-file))
         (delete-file msg-file))))
   (with-environment-variables (("GIT_SEQUENCE_EDITOR" "true"))
@@ -2490,6 +2492,17 @@ The difference to `vc-do-command' is that this function always invokes
 `vc-git-program'."
   (let ((coding-system-for-read
          (or coding-system-for-read vc-git-log-output-coding-system))
+        ;; Commands which pass command line arguments which might
+        ;; contain non-ASCII have to bind `coding-system-for-write' to
+        ;; `locale-coding-system' when (eq system-type 'windows-nt)
+        ;; because MS-Windows has the limitation that command line
+        ;; arguments must be in the system codepage.  We do that only
+        ;; within the commands which must do it, instead of implementing
+        ;; it here, even though that means code repetition.  This is
+        ;; because this let-binding has the disadvantage of overriding
+        ;; any `coding-system-for-write' explicitly selected by the user
+        ;; (e.g. with C-x RET c), or by enclosing function calls.  So we
+        ;; want to do it only for commands which really require it.
 	(coding-system-for-write
          (or coding-system-for-write vc-git-commits-coding-system))
         (process-environment

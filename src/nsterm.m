@@ -6881,6 +6881,11 @@ ns_create_font_panel_buttons (id target, SEL select, SEL cancel_action)
 
 @implementation EmacsView
 
+- (void)windowDidEndLiveResize:(NSNotification *)notification
+{
+  [self updateFramePosition];
+}
+
 /* Needed to inform when window closed from lisp.  */
 - (void) setWindowClosing: (BOOL)closing
 {
@@ -8042,6 +8047,37 @@ ns_in_echo_area (void)
 }
 
 
+- (void)updateFramePosition
+{
+  NSWindow *win = [self window];
+  NSRect r = [win frame];
+  NSArray *screens = [NSScreen screens];
+  NSScreen *screen = [screens objectAtIndex: 0];
+
+  if (!emacsframe->output_data.ns)
+    return;
+
+  if (screen != nil)
+    {
+      emacsframe->left_pos = (NSMinX (r)
+                              - NS_PARENT_WINDOW_LEFT_POS (emacsframe));
+      emacsframe->top_pos = (NS_PARENT_WINDOW_TOP_POS (emacsframe)
+                             - NSMaxY (r));
+
+      if (emacs_event)
+        {
+          struct input_event ie;
+          EVENT_INIT (ie);
+          ie.kind = MOVE_FRAME_EVENT;
+          XSETFRAME (ie.frame_or_window, emacsframe);
+          XSETINT (ie.x, emacsframe->left_pos);
+          XSETINT (ie.y, emacsframe->top_pos);
+          kbd_buffer_store_event (&ie);
+        }
+    }
+}
+
+
 - (NSSize)windowWillResize: (NSWindow *)sender toSize: (NSSize)frameSize
 /* Normalize frame to gridded text size.  */
 {
@@ -8382,35 +8418,9 @@ ns_in_echo_area (void)
 
 - (void)windowDidMove: sender
 {
-  NSWindow *win = [self window];
-  NSRect r = [win frame];
-  NSArray *screens = [NSScreen screens];
-  NSScreen *screen = [screens objectAtIndex: 0];
-
   NSTRACE ("[EmacsView windowDidMove:]");
 
-  if (!(*emacsframe)->output_data.ns)
-    return;
-
-  if (screen != nil)
-    {
-      (*emacsframe)->left_pos = (NSMinX (r)
-				 - NS_PARENT_WINDOW_LEFT_POS (*emacsframe));
-      (*emacsframe)->top_pos = (NS_PARENT_WINDOW_TOP_POS (*emacsframe)
-				- NSMaxY (r));
-
-      if (emacs_event)
-	{
-	  struct input_event ie;
-	  EVENT_INIT (ie);
-	  ie.kind = MOVE_FRAME_EVENT;
-	  struct frame *f = *emacsframe;
-	  XSETFRAME (ie.frame_or_window, f);
-	  XSETINT (ie.x, f->left_pos);
-	  XSETINT (ie.y, f->top_pos);
-	  kbd_buffer_store_event (&ie);
-	}
-    }
+  [self updateFramePosition];
 }
 
 

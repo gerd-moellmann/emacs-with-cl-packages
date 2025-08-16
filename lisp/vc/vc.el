@@ -1604,7 +1604,7 @@ from which to check out the file(s)."
 	    ;; If committing a mix of removed and edited files, the
 	    ;; fileset has state = 'edited.  Rather than checking the
 	    ;; state of each individual file in the fileset, it seems
-	    ;; simplest to just check if the file exists.	 Bug#9781.
+	    ;; simplest to just check if the file exists.  Bug#9781.
 	    (when (and (file-exists-p file) (not (file-writable-p file)))
 	      ;; Make the file-buffer read-write.
 	      (unless (y-or-n-p (format "%s is edited but read-only; make it writable and continue? " file))
@@ -2496,7 +2496,7 @@ buffers whose files exist on disk.  Otherwise it syncs all of them."
         dirs buffers)
     (dolist (name (cadr fileset))
       (if (file-directory-p name)
-          (push name dirs)
+          (push (file-name-as-directory name) dirs)
         (when-let* ((buf (find-buffer-visiting name)))
           (push buf buffers))))
     (when dirs
@@ -2506,10 +2506,15 @@ buffers whose files exist on disk.  Otherwise it syncs all of them."
                         (lambda (buf)
                           (and-let*
                               ((file (buffer-local-value 'buffer-file-name buf))
-                               ((or missing-in-dirs (file-exists-p file)))
-                               ((cl-some (lambda (dir)
-                                           (file-in-directory-p file dir))
-                                         dirs)))))))))
+                               ((cl-some (if not-essential
+                                             (lambda (dir)
+                                               ;; For speed (bug#79137).
+                                               (string-prefix-p dir file))
+                                           (lambda (dir)
+                                             (file-in-directory-p file dir)))
+                                         dirs))
+                               ((or missing-in-dirs
+                                    (file-exists-p file))))))))))
     (dolist (buf buffers)
       (with-current-buffer buf
         (vc-buffer-sync not-essential)))))
