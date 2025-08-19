@@ -1,6 +1,6 @@
 # emacs-mac
 
-This is an experimental build of the [emacs-mac](https://bitbucket.org/mituharu/emacs-mac) (aka Carbon[^1] Emacs) port of emacs, updated for Emacs v30.1, and Emacs master.
+This is an experimental build of the [emacs-mac](https://bitbucket.org/mituharu/emacs-mac) (aka Carbon[^1] Emacs) port of emacs, updated for Emacs v30.2, and Emacs master.
 
 > [!WARNING]
 > This is an experimental build of `emacs-mac`; there will certainly be bugs. We are looking for feedback and testing from experienced users.  If you are familiar with or willing to learn about running new builds of Emacs, including under a debugger, perfect.  If you are a Mac developer familiar with ObjC or Mac Window frameworks, even better (get in touch)!  Other users should stick to the official NS build or recent v29.4 emacs-mac release for now.
@@ -30,6 +30,12 @@ See the `emacs-mac-30_1_exp` or `emacs-mac-gnu_master_exp` branch and the file `
 > On MacOS, `gcc` is aliased to the `clang` compiler, which is required to build `emacs-mac`.  Recent `gcc` versions either cannot build for the architecture (e.g. Apple Silicon) and/or do not support [blocks](https://en.wikipedia.org/wiki/Blocks_(C_language_extension)), which this build uses heavily.
 
 Briefly:
+
+### Install build tools
+
+```bash
+brew install pkgconf texinfo
+```
 
 ### Install (optional) libraries
 
