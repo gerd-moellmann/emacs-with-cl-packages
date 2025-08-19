@@ -2456,9 +2456,8 @@ state of each file in the fileset."
   (when (and (not rev1) rev2)
     (error "Not a valid revision range"))
   (vc--with-backend-in-rootdir "VC root-diff"
-    (let ((default-directory rootdir))
-      (vc-diff-internal vc-allow-async-diff (list backend (list rootdir)) rev1 rev2
-                        (called-interactively-p 'interactive)))))
+    (vc-diff-internal vc-allow-async-diff (list backend (list rootdir)) rev1 rev2
+                      (called-interactively-p 'interactive))))
 
 ;;;###autoload
 (defun vc-diff (&optional historic not-essential fileset)
@@ -2531,8 +2530,7 @@ The merge base is a common ancestor between REV1 and REV2 revisions."
   (when (and (not rev1) rev2)
     (error "Not a valid revision range"))
   (vc--with-backend-in-rootdir "VC root-diff"
-    (let ((default-directory rootdir)
-          (rev1 (vc-call-backend backend 'mergebase rev1 rev2)))
+    (let ((rev1 (vc-call-backend backend 'mergebase rev1 rev2)))
       (vc-diff-internal
        vc-allow-async-diff (list backend (list rootdir)) rev1 rev2
        (called-interactively-p 'interactive)))))
@@ -2546,15 +2544,29 @@ In some version control systems REMOTE-LOCATION can be a remote branch name.
 
 See `vc-use-incoming-outgoing-prefixes' regarding giving this command a
 global binding."
-  (interactive (vc--maybe-read-remote-location))
+  (interactive (list (vc--maybe-read-remote-location)))
   (vc--with-backend-in-rootdir "VC root-diff"
-    (let ((default-directory rootdir)
-          (incoming (vc--incoming-revision backend
-                                           (or remote-location ""))))
-      (vc-diff-internal vc-allow-async-diff (list backend (list rootdir))
-                        (vc-call-backend backend 'mergebase incoming)
-                        incoming
-                        (called-interactively-p 'interactive)))))
+    (vc-fileset-diff-incoming remote-location `(,backend (,rootdir)))))
+
+;;;###autoload
+(defun vc-fileset-diff-incoming (&optional remote-location fileset)
+  "Report changes to VC fileset that would be pulled from REMOTE-LOCATION.
+When unspecified REMOTE-LOCATION is the place \\[vc-update] would pull from.
+When called interactively with a prefix argument, prompt for REMOTE-LOCATION.
+In some version control systems REMOTE-LOCATION can be a remote branch name.
+When called from Lisp optional argument FILESET overrides the VC fileset.
+
+See `vc-use-incoming-outgoing-prefixes' regarding giving this command a
+global binding."
+  (interactive (list (vc--maybe-read-remote-location) nil))
+  (let* ((fileset (or fileset (vc-deduce-fileset t)))
+         (backend (car fileset))
+         (incoming (vc--incoming-revision backend
+                                          (or remote-location ""))))
+    (vc-diff-internal vc-allow-async-diff fileset
+                      (vc-call-backend backend 'mergebase incoming)
+                      incoming
+                      (called-interactively-p 'interactive))))
 
 ;;;###autoload
 (defun vc-root-diff-outgoing (&optional remote-location)
@@ -2565,43 +2577,57 @@ In some version control systems REMOTE-LOCATION can be a remote branch name.
 
 See `vc-use-incoming-outgoing-prefixes' regarding giving this command a
 global binding."
+  (interactive (list (vc--maybe-read-remote-location)))
+  (vc--with-backend-in-rootdir "VC root-diff"
+    (vc-fileset-diff-outgoing remote-location `(,backend (,rootdir)))))
+
+;;;###autoload
+(defun vc-fileset-diff-outgoing (&optional remote-location fileset)
+  "Report changes to VC fileset that would be pushed to REMOTE-LOCATION.
+When unspecified REMOTE-LOCATION is the place \\[vc-push] would push to.
+When called interactively with a prefix argument, prompt for REMOTE-LOCATION.
+In some version control systems REMOTE-LOCATION can be a remote branch name.
+When called from Lisp optional argument FILESET overrides the VC fileset.
+
+See `vc-use-incoming-outgoing-prefixes' regarding giving this command a
+global binding."
   ;; For this command, for distributed VCS, we want to ignore
   ;; uncommitted changes because those are not outgoing, and the point
   ;; for those VCS is to make a comparison between locally committed
   ;; changes and remote committed changes.
   ;; (Hence why we don't call `vc-buffer-sync-fileset'.)
-  (interactive (vc--maybe-read-remote-location))
-  (vc--with-backend-in-rootdir "VC root-diff"
-    (let ((default-directory rootdir)
-          (incoming (vc--incoming-revision backend
-                                           (or remote-location ""))))
-      (vc-diff-internal vc-allow-async-diff (list backend (list rootdir))
-                        (vc-call-backend backend 'mergebase incoming)
-                        ;; FIXME: In order to exclude uncommitted
-                        ;; changes we need to pass the most recent
-                        ;; revision as REV2.  Calling `working-revision'
-                        ;; like this works for all the backends we have
-                        ;; in core that implement `mergebase' and so can
-                        ;; be used with this command (Git and Hg).
-                        ;; However, it is not clearly permitted by the
-                        ;; current semantics of `working-revision' to
-                        ;; call it on a directory.
-                        ;;
-                        ;; A possible alternative would be something
-                        ;; like this which effectively falls back to
-                        ;; including uncommitted changes in the case of
-                        ;; an older VCS or where the backend rejects our
-                        ;; attempt to call `working-revision' on a
-                        ;; directory:
-                        ;; (and (eq (vc-call-backend backend
-                        ;;                           'revision-granularity)
-                        ;;          'repository)
-                        ;;      (ignore-errors
-                        ;;        (vc-call-backend backend 'working-revision
-                        ;;                         rootdir)))
-                        (vc-call-backend backend 'working-revision
-                                         rootdir)
-                        (called-interactively-p 'interactive)))))
+  (interactive (list (vc--maybe-read-remote-location)))
+  (let* ((fileset (or fileset (vc-deduce-fileset t)))
+         (backend (car fileset))
+         (incoming (vc--incoming-revision backend
+                                          (or remote-location ""))))
+    (vc-diff-internal vc-allow-async-diff fileset
+                      (vc-call-backend backend 'mergebase incoming)
+                      ;; FIXME: In order to exclude uncommitted
+                      ;; changes we need to pass the most recent
+                      ;; revision as REV2.  Calling `working-revision'
+                      ;; like this works for all the backends we have
+                      ;; in core that implement `mergebase' and so can
+                      ;; be used with this command (Git and Hg).
+                      ;; However, it is not clearly permitted by the
+                      ;; current semantics of `working-revision' to
+                      ;; call it on a directory.
+                      ;;
+                      ;; A possible alternative would be something
+                      ;; like this which effectively falls back to
+                      ;; including uncommitted changes in the case of
+                      ;; an older VCS or where the backend rejects our
+                      ;; attempt to call `working-revision' on a
+                      ;; directory:
+                      ;; (and (eq (vc-call-backend backend
+                      ;;                           'revision-granularity)
+                      ;;          'repository)
+                      ;;      (ignore-errors
+                      ;;        (vc-call-backend backend 'working-revision
+                      ;;                         (car fileset)))
+                      (vc-call-backend backend 'working-revision
+                                       (car fileset))
+                      (called-interactively-p 'interactive))))
 
 (declare-function ediff-load-version-control "ediff" (&optional silent))
 (declare-function ediff-vc-internal "ediff-vers"
@@ -2674,8 +2700,7 @@ saving the buffer."
       ;; relative to it.  Bind default-directory to the root directory
       ;; here, this way the *vc-diff* buffer is setup correctly, so
       ;; relative file names work.
-      (let ((default-directory rootdir)
-            (fileset `(,backend (,rootdir))))
+      (let ((fileset `(,backend (,rootdir))))
         (vc-buffer-sync-fileset fileset not-essential)
         (vc-diff-internal vc-allow-async-diff fileset nil nil
                           (called-interactively-p 'interactive))))))
@@ -3449,8 +3474,8 @@ The command prompts for the branch whose change log to show."
 
 (defun vc--maybe-read-remote-location ()
   (and current-prefix-arg
-       (list (read-string "Remote location/branch (empty for default): "
-                          'vc-remote-location-history))))
+       (read-string "Remote location/branch (empty for default): " nil
+                    'vc-remote-location-history)))
 
 (defun vc--incoming-revision (backend remote-location)
   (or (vc-call-backend backend 'incoming-revision remote-location)
@@ -3462,7 +3487,7 @@ The command prompts for the branch whose change log to show."
 When unspecified REMOTE-LOCATION is the place \\[vc-update] would pull from.
 When called interactively with a prefix argument, prompt for REMOTE-LOCATION.
 In some version control systems REMOTE-LOCATION can be a remote branch name."
-  (interactive (vc--maybe-read-remote-location))
+  (interactive (list (vc--maybe-read-remote-location)))
   (vc--with-backend-in-rootdir "VC root-log"
     (vc-incoming-outgoing-internal backend (or remote-location "")
                                    "*vc-incoming*" 'log-incoming)))
@@ -3480,7 +3505,7 @@ In some version control systems REMOTE-LOCATION can be a remote branch name."
 When unspecified REMOTE-LOCATION is the place \\[vc-push] would push to.
 When called interactively with a prefix argument, prompt for REMOTE-LOCATION.
 In some version control systems REMOTE-LOCATION can be a remote branch name."
-  (interactive (vc--maybe-read-remote-location))
+  (interactive (list (vc--maybe-read-remote-location)))
   (vc--with-backend-in-rootdir "VC root-log"
     (vc-incoming-outgoing-internal backend (or remote-location "")
                                    "*vc-outgoing*" 'log-outgoing)))
