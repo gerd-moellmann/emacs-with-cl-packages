@@ -4715,7 +4715,11 @@ impose the use of a shell (with its need to quote arguments)."
 	;; Output goes in a separate buffer.
 	(if (string-match "[ \t]*&[ \t]*\\'" command)
 	    ;; Command ending with ampersand means asynchronous.
-            (let* ((buffer (get-buffer-create
+            (let* ((_ (or (null output-buffer)
+                          (bufferp output-buffer)
+                          (stringp output-buffer)
+                          (error "Asynchronous shell commands cannot output to current buffer")))
+                   (buffer (get-buffer-create
                             (or output-buffer shell-command-buffer-name-async)))
                    (bname (buffer-name buffer))
                    (proc (get-buffer-process buffer))

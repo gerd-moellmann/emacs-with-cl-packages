@@ -1633,7 +1633,10 @@ of."
 	       "-t %s"
 	       (format-time-string "%Y%m%d%H%M.%S" (tramp-defined-time time) t))
 	    "")
-	  (if (eq flag 'nofollow) "-h" "")
+	  (if (and (eq flag 'nofollow)
+		   (tramp-get-connection-property v "touch-h"))
+	      "-h"
+	    "")
 	  (tramp-shell-quote-argument localname))))))
 
 (defun tramp-sh-handle-get-home-directory (vec &optional user)
@@ -2618,14 +2621,11 @@ The method used must be an out-of-band method."
 		 ;; can be handled.  We don't set a timeout, because
 		 ;; the copying of large files can last longer than 60
 		 ;; secs.
-		 p (let ((default-directory
-			  tramp-compat-temporary-file-directory))
-		     (apply
-		      #'start-process
-		      (tramp-get-connection-name v)
-		      (tramp-get-connection-buffer v)
-		      copy-program copy-args)))
-		(tramp-post-process-creation p v)
+		 p (apply
+		    #'tramp-start-process v
+		    (tramp-get-connection-name v)
+		    (tramp-get-connection-buffer v)
+		    copy-program copy-args))
 
 		;; We must adapt `tramp-local-end-of-line' for sending
 		;; the password.  Also, we indicate that perhaps
@@ -3622,8 +3622,9 @@ will be used."
 
 (defun tramp-bundle-read-file-names (vec files)
   "Read file attributes of FILES and with one command fill the cache.
-FILES must be the local names only.  The cache attributes to be
-filled are described in `tramp-bundle-read-file-names'."
+FILES must be the local names only.  The cache attributes to be filled
+are \"file-exists-p\", \"file-readable-p\", \"file-directory-p\" and
+\"file-executable-p\"."
   (when files
     (tramp-maybe-send-script
      vec tramp-bundle-read-file-names "tramp_bundle_read_file_names")
@@ -3671,6 +3672,8 @@ filled are described in `tramp-bundle-read-file-names'."
 (defun tramp-sh-handle-vc-registered (file)
   "Like `vc-registered' for Tramp files."
   (when vc-handled-backends
+    ;; Starting with Emacs 31, use `revert-buffer-in-progress'.
+    (with-suppressed-warnings ((obsolete revert-buffer-in-progress-p))
     (let ((inhibit-message (or revert-buffer-in-progress-p inhibit-message))
 	  (temp-message (unless revert-buffer-in-progress-p "")))
       (with-temp-message temp-message
@@ -3730,7 +3733,7 @@ filled are described in `tramp-bundle-read-file-names'."
 	      ;; Run.
 	      (tramp-with-demoted-errors
 	          v "Error in 2nd pass of `vc-registered': %s"
-		(tramp-run-real-handler #'vc-registered (list file))))))))))
+		(tramp-run-real-handler #'vc-registered (list file)))))))))))
 
 ;;;###tramp-autoload
 (defun tramp-sh-file-name-handler (operation &rest args)
@@ -3878,7 +3881,10 @@ Fall back to normal file name handler if no Tramp handler exists."
     (catch 'doesnt-work
       ;; https://bugs.launchpad.net/bugs/1742946
       (when (string-match-p
-	     (rx (| "Monitoring not supported" "No locations given")) string)
+	     (rx (| "Monitoring not supported"
+                    "No locations given"
+                    "Unable to find default local file monitor type"))
+             string)
         (delete-process proc)
         (throw 'doesnt-work nil))
 
@@ -3915,7 +3921,7 @@ Fall back to normal file name handler if no Tramp handler exists."
 	       bol (+ (not ":")) ":" blank
 	       (group (+ (not ":"))) ":" blank
 	       (group (regexp (regexp-opt tramp-gio-events)))
-	       (? blank (group (+ (not ":")))) eol)
+	       (? blank (group (+ (not (any "\r\n:"))))) eol)
 	      string)
 
         (let* ((file (match-string 1 string))
@@ -5148,17 +5154,41 @@ Goes through the list `tramp-inline-compress-commands'."
 ;;;###tramp-autoload
 (defun tramp-timeout-session (vec)
   "Close the connection VEC after a session timeout.
-If there is just some editing, retry it after 5 seconds."
-  (if (and (tramp-get-connection-property
-	    (tramp-get-connection-process vec) "locked")
-	   (tramp-file-name-equal-p vec (car tramp-current-connection)))
-      (progn
-	(tramp-message
-	 vec 5 "Cannot timeout session, trying it again in %s seconds." 5)
-	(run-at-time 5 nil #'tramp-timeout-session vec))
+If there is just some editing, retry it after 5 seconds.
+If there is a modified buffer, retry it after 60 seconds."
+  (cond
+   ;; Tramp is locked.  Try it, again.
+   ((and (tramp-get-connection-property
+	  (tramp-get-connection-process vec) "locked")
+	 (tramp-file-name-equal-p vec (car tramp-current-connection)))
     (tramp-message
-     vec 3 "Timeout session %s" (tramp-make-tramp-file-name vec 'noloc))
-    (tramp-cleanup-connection vec 'keep-debug nil 'keep-processes)))
+     vec 5 "Cannot timeout session, trying it again in %s seconds." 5)
+    (run-at-time 5 nil #'tramp-timeout-session vec))
+   ;; There's a modified buffer.  Try it, again.
+   ((seq-some
+     (lambda (buf)
+       (and-let* (((or (buffer-modified-p buf)
+		       (with-current-buffer buf
+			 ;; We don't know whether autorevert.el has
+			 ;; been loaded alreaddy.
+			 (tramp-compat-funcall 'auto-revert-active-p))))
+		  (bfn (buffer-file-name buf))
+		  (v (tramp-ensure-dissected-file-name bfn))
+		  ((tramp-file-name-equal-p vec v)))))
+     (tramp-list-remote-buffers))
+    (tramp-message
+     vec 5
+     (concat
+      "Cannot timeout session (modified buffer), "
+      "trying it again in %s seconds.")
+     (tramp-get-method-parameter vec 'tramp-session-timeout))
+    (run-at-time
+     (tramp-get-method-parameter vec 'tramp-session-timeout) nil
+     #'tramp-timeout-session vec))
+   ;; Do it.
+   (t (tramp-message
+       vec 3 "Timeout session %s" (tramp-make-tramp-file-name vec 'noloc))
+      (tramp-cleanup-connection vec 'keep-debug nil 'keep-processes))))
 
 (defun tramp-maybe-open-connection (vec)
   "Maybe open a connection VEC.
@@ -5214,7 +5244,6 @@ connection if a previous connection has died for some reason."
 	      ;; Start new process.
 	      (when (and p (processp p))
 		(delete-process p))
-	      (setenv "TERM" tramp-terminal-type)
 	      (setenv "LC_ALL" (tramp-get-local-locale vec))
 	      (if (stringp tramp-histfile-override)
 		  (setenv "HISTFILE" tramp-histfile-override)
@@ -5223,8 +5252,6 @@ connection if a previous connection has died for some reason."
 		      (setenv "HISTFILE")
 		      (setenv "HISTFILESIZE" "0")
 		      (setenv "HISTSIZE" "0"))))
-	      (setenv "PROMPT_COMMAND")
-	      (setenv "PS1" tramp-initial-end-of-output)
 	      (unless (stringp tramp-encoding-shell)
                 (tramp-error vec 'file-error "`tramp-encoding-shell' not set"))
 	      (let* ((current-host tramp-system-name)
@@ -5242,21 +5269,18 @@ connection if a previous connection has died for some reason."
 		     (extra-args (tramp-get-sh-extra-args tramp-encoding-shell))
 		     ;; This must be done in order to avoid our file
 		     ;; name handler.
-		     (p (let ((default-directory
-			       tramp-compat-temporary-file-directory))
-			  (apply
-			   #'start-process
-			   (tramp-get-connection-name vec)
-			   (tramp-get-connection-buffer vec)
-			   (append
-			    `(,tramp-encoding-shell)
-			    (and extra-args (split-string extra-args))
-			    (and tramp-encoding-command-interactive
-				 `(,tramp-encoding-command-interactive)))))))
+		     (p (apply
+			 #'tramp-start-process vec
+			 (tramp-get-connection-name vec)
+			 (tramp-get-connection-buffer vec)
+			 (append
+			  `(,tramp-encoding-shell)
+			  (and extra-args (split-string extra-args))
+			  (and tramp-encoding-command-interactive
+			       `(,tramp-encoding-command-interactive))))))
 
 		;; Set sentinel.  Initialize variables.
 		(set-process-sentinel p #'tramp-process-sentinel)
-		(tramp-post-process-creation p vec)
 		(setq tramp-current-connection (cons vec (current-time)))
 
 		;; Set connection-local variables.
@@ -5892,12 +5916,12 @@ Nonexistent directories are removed from spec."
   "Determine remote `touch' command."
   (with-tramp-connection-property vec "touch"
     (tramp-message vec 5 "Finding a suitable `touch' command")
-    (let ((result (tramp-find-executable
-		   vec "touch" (tramp-get-remote-path vec)))
-	  (tmpfile (tramp-make-tramp-temp-name vec)))
-      ;; Busyboxes do support the "-t" option only when they have been
-      ;; built with the DESKTOP config option.  Let's check it.
-      (when result
+    (when-let* ((result (tramp-find-executable
+			 vec "touch" (tramp-get-remote-path vec)))
+		(tmpfile (tramp-make-tramp-temp-name vec)))
+      (prog1 result
+	;; Busyboxes do support the "-t" option only when they have
+	;; been built with the DESKTOP config option.  Let's check it.
 	(tramp-set-connection-property
 	 vec "touch-t"
 	 (tramp-send-command-and-check
@@ -5907,8 +5931,13 @@ Nonexistent directories are removed from spec."
 	   result
 	   (format-time-string "%Y%m%d%H%M.%S")
 	   (tramp-file-local-name tmpfile))))
-	(delete-file tmpfile))
-      result)))
+	;; The touch command included in busybox (version 1.30.1-6) on
+	;; OpenWrt does not have the option "-h".
+	(tramp-set-connection-property
+	 vec "touch-h"
+	 (tramp-send-command-and-check
+	  vec (format "%s -h %s" result (tramp-file-local-name tmpfile))))
+	(delete-file tmpfile)))))
 
 (defun tramp-get-remote-df (vec)
   "Determine remote `df' command."

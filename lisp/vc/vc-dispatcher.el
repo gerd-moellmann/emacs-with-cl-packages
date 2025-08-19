@@ -421,7 +421,7 @@ case, and the process object in the asynchronous case."
 		            (substring command 0 -1)
 		          command)
 		        " " (vc-delistify flags)
-		        " " (vc-delistify files)))
+		        (and files (concat " " (vc-delistify files)))))
                (squeezed (remq nil flags))
 	       (inhibit-read-only t)
 	       (status 0))
@@ -469,6 +469,9 @@ case, and the process object in the asynchronous case."
                   (pop-to-buffer (current-buffer))
                   (goto-char (point-min))
                   (shrink-window-if-larger-than-buffer))
+                (when noninteractive
+                  (with-current-buffer buffer
+                    (message (string-trim (buffer-string)))))
 	        (error "Failed (%s): %s"
 		       (if (integerp status)
                            (format "status %d" status)

@@ -4716,9 +4716,9 @@ value visits file @var{filename} and goes to buffer position
 @var{position}.  Restoring this type of position asks the user for
 confirmation first.
 
-@item @code{(buffer @var{buffer-name})}
-This represents a buffer; jumping to this value switches to buffer
-@var{buffer-name}.
+@item @code{(buffer @var{buffer})}
+This represents a buffer; jumping to this value switches to that
+@var{buffer}.
 @end table
 
   The functions in this section return unpredictable values unless
@@ -5722,14 +5722,10 @@ Return all the non-string children of the node.
 @item dom-attributes @var{node}
 Return the key/value pair list of attributes of the node.
 
-@item dom-text @var{node}
-Return all the textual elements of the node as a concatenated string.
-
-@item dom-texts @var{node}
+@item dom-inner-text @var{node}
 Return all the textual elements of the node, as well as the textual
 elements of all the children of the node, recursively, as a
-concatenated string.  This function also takes an optional separator
-to be inserted between the textual elements.
+concatenated string.
 
 @item dom-parent @var{dom} @var{node}
 Return the parent of @var{node} in @var{dom}.
@@ -6315,7 +6311,11 @@ specific parts of the text.
   The functions you use in these hooks should save and restore the match
 data if they do anything that uses regular expressions; otherwise, they
 will interfere in bizarre ways with the editing operations that call
-them.
+them.  In addition, the functions in these hooks should avoid changing
+buffer text, faces, properties, overlays, and other aspects of the
+buffer-specific state except those that the hook functions themselves
+create and manage, because other parts of Emacs might become confused by
+such changes behind their back.
 
 @defvar before-change-functions
 This variable holds a list of functions to call when Emacs is about to

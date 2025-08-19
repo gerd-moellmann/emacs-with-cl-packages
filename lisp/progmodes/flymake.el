@@ -1172,6 +1172,13 @@ report applies to that region."
            (flymake--state-foreign-diags state))
   (clrhash (flymake--state-foreign-diags state)))
 
+(defun flymake--clear-state (state)
+  (cl-loop for diag in (flymake--state-diags state)
+           for ov = (flymake--diag-overlay diag)
+           when ov do (flymake--delete-overlay ov))
+  (setf (flymake--state-diags state) nil)
+  (flymake--clear-foreign-diags state))
+
 (defvar-local flymake-mode nil)
 
 (defvar-local flymake--mode-line-counter-cache nil
@@ -1189,7 +1196,7 @@ and other buffers."
     ;;
     (cond
      (;; If there is a `region' arg, only affect the diagnostics whose
-      ;; overlays are in a certain region.  Discard "foreign"
+      ;; overlays are in a certain region.  Ignore "foreign"
       ;; diagnostics.
       region
       (cl-loop for diag in (flymake--state-diags state)
@@ -1202,16 +1209,9 @@ and other buffers."
                else collect diag into surviving
                finally (setf (flymake--state-diags state)
                              surviving)))
-     (;; Else, if this is the first report, zero all lists and delete
-      ;; all associated overlays.
+     (;; Else, if this is the first report, fully clear this state.
       (not (flymake--state-reported-p state))
-      (cl-loop for diag in (flymake--state-diags state)
-               for ov = (flymake--diag-overlay diag)
-               when ov do (flymake--delete-overlay ov))
-      (setf (flymake--state-diags state) nil)
-      ;; Also clear all overlays for `foreign-diags' in all other
-      ;; buffers.
-      (flymake--clear-foreign-diags state))
+      (flymake--clear-state state))
      (;; If this is not the first report, do no cleanup.
        t))
 
@@ -1406,6 +1406,17 @@ Interactively, with a prefix arg, FORCE is t."
                            (cl-reduce
                             #'max (mapcar #'cadr flymake--recent-changes))))))
                (setq flymake--recent-changes nil)
+               ;; Delete all overlays that didn't come from one of the
+               ;; current diagnostic functions.
+               ;; Sometimes diagnostic functions are removed from
+               ;; `flymake-diagnostic-functions' (e.g. by eglot).  This
+               ;; leaves overlays in the buffer which otherwise won't be
+               ;; cleaned up until `flymake-mode' is restarted.
+               ;; See bug#78862
+               (maphash (lambda (backend state)
+                          (unless (memq backend flymake-diagnostic-functions)
+                            (flymake--clear-state state)))
+                        flymake--state)
                (run-hook-wrapped
                 'flymake-diagnostic-functions
                 (lambda (backend)

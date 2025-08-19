@@ -154,7 +154,7 @@ AC_DEFUN([gl_EARLY],
   # Code from module nanosleep:
   # Code from module nocrash:
   # Code from module nproc:
-  # Code from module nstrftime:
+  # Code from module nstrftime-limited:
   # Code from module open:
   # Code from module openat-h:
   # Code from module pathmax:
@@ -1248,6 +1248,10 @@ AC_DEFUN([gl_FILE_LIST], [
   lib/c-strcase.h
   lib/c-strcasecmp.c
   lib/c-strncasecmp.c
+  lib/calendar-ethiopian.h
+  lib/calendar-persian.h
+  lib/calendar-thai.h
+  lib/calendars.h
   lib/canonicalize-lgpl.c
   lib/careadlinkat.c
   lib/careadlinkat.h
@@ -1416,6 +1420,7 @@ AC_DEFUN([gl_FILE_LIST], [
   lib/strtol.c
   lib/strtoll.c
   lib/symlink.c
+  lib/sys-limits.h
   lib/sys_random.in.h
   lib/sys_select.in.h
   lib/sys_stat.in.h

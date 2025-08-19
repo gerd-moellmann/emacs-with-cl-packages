@@ -155,6 +155,7 @@
 ;;   files, including up-to-date or ignored files.
 ;;
 ;;   EXTRA can be used for backend specific information about FILE.
+;;
 ;;   If a command needs to be run to compute this list, it should be
 ;;   run asynchronously using (current-buffer) as the buffer for the
 ;;   command.
@@ -206,6 +207,17 @@
 ;;   tooltip when the mouse hovers over the VC entry on the mode-line.
 ;;   The default implementation deals well with all states that
 ;;   `vc-state' can return.
+;;
+;; - known-other-working-trees ()
+;;
+;;   Return a list of all other working trees known to use the same
+;;   backing repository as this working tree.  The members of the list
+;;   are the abbreviated (with `abbreviate-file-name') absolute file
+;;   names of the root directories of the other working trees.
+;;   For some VCS, the known working trees will not be all the other
+;;   working trees, because other working trees can share the same
+;;   backing repository in a way that's transparent to the original
+;;   working tree (Mercurial is like this).
 ;;
 ;; STATE-CHANGING FUNCTIONS
 ;;
@@ -342,6 +354,31 @@
 ;; - find-admin-dir (file)
 ;;
 ;;   Return the administrative directory of FILE.
+;;
+;; - add-working-tree (directory)
+;;
+;;   Create a new working tree at DIRECTORY that uses the same backing
+;;   repository as this working tree.
+;;   What gets checked out in DIRECTORY is left to the backend because
+;;   while some VCS can check out the same branch in multiple working
+;;   trees (e.g. Mercurial), others allow each branch to be checked out
+;;   in only one working tree (e.g. Git).
+;;   If a new branch should be created then the backend should handle
+;;   prompting for this, including prompting for a branch or tag from
+;;   which to start/fork the new branch, like `vc-create-branch'.
+;;
+;; - delete-working-tree (directory)
+;;
+;;   Remove the working tree, assumed to be one that uses the same
+;;   backing repository as this working tree, at DIRECTORY.
+;;   This removal should be unconditional with respect to the state of
+;;   the working tree: the caller is responsible for checking for
+;;   uncommitted work in DIRECTORY.
+;;
+;; - move-working-tree (from to)
+;;
+;;   Relocate the working tree, assumed to be one that uses the same
+;;   backing repository as this working tree, at FROM to TO.
 
 ;; HISTORY FUNCTIONS
 ;;
@@ -491,11 +528,14 @@
 ;;
 ;;   Attach the tag NAME to the state of the working copy.  This
 ;;   should make sure that files are up-to-date before proceeding with
-;;   the action.  DIR can also be a file and if BRANCHP is specified,
+;;   the action.  DIR can also be a file and if BRANCHP is non-nil,
 ;;   NAME should be created as a branch and DIR should be checked out
-;;   under this new branch.  The default implementation does not
-;;   support branches but does a sanity check, a tree traversal and
-;;   assigns the tag to each file.
+;;   under this new branch.  Where it makes sense with the underlying
+;;   VCS, should prompt for a branch or tag from which to start/fork the
+;;   new branch, with completion candidates including all the known
+;;   branches and tags of the repository.  The default implementation
+;;   does not support branches but does a sanity check, a tree traversal
+;;   and assigns the tag to each file.
 ;;
 ;; - retrieve-tag (dir name update)
 ;;
@@ -1564,7 +1604,7 @@ from which to check out the file(s)."
 	    ;; If committing a mix of removed and edited files, the
 	    ;; fileset has state = 'edited.  Rather than checking the
 	    ;; state of each individual file in the fileset, it seems
-	    ;; simplest to just check if the file exists.	 Bug#9781.
+	    ;; simplest to just check if the file exists.  Bug#9781.
 	    (when (and (file-exists-p file) (not (file-writable-p file)))
 	      ;; Make the file-buffer read-write.
 	      (unless (y-or-n-p (format "%s is edited but read-only; make it writable and continue? " file))
@@ -1712,7 +1752,7 @@ itself responsible for the file (usually because other files in that
 directory are already registered under that backend) will be used to
 register the file.  If no backend declares itself responsible, the
 first backend that could register the file is used."
-  (interactive "P")
+  (interactive)
   (let* ((fileset-arg (or vc-fileset (vc-deduce-fileset nil t)))
          (backend (car fileset-arg))
 	 (files (nth 1 fileset-arg)))
@@ -2246,7 +2286,7 @@ Return t if the buffer had changes, nil otherwise."
 	   (if files (vc-coding-system-for-diff (car files)) 'undecided)
            'unix))
          (orig-diff-buffer-clone
-          (if revert-buffer-in-progress-p
+          (if revert-buffer-in-progress
               (clone-buffer
                (generate-new-buffer-name " *vc-diff-clone*") nil))))
     ;; On MS-Windows and MS-DOS, Diff is likely to produce DOS-style
@@ -2416,9 +2456,8 @@ state of each file in the fileset."
   (when (and (not rev1) rev2)
     (error "Not a valid revision range"))
   (vc--with-backend-in-rootdir "VC root-diff"
-    (let ((default-directory rootdir))
-      (vc-diff-internal vc-allow-async-diff (list backend (list rootdir)) rev1 rev2
-                        (called-interactively-p 'interactive)))))
+    (vc-diff-internal vc-allow-async-diff (list backend (list rootdir)) rev1 rev2
+                      (called-interactively-p 'interactive))))
 
 ;;;###autoload
 (defun vc-diff (&optional historic not-essential fileset)
@@ -2452,10 +2491,11 @@ buffers whose files exist on disk.  Otherwise it syncs all of them."
   ;; least, users with `vc-find-revision-no-save' set to non-nil: not
   ;; treating directories this way would imply calling `vc-buffer-sync'
   ;; on all buffers generated by \\`C-x v ~' during \\`C-x v D'.
-  (let (dirs buffers)
+  (let ((non-essential not-essential)
+        dirs buffers)
     (dolist (name (cadr fileset))
       (if (file-directory-p name)
-          (push name dirs)
+          (push (file-name-as-directory name) dirs)
         (when-let* ((buf (find-buffer-visiting name)))
           (push buf buffers))))
     (when dirs
@@ -2465,10 +2505,15 @@ buffers whose files exist on disk.  Otherwise it syncs all of them."
                         (lambda (buf)
                           (and-let*
                               ((file (buffer-local-value 'buffer-file-name buf))
-                               ((or missing-in-dirs (file-exists-p file)))
-                               ((cl-some (lambda (dir)
-                                           (file-in-directory-p file dir))
-                                         dirs)))))))))
+                               ((cl-some (if not-essential
+                                             (lambda (dir)
+                                               ;; For speed (bug#79137).
+                                               (string-prefix-p dir file))
+                                           (lambda (dir)
+                                             (file-in-directory-p file dir)))
+                                         dirs))
+                               ((or missing-in-dirs
+                                    (file-exists-p file))))))))))
     (dolist (buf buffers)
       (with-current-buffer buf
         (vc-buffer-sync not-essential)))))
@@ -2485,8 +2530,7 @@ The merge base is a common ancestor between REV1 and REV2 revisions."
   (when (and (not rev1) rev2)
     (error "Not a valid revision range"))
   (vc--with-backend-in-rootdir "VC root-diff"
-    (let ((default-directory rootdir)
-          (rev1 (vc-call-backend backend 'mergebase rev1 rev2)))
+    (let ((rev1 (vc-call-backend backend 'mergebase rev1 rev2)))
       (vc-diff-internal
        vc-allow-async-diff (list backend (list rootdir)) rev1 rev2
        (called-interactively-p 'interactive)))))
@@ -2500,15 +2544,29 @@ In some version control systems REMOTE-LOCATION can be a remote branch name.
 
 See `vc-use-incoming-outgoing-prefixes' regarding giving this command a
 global binding."
-  (interactive (vc--maybe-read-remote-location))
+  (interactive (list (vc--maybe-read-remote-location)))
   (vc--with-backend-in-rootdir "VC root-diff"
-    (let ((default-directory rootdir)
-          (incoming (vc--incoming-revision backend
-                                           (or remote-location ""))))
-      (vc-diff-internal vc-allow-async-diff (list backend (list rootdir))
-                        (vc-call-backend backend 'mergebase incoming)
-                        incoming
-                        (called-interactively-p 'interactive)))))
+    (vc-fileset-diff-incoming remote-location `(,backend (,rootdir)))))
+
+;;;###autoload
+(defun vc-fileset-diff-incoming (&optional remote-location fileset)
+  "Report changes to VC fileset that would be pulled from REMOTE-LOCATION.
+When unspecified REMOTE-LOCATION is the place \\[vc-update] would pull from.
+When called interactively with a prefix argument, prompt for REMOTE-LOCATION.
+In some version control systems REMOTE-LOCATION can be a remote branch name.
+When called from Lisp optional argument FILESET overrides the VC fileset.
+
+See `vc-use-incoming-outgoing-prefixes' regarding giving this command a
+global binding."
+  (interactive (list (vc--maybe-read-remote-location) nil))
+  (let* ((fileset (or fileset (vc-deduce-fileset t)))
+         (backend (car fileset))
+         (incoming (vc--incoming-revision backend
+                                          (or remote-location ""))))
+    (vc-diff-internal vc-allow-async-diff fileset
+                      (vc-call-backend backend 'mergebase incoming)
+                      incoming
+                      (called-interactively-p 'interactive))))
 
 ;;;###autoload
 (defun vc-root-diff-outgoing (&optional remote-location)
@@ -2519,43 +2577,57 @@ In some version control systems REMOTE-LOCATION can be a remote branch name.
 
 See `vc-use-incoming-outgoing-prefixes' regarding giving this command a
 global binding."
+  (interactive (list (vc--maybe-read-remote-location)))
+  (vc--with-backend-in-rootdir "VC root-diff"
+    (vc-fileset-diff-outgoing remote-location `(,backend (,rootdir)))))
+
+;;;###autoload
+(defun vc-fileset-diff-outgoing (&optional remote-location fileset)
+  "Report changes to VC fileset that would be pushed to REMOTE-LOCATION.
+When unspecified REMOTE-LOCATION is the place \\[vc-push] would push to.
+When called interactively with a prefix argument, prompt for REMOTE-LOCATION.
+In some version control systems REMOTE-LOCATION can be a remote branch name.
+When called from Lisp optional argument FILESET overrides the VC fileset.
+
+See `vc-use-incoming-outgoing-prefixes' regarding giving this command a
+global binding."
   ;; For this command, for distributed VCS, we want to ignore
   ;; uncommitted changes because those are not outgoing, and the point
   ;; for those VCS is to make a comparison between locally committed
   ;; changes and remote committed changes.
   ;; (Hence why we don't call `vc-buffer-sync-fileset'.)
-  (interactive (vc--maybe-read-remote-location))
-  (vc--with-backend-in-rootdir "VC root-diff"
-    (let ((default-directory rootdir)
-          (incoming (vc--incoming-revision backend
-                                           (or remote-location ""))))
-      (vc-diff-internal vc-allow-async-diff (list backend (list rootdir))
-                        (vc-call-backend backend 'mergebase incoming)
-                        ;; FIXME: In order to exclude uncommitted
-                        ;; changes we need to pass the most recent
-                        ;; revision as REV2.  Calling `working-revision'
-                        ;; like this works for all the backends we have
-                        ;; in core that implement `mergebase' and so can
-                        ;; be used with this command (Git and Hg).
-                        ;; However, it is not clearly permitted by the
-                        ;; current semantics of `working-revision' to
-                        ;; call it on a directory.
-                        ;;
-                        ;; A possible alternative would be something
-                        ;; like this which effectively falls back to
-                        ;; including uncommitted changes in the case of
-                        ;; an older VCS or where the backend rejects our
-                        ;; attempt to call `working-revision' on a
-                        ;; directory:
-                        ;; (and (eq (vc-call-backend backend
-                        ;;                           'revision-granularity)
-                        ;;          'repository)
-                        ;;      (ignore-errors
-                        ;;        (vc-call-backend backend 'working-revision
-                        ;;                         rootdir)))
-                        (vc-call-backend backend 'working-revision
-                                         rootdir)
-                        (called-interactively-p 'interactive)))))
+  (interactive (list (vc--maybe-read-remote-location)))
+  (let* ((fileset (or fileset (vc-deduce-fileset t)))
+         (backend (car fileset))
+         (incoming (vc--incoming-revision backend
+                                          (or remote-location ""))))
+    (vc-diff-internal vc-allow-async-diff fileset
+                      (vc-call-backend backend 'mergebase incoming)
+                      ;; FIXME: In order to exclude uncommitted
+                      ;; changes we need to pass the most recent
+                      ;; revision as REV2.  Calling `working-revision'
+                      ;; like this works for all the backends we have
+                      ;; in core that implement `mergebase' and so can
+                      ;; be used with this command (Git and Hg).
+                      ;; However, it is not clearly permitted by the
+                      ;; current semantics of `working-revision' to
+                      ;; call it on a directory.
+                      ;;
+                      ;; A possible alternative would be something
+                      ;; like this which effectively falls back to
+                      ;; including uncommitted changes in the case of
+                      ;; an older VCS or where the backend rejects our
+                      ;; attempt to call `working-revision' on a
+                      ;; directory:
+                      ;; (and (eq (vc-call-backend backend
+                      ;;                           'revision-granularity)
+                      ;;          'repository)
+                      ;;      (ignore-errors
+                      ;;        (vc-call-backend backend 'working-revision
+                      ;;                         (car fileset)))
+                      (vc-call-backend backend 'working-revision
+                                       (car fileset))
+                      (called-interactively-p 'interactive))))
 
 (declare-function ediff-load-version-control "ediff" (&optional silent))
 (declare-function ediff-vc-internal "ediff-vers"
@@ -2628,8 +2700,7 @@ saving the buffer."
       ;; relative to it.  Bind default-directory to the root directory
       ;; here, this way the *vc-diff* buffer is setup correctly, so
       ;; relative file names work.
-      (let ((default-directory rootdir)
-            (fileset `(,backend (,rootdir))))
+      (let ((fileset `(,backend (,rootdir))))
         (vc-buffer-sync-fileset fileset not-essential)
         (vc-diff-internal vc-allow-async-diff fileset nil nil
                           (called-interactively-p 'interactive))))))
@@ -3006,6 +3077,7 @@ locked files at or below DIR (but if NAME is empty, locked files are
 allowed and simply skipped).
 If BRANCHP is non-nil (interactively, the prefix argument), switch to the
 branch and check out and update the files to their version on that branch.
+In this case NAME may not be empty.
 This function runs the hook `vc-retrieve-tag-hook' when finished."
   (interactive
    (let* ((granularity
@@ -3019,16 +3091,16 @@ This function runs the hook `vc-retrieve-tag-hook' when finished."
                ;; file-in-directory-p inside vc-resynch-buffers-in-directory.
                (expand-file-name (vc-root-dir))
              (read-directory-name "Directory: " default-directory nil t))))
-     (list
-      dir
-      (vc-read-revision (format-prompt
-                         (if current-prefix-arg
-                             "Switch to branch"
-                           "Tag name to retrieve")
-                         "latest revisions")
-                        (list dir)
-                        (vc-responsible-backend dir))
-      current-prefix-arg)))
+     (list dir
+           (vc-read-revision (if current-prefix-arg
+                                 "Switch to branch: "
+                               (format-prompt "Tag name to retrieve"
+                                              "latest revisions"))
+                             (list dir)
+                             (vc-responsible-backend dir))
+           current-prefix-arg)))
+  (unless (or (not branchp) (and name (not (string-empty-p name))))
+    (user-error "Branch name required"))
   (let* ((backend (vc-responsible-backend dir))
          (update (when (vc-call-backend backend 'update-on-retrieve-tag)
                    (yes-or-no-p "Update any affected buffers? ")))
@@ -3046,7 +3118,6 @@ This function runs the hook `vc-retrieve-tag-hook' when finished."
 ;;;###autoload
 (defun vc-switch-branch (dir name)
   "Switch to the branch NAME in the directory DIR.
-If NAME is empty, it refers to the latest revision of the current branch.
 Interactively, prompt for DIR only for VCS that works at file level;
 otherwise use the root directory of the current buffer's VC tree.
 Interactively, prompt for the NAME of the branch.
@@ -3061,11 +3132,10 @@ Uses `vc-retrieve-tag' with the non-nil arg `branchp'."
            (if (eq granularity 'repository)
                (expand-file-name (vc-root-dir))
              (read-directory-name "Directory: " default-directory nil t))))
-     (list
-      dir
-      (vc-read-revision (format-prompt "Switch to branch" "latest revisions")
-                        (list dir)
-                        (vc-responsible-backend dir)))))
+     (list dir
+           (vc-read-revision "Switch to branch: "
+                             (list dir)
+                             (vc-responsible-backend dir)))))
   (vc-retrieve-tag dir name t))
 
 ;; Miscellaneous other entry points
@@ -3404,8 +3474,8 @@ The command prompts for the branch whose change log to show."
 
 (defun vc--maybe-read-remote-location ()
   (and current-prefix-arg
-       (list (read-string "Remote location/branch (empty for default): "
-                          'vc-remote-location-history))))
+       (read-string "Remote location/branch (empty for default): " nil
+                    'vc-remote-location-history)))
 
 (defun vc--incoming-revision (backend remote-location)
   (or (vc-call-backend backend 'incoming-revision remote-location)
@@ -3417,7 +3487,7 @@ The command prompts for the branch whose change log to show."
 When unspecified REMOTE-LOCATION is the place \\[vc-update] would pull from.
 When called interactively with a prefix argument, prompt for REMOTE-LOCATION.
 In some version control systems REMOTE-LOCATION can be a remote branch name."
-  (interactive (vc--maybe-read-remote-location))
+  (interactive (list (vc--maybe-read-remote-location)))
   (vc--with-backend-in-rootdir "VC root-log"
     (vc-incoming-outgoing-internal backend (or remote-location "")
                                    "*vc-incoming*" 'log-incoming)))
@@ -3435,7 +3505,7 @@ In some version control systems REMOTE-LOCATION can be a remote branch name."
 When unspecified REMOTE-LOCATION is the place \\[vc-push] would push to.
 When called interactively with a prefix argument, prompt for REMOTE-LOCATION.
 In some version control systems REMOTE-LOCATION can be a remote branch name."
-  (interactive (vc--maybe-read-remote-location))
+  (interactive (list (vc--maybe-read-remote-location)))
   (vc--with-backend-in-rootdir "VC root-log"
     (vc-incoming-outgoing-internal backend (or remote-location "")
                                    "*vc-outgoing*" 'log-outgoing)))
@@ -4176,24 +4246,24 @@ to provide the `find-revision' operation instead."
   t)
 
 (defun vc-default-retrieve-tag (backend dir name update)
-  (if (string= name "")
-      (progn
-        (vc-file-tree-walk
-         dir
-         (lambda (f) (and
-		 (vc-up-to-date-p f)
-		 (vc-error-occurred
-		  (vc-call-backend backend 'checkout f nil "")
-		  (when update (vc-resynch-buffer f t t)))))))
+  (if (string-empty-p name)
+      (vc-file-tree-walk dir
+                         (lambda (f)
+                           (and (vc-up-to-date-p f)
+	                        (vc-error-occurred
+	                         (vc-call-backend backend 'checkout f nil "")
+	                         (when update
+                                   (vc-resynch-buffer f t t))))))
     (let ((result (vc-tag-precondition dir)))
       (if (stringp result)
           (error "File %s is locked" result)
         (setq update (and (eq result 'visited) update))
-        (vc-file-tree-walk
-         dir
-         (lambda (f) (vc-error-occurred
-		 (vc-call-backend backend 'checkout f nil name)
-		 (when update (vc-resynch-buffer f t t)))))))))
+        (vc-file-tree-walk dir
+                           (lambda (f)
+                             (vc-error-occurred
+	                      (vc-call-backend backend 'checkout f nil name)
+	                      (when update
+                                (vc-resynch-buffer f t t)))))))))
 
 (defun vc-default-revert (backend file contents-done)
   (unless contents-done
@@ -4298,6 +4368,197 @@ It returns the last revision that changed LINE number in FILE."
     (forward-line (1- line))
     (let ((rev (vc-call annotate-extract-revision-at-line file)))
       (if (consp rev) (car rev) rev))))
+
+(defun vc-dir-status-files (directory &optional files backend)
+  "Return VC status information about files in DIRECTORY.
+Return a list of the form (FILE VC-STATE EXTRA) for each file.
+VC-STATE is the current VC state of the file, and EXTRA is optional,
+backend-specific information.
+Normally files in the `up-to-date' and `ignored' states are not
+included.
+If the optional argument FILES is non-nil, report on only items in
+FILES, and don't exclude any for being `up-to-date' or `ignored'.
+BACKEND is the VC backend; if nil or omitted, it defaults to the result
+of calling `vc-responsible-backend' with DIRECTORY as its first and only
+argument.
+
+This function provides Lisp programs with synchronous access to the same
+information that Emacs requests from VC backends to populate VC-Dir
+buffers.  It is usually considerably faster than walking the tree
+yourself with a function like `vc-file-tree-walk'."
+  ;; The `dir-status-files' API was designed for asynchronous use to
+  ;; populate *vc-dir* buffers; see `vc-dir-refresh'.
+  ;; This function provides Lisp programs with access to the same
+  ;; information without touching the user's *vc-dir* buffers and
+  ;; without having to add a new VC backend function.
+  ;; This function is in this file despite its `vc-dir-' prefix to avoid
+  ;; having to load `vc-dir' just to get access to this simple wrapper.
+  (let ((morep t) results)
+    (with-temp-buffer
+      (setq default-directory directory)
+      (vc-call-backend (or backend (vc-responsible-backend directory))
+                       'dir-status-files directory files
+                       (lambda (entries &optional more-to-come)
+                         (let (entry)
+                           (while (setq entry (pop entries))
+                             (unless (and (not files)
+                                          ;; In this case we shouldn't
+                                          ;; actually get any
+                                          ;; `up-to-date' or `ignored'
+                                          ;; entries back, but just in
+                                          ;; case, filter them.
+                                          (memq (cadr entry)
+                                                '(up-to-date ignored)))
+                               (push entry results))))
+                         (setq morep more-to-come)))
+      (while morep (accept-process-output)))
+    (nreverse results)))
+
+;;;###autoload
+(defun vc-add-working-tree (backend directory)
+  "Create working tree DIRECTORY with same backing repository as this tree.
+Must be called from within an existing VC working tree.
+When called interactively, prompts for DIRECTORY.
+When called from Lisp, BACKEND is the VC backend."
+  (interactive
+   (list
+    (vc-responsible-backend default-directory)
+    (read-directory-name "Location for new working tree: "
+                         (file-name-parent-directory
+                          (or (vc-root-dir)
+                              (error "File is not under version control"))))))
+  (vc-call-backend backend 'add-working-tree directory)
+
+  ;; `vc-switch-working-tree' relies on project.el registration so try
+  ;; to ensure that both the old and new working trees are registered.
+  ;; `project-current' should not return nil in either case, but don't
+  ;; signal an error if it does.
+  (when-let* ((p (project-current)))
+    (project-remember-project p nil t))
+  (when-let* ((p (project-current nil directory)))
+    (project-remember-project p))
+
+  (vc-dir directory backend))
+
+(defvar project-prompter)
+
+(defun vc--prompt-other-working-tree (backend prompt)
+  "Invoke `project-prompter' to choose another working tree.
+BACKEND is the VC backend.
+PROMPT is the prompt string for `project-prompter'."
+  (let ((trees (vc-call-backend backend 'known-other-working-trees)))
+    (require 'project)
+    (dolist (tree trees)
+      (when-let* ((p (project-current nil tree)))
+        (project-remember-project p nil t)))
+    (funcall project-prompter prompt
+             (lambda (k &optional _v)
+               (member (or (car-safe k) k) trees))
+             t)))
+
+(defvar project-current-directory-override)
+
+;;;###autoload
+(defun vc-switch-working-tree (directory)
+  "Switch to the version of this file in working tree under DIRECTORY.
+Must be called from within an existing VC working tree.
+When called interactively, prompts for DIRECTORY.
+This command switches to the file which has the same file
+name relative to DIRECTORY that this buffer's file has relative
+to the root of this working tree."
+  (interactive
+   (list
+    (vc--prompt-other-working-tree (vc-responsible-backend default-directory)
+                                   "Other working tree to visit")))
+  (let ((project-current-directory-override directory))
+    (project-find-matching-buffer)))
+
+;;;###autoload
+(defun vc-working-tree-switch-project (dir)
+  "Like \\[project-switch-project] but limited to projects with the same backing repository.
+Must be called from within an existing VC working tree.
+Prompts for the directory file name of the other working tree."
+  ;; There is no point in calling this from Lisp as opposed to calling
+  ;; `project-switch-project' directly because it is a trivial wrapper.
+  (declare (interactive-only project-switch-project))
+  (interactive
+   (list
+    (vc--prompt-other-working-tree (vc-responsible-backend default-directory)
+                                   "Other working tree to switch to")))
+  (project-switch-project dir))
+
+;;;###autoload
+(defun vc-delete-working-tree (backend directory)
+  "Delete working tree DIRECTORY with same backing repository as this tree.
+Must be called from within an existing VC working tree.
+When called interactively, prompts for DIRECTORY.
+BACKEND is the VC backend."
+  (interactive
+   (let ((backend (vc-responsible-backend default-directory)))
+     (list backend
+           (vc--prompt-other-working-tree backend "Delete working tree"))))
+  ;; We could consider not prompting here, thus always failing when
+  ;; there is uncommitted work, and requiring the user to review and
+  ;; revert the uncommitted changes before invoking this command again.
+  ;; But other working trees are often created as throwaways to quickly
+  ;; test some changes, so it is more useful to offer to recursively
+  ;; delete them on the user's behalf.
+  (when (and (vc-dir-status-files directory nil backend)
+             (not (yes-or-no-p (format "\
+%s contains uncommitted work.  Continue to recursively delete it?" directory))))
+    (user-error "Aborted due to uncommitted work in %s" directory))
+
+  (project-forget-project directory)
+  (vc-call-backend backend 'delete-working-tree directory))
+
+(autoload 'dired-rename-subdir "dired-aux")
+;;;###autoload
+(defun vc-move-working-tree (backend from to)
+  "Relocate a working tree from FROM to TO, two directory file names.
+Must be called from within an existing VC working tree.
+When called interactively, prompts for the directory file names of each
+of the other working trees FROM and TO.
+BACKEND is the VC backend."
+  (interactive
+   (let ((backend (vc-responsible-backend default-directory)))
+     (list backend
+           (vc--prompt-other-working-tree backend "Relocate working tree")
+           (read-directory-name "New location for working tree: "
+                                (file-name-parent-directory (vc-root-dir))))))
+  (let ((inhibit-message t))
+    (project-forget-project from))
+  (vc-call-backend backend 'move-working-tree from to)
+
+  ;; Update visited file names for buffers visiting files under FROM.
+  (let ((from (expand-file-name from)))
+    (dired-rename-subdir from (expand-file-name to))
+    (dolist (buf vc-dir-buffers)
+      (when (buffer-live-p buf)
+        (with-current-buffer buf
+          (when (string-prefix-p from default-directory)
+            (setq default-directory
+                  (expand-file-name (file-relative-name default-directory from)
+                                    to))
+            ;; If the *vc-dir* buffer has a uniquify'd name then we need
+            ;; to obtain an new uniquify'd name for this buffer under
+            ;; the new working tree, replacing the one for the old
+            ;; working tree.  See also `vc-dir-prepare-status-buffer'.
+            (when-let* ((base-name (uniquify-buffer-base-name))
+                        (item (cl-find (current-buffer) uniquify-managed
+                                       :key #'uniquify-item-buffer)))
+              (let (name)
+                ;; FIXME: There should be a way to get this information
+                ;; without creating and killing a buffer.
+                (unwind-protect
+                    (setq name (buffer-name
+                                (create-file-buffer
+                                 (expand-file-name base-name
+                                                   default-directory))))
+                  (kill-buffer name))
+                (uniquify-rename-buffer item name))))))))
+
+  (when-let* ((p (project-current nil to)))
+    (project-remember-project p)))
 
 
 

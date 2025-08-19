@@ -4017,7 +4017,8 @@ COUNT and ALL-FRAMES.  Otherwise, do not return a window for which
 This function uses `next-window' for finding the window to
 select.  The argument ALL-FRAMES has the same meaning as in
 `next-window', but the MINIBUF argument of `next-window' is
-always effectively nil."
+always effectively nil.  Interactively, ALL-FRAMES is always
+nil, which considers all windows on the selected frame."
   (interactive "p\ni\np")
   (let* ((window (selected-window))
          (original-window window)
@@ -4071,6 +4072,14 @@ always effectively nil."
 	(select-window window)
 	;; Always return nil.
 	nil))))
+
+(defun other-window-backward (count &optional all-frames interactive)
+  "Select another window in the reverse cyclic ordering of windows.
+COUNT specifies the number of windows to skip, (by default) backward,
+starting with the selected window, before making the selection.  Like
+`other-window', but moves in the opposite direction."
+  (interactive "p\ni\np")
+  (other-window (- (or count 1)) all-frames interactive))
 
 (defun other-window-prefix ()
   "Display the buffer of the next command in a new window.
@@ -5353,7 +5362,7 @@ Do not select an inactive minibuffer window."
 		 (not (eq frame (window-frame window))))
       (setq frame (window-frame window))
       (set-frame-selected-window frame window)
-      (select-frame-set-input-focus frame))))
+      (select-frame frame))))
 
 (defun quit-restore-window (&optional window bury-or-kill)
   "Quit WINDOW and deal with its buffer.
@@ -5516,15 +5525,16 @@ elsewhere.  This value is used by `quit-windows-on'."
       (bury-buffer-internal buffer)))))
 
 (defcustom quit-window-kill-buffer nil
-  "Non-nil means `quit-window' will try to kill WINDOW's buffer.
-If this is nil and the KILL argument is nil, `quit-window' will bury
-WINDOW's buffer.  If this is t, `quit-window' will always try to kill
-WINDOW's buffer.  Otherwise, this should be a list of major modes.
-`quit-window' will kill the buffer of its WINDOW argument regardless of
-the value of KILL if that buffer's major mode is either a member of this
-list or is derived from a member of this list.  In any other case,
-`quit-window' will kill the buffer only if KILL is non-nil and bury it
-otherwise."
+  "Non-nil means `quit-window' will try to kill buffer of WINDOW it quits.
+If this variable is nil (the default), `quit-window' will bury WINDOW's
+buffer if the KILL argument is nil and kill it otherwise.
+If this is t, `quit-window' will try to kill WINDOW's buffer regardless
+of the value of KILL.
+If this is a list of major modes, `quit-window' will kill the WINDOW's
+buffer regardless of the value of KILL if that buffer's major mode is
+either a member of this list or is derived from a member of this list.
+For any other value, `quit-window' will kill the buffer only if KILL is
+non-nil and bury it otherwise."
   :type '(choice (boolean :tag "All major modes")
 		 (repeat (symbol :tag "Major mode")))
   :version "31.1"
@@ -5534,7 +5544,9 @@ otherwise."
   "Quit WINDOW and bury its buffer.
 WINDOW must be a live window and defaults to the selected one.
 With prefix argument KILL non-nil, kill the buffer instead of
-burying it.
+burying it.  If `quit-window-kill-buffer' is non-nil, perhaps
+kill the buffer even if KILL is nil; see the doc string of
+that variable for the details.
 
 This calls the function `quit-restore-window' to delete WINDOW or
 show some other buffer in it.  See Info node `(elisp) Quitting
@@ -11369,6 +11381,7 @@ found by the provided context."
 (define-key ctl-x-map "2" 'split-window-below)
 (define-key ctl-x-map "3" 'split-window-right)
 (define-key ctl-x-map "o" 'other-window)
+(define-key ctl-x-map "O" 'other-window-backward)
 (define-key ctl-x-map "^" 'enlarge-window)
 (define-key ctl-x-map "}" 'enlarge-window-horizontally)
 (define-key ctl-x-map "{" 'shrink-window-horizontally)
@@ -11382,10 +11395,7 @@ found by the provided context."
   :doc "Keymap to repeat `other-window'.  Used in `repeat-mode'."
   :repeat t
   "o" #'other-window
-  "O" (lambda ()
-        (interactive)
-        (setq repeat-map 'other-window-repeat-map)
-        (other-window -1)))
+  "O" #'other-window-backward)
 
 (defvar-keymap resize-window-repeat-map
   :doc "Keymap to repeat window resizing commands.

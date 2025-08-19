@@ -963,16 +963,24 @@ In the latter case, VC mode is deactivated for this buffer."
   "="   #'vc-diff
   "D"   #'vc-root-diff
   "~"   #'vc-revision-other-window
+  "R"   #'vc-rename-file
   "x"   #'vc-delete-file
-  "!"   #'vc-edit-next-command)
+  "!"   #'vc-edit-next-command
+  "w c" #'vc-add-working-tree
+  "w w" #'vc-switch-working-tree
+  "w s" #'vc-working-tree-switch-project
+  "w x" #'vc-delete-working-tree
+  "w R" #'vc-move-working-tree)
 (fset 'vc-prefix-map vc-prefix-map)
 (define-key ctl-x-map "v" 'vc-prefix-map)
 
 (defvar-keymap vc-incoming-prefix-map
   "L" #'vc-log-incoming
+  "=" #'vc-fileset-diff-incoming
   "D" #'vc-root-diff-incoming)
 (defvar-keymap vc-outgoing-prefix-map
   "L" #'vc-log-outgoing
+  "=" #'vc-fileset-diff-outgoing
   "D" #'vc-root-diff-outgoing)
 
 (defcustom vc-use-incoming-outgoing-prefixes nil

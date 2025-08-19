@@ -44,6 +44,7 @@
 ;; - latest-on-branch-p (file)
 ;; * checkout-model (files)                                     DONE
 ;; - mode-line-string (file)
+;; - other-working-trees ()                                     DONE
 
 ;; STATE-CHANGING FUNCTIONS
 ;;
@@ -65,6 +66,9 @@
 ;; - modify-change-comment (files rev comment)
 ;; - mark-resolved (files)
 ;; - find-admin-dir (file)
+;; - add-working-tree (directory)                               DONE
+;; - delete-working-tree (directory)                            DONE
+;; - move-working-tree (from to)                                DONE
 
 ;; HISTORY FUNCTIONS
 ;;
@@ -112,6 +116,8 @@
 (require 'ert-x)
 (require 'vc)
 (require 'log-edit)
+(require 'project)
+(require 'cl-lib)
 
 (declare-function w32-application-type "w32proc.c")
 
@@ -578,6 +584,28 @@ This checks also `vc-backend' and `vc-responsible-backend'."
         (ignore-errors
           (run-hooks 'vc-test--cleanup-hook))))))
 
+(defvar vc-hg-global-switches)
+
+(defmacro vc-test--with-author-identity (backend &rest body)
+  (declare (indent 1) (debug t))
+  `(let ((process-environment process-environment)
+         (vc-hg-global-switches vc-hg-global-switches))
+     ;; git tries various approaches to guess a user name and email,
+     ;; which can fail depending on how the system is configured.
+     ;; Eg if the user account has no GECOS, git commit can fail with
+     ;; status 128 "fatal: empty ident name".
+     (when (memq ,backend '(Bzr Git))
+       (push "EMAIL=john@doe.ee" process-environment))
+     (when (eq ,backend 'Git)
+       (setq process-environment (append '("GIT_AUTHOR_NAME=A"
+                                           "GIT_COMMITTER_NAME=C")
+                                         process-environment)))
+
+     ;; Mercurial fails to autodetect an identity on MS-Windows.
+     (when (eq ,backend 'Hg)
+       (push "--config=ui.username=john@doe.ee" vc-hg-global-switches))
+     ,@body))
+
 (declare-function log-edit-done "vc/log-edit")
 
 (defun vc-test--version-diff (backend)
@@ -589,71 +617,171 @@ This checks also `vc-backend' and `vc-responsible-backend'."
             (file-truename
              (expand-file-name
               (make-temp-name "vc-test") temporary-file-directory))))
-          (process-environment process-environment)
           vc-test--cleanup-hook)
       (vc--fix-home-for-bzr tempdir)
-      ;; git tries various approaches to guess a user name and email,
-      ;; which can fail depending on how the system is configured.
-      ;; Eg if the user account has no GECOS, git commit can fail with
-      ;; status 128 "fatal: empty ident name".
-      (when (memq backend '(Bzr Git))
-        (setq process-environment (cons "EMAIL=john@doe.ee"
-                                        process-environment)))
-      (if (eq backend 'Git)
-          (setq process-environment (append '("GIT_AUTHOR_NAME=A"
-                                              "GIT_COMMITTER_NAME=C")
-                                            process-environment)))
-      (unwind-protect
-          (progn
-            ;; Cleanup.
-            (add-hook
-             'vc-test--cleanup-hook
-             (let ((dir default-directory))
-               (lambda () (delete-directory dir 'recursive))))
+      (vc-test--with-author-identity backend
 
-            ;; Create empty repository.  Check repository checkout model.
-            (make-directory default-directory)
-            (vc-test--create-repo-function backend)
+        (unwind-protect
+            (progn
+              ;; Cleanup.
+              (add-hook
+               'vc-test--cleanup-hook
+               (let ((dir default-directory))
+                 (lambda () (delete-directory dir 'recursive))))
 
-            (let* ((tmp-name (expand-file-name "foo" default-directory))
-                   (files (list (file-name-nondirectory tmp-name))))
-              ;; Write and register a new file.
-              (write-region "originaltext" nil tmp-name nil 'nomessage)
-              (vc-register (list backend files))
+              ;; Create empty repository.  Check repository checkout model.
+              (make-directory default-directory)
+              (vc-test--create-repo-function backend)
 
-              (let ((buff (find-file tmp-name)))
-                (with-current-buffer buff
+              (let* ((tmp-name (expand-file-name "foo" default-directory))
+                     (files (list (file-name-nondirectory tmp-name))))
+                ;; Write and register a new file.
+                (write-region "originaltext" nil tmp-name nil 'nomessage)
+                (vc-register (list backend files))
+
+                (let ((buff (find-file tmp-name)))
+                  (with-current-buffer buff
+                    (progn
+                      ;; Optionally checkout file.
+                      (when (memq backend '(RCS CVS SCCS))
+                        (vc-checkout tmp-name))
+
+                      ;; Checkin file.
+                      (vc-checkin files backend)
+                      (insert "Testing vc-version-diff")
+                      (let (vc-async-checkin)
+                        (log-edit-done)))))
+
+                ;; Modify file content.
+                (when (memq backend '(RCS CVS SCCS))
+                  (vc-checkout tmp-name))
+                (write-region "updatedtext" nil tmp-name nil 'nomessage)
+
+                ;; Check version diff.
+                (vc-version-diff files nil nil)
+                (if (eq backend 'Bzr)
+                    (sleep-for 1))
+                (should (bufferp (get-buffer "*vc-diff*")))
+
+                (with-current-buffer "*vc-diff*"
                   (progn
-                    ;; Optionally checkout file.
-                    (when (memq backend '(RCS CVS SCCS))
-                      (vc-checkout tmp-name))
+                    (let ((rawtext (buffer-substring-no-properties (point-min)
+                                                                   (point-max))))
+                      (should (string-search "-originaltext" rawtext))
+                      (should (string-search "+updatedtext" rawtext)))))))
 
-                    ;; Checkin file.
-                    (vc-checkin files backend)
-                    (insert "Testing vc-version-diff")
-                    (log-edit-done))))
+          ;; Save exit.
+          (ignore-errors
+            (run-hooks 'vc-test--cleanup-hook)))))))
 
-              ;; Modify file content.
-              (when (memq backend '(RCS CVS SCCS))
-                (vc-checkout tmp-name))
-              (write-region "updatedtext" nil tmp-name nil 'nomessage)
+(declare-function vc-git--program-version "vc-git")
 
-              ;; Check version diff.
-              (vc-version-diff files nil nil)
-              (if (eq backend 'Bzr)
-                  (sleep-for 1))
-              (should (bufferp (get-buffer "*vc-diff*")))
+(defun vc-test--other-working-trees (backend)
+  "Test other working trees actions."
+  (ert-with-temp-directory _tempdir
+    (let ((vc-handled-backends `(,backend))
+          (default-directory
+           (file-name-as-directory
+            (expand-file-name
+             (make-temp-name "vc-test") temporary-file-directory)))
+          vc-test--cleanup-hook)
+      (vc-test--with-author-identity backend
+        (unwind-protect
+            (progn
+              ;; Cleanup.
+              (add-hook
+               'vc-test--cleanup-hook
+               (let ((dir default-directory))
+                 (lambda ()
+                   (delete-directory dir 'recursive)
+                   (dolist (name '("first" "second" "first"))
+                     (project-forget-project
+                      (expand-file-name name default-directory))))))
 
-              (with-current-buffer "*vc-diff*"
-                (progn
-                  (let ((rawtext (buffer-substring-no-properties (point-min)
-                                                                 (point-max))))
-                    (should (string-search "-originaltext" rawtext))
-                    (should (string-search "+updatedtext" rawtext)))))))
+              (let* ((first (file-truename
+                             (file-name-as-directory
+                              (expand-file-name "first" default-directory))))
+                     (second (file-truename
+                              (file-name-as-directory
+                               (expand-file-name "second" default-directory))))
+                     (third (file-truename
+                             (file-name-as-directory
+                              (expand-file-name "third" default-directory))))
+                     (tmp-name (expand-file-name "foo" first))
+                     (project-list-file
+                      (expand-file-name "projects.eld" default-directory)))
 
-        ;; Save exit.
-        (ignore-errors
-          (run-hooks 'vc-test--cleanup-hook))))))
+                ;; Set up the first working tree.
+                (make-directory first t)
+                (let ((default-directory first))
+                  (vc-test--create-repo-function backend)
+                  (write-region "foo" nil tmp-name nil 'nomessage)
+                  (vc-register `(,backend (,(file-name-nondirectory tmp-name)))))
+                (with-current-buffer (find-file-noselect tmp-name)
+                  (vc-checkin (list (file-name-nondirectory tmp-name)) backend)
+                  (insert "Testing other working trees")
+                  (let (vc-async-checkin)
+                    (log-edit-done))
+
+                  ;; Set up the second working tree.
+                  ;; Stub out `vc-dir' so that it doesn't start a
+                  ;; background update process which won't like it when we
+                  ;; start moving directories around.
+                  ;; For the backends which do additional prompting (as
+                  ;; specified in the API for this backend function) we
+                  ;; need to stub that out.
+                  (cl-letf (((symbol-function 'vc-dir) #'ignore))
+                    (cl-ecase backend
+                      (Git (cl-letf (((symbol-function 'completing-read)
+                                      (lambda (&rest _ignore) "")))
+                             (vc-add-working-tree backend second)))
+                      (Hg (vc-add-working-tree backend second)))))
+
+                ;; Test `known-other-working-trees'.
+                (with-current-buffer (find-file-noselect tmp-name)
+                  (should
+                   (equal (list second)
+                          (vc-call-backend backend 'known-other-working-trees)))
+                  (let ((default-directory second))
+                    (should
+                     (equal (list first)
+                            (vc-call-backend backend 'known-other-working-trees))))
+
+                  ;; Test `move-working-tree'.
+                  (vc-move-working-tree backend second third)
+                  (should
+                   (equal (list third)
+                          (vc-call-backend backend 'known-other-working-trees)))
+                  (should-not (file-directory-p second))
+                  (should (file-directory-p third))
+                  ;; Moving the first working tree is only supported
+                  ;; for some backends.
+                  (cond ((and (eq backend 'Git)
+                              (version<= "2.29" (vc-git--program-version)))
+                         (let ((default-directory third))
+                           (vc-move-working-tree backend first second))
+                         (let ((default-directory third))
+                           (should
+                            (equal (list second)
+                                   (vc-call-backend backend
+                                                    'known-other-working-trees))))
+                         (should-not (file-directory-p first))
+                         (should (file-directory-p second))
+                         (vc-move-working-tree backend second first))
+                        ((eq backend 'Hg)
+                         (let ((default-directory third))
+                           (should-error (vc-move-working-tree backend
+                                                               first second)))))
+                  (vc-move-working-tree backend third second)
+
+                  ;; Test `delete-working-tree'.
+                  (let ((default-directory first))
+                    (vc-delete-working-tree backend second)
+                    (should-not (file-directory-p second))))))
+
+          ;; Save exit.
+          (ignore-errors
+            (run-hooks 'vc-test--cleanup-hook)))))))
 
 ;; Create the test cases.
 
@@ -793,7 +921,30 @@ This checks also `vc-backend' and `vc-responsible-backend'."
                           (eq system-type 'windows-nt)
                           noninteractive))
           (vc-test--version-diff ',backend))
-        ))))
+
+        (ert-deftest
+            ,(intern (format "vc-test-%s07-other-working-trees" backend-string)) ()
+          ,(format "Check other working trees functions for the %s backend."
+                   backend-string)
+          (skip-unless
+	   (ert-test-passed-p
+	    (ert-test-most-recent-result
+	     (ert-get-test
+	      ',(intern
+	         (format "vc-test-%s01-register" backend-string))))))
+          (skip-unless (memq ',backend '(Git Hg)))
+          (skip-when
+           (and (eq ',backend 'Hg)
+                (cl-search "failed to import extension"
+                           (car
+                            (process-lines-ignore-status
+                             "hg" "--config=extensions.share=" "share")))))
+          (skip-when
+           (and (eq ',backend 'Git)
+                (version< (vc-git--program-version) "2.17")))
+          (let ((vc-hg-global-switches (cons "--config=extensions.share="
+                                             vc-hg-global-switches)))
+            (vc-test--other-working-trees ',backend)))))))
 
 (provide 'vc-tests)
 ;;; vc-tests.el ends here

@@ -853,12 +853,6 @@ It is the default value of the variable `top-level'."
     ;; We are careful to do it late (after term-setup-hook), although the
     ;; new multi-tty code does not use $TERM any more there anyway.
     (setenv "TERM" "dumb")
-    ;; Similarly, a subprocess should not try to invoke a pager, as most
-    ;; pagers will fail in a dumb terminal.  Many programs default to
-    ;; using "less" when PAGER is unset, so set PAGER to "cat"; using cat
-    ;; as a pager is equivalent to not using a pager at all.
-    (when (executable-find "cat")
-      (setenv "PAGER" "cat"))
     ;; Remove DISPLAY from the process-environment as well.  This allows
     ;; `callproc.c' to give it a useful adaptive default which is either
     ;; the value of the `display' frame-parameter or the DISPLAY value
@@ -1655,6 +1649,9 @@ please check its value")
   ;; Process the remaining args.
   (command-line-1 (cdr command-line-args))
 
+  ;; If -batch, terminate after processing the command options.
+  (if noninteractive (kill-emacs t))
+
   ;; Check if `user-emacs-directory' is accessible and warn if it
   ;; isn't, unless `user-emacs-directory-warning' was customized to
   ;; disable that warning.
@@ -1687,9 +1684,6 @@ Consider using a subdirectory instead, e.g.: %s"
                                     dir (expand-file-name
                                          "lisp" user-emacs-directory))
                             :warning))))
-
-  ;; If -batch, terminate after processing the command options.
-  (if noninteractive (kill-emacs t))
 
   ;; In daemon mode, start the server to allow clients to connect.
   ;; This is done after loading the user's init file and after

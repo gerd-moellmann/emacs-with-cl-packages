@@ -179,6 +179,14 @@ The default \"-b\" means to ignore whitespace-only changes,
 ;;;; keymap, menu, ...
 ;;;;
 
+;; The additional bindings in read-only `diff-mode' buffers are not
+;; activated by turning on `diff-minor-mode' in those buffers.  Instead,
+;; a special entry in `minor-mode-map-alist' is used to achieve that.
+;; I.e., `diff-mode-read-only' is a pseudo-minor mode for read-only
+;; `diff-mode' buffers, while `diff-minor-mode' is a bona fide minor
+;; mode for non-`diff-mode' buffers.  (It's not clear there are
+;; practical uses for `diff-minor-mode': bug#34080).
+
 (defvar-keymap diff-mode-shared-map
   :doc "Additional bindings for read-only `diff-mode' buffers.
 These bindings are also available with an ESC prefix
@@ -1592,18 +1600,20 @@ else cover the whole buffer."
   (remove-overlays nil nil 'diff-mode 'syntax)
   (when font-lock-mode
     (make-local-variable 'font-lock-extra-managed-props)
-    ;; Added when diff--font-lock-prettify is non-nil!
+    ;; Added when diff-font-lock-prettify is non-nil!
     (cl-pushnew 'display font-lock-extra-managed-props)))
 
 (defvar-local diff-mode-read-only nil
   "Non-nil when read-only diff buffer uses short keys.")
 
+(defvar-keymap diff-read-only-map
+  :doc "Additional bindings for read-only `diff-mode' buffers."
+  :keymap (make-composed-keymap diff-mode-shared-map special-mode-map))
+
 ;; It should be lower than `outline-minor-mode' and `view-mode'.
 (or (assq 'diff-mode-read-only minor-mode-map-alist)
     (nconc minor-mode-map-alist
-           (list (cons 'diff-mode-read-only
-                       (make-composed-keymap diff-mode-shared-map
-                                             special-mode-map)))))
+           (list (cons 'diff-mode-read-only diff-read-only-map))))
 
 (defvar whitespace-style)
 (defvar whitespace-trailing-regexp)
@@ -1627,7 +1637,9 @@ You can also switch between context diff and unified diff with \\[diff-context->
 or vice versa with \\[diff-unified->context] and you can also reverse the direction of
 a diff with \\[diff-reverse-direction].
 
-\\{diff-mode-map}"
+\\{diff-mode-map}
+In read-only buffers the following bindings are also available:
+\\{diff-read-only-map}"
 
   (setq-local font-lock-defaults diff-font-lock-defaults)
   (add-hook 'font-lock-mode-hook #'diff--font-lock-cleanup nil 'local)
@@ -2940,7 +2952,10 @@ fixed, visit it in a buffer."
 
 (defun diff--font-lock-prettify (limit)
   (when diff-font-lock-prettify
-    (when (> (frame-parameter nil 'left-fringe) 0)
+    ;; FIXME: `window-fringes` uselessly allocates 4 cons cells,
+    ;; but the previous use of `frame-paramter' ended up internally
+    ;; calling `frame-parameters' making it even worse!
+    (when (> (car (window-fringes)) 0)
       (save-excursion
         ;; FIXME: Include the first space for context-style hunks!
         (while (re-search-forward "^[-+! ]" limit t)
@@ -2956,7 +2971,7 @@ fixed, visit it in a buffer."
                 (?! . (left-fringe diff-fringe-rep diff-indicator-changed))
                 (?\s . (left-fringe diff-fringe-nul fringe)))))))))
     ;; Mimics the output of Magit's diff.
-    ;; FIXME: This has only been tested with Git's diff output.
+    ;; FIXME: This has been tested only with Git's diff output.
     ;; FIXME: Add support for Git's "rename from/to"?
     (while (re-search-forward "^diff " limit t)
       ;; We split the regexp match into a search plus a looking-at because

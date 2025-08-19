@@ -573,9 +573,9 @@ Emacs dired can't find files."
 		  "touch -t %s %s %s")
 	  (format-time-string "%Y-%m-%dT%H:%M:%S.%NZ" time t)
 	  nofollow quoted-name (tramp-get-remote-null-device v)
-	  (format-time-string "%Y-%m-%dT%H:%M:%S" time t)
+	  (format-time-string "%Y-%m-%dT%H:%M:%S" time)
 	  nofollow quoted-name (tramp-get-remote-null-device v)
-	  (format-time-string "%Y%m%d%H%M.%S" time t)
+	  (format-time-string "%Y%m%d%H%M.%S" time)
 	  nofollow quoted-name)))))
 
 (defun tramp-adb-handle-copy-file
@@ -1117,17 +1117,14 @@ connection if a previous connection has died for some reason."
 		   (process-connection-type tramp-process-connection-type)
 		   (args (tramp-expand-args
 			  vec 'tramp-login-args nil ?d (or device "")))
-		   (p (let ((default-directory
-			     tramp-compat-temporary-file-directory))
-			(apply
-			 #'start-process (tramp-get-connection-name vec) buf
-			 tramp-adb-program args)))
+		   (p (apply
+		       #'tramp-start-process vec (tramp-get-connection-name vec)
+		       buf tramp-adb-program args))
 		   (prompt (md5 (concat (prin1-to-string process-environment)
 					(current-time-string)))))
 
-	      ;; Set sentinel.  Initialize variables.
+	      ;; Set sentinel.
 	      (set-process-sentinel p #'tramp-process-sentinel)
-	      (tramp-post-process-creation p vec)
 
 	      ;; Wait for initial prompt.  On some devices, it needs
 	      ;; an initial RET, in order to get it.

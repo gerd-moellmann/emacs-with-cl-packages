@@ -2714,31 +2714,20 @@ emacs_fchmodat (int fd, const char *path, mode_t mode, int flags)
 #endif /* !(defined HAVE_ANDROID && !defined ANDROID_STUBIFY) */
 }
 
-/* Maximum number of bytes to read or write in a single system call.
-   This works around a serious bug in Linux kernels before 2.6.16; see
-   <https://bugzilla.redhat.com/show_bug.cgi?format=multiple&id=612839>.
-   It's likely to work around similar bugs in other operating systems, so do it
-   on all platforms.  Round INT_MAX down to a page size, with the conservative
-   assumption that page sizes are at most 2**18 bytes (any kernel with a
-   page size larger than that shouldn't have the bug).  */
-#ifndef MAX_RW_COUNT
-#define MAX_RW_COUNT (INT_MAX >> 18 << 18)
-#endif
-
-/* Verify that MAX_RW_COUNT fits in the relevant standard types.  */
+/* Verify that SYS_BUFSIZE_MAX fits in the relevant standard types.  */
 #ifndef SSIZE_MAX
 # define SSIZE_MAX TYPE_MAXIMUM (ssize_t)
 #endif
-static_assert (MAX_RW_COUNT <= PTRDIFF_MAX);
-static_assert (MAX_RW_COUNT <= SIZE_MAX);
-static_assert (MAX_RW_COUNT <= SSIZE_MAX);
+static_assert (SYS_BUFSIZE_MAX <= PTRDIFF_MAX);
+static_assert (SYS_BUFSIZE_MAX <= SIZE_MAX);
+static_assert (SYS_BUFSIZE_MAX <= SSIZE_MAX);
 
 #ifdef WINDOWSNT
 /* Verify that Emacs read requests cannot cause trouble, even in
    64-bit builds.  The last argument of 'read' is 'unsigned int', and
    the return value's type (see 'sys_read') is 'int'.  */
-static_assert (MAX_RW_COUNT <= INT_MAX);
-static_assert (MAX_RW_COUNT <= UINT_MAX);
+static_assert (SYS_BUFSIZE_MAX <= INT_MAX);
+static_assert (SYS_BUFSIZE_MAX <= UINT_MAX);
 #endif
 
 /* Read from FD to a buffer BUF with size NBYTE.
@@ -2750,7 +2739,7 @@ static ptrdiff_t
 emacs_intr_read (int fd, void *buf, ptrdiff_t nbyte, bool interruptible)
 {
   /* No caller should ever pass a too-large size to emacs_read.  */
-  eassert (nbyte <= MAX_RW_COUNT);
+  eassert (nbyte <= SYS_BUFSIZE_MAX);
 
   ssize_t result;
 
@@ -2796,7 +2785,7 @@ emacs_full_write (int fd, char const *buf, ptrdiff_t nbyte,
 
   while (nbyte > 0)
     {
-      ssize_t n = write (fd, buf, min (nbyte, MAX_RW_COUNT));
+      ssize_t n = write (fd, buf, min (nbyte, SYS_BUFSIZE_MAX));
 
       if (n < 0)
 	{
