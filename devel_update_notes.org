@@ -112,7 +112,7 @@ Currently (as of v30.1) this is quite similar:
 - From there, ~magit-blame~ can be used to quickly identify the recent commit which changed the calling convention, etc.
 - This commit often includes many examples of fixing code elsewhere to conform to the new conventions.  These can be used as a guide to update affected code (usually in ~macwin~, ~macterm~, etc).
 
-    
+
 *  Getting ~lldb~ working (code signatures)
 
 ** Launching lldb without losing the (lldb) prompt
