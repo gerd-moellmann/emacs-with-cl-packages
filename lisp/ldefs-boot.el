@@ -6,7 +6,8 @@
 ;;; Commentary:
 
 ;; This file will be copied to ldefs-boot.el and checked in
-;; periodically.
+;; periodically.  Note: When checking in ldefs-boot.el, don't include
+;; changes to any other files in the commit.
 
 ;;; Code:
 
@@ -1563,6 +1564,8 @@ disabled.
 
 ;;; Generated autoloads from autorevert.el
 
+(defvar auto-revert-buffer-in-progress nil "\
+Non-nil if a `auto-revert-buffer' operation is in progress, nil otherwise.")
 (autoload 'auto-revert-mode "autorevert" "\
 Toggle reverting buffer when the file changes (Auto-Revert Mode).
 
@@ -2982,6 +2985,7 @@ This function attempts to use file contents to determine whether
 the code is C or C++, and based on that chooses whether to enable
 `c-ts-mode' or `c++-ts-mode'." t)
 (make-obsolete 'c-or-c++-ts-mode 'c-or-c++-mode "30.1")
+(when (treesit-available-p) (defvar treesit-major-mode-remap-alist) (add-to-list 'treesit-major-mode-remap-alist '(c-mode . c-ts-mode)) (add-to-list 'treesit-major-mode-remap-alist '(c++-mode . c++-ts-mode)) (add-to-list 'treesit-major-mode-remap-alist '(c-or-c++-mode . c-or-c++-ts-mode)))
 (register-definition-prefixes "c-ts-mode" '("c-ts-"))
 
 
@@ -4699,6 +4703,11 @@ For use inside Lisp programs, see also `c-macro-expansion'.
 Major mode for editing CMake files, powered by tree-sitter.
 
 (fn)" t)
+(autoload 'cmake-ts-mode-maybe "cmake-ts-mode" "\
+Enable `cmake-ts-mode' when its grammar is available.
+Also propose to install the grammar when `treesit-enabled-modes'
+is t or contains the mode name.")
+(when (treesit-available-p) (add-to-list 'auto-mode-alist '("\\(?:CMakeLists\\.txt\\|\\.cmake\\)\\'" . cmake-ts-mode-maybe)) (defvar treesit-major-mode-remap-alist) (add-to-list 'treesit-major-mode-remap-alist '(cmake-mode . cmake-ts-mode)))
 (register-definition-prefixes "cmake-ts-mode" '("cmake-ts-mode-"))
 
 
@@ -4902,6 +4911,18 @@ found in any directory mentioned in `native-comp-eln-load-path'.
 The search within DIRECTORY is performed recursively.
 
 (fn DIRECTORY)")
+(autoload 'batch-native-compile-1 "comp" "\
+Perform batch native compilation of remaining command-line arguments.
+
+Native compilation equivalent of `batch-byte-compile'.
+Use this from the command line, with `-batch'; it won't work
+in an interactive Emacs session.
+Optional argument FOR-TARBALL non-nil means the file being compiled
+as part of building the source tarball, in which case the .eln file
+will be placed under the native-lisp/ directory (actually, in the
+last directory in `native-comp-eln-load-path').
+
+(fn &optional FOR-TARBALL)")
 (autoload 'batch-native-compile "comp" "\
 Perform batch native compilation of remaining command-line arguments.
 
@@ -5923,6 +5944,7 @@ Key bindings:
 Major mode for editing C# code.
 
 (fn)" t)
+(when (treesit-available-p) (defvar treesit-major-mode-remap-alist) (add-to-list 'treesit-major-mode-remap-alist '(csharp-mode . csharp-ts-mode)))
 (register-definition-prefixes "csharp-mode" '("codedoc-font-lock-" "csharp-"))
 
 
@@ -5952,6 +5974,7 @@ can also be used to fill comments.
 \\{css-mode-map}
 
 (fn)" t)
+(when (treesit-available-p) (defvar treesit-major-mode-remap-alist) (add-to-list 'treesit-major-mode-remap-alist '(css-mode . css-ts-mode)))
 (autoload 'css-mode "css-mode" "\
 Major mode to edit Cascading Style Sheets (CSS).
 \\<css-mode-map>
@@ -8385,6 +8408,11 @@ disabled.
 Major mode for editing Dockerfiles, powered by tree-sitter.
 
 (fn)" t)
+(autoload 'dockerfile-ts-mode-maybe "dockerfile-ts-mode" "\
+Enable `dockerfile-ts-mode' when its grammar is available.
+Also propose to install the grammar when `treesit-enabled-modes'
+is t or contains the mode name.")
+(when (treesit-available-p) (add-to-list 'auto-mode-alist '("\\(?:Dockerfile\\(?:\\..*\\)?\\|\\.[Dd]ockerfile\\)\\'" . dockerfile-ts-mode-maybe)) (defvar treesit-major-mode-remap-alist) (add-to-list 'treesit-major-mode-remap-alist '(dockerfile-mode . dockerfile-ts-mode)))
 (register-definition-prefixes "dockerfile-ts-mode" '("dockerfile-ts-mode--"))
 
 
@@ -8534,6 +8562,7 @@ INIT-VALUE LIGHTER KEYMAP.
 (fn MODE DOC [KEYWORD VAL ... &rest BODY])" nil t)
 (function-put 'define-minor-mode 'doc-string-elt 2)
 (function-put 'define-minor-mode 'lisp-indent-function 'defun)
+(function-put 'define-minor-mode 'autoload-macro 'expand)
 (autoload 'define-globalized-minor-mode "easy-mmode" "\
 Make a global mode GLOBAL-MODE corresponding to buffer-local minor MODE.
 TURN-ON is a function that will be called with no args in every buffer
@@ -8577,6 +8606,7 @@ on if the hook has explicitly disabled it.
 (fn GLOBAL-MODE MODE TURN-ON [KEY VALUE]... BODY...)" nil t)
 (function-put 'define-globalized-minor-mode 'doc-string-elt 2)
 (function-put 'define-globalized-minor-mode 'lisp-indent-function 'defun)
+(function-put 'define-globalized-minor-mode 'autoload-macro 'expand)
 (autoload 'easy-mmode-define-keymap "easy-mmode" "\
 Return a keymap built from bindings BS.
 BS must be a list of (KEY . BINDING) where
@@ -8925,7 +8955,7 @@ A second call of this function without changing point inserts the next match.
 A call with prefix PREFIX reads the symbol to insert from the minibuffer with
 completion.
 
-(fn PREFIX)" '("P"))
+(fn PREFIX)" t)
 (autoload 'ebrowse-tags-loop-continue "ebrowse" "\
 Repeat last operation on files in tree.
 FIRST-TIME non-nil means this is not a repetition, but the first time.
@@ -9953,6 +9983,11 @@ mode hooks.
 Major mode for editing Elixir, powered by tree-sitter.
 
 (fn)" t)
+(autoload 'elixir-ts-mode-maybe "elixir-ts-mode" "\
+Enable `elixir-ts-mode' when its grammar is available.
+Also propose to install the grammar when `treesit-enabled-modes'
+is t or contains the mode name.")
+(when (treesit-available-p) (add-to-list 'auto-mode-alist '("\\.elixir\\'" . elixir-ts-mode-maybe)) (add-to-list 'auto-mode-alist '("\\.ex\\'" . elixir-ts-mode-maybe)) (add-to-list 'auto-mode-alist '("\\.exs\\'" . elixir-ts-mode-maybe)) (add-to-list 'auto-mode-alist '("mix\\.lock" . elixir-ts-mode-maybe)) (defvar treesit-major-mode-remap-alist) (add-to-list 'treesit-major-mode-remap-alist '(elixir-mode . elixir-ts-mode)))
 (register-definition-prefixes "elixir-ts-mode" '("elixir-ts-"))
 
 
@@ -10691,7 +10726,7 @@ ERC assigns SERVER and FULL-NAME the associated keyword values
 and defers to `erc-compute-port', `erc-compute-user', and
 `erc-compute-nick' for those respective parameters.
 
-(fn &key SERVER PORT NICK USER PASSWORD FULL-NAME ID)" '((let ((erc--display-context `((erc-interactive-display . erc) ,@erc--display-context))) (erc-select-read-args))))
+(fn &key SERVER PORT NICK USER PASSWORD FULL-NAME ID)" t)
 (defalias 'erc-select #'erc)
 (autoload 'erc-tls "erc" "\
 Connect to an IRC server over a TLS-encrypted connection.
@@ -10714,7 +10749,7 @@ See the alternative entry-point command `erc' as well as Info
 node `(erc) Connecting' for a fuller description of the various
 parameters, like ID.
 
-(fn &key SERVER PORT NICK USER PASSWORD FULL-NAME CLIENT-CERTIFICATE ID)" '((let ((erc-default-port erc-default-port-tls) (erc--display-context `((erc-interactive-display . erc-tls) ,@erc--display-context))) (erc-select-read-args))))
+(fn &key SERVER PORT NICK USER PASSWORD FULL-NAME CLIENT-CERTIFICATE ID)" t)
 (autoload 'erc-handle-irc-url "erc" "\
 Use ERC to IRC on HOST:PORT in CHANNEL.
 If ERC is already connected to HOST:PORT, simply /join CHANNEL.
@@ -10946,7 +10981,9 @@ it has to be wrapped in `(eval (quote ...))'.
 If NAME is already defined as a test and Emacs is running
 in batch mode, an error is signaled.
 
-(fn NAME () [DOCSTRING] [:expected-result RESULT-TYPE] [:tags \\='(TAG...)] BODY...)" nil 'macro)
+(fn NAME () [DOCSTRING] [:expected-result RESULT-TYPE] [:tags \\='(TAG...)] BODY...)" nil t)
+(function-put 'ert-deftest 'doc-string-elt 3)
+(function-put 'ert-deftest 'lisp-indent-function 2)
 (autoload 'ert-run-tests-batch "ert" "\
 Run the tests specified by SELECTOR, printing results to the terminal.
 
@@ -13859,7 +13896,7 @@ and choose the directory as the fortune-file.
 (defvar frameset-session-filter-alist (append '((left . frameset-filter-iconified) (minibuffer . frameset-filter-minibuffer) (top . frameset-filter-iconified)) (mapcar (lambda (p) (cons p :never)) frame-internal-parameters)) "\
 Minimum set of parameters to filter for live (on-session) framesets.
 DO NOT MODIFY.  See `frameset-filter-alist' for a full description.")
-(defvar frameset-persistent-filter-alist (append '((background-color . frameset-filter-sanitize-color) (bottom . frameset-filter-shelve-param) (buffer-list . :never) (buffer-predicate . :never) (buried-buffer-list . :never) (client . :never) (delete-before . :never) (font . frameset-filter-font-param) (font-backend . :never) (foreground-color . frameset-filter-sanitize-color) (frameset--text-pixel-height . :save) (frameset--text-pixel-width . :save) (fullscreen . frameset-filter-shelve-param) (GUI:bottom . frameset-filter-unshelve-param) (GUI:font . frameset-filter-unshelve-param) (GUI:fullscreen . frameset-filter-unshelve-param) (GUI:height . frameset-filter-unshelve-param) (GUI:left . frameset-filter-unshelve-param) (GUI:right . frameset-filter-unshelve-param) (GUI:top . frameset-filter-unshelve-param) (GUI:width . frameset-filter-unshelve-param) (height . frameset-filter-shelve-param) (left . frameset-filter-shelve-param) (parent-frame . :never) (mouse-wheel-frame . :never) (right . frameset-filter-shelve-param) (top . frameset-filter-shelve-param) (tty . frameset-filter-tty-to-GUI) (tty-type . frameset-filter-tty-to-GUI) (width . frameset-filter-shelve-param) (window-system . :never)) frameset-session-filter-alist) "\
+(defvar frameset-persistent-filter-alist (append '((background-color . frameset-filter-sanitize-color) (bottom . frameset-filter-shelve-param) (buffer-list . :never) (buffer-predicate . :never) (buried-buffer-list . :never) (client . :never) (delete-before . :never) (font . frameset-filter-font-param) (font-backend . :never) (foreground-color . frameset-filter-sanitize-color) (frameset--text-pixel-height . :save) (frameset--text-pixel-width . :save) (fullscreen . frameset-filter-shelve-param) (GUI\:bottom . frameset-filter-unshelve-param) (GUI\:font . frameset-filter-unshelve-param) (GUI\:fullscreen . frameset-filter-unshelve-param) (GUI\:height . frameset-filter-unshelve-param) (GUI\:left . frameset-filter-unshelve-param) (GUI\:right . frameset-filter-unshelve-param) (GUI\:top . frameset-filter-unshelve-param) (GUI\:width . frameset-filter-unshelve-param) (height . frameset-filter-shelve-param) (left . frameset-filter-shelve-param) (parent-frame . :never) (mouse-wheel-frame . :never) (right . frameset-filter-shelve-param) (top . frameset-filter-shelve-param) (tty . frameset-filter-tty-to-GUI) (tty-type . frameset-filter-tty-to-GUI) (width . frameset-filter-shelve-param) (window-system . :never)) frameset-session-filter-alist) "\
 Parameters to filter for persistent framesets.
 DO NOT MODIFY.  See `frameset-filter-alist' for a full description.")
 (defvar frameset-filter-alist frameset-persistent-filter-alist "\
@@ -15112,15 +15149,29 @@ Major mode for editing Go, powered by tree-sitter.
 \\{go-ts-mode-map}
 
 (fn)" t)
+(autoload 'go-ts-mode-maybe "go-ts-mode" "\
+Enable `go-ts-mode' when its grammar is available.
+Also propose to install the grammar when `treesit-enabled-modes'
+is t or contains the mode name.")
+(when (treesit-available-p) (add-to-list 'auto-mode-alist '("\\.go\\'" . go-ts-mode-maybe)) (defvar treesit-major-mode-remap-alist) (add-to-list 'treesit-major-mode-remap-alist '(go-mode . go-ts-mode)))
 (autoload 'go-mod-ts-mode "go-ts-mode" "\
 Major mode for editing go.mod files, powered by tree-sitter.
 
 (fn)" t)
+(autoload 'go-mod-ts-mode-maybe "go-ts-mode" "\
+Enable `go-mod-ts-mode' when its grammar is available.
+Also propose to install the grammar when `treesit-enabled-modes'
+is t or contains the mode name.")
+(when (treesit-available-p) (add-to-list 'auto-mode-alist '("/go\\.mod\\'" . go-mod-ts-mode-maybe)) (defvar treesit-major-mode-remap-alist) (add-to-list 'treesit-major-mode-remap-alist '(go-mod-mode . go-mod-ts-mode)))
 (autoload 'go-work-ts-mode "go-ts-mode" "\
 Major mode for editing go.work files, powered by tree-sitter.
 
 (fn)" t)
-(add-to-list 'auto-mode-alist '("/go\\.work\\'" . go-work-ts-mode))
+(autoload 'go-work-ts-mode-maybe "go-ts-mode" "\
+Enable `go-work-ts-mode' when its grammar is available.
+Also propose to install the grammar when `treesit-enabled-modes'
+is t or contains the mode name.")
+(when (treesit-available-p) (add-to-list 'auto-mode-alist '("/go\\.work\\'" . go-work-ts-mode-maybe)) (defvar treesit-major-mode-remap-alist) (add-to-list 'treesit-major-mode-remap-alist '(go-work-mode . go-work-ts-mode)))
 (register-definition-prefixes "go-ts-mode" '("go-"))
 
 
@@ -15793,6 +15844,11 @@ Like `hanoi-unix', but with a 64-bit clock." t)
 Major mode for editing HEEx, powered by tree-sitter.
 
 (fn)" t)
+(autoload 'heex-ts-mode-maybe "heex-ts-mode" "\
+Enable `heex-ts-mode' when its grammar is available.
+Also propose to install the grammar when `treesit-enabled-modes'
+is t or contains the mode name.")
+(when (treesit-available-p) (add-to-list 'auto-mode-alist '("\\.[hl]?eex\\'" . heex-ts-mode-maybe)) (defvar treesit-major-mode-remap-alist) (add-to-list 'treesit-major-mode-remap-alist '(heex-mode . heex-ts-mode)))
 (register-definition-prefixes "heex-ts-mode" '("heex-ts-"))
 
 
@@ -17070,7 +17126,8 @@ inlined into the compiled format versions.  This means that if you
 change its definition, you should explicitly call
 `ibuffer-recompile-formats'.
 
-(fn SYMBOL (&key NAME INLINE PROPS SUMMARIZER) &rest BODY)" nil 'macro)
+(fn SYMBOL (&key NAME INLINE PROPS SUMMARIZER) &rest BODY)" nil t)
+(function-put 'define-ibuffer-column 'lisp-indent-function 'defun)
 (autoload 'define-ibuffer-sorter "ibuf-macs" "\
 Define a method of sorting named NAME.
 DOCUMENTATION is the documentation of the function, which will be called
@@ -17081,7 +17138,9 @@ For sorting, the forms in BODY will be evaluated with `a' bound to one
 buffer object, and `b' bound to another.  BODY should return a non-nil
 value if and only if `a' is \"less than\" `b'.
 
-(fn NAME DOCUMENTATION (&key DESCRIPTION) &rest BODY)" nil 'macro)
+(fn NAME DOCUMENTATION (&key DESCRIPTION) &rest BODY)" nil t)
+(function-put 'define-ibuffer-sorter 'lisp-indent-function 1)
+(function-put 'define-ibuffer-sorter 'doc-string-elt 2)
 (autoload 'define-ibuffer-op "ibuf-macs" "\
 Generate a function which operates on a buffer.
 OP becomes the name of the function; if it doesn't begin with
@@ -17124,7 +17183,9 @@ BODY define the operation; they are forms to evaluate per each
 marked buffer.  BODY is evaluated with `buf' bound to the
 buffer object.
 
-(fn OP ARGS DOCUMENTATION (&key INTERACTIVE MARK MODIFIER-P DANGEROUS OPSTRING ACTIVE-OPSTRING BEFORE AFTER COMPLEX) &rest BODY)" nil 'macro)
+(fn OP ARGS DOCUMENTATION (&key INTERACTIVE MARK MODIFIER-P DANGEROUS OPSTRING ACTIVE-OPSTRING BEFORE AFTER COMPLEX) &rest BODY)" nil t)
+(function-put 'define-ibuffer-op 'lisp-indent-function 2)
+(function-put 'define-ibuffer-op 'doc-string-elt 3)
 (autoload 'define-ibuffer-filter "ibuf-macs" "\
 Define a filter named NAME.
 DOCUMENTATION is the documentation of the function.
@@ -17139,7 +17200,9 @@ not a particular buffer should be displayed or not.  The forms in BODY
 will be evaluated with BUF bound to the buffer object, and QUALIFIER
 bound to the current value of the filter.
 
-(fn NAME DOCUMENTATION (&key READER DESCRIPTION) &rest BODY)" nil 'macro)
+(fn NAME DOCUMENTATION (&key READER DESCRIPTION) &rest BODY)" nil t)
+(function-put 'define-ibuffer-filter 'lisp-indent-function 2)
+(function-put 'define-ibuffer-filter 'doc-string-elt 2)
 (register-definition-prefixes "ibuf-macs" '("ibuffer-"))
 
 
@@ -17677,6 +17740,39 @@ See `inferior-emacs-lisp-mode' for details.
 ;;; Generated autoloads from mail/ietf-drums-date.el
 
 (register-definition-prefixes "ietf-drums-date" '("date-parse-error" "ietf-drums-"))
+
+
+;;; Generated autoloads from emacs-lisp/igc.el
+
+(autoload 'igc-collect "igc" "\
+Perform a full GC." t)
+(autoload 'igc-stats "igc" "\
+Display memory statistics from `igc-info'.
+You can display two snapshots A and B containing the info from `igc-info'
+at different times.  These can be displayed either as-is, or by showing the
+difference between them.  \\<igc-stats-mode-map>Type \\[igc-display-a] to switch to snapshot A and \\[igc-display-b] to switch to
+snapshot B.  To take a snapshot, type \\[igc-snapshot].
+To reset the current snapshot, type \\[igc-clear].
+To display the difference between A and B, type \\[igc-display-diff].
+Type \\`g' to refresh the the difference view.
+Type \\`?' to see the mode's help." t)
+(autoload 'igc-roots-stats "igc" "\
+Display root statistics from `igc--roots'.
+You can display two snapshots A and B containing the info from `igc--roots'
+at different times.  These can be displayed either as-is, or by showing the
+difference between them.  \\<igc-roots-mode-map>Type \\[igc-roots-display-a] to switch to snapshot A and \\[igc-roots-display-b] to switch to
+snapshot B.  To take a snapshot, type \\[igc--roots-snapshot].
+To reset the current snapshot, type \\[igc-roots-clear].
+To display the difference between A and B, type \\[igc-roots-display-diff].
+Type \\`g' to refresh the the difference view.
+Type \\`?' to see the mode's help." t)
+(autoload 'igc-stop-collecting-stats "igc" "\
+Stop collecting IGC stats." t)
+(autoload 'igc-start-collecting-stats "igc" "\
+Start collecting IGC statistics.
+
+(fn TYPE FILE SECS)" t)
+(register-definition-prefixes "igc" '("igc-"))
 
 
 ;;; Generated autoloads from iimage.el
@@ -18851,6 +18947,7 @@ See Info node `(elisp)Defining Functions' for more details.
 (fn NAME ARGS &rest BODY)" nil t)
 (function-put 'define-inline 'lisp-indent-function 'defun)
 (function-put 'define-inline 'doc-string-elt 3)
+(function-put 'define-inline 'autoload-macro 'expand)
 (register-definition-prefixes "inline" '("inline-"))
 
 
@@ -19295,6 +19392,7 @@ Return the string read from the minibuffer.
 Major mode for editing Java, powered by tree-sitter.
 
 (fn)" t)
+(when (treesit-available-p) (defvar treesit-major-mode-remap-alist) (add-to-list 'treesit-major-mode-remap-alist '(java-mode . java-ts-mode)))
 (register-definition-prefixes "java-ts-mode" '("java-ts-mode-"))
 
 
@@ -19341,6 +19439,7 @@ Major mode for editing JavaScript.
 \\<js-ts-mode-map>
 
 (fn)" t)
+(when (treesit-available-p) (defvar treesit-major-mode-remap-alist) (add-to-list 'treesit-major-mode-remap-alist '(javascript-mode . js-ts-mode)))
 (autoload 'js-json-mode "js" "\
 
 
@@ -19376,6 +19475,7 @@ one of the aforementioned options instead of using this mode.
 Major mode for editing JSON, powered by tree-sitter.
 
 (fn)" t)
+(when (treesit-available-p) (defvar treesit-major-mode-remap-alist) (add-to-list 'treesit-major-mode-remap-alist '(js-json-mode . json-ts-mode)))
 (register-definition-prefixes "json-ts-mode" '("json-ts-"))
 
 
@@ -19472,12 +19572,6 @@ and the return value is the length of the conversion.
 
 ;;; Generated autoloads from kmacro.el
 
- (global-set-key "\C-x(" #'kmacro-start-macro)
- (global-set-key "\C-x)" #'kmacro-end-macro)
- (global-set-key "\C-xe" #'kmacro-end-and-call-macro)
- (global-set-key [f3] #'kmacro-start-macro-or-insert-counter)
- (global-set-key [f4] #'kmacro-end-or-call-macro)
- (global-set-key "\C-x\C-k" #'kmacro-keymap)
  (autoload 'kmacro-keymap "kmacro" "Keymap for keyboard macro commands." t 'keymap)
 (define-obsolete-function-alias 'kmacro-exec-ring-item #'funcall "29.1" "Execute item ITEM from the macro ring.
 ARG is the number of times to execute the item.")
@@ -19835,6 +19929,57 @@ sleep in seconds.
 (register-definition-prefixes "semantic/symref/list" '("semantic-symref-"))
 
 
+;;; Generated autoloads from progmodes/lldbx.el
+
+(autoload 'lldbx-mode "lldbx" "\
+Minor mode for read-only source buffers in LLDB.
+
+This is a minor mode.  If called interactively, toggle the `Lldbx mode'
+mode.  If the prefix argument is positive, enable the mode, and if it is
+zero or negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the mode
+if ARG is a negative number.
+
+To check whether the minor mode is enabled in the current buffer,
+evaluate the variable `lldbx-mode'.
+
+The mode's hook is called both when the mode is enabled and when it is
+disabled.
+
+(fn &optional ARG)" t)
+(defvar global-lldbx-mode nil "\
+Non-nil if Global Lldbx mode is enabled.
+See the `global-lldbx-mode' command
+for a description of this minor mode.
+Setting this variable directly does not take effect;
+either customize it (see the info node `Easy Customization')
+or call the function `global-lldbx-mode'.")
+(custom-autoload 'global-lldbx-mode "lldbx" nil)
+(autoload 'global-lldbx-mode "lldbx" "\
+Global minor mode for additional LLDB support.
+
+This installs advices and whatever else is needed.
+
+This is a global minor mode.  If called interactively, toggle the
+`Global Lldbx mode' mode.  If the prefix argument is positive, enable
+the mode, and if it is zero or negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the mode
+if ARG is a negative number.
+
+To check whether the minor mode is enabled in the current buffer,
+evaluate `(default-value \\='global-lldbx-mode)'.
+
+The mode's hook is called both when the mode is enabled and when it is
+disabled.
+
+(fn &optional ARG)" t)
+(register-definition-prefixes "lldbx" '("lldbx-"))
+
+
 ;;; Generated autoloads from emacs-lisp/loaddefs-gen.el
 
 (put 'autoload-compute-prefixes 'safe-local-variable #'booleanp)
@@ -19874,7 +20019,7 @@ The first element on the command line should be the (main)
 loaddefs.el output file, and the rest are the directories to
 use.")
  (load "theme-loaddefs.el" t)
-(register-definition-prefixes "loaddefs-gen" '("autoload-" "generated-autoload-" "loaddefs-generate--" "no-update-autoloads"))
+(register-definition-prefixes "loaddefs-gen" '("autoload-" "generated-autoload-" "loaddefs-" "no-update-autoloads"))
 
 
 ;;; Generated autoloads from loadhist.el
@@ -20105,6 +20250,11 @@ Major mode for editing Lua files, powered by tree-sitter.
 \\{lua-ts-mode-map}
 
 (fn)" t)
+(autoload 'lua-ts-mode-maybe "lua-ts-mode" "\
+Enable `lua-ts-mode' when its grammar is available.
+Also propose to install the grammar when `treesit-enabled-modes'
+is t or contains the mode name.")
+(when (treesit-available-p) (add-to-list 'auto-mode-alist '("\\.lua\\'" . lua-ts-mode-maybe)) (add-to-list 'interpreter-mode-alist '("\\<lua\\(?:jit\\)?" . lua-ts-mode-maybe)) (defvar treesit-major-mode-remap-alist) (add-to-list 'treesit-major-mode-remap-alist '(lua-mode . lua-ts-mode)))
 (register-definition-prefixes "lua-ts-mode" '("lua-ts-"))
 
 
@@ -20693,6 +20843,11 @@ Populate MENU with commands that open a man page at point.
 Major mode for editing Markdown using tree-sitter grammar.
 
 (fn)" t)
+(autoload 'markdown-ts-mode-maybe "markdown-ts-mode" "\
+Enable `markdown-ts-mode' when its grammar is available.
+Also propose to install the grammar when `treesit-enabled-modes'
+is t or contains the mode name.")
+(when (treesit-available-p) (add-to-list 'auto-mode-alist '("\\.md\\'" . markdown-ts-mode-maybe)) (defvar treesit-major-mode-remap-alist) (add-to-list 'treesit-major-mode-remap-alist '(markdown-mode . markdown-ts-mode)))
 (register-definition-prefixes "markdown-ts-mode" '("markdown-ts-"))
 
 
@@ -21198,6 +21353,7 @@ Major mode for editing HTML with embedded JavaScript and CSS.
 Powered by tree-sitter.
 
 (fn)" t)
+(when (treesit-available-p) (defvar treesit-major-mode-remap-alist) (add-to-list 'treesit-major-mode-remap-alist '(mhtml-mode . mhtml-ts-mode)))
 (register-definition-prefixes "mhtml-ts-mode" '("mhtml-ts-mode-"))
 
 
@@ -24614,6 +24770,7 @@ for the result of evaluating EXP (first arg to `pcase').
 (fn NAME ARGS [DOC] &rest BODY...)" nil t)
 (function-put 'pcase-defmacro 'lisp-indent-function 2)
 (function-put 'pcase-defmacro 'doc-string-elt 3)
+(function-put 'pcase-defmacro 'autoload-macro 'expand)
 (register-definition-prefixes "pcase" '("pcase-"))
 
 
@@ -25142,6 +25299,11 @@ Prompt for CMD if `php-ts-mode-php-executable' is nil.
 Optional CONFIG, if supplied, is the php.ini file to use.
 
 (fn &optional CMD CONFIG)" t)
+(autoload 'php-ts-mode-maybe "php-ts-mode" "\
+Enable `php-ts-mode' when its grammar is available.
+Also propose to install the grammar when `treesit-enabled-modes'
+is t or contains the mode name.")
+(when (treesit-available-p) (add-to-list 'auto-mode-alist '("\\.\\(?:php[s345]?\\|phtml\\)\\'" . php-ts-mode-maybe)) (add-to-list 'auto-mode-alist '("\\.\\(?:php\\|inc\\|stub\\)\\'" . php-ts-mode-maybe)) (add-to-list 'auto-mode-alist '("/\\.php_cs\\(?:\\.dist\\)?\\'" . php-ts-mode-maybe)) (add-to-list 'interpreter-mode-alist (cons "php\\(?:-?[34578]\\(?:\\.[0-9]+\\)*\\)?" 'php-ts-mode-maybe)) (defvar treesit-major-mode-remap-alist) (add-to-list 'treesit-major-mode-remap-alist '(php-mode . php-ts-mode)))
 (register-definition-prefixes "php-ts-mode" '("inferior-php-ts-mode" "php-ts-"))
 
 
@@ -25296,6 +25458,296 @@ disabled.
 
 (fn &optional ARG)" t)
 (register-definition-prefixes "pixel-scroll" '("pixel-"))
+
+
+;;; Generated autoloads from emacs-lisp/pkg.el
+
+(push '(pkg 1 0) package--builtin-versions)
+(autoload 'buffer-package "pkg" "\
+Return the value of *package* set in BUFFER.
+
+(fn &optional (BUFFER (current-buffer)))")
+(autoload 'set-buffer-package "pkg" "\
+Set the value of *package* in BUFFER to PACKAGE.
+
+(fn BUFFER PACKAGE)")
+(autoload 'do-symbols "pkg" "\
+Loop over symbols in a package.
+
+Evaluate BODY with VAR bound to each symbol accessible in the given
+PACKAGE, or the current package if PACKAGE is not specified.
+
+Return what RESULT-FORM evaluates to, if specified, and the loop ends
+normally, or else if an explcit return occurs the value it transfers.
+
+(fn (VAR &optional (PACKAGE \\='*package*) RESULT-FORM) &body BODY)" nil t)
+(function-put 'do-symbols 'lisp-indent-function 1)
+(autoload 'do-external-symbols "pkg" "\
+Loop over external symbols in a package.
+
+Evaluate BODY with VAR bound to each symbol accessible in the given
+PACKAGE, or the current package if PACKAGE is not specified.
+
+Return what RESULT-FORM evaluates to, if specified, and the loop ends
+normally, or else if an explcit return occurs the value it transfers.
+
+(fn (VAR &optional (PACKAGE \\='*package*) RESULT-FORM) &body BODY)" nil t)
+(autoload 'do-all-symbols "pkg" "\
+Loop over all symbols in all registered packages.
+
+Evaluate BODY with VAR bound to each symbol accessible in the given
+PACKAGE, or the current package if PACKAGE is not specified.
+
+Return what RESULT-FORM evaluates to, if specified, and the loop ends
+normally, or else if an explcit return occurs the value it transfers.
+
+(fn (VAR &optional RESULT-FORM) &body BODY)" nil t)
+(autoload 'internal-symbols "pkg" "\
+
+
+(fn PACKAGE)")
+(autoload 'external-symbols "pkg" "\
+
+
+(fn PACKAGE)")
+(autoload 'without-package-locks "pkg" "\
+
+
+(fn &body BODY)" nil t)
+(autoload 'pkg--with-package-locks "pkg" "\
+
+
+(fn PACKAGES LOCK BODY)")
+(autoload 'with-unlocked-packages "pkg" "\
+
+
+(fn (&rest PACKAGES) &rest BODY)" nil t)
+(function-put 'with-unlocked-packages 'lisp-indent-function 1)
+(autoload 'with-locked-packages "pkg" "\
+
+
+(fn (&rest PACKAGES) &rest BODY)" nil t)
+(function-put 'with-locked-packages 'lisp-indent-function 1)
+(autoload 'make-package "pkg" "\
+Create and return a new package with name NAME.
+
+NAME must be a string designator, that is a string, a symbol, or
+a character.  If it is a symbol, the symbol's name will be used
+as package name.  If a character, the character's string
+representation will be used (`char-to-string').
+
+NICKNAMES specifies a list of string designators for additional
+names which may be used to refer to the package.  Default is nil.
+
+USE specifies zero or more packages the external symbols of which
+are to be inherited by the package.  See also function
+`use-package'.  All packages in the use-list must be either
+package objects or they are looked up in the package registry
+with `find-package'.  If they are not found, a new package with
+the given name is created.
+
+SIZE gives the size to use for the symbol table of the new
+package.  Default is 10.
+
+REGISTER if true means register the package in the package
+registry.
+
+Please note that the newly created package is not automaticall
+registered in the package registry, that is it will not be found
+under its names by `find-package'.  Use `register-package' to
+register the package.  This deviates from the CLHS specification,
+but is what Common Lisp implementations usually do.
+
+(fn NAME &key NICKNAMES USE (SIZE 10) (REGISTER nil))")
+(autoload 'register-package "pkg" "\
+Register PACKAGE in the package registry.
+Signal an error if the name or one of the nicknames of PACKAGE
+conflicts with a name already present in the registry.
+Value is PACKAGE.
+
+(fn PACKAGE)")
+(autoload 'unregister-package "pkg" "\
+Unregister PACKAGE from the package registry.
+This removed the name of the package and all its nicknames
+from *package-registry*.
+
+(fn PACKAGE)")
+(autoload 'list-all-packages "pkg" "\
+Return a fresh list of all registered packages.")
+(autoload 'package-name "pkg" "\
+Return the name of PACKAGE.
+If PACKAGE is not a package object already, it must the name of a
+registered package.
+
+(fn PACKAGE)")
+(autoload 'package-nicknames "pkg" "\
+Return the list of nickname strings of PACKAGE.
+If PACKAGE is not a package object already, it must be the name of a
+registered package.
+
+(fn PACKAGE)")
+(autoload 'package-local-nicknames "pkg" "\
+Return an alist of package-local nicknames of PACKAGE.
+Optional PACKAGE defaults to the current package.
+If PACKAGE is not a package object already, it must be the name of a
+registered package.
+
+(fn &optional (PACKAGE *package*))")
+(autoload 'add-package-local-nickname "pkg" "\
+Add a package-local nickname.
+Adds NICKNAME for PACKAGE in the designated package TO,
+defaulting to current package. NICKNAME must be a string
+designator, and PACKAGE must be a package designator.
+
+(fn NICKNAME PACKAGE &optional (TO *package*))")
+(autoload 'package-shadowing-symbols "pkg" "\
+Return the list of shadowing symbols of PACKAGE.
+If PACKAGE is not a package object already, it must the name of a
+registered package.
+
+(fn PACKAGE)")
+(autoload 'package-locked-p "pkg" "\
+Return non-nnil if PACKAGE is locked.
+If PACKAGE is not a package object already, it must the name of a
+registered package.
+
+(fn PACKAGE)")
+(autoload 'lock-package "pkg" "\
+Lock PACKAGE.
+If PACKAGE is not a package object already, it must the name of a
+registered package.
+
+(fn PACKAGE)")
+(autoload 'unlock-package "pkg" "\
+Lock PACKAGE.
+If PACKAGE is not a package object already, it must the name of a
+registered package.
+
+(fn PACKAGE)")
+(autoload 'package-use-list "pkg" "\
+
+
+(fn PACKAGE)")
+(autoload 'package-used-by-list "pkg" "\
+Return a list of packages using PACKAGE.
+
+(fn PACKAGE)")
+(autoload 'find-package "pkg" "\
+Find and return the package for PACKAGE.
+If PACKAGE is a package object, return that.
+
+Otherwise, PACKAGE must be a package name, and that name
+is lookup up in the package registry and the result is
+returned if found.
+
+Value is nil if no package with the given name is found. 
+
+(fn PACKAGE)")
+(autoload 'delete-package "pkg" "\
+Delete PACKAGE.
+
+If PACKAGE is an already deleted package, return nil.
+
+If PACKAGE is a package that is not already deleted, or PACKAGE
+is a package name that is registered, delete that package by
+removing it from the package registry, and return t.
+
+After this operation completes, the home package of any symbol
+whose home package had previously been package is set to nil.
+That is, these symbols are now considered uninterned symbols.
+
+An attempt to delete one of the standard packages results in an
+error.
+
+(fn PACKAGE)")
+(autoload 'rename-package "pkg" "\
+Replace name and nicknames of PACKAGE with NEW-NAME and NEW-NICKNAMES.
+
+PACKAGE must be a package object, or name a registered package.
+Deleted packages cannot be renamed.
+
+NEW-NAME must be a valid package name, a string, symbol, or
+character.
+
+Optional NEW-NICKSNAMES must be a list of valid package names.
+
+Value is the renamed package object.
+
+(fn PACKAGE NEW-NAME &optional NEW-NICKNAMES)")
+(autoload 'export "pkg" "\
+tbd
+
+(fn SYMBOLS &optional PACKAGE)")
+(autoload 'unexport "pkg" "\
+
+
+(fn SYMBOLS &optional PACKAGE)")
+(autoload 'import "pkg" "\
+
+
+(fn SYMBOLS &optional PACKAGE)")
+(autoload 'shadow "pkg" "\
+Make an internal symbol in PACKAGE with the same name as each of the
+  specified SYMBOLS, adding the new symbols to the Package-Shadowing-Symbols.
+  If a symbol with the given name is already present in PACKAGE, then
+  the existing symbol is placed in the shadowing symbols list if it is
+  not already present.
+
+(fn SYMBOLS &optional PACKAGE)")
+(autoload 'shadowing-import "pkg" "\
+
+
+(fn SYMBOLS &optional PACKAGE)")
+(autoload 'cl-use-package "pkg" "\
+Add package(s) USE the the use-list of PACKAGE.
+USE may be a package or list of packages or package designators.
+Optional PACKAGE specifies the PACKAGE whose use-list is
+to be changed.  If not specified, use the current package.
+Value is t.
+
+(fn USE &optional PACKAGE)")
+(autoload 'unuse-package "pkg" "\
+Remove package(s) UNUSE the the use-list of PACKAGE.
+UNUSE may be a package or list of packages or package designators.
+Optional PACKAGE specifies the PACKAGE whose use-list is
+to be changed.  If not specified, use the current package.
+Value is t.
+
+(fn UNUSE &optional PACKAGE)")
+(autoload 'in-package* "pkg" "\
+Switch current package to PACKAGE with completion.
+
+(fn PACKAGE)" t)
+(autoload 'pkg-defpackage "pkg" "\
+
+
+(fn NAME NICKNAMES LOCAL-NICKNAMES SIZE SHADOWS SHADOWING-IMPORTS USE IMPORTS INTERNS EXPORTS DOC-STRING)")
+(autoload 'defpackage "pkg" "\
+Defines a new package called PACKAGE.  Each of OPTIONS should be one of the
+   following:
+     (:nicknames {package-name}*)
+     (:local-nicknames (local-nickname actual-package-name)*)
+     (:size <integer>)
+     (:shadow {symbol-name}*)
+     (:shadowing-import-from <package-name> {symbol-name}*)
+     (:use {package-name}*)
+     (:import-from <package-name> {symbol-name}*)
+     (:intern {symbol-name}*)
+     (:export {symbol-name}*)
+     (:documentation doc-string)
+   All options except :SIZE and :DOCUMENTATION can be used multiple times.
+
+(fn PACKAGE &rest OPTIONS)" nil t)
+(function-put 'defpackage 'lisp-indent-function 'defun)
+(autoload 'pkg--%in-package "pkg" "\
+
+
+(fn NAME)")
+(autoload 'in-package "pkg" "\
+
+
+(fn PACKAGE)" nil t)
+(register-definition-prefixes "pkg" '("find-all-symbols" "pkg-"))
 
 
 ;;; Generated autoloads from plstore.el
@@ -26091,13 +26543,19 @@ interactively, include all files under the project root, except
 for VCS directories listed in `vc-directory-exclusion-list'.
 
 (fn &optional INCLUDE-ALL)" t)
-(autoload 'project-find-matching-file "project" "\
-Visit the file that matches the current one, in another project.
-It will skip to the same line number as well.
-A matching file has the same file name relative to the project root.
+(autoload 'project-find-matching-buffer "project" "\
+Switch to a matching buffer in another project.
+For most file-visiting buffers, the matching buffer is one visiting a
+file in the other project which has the same file name relative to the
+project root.  See `project-find-matching-file' for details.
+Non-file-visiting major modes may configure a different notion of
+matching buffer; see `project-find-matching-buffer-function'.
+
 When called during switching to another project, this command will
-detect it and use the override.  Otherwise, it prompts for the project
-to use from the known list." t)
+detect that, and use the override.  Otherwise, it prompts for the
+project to use from the list of known projects.
+When calling from Lisp, bind `project-current-directory-override' to a
+directory under the target project to preempt this prompting." t)
 (autoload 'project-find-dir "project" "\
 Start Dired in a directory inside the current project.
 
@@ -26114,13 +26572,17 @@ Start an inferior shell in the current project's root directory.
 If a buffer already exists for running a shell in the project's root,
 switch to it.  Otherwise, create a new shell buffer.
 With \\[universal-argument] prefix arg, create a new inferior shell buffer even
-if one already exists." t)
+if one already exists.
+With numeric prefix arg, switch to the session with that number, or
+create it if it doesn't already exist." t)
 (autoload 'project-eshell "project" "\
 Start Eshell in the current project's root directory.
 If a buffer already exists for running Eshell in the project's root,
 switch to it.  Otherwise, create a new Eshell buffer.
 With \\[universal-argument] prefix arg, create a new Eshell buffer even
-if one already exists." t)
+if one already exists.
+With numeric prefix arg, switch to the session with that number, or
+create it if it doesn't already exist." t)
 (autoload 'project-async-shell-command "project" "\
 Run `async-shell-command' in the current project's root directory." t)
 (function-put 'project-async-shell-command 'interactive-only 'async-shell-command)
@@ -26217,9 +26679,13 @@ Like `save-some-buffers', but only for this project's buffers.
 Add project PR to the front of the project list.
 If project PR satisfies `project-list-exclude', then nothing is done.
 Save the result in `project-list-file' if the list of projects
-has changed, and NO-WRITE is nil.
+has changed.
+When called from Lisp, optional argument NO-WRITE non-nil means to
+suppress saving `project-list-file'.
+Optional argument STABLE means don't move PR to the front of the project
+list if it's already present further down the project list.
 
-(fn PR &optional NO-WRITE)" t)
+(fn PR &optional NO-WRITE STABLE)" t)
 (autoload 'project-forget-project "project" "\
 Remove directory PROJECT-ROOT from the project list.
 PROJECT-ROOT is the root directory of a known project listed in
@@ -28201,7 +28667,7 @@ disabled.
 
 ;;; Generated autoloads from nxml/rng-xsd.el
 
-(put 'http://www.w3.org/2001/XMLSchema-datatypes 'rng-dt-compile #'rng-xsd-compile)
+(put 'http\://www.w3.org/2001/XMLSchema-datatypes 'rng-dt-compile #'rng-xsd-compile)
 (autoload 'rng-xsd-compile "rng-xsd" "\
 Provide W3C XML Schema as a RELAX NG datatypes library.
 NAME is a symbol giving the local name of the datatype.  PARAMS is a
@@ -28356,6 +28822,7 @@ Major mode for editing Ruby code.
 Major mode for editing Ruby, powered by tree-sitter.
 
 (fn)" t)
+(when (treesit-available-p) (defvar treesit-major-mode-remap-alist) (add-to-list 'treesit-major-mode-remap-alist '(ruby-mode . ruby-ts-mode)))
 (register-definition-prefixes "ruby-ts-mode" '("ruby-ts-"))
 
 
@@ -28391,6 +28858,11 @@ disabled.
 Major mode for editing Rust, powered by tree-sitter.
 
 (fn)" t)
+(autoload 'rust-ts-mode-maybe "rust-ts-mode" "\
+Enable `rust-ts-mode' when its grammar is available.
+Also propose to install the grammar when `treesit-enabled-modes'
+is t or contains the mode name.")
+(when (treesit-available-p) (add-to-list 'auto-mode-alist '("\\.rs\\'" . rust-ts-mode-maybe)) (defvar treesit-major-mode-remap-alist) (add-to-list 'treesit-major-mode-remap-alist '(rust-mode . rust-ts-mode)))
 (register-definition-prefixes "rust-ts-mode" '("rust-ts-"))
 
 
@@ -29491,6 +29963,7 @@ This mode automatically falls back to `sh-mode' if the buffer is
 not written in Bash or sh.
 
 (fn)" t)
+(when (treesit-available-p) (defvar treesit-major-mode-remap-alist) (add-to-list 'treesit-major-mode-remap-alist '(sh-mode . bash-ts-mode)))
 (register-definition-prefixes "sh-script" '("sh-"))
 
 
@@ -33521,6 +33994,42 @@ List all timers in a buffer.
 (register-definition-prefixes "titdic-cnv" '("batch-tit-" "tit-"))
 
 
+;;; Generated autoloads from tm.el
+
+(defvar tm-menu-mode nil "\
+Non-nil if Tm-Menu mode is enabled.
+See the `tm-menu-mode' command
+for a description of this minor mode.
+Setting this variable directly does not take effect;
+either customize it (see the info node `Easy Customization')
+or call the function `tm-menu-mode'.")
+(custom-autoload 'tm-menu-mode "tm" nil)
+(autoload 'tm-menu-mode "tm" "\
+Global minor mode for displaying menus with tty child frames.
+
+\\{tm-keymap}
+Entering a self-inserting character goes to the next menu-item starting
+with that character.  When no next items is found, start searching from
+the start.
+
+This is a global minor mode.  If called interactively, toggle the
+`Tm-Menu mode' mode.  If the prefix argument is positive, enable the
+mode, and if it is zero or negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the mode
+if ARG is a negative number.
+
+To check whether the minor mode is enabled in the current buffer,
+evaluate `(default-value \\='tm-menu-mode)'.
+
+The mode's hook is called both when the mode is enabled and when it is
+disabled.
+
+(fn &optional ARG)" t)
+(register-definition-prefixes "tm" '("tm-"))
+
+
 ;;; Generated autoloads from tmm.el
 
  (define-key global-map "\M-`" 'tmm-menubar)
@@ -33624,6 +34133,7 @@ Mode for displaying and reprioritizing top priority Todo.
 Major mode for editing TOML, powered by tree-sitter.
 
 (fn)" t)
+(when (treesit-available-p) (defvar treesit-major-mode-remap-alist) (add-to-list 'treesit-major-mode-remap-alist '(conf-toml-mode . toml-ts-mode)))
 (register-definition-prefixes "toml-ts-mode" '("toml-ts-mode-"))
 
 
@@ -34042,7 +34552,7 @@ Interactively, with a prefix argument, prompt for a different method." t)
 
 ;;; Generated autoloads from transient.el
 
-(push '(transient 0 9 3) package--builtin-versions)
+(push '(transient 0 9 4) package--builtin-versions)
 (autoload 'transient-insert-suffix "transient" "\
 Insert a SUFFIX into PREFIX before LOC.
 PREFIX is a prefix command, a symbol.
@@ -34136,6 +34646,11 @@ nil, the grammar is installed to the standard location, the
 \"tree-sitter\" directory under `user-emacs-directory'.
 
 (fn LANG &optional OUT-DIR)" t)
+(defvar treesit-enabled-modes nil "\
+Specify what treesit modes to enable by default.
+The value can be either a list of ts-modes to enable,
+or t to enable all ts-modes.")
+(custom-autoload 'treesit-enabled-modes "treesit" nil)
 (register-definition-prefixes "treesit" '("treesit-"))
 
 
@@ -34443,6 +34958,11 @@ This mode is intended to be inherited by concrete major modes.
 Major mode for editing TypeScript.
 
 (fn)" t)
+(autoload 'typescript-ts-mode-maybe "typescript-ts-mode" "\
+Enable `typescript-ts-mode' when its grammar is available.
+Also propose to install the grammar when `treesit-enabled-modes'
+is t or contains the mode name.")
+(when (treesit-available-p) (add-to-list 'auto-mode-alist '("\\.ts\\'" . typescript-ts-mode-maybe)) (defvar treesit-major-mode-remap-alist) (add-to-list 'treesit-major-mode-remap-alist '(typescript-mode . typescript-ts-mode)))
 (autoload 'tsx-ts-mode "typescript-ts-mode" "\
 Major mode for editing TSX and JSX documents.
 
@@ -34455,6 +34975,11 @@ The JSX-specific faces are used when `treesit-font-lock-level' is
 at least 3 (which is the default value).
 
 (fn)" t)
+(autoload 'tsx-ts-mode-maybe "typescript-ts-mode" "\
+Enable `tsx-ts-mode' when its grammar is available.
+Also propose to install the grammar when `treesit-enabled-modes'
+is t or contains the mode name.")
+(when (treesit-available-p) (add-to-list 'auto-mode-alist '("\\.tsx\\'" . tsx-ts-mode-maybe)) (defvar treesit-major-mode-remap-alist) (add-to-list 'treesit-major-mode-remap-alist '(tsx-mode . tsx-ts-mode)))
 (register-definition-prefixes "typescript-ts-mode" '("tsx-ts-" "typescript-ts-"))
 
 
@@ -35202,21 +35727,21 @@ deferred until the prefix key sequence is pressed.
 
 
 (fn NAME KEYWORD ARGS)")
-(defalias 'use-package-normalize/:bind 'use-package-normalize-binder)
-(defalias 'use-package-normalize/:bind* 'use-package-normalize-binder)
-(defalias 'use-package-autoloads/:bind 'use-package-autoloads-mode)
-(defalias 'use-package-autoloads/:bind* 'use-package-autoloads-mode)
-(autoload 'use-package-handler/:bind "use-package-bind-key" "\
+(defalias 'use-package-normalize/\:bind 'use-package-normalize-binder)
+(defalias 'use-package-normalize/\:bind* 'use-package-normalize-binder)
+(defalias 'use-package-autoloads/\:bind 'use-package-autoloads-mode)
+(defalias 'use-package-autoloads/\:bind* 'use-package-autoloads-mode)
+(autoload 'use-package-handler/\:bind "use-package-bind-key" "\
 
 
 (fn NAME KEYWORD ARGS REST STATE &optional BIND-MACRO)")
-(defalias 'use-package-normalize/:bind-keymap 'use-package-normalize-binder)
-(defalias 'use-package-normalize/:bind-keymap* 'use-package-normalize-binder)
-(autoload 'use-package-handler/:bind-keymap "use-package-bind-key" "\
+(defalias 'use-package-normalize/\:bind-keymap 'use-package-normalize-binder)
+(defalias 'use-package-normalize/\:bind-keymap* 'use-package-normalize-binder)
+(autoload 'use-package-handler/\:bind-keymap "use-package-bind-key" "\
 
 
 (fn NAME KEYWORD ARGS REST STATE &optional OVERRIDE)")
-(autoload 'use-package-handler/:bind-keymap* "use-package-bind-key" "\
+(autoload 'use-package-handler/\:bind-keymap* "use-package-bind-key" "\
 
 
 (fn NAME KEYWORD ARG REST STATE)")
@@ -35298,11 +35823,11 @@ Usage:
 
 ;;; Generated autoloads from use-package/use-package-delight.el
 
-(autoload 'use-package-normalize/:delight "use-package-delight" "\
+(autoload 'use-package-normalize/\:delight "use-package-delight" "\
 Normalize arguments to delight.
 
 (fn NAME KEYWORD ARGS)")
-(autoload 'use-package-handler/:delight "use-package-delight" "\
+(autoload 'use-package-handler/\:delight "use-package-delight" "\
 
 
 (fn NAME KEYWORD ARGS REST STATE)")
@@ -35311,11 +35836,11 @@ Normalize arguments to delight.
 
 ;;; Generated autoloads from use-package/use-package-diminish.el
 
-(autoload 'use-package-normalize/:diminish "use-package-diminish" "\
+(autoload 'use-package-normalize/\:diminish "use-package-diminish" "\
 
 
 (fn NAME KEYWORD ARGS)")
-(autoload 'use-package-handler/:diminish "use-package-diminish" "\
+(autoload 'use-package-handler/\:diminish "use-package-diminish" "\
 
 
 (fn NAME KEYWORD ARG REST STATE)")
@@ -35324,11 +35849,11 @@ Normalize arguments to delight.
 
 ;;; Generated autoloads from use-package/use-package-ensure.el
 
-(autoload 'use-package-normalize/:ensure "use-package-ensure" "\
+(autoload 'use-package-normalize/\:ensure "use-package-ensure" "\
 
 
 (fn NAME KEYWORD ARGS)")
-(autoload 'use-package-handler/:ensure "use-package-ensure" "\
+(autoload 'use-package-handler/\:ensure "use-package-ensure" "\
 
 
 (fn NAME KEYWORD ENSURE REST STATE)")
@@ -35337,11 +35862,11 @@ Normalize arguments to delight.
 
 ;;; Generated autoloads from use-package/use-package-ensure-system-package.el
 
-(autoload 'use-package-normalize/:ensure-system-package "use-package-ensure-system-package" "\
+(autoload 'use-package-normalize/\:ensure-system-package "use-package-ensure-system-package" "\
 Turn ARGS into a list of conses of the form (PACKAGE-NAME . INSTALL-COMMAND).
 
 (fn NAME-SYMBOL KEYWORD ARGS)")
-(autoload 'use-package-handler/:ensure-system-package "use-package-ensure-system-package" "\
+(autoload 'use-package-handler/\:ensure-system-package "use-package-ensure-system-package" "\
 Execute the handler for `:ensure-system-package' keyword in `use-package'.
 
 (fn NAME KEYWORD ARG REST STATE)")
@@ -35613,6 +36138,17 @@ See `vc-use-incoming-outgoing-prefixes' regarding giving this command a
 global binding.
 
 (fn &optional REMOTE-LOCATION)" t)
+(autoload 'vc-diff-incoming "vc" "\
+Report changes to VC fileset that would be pulled from REMOTE-LOCATION.
+When unspecified REMOTE-LOCATION is the place \\[vc-update] would pull from.
+When called interactively with a prefix argument, prompt for REMOTE-LOCATION.
+In some version control systems REMOTE-LOCATION can be a remote branch name.
+When called from Lisp optional argument FILESET overrides the VC fileset.
+
+See `vc-use-incoming-outgoing-prefixes' regarding giving this command a
+global binding.
+
+(fn &optional REMOTE-LOCATION FILESET)" t)
 (autoload 'vc-root-diff-outgoing "vc" "\
 Report diff of all changes that would be pushed to REMOTE-LOCATION.
 When unspecified REMOTE-LOCATION is the place \\[vc-push] would push to.
@@ -35623,6 +36159,17 @@ See `vc-use-incoming-outgoing-prefixes' regarding giving this command a
 global binding.
 
 (fn &optional REMOTE-LOCATION)" t)
+(autoload 'vc-diff-outgoing "vc" "\
+Report changes to VC fileset that would be pushed to REMOTE-LOCATION.
+When unspecified REMOTE-LOCATION is the place \\[vc-push] would push to.
+When called interactively with a prefix argument, prompt for REMOTE-LOCATION.
+In some version control systems REMOTE-LOCATION can be a remote branch name.
+When called from Lisp optional argument FILESET overrides the VC fileset.
+
+See `vc-use-incoming-outgoing-prefixes' regarding giving this command a
+global binding.
+
+(fn &optional REMOTE-LOCATION FILESET)" t)
 (autoload 'vc-version-ediff "vc" "\
 Show differences between REV1 and REV2 of FILES using ediff.
 This compares two revisions of the files in FILES.  Currently,
@@ -35937,30 +36484,40 @@ marked revisions, use those.
 (fn ADDRESSEE SUBJECT REVISIONS)" t)
 (autoload 'vc-add-working-tree "vc" "\
 Create working tree DIRECTORY with same backing repository as this tree.
-See Info node `(emacs)Other Working Trees' regarding VCS repositories
-with multiple working trees.
+Must be called from within an existing VC working tree.
+When called interactively, prompts for DIRECTORY.
+When called from Lisp, BACKEND is the VC backend.
 
 (fn BACKEND DIRECTORY)" t)
 (autoload 'vc-switch-working-tree "vc" "\
-Switch to this file or directory's analogue in working tree DIRECTORY.
-This command switches to the file or directory which has the same path
-relative to DIRECTORY that this buffer's file or directory has relative
+Switch to the version of this file in working tree under DIRECTORY.
+Must be called from within an existing VC working tree.
+When called interactively, prompts for DIRECTORY.
+This command switches to the file which has the same file
+name relative to DIRECTORY that this buffer's file has relative
 to the root of this working tree.
-DIRECTORY names another working tree with the same backing repository as
-this tree; see Info node `(emacs)Other Working Trees' for general
-information regarding VCS repositories with multiple working trees.
 
 (fn DIRECTORY)" t)
+(autoload 'vc-working-tree-switch-project "vc" "\
+Like \\[project-switch-project] but limited to projects with the same backing repository.
+Must be called from within an existing VC working tree.
+Prompts for the directory file name of the other working tree.
+
+(fn DIR)" t)
+(function-put 'vc-working-tree-switch-project 'interactive-only 'project-switch-project)
 (autoload 'vc-delete-working-tree "vc" "\
 Delete working tree DIRECTORY with same backing repository as this tree.
-See Info node `(emacs)Other Working Trees' regarding VCS repositories
-with multiple working trees.
+Must be called from within an existing VC working tree.
+When called interactively, prompts for DIRECTORY.
+BACKEND is the VC backend.
 
 (fn BACKEND DIRECTORY)" t)
 (autoload 'vc-move-working-tree "vc" "\
-Relocate a working tree from FROM to TO.
-See Info node `(emacs)Other Working Trees' regarding VCS repositories
-with multiple working trees.
+Relocate a working tree from FROM to TO, two directory file names.
+Must be called from within an existing VC working tree.
+When called interactively, prompts for the directory file names of each
+of the other working trees FROM and TO.
+BACKEND is the VC backend.
 
 (fn BACKEND FROM TO)" t)
 (register-definition-prefixes "vc" '("log-view-vc-prev-" "vc-" "with-vc-properties"))
@@ -37757,6 +38314,25 @@ The mode's hook is called both when the mode is enabled and when it is
 disabled.
 
 (fn &optional ARG)" t)
+(autoload 'whitespace-page-delimiters-mode "whitespace" "\
+Display page-break delimiter characters as horizontal lines.
+
+This is a minor mode.  If called interactively, toggle the
+`Whitespace-Page-Delimiters mode' mode.  If the prefix argument is
+positive, enable the mode, and if it is zero or negative, disable the
+mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the mode
+if ARG is a negative number.
+
+To check whether the minor mode is enabled in the current buffer,
+evaluate the variable `whitespace-page-delimiters-mode'.
+
+The mode's hook is called both when the mode is enabled and when it is
+disabled.
+
+(fn &optional ARG)" t)
 (put 'global-whitespace-mode 'globalized-minor-mode t)
 (defvar global-whitespace-mode nil "\
 Non-nil if Global Whitespace mode is enabled.
@@ -37832,6 +38408,7 @@ Interactively, it reads one of the following chars:
    t	toggle TAB visualization
    s	toggle SPACE and HARD SPACE visualization
    r	toggle trailing blanks visualization
+   p	toggle page delimiters visualization
    l	toggle \"long lines\" visualization
    L	toggle \"long lines\" tail visualization
    n	toggle NEWLINE visualization
@@ -37862,6 +38439,7 @@ The valid symbols are:
    tabs			toggle TAB visualization
    spaces		toggle SPACE and HARD SPACE visualization
    trailing		toggle trailing blanks visualization
+   page-delimiters	toggle page delimiters visualization
    lines		toggle \"long lines\" visualization
    lines-tail		toggle \"long lines\" tail visualization
    newline		toggle NEWLINE visualization
@@ -37903,6 +38481,7 @@ Interactively, it accepts one of the following chars:
    t	toggle TAB visualization
    s	toggle SPACE and HARD SPACE visualization
    r	toggle trailing blanks visualization
+   p	toggle page delimiters visualization
    l	toggle \"long lines\" visualization
    L	toggle \"long lines\" tail visualization
    C-l	toggle \"long lines\" one character visualization
@@ -37934,6 +38513,7 @@ The valid symbols are:
    tabs			toggle TAB visualization
    spaces		toggle SPACE and HARD SPACE visualization
    trailing		toggle trailing blanks visualization
+   page-delimiters	toggle page delimiters visualization
    lines		toggle \"long lines\" visualization
    lines-tail		toggle \"long lines\" tail visualization
    lines-char		toggle \"long lines\" one character visualization
@@ -38936,6 +39516,11 @@ a new xwidget-webkit session, otherwise use an existing session.
 Major mode for editing YAML, powered by tree-sitter.
 
 (fn)" t)
+(autoload 'yaml-ts-mode-maybe "yaml-ts-mode" "\
+Enable `yaml-ts-mode' when its grammar is available.
+Also propose to install the grammar when `treesit-enabled-modes'
+is t or contains the mode name.")
+(when (treesit-available-p) (add-to-list 'auto-mode-alist '("\\.ya?ml\\'" . yaml-ts-mode-maybe)) (defvar treesit-major-mode-remap-alist) (add-to-list 'treesit-major-mode-remap-alist '(yaml-mode . yaml-ts-mode)))
 (register-definition-prefixes "yaml-ts-mode" '("yaml-ts-mode--"))
 
 
@@ -39000,8 +39585,7 @@ run a specific program.  The program must be a member of
 (provide 'loaddefs)
 
 ;; Local Variables:
-;; no-byte-compile: t
-;; version-control: never
+;; no-byte-compile: t;; version-control: never
 ;; no-update-autoloads: t
 ;; no-native-compile: t
 ;; coding: utf-8-emacs-unix
