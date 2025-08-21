@@ -4119,7 +4119,7 @@ style."
   "Split STRING into a pattern.
 A pattern is a list where each element is either a string
 or a symbol, see `completion-pcm--merge-completions'."
-  (if (and point (< point (length string)))
+  (if (and point (<= point (length string)))
       (let ((prefix (substring string 0 point))
             (suffix (substring string point)))
         (append (completion-pcm--string->pattern prefix)
@@ -4180,12 +4180,6 @@ or a symbol, see `completion-pcm--merge-completions'."
       (pcase p
         (`(,(or 'any 'any-delim) ,(or 'any 'point) . ,_)
          (setq p (cdr p)))
-        ;; This is not just a performance improvement: it turns a
-        ;; terminating `point' into an implicit `any', which affects
-        ;; the final position of point (because `point' gets turned
-        ;; into a non-greedy ".*?" regexp whereas we need it to be
-        ;; greedy when it's at the end, see bug#38458).
-        (`(point) (setq p nil)) ;Implicit terminating `any'.
         (_ (push (pop p) n))))
     (nreverse n)))
 
@@ -4594,38 +4588,35 @@ the same set of elements."
   (cond
    ((null (cdr strs)) (list (car strs)))
    (t
-    (let ((re (completion-pcm--pattern->regex pattern 'group))
+    (let ((re (concat
+               (completion-pcm--pattern->regex pattern 'group)
+               ;; The implicit trailing `any' is greedy.
+               "\\([^z-a]*\\)"))
           (ccs ()))                     ;Chopped completions.
 
-      ;; First chop each string into the parts corresponding to each
-      ;; non-constant element of `pattern', using regexp-matching.
+      ;; First match each string against PATTERN as a regex and extract
+      ;; the text matched by each wildcard.
       (let ((case-fold-search completion-ignore-case))
         (dolist (str strs)
           (unless (string-match re str)
             (error "Internal error: %s doesn't match %s" str re))
           (let ((chopped ())
-                (last 0)
                 (i 1)
                 next)
-            (while (setq next (match-end i))
-              (push (substring str last next) chopped)
-              (setq last next)
+            (while (setq next (match-string i str))
+              (push next chopped)
               (setq i (1+ i)))
-            ;; Add the text corresponding to the implicit trailing `any'.
-            (push (substring str last) chopped)
             (push (nreverse chopped) ccs))))
 
-      ;; Then for each of those non-constant elements, extract the
-      ;; commonality between them.
+      ;; Then for each of those wildcards, extract the commonality between them.
       (let ((res ())
-            (fixed "")
             ;; Accumulate each stretch of wildcards, and process them as a unit.
             (wildcards ()))
         ;; Make the implicit trailing `any' explicit.
         (dolist (elem (append pattern '(any)))
           (if (stringp elem)
               (progn
-                (setq fixed (concat fixed elem))
+                (push elem res)
                 (setq wildcards nil))
             (let ((comps ()))
               (push elem wildcards)
@@ -4636,10 +4627,14 @@ the same set of elements."
               ;; different capitalizations in different parts.
               ;; In practice, it doesn't seem to make any difference.
               (setq ccs (nreverse ccs))
-              (let* ((prefix (try-completion fixed comps))
-                     (unique (or (and (eq prefix t) (setq prefix fixed))
+              (let* ((prefix (try-completion "" comps))
+                     (unique (or (and (eq prefix t) (setq prefix ""))
                                  (and (stringp prefix)
-                                      (eq t (try-completion prefix comps))))))
+                                      ;; If PREFIX is equal to all of COMPS,
+                                      ;; then PREFIX is a unique completion.
+                                      (seq-every-p
+                                       (lambda (comp) (= (length prefix) (length comp)))
+                                       comps)))))
                 ;; If there's only one completion, `elem' is not useful
                 ;; any more: it can only match the empty string.
                 ;; FIXME: in some cases, it may be necessary to turn an
@@ -4653,7 +4648,7 @@ the same set of elements."
                   ;; `prefix' only wants to include the fixed part before the
                   ;; wildcard, not the result of growing that fixed part.
                   (when (seq-some (lambda (elem) (eq elem 'prefix)) wildcards)
-                    (setq prefix fixed))
+                    (setq prefix ""))
                   (push prefix res)
                   ;; Push all the wildcards in this stretch, to preserve `point' and
                   ;; `star' wildcards before ELEM.
@@ -4677,8 +4672,7 @@ the same set of elements."
                       (unless (equal suffix "")
                         (push suffix res))))
                   ;; We pushed these wildcards on RES, so we're done with them.
-                  (setq wildcards nil))
-                (setq fixed "")))))
+                  (setq wildcards nil))))))
         ;; We return it in reverse order.
         res)))))
 

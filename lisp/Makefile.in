@@ -213,7 +213,7 @@ autoloads-force:
 
 ldefs-boot.el: autoloads-force
 	sed '/^;; Local Variables:/a\
-;; no-byte-compile: t' \
+;; no-byte-compile: t'\
 		< $(lisp)/loaddefs.el > $(lisp)/ldefs-boot.el
 
 # This is required by the bootstrap-emacs target in ../src/Makefile, so
