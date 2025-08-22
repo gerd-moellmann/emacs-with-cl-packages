@@ -504,12 +504,13 @@ This user option controls the automatic deletion of projects from
 'project-list-file' that cannot be accessed when prompting for a
 project.
 
-The value can be a predicate which takes one argument and should return
-non-nil if the project should be removed.  If set to nil, all the
-inaccessible projects will not be removed automatically.
+The value must be an alist where each element must be in the form:
 
-By default this is set to 'project-prune-zombies-default' function
-which removes all non-remote projects.
+ (WHEN . PREDICATE)
+
+where WHEN specifies where the deletion will be performed, and PREDICATE
+a function which takes one argument, and must return non-nil if the
+project should be removed.
 
 ---
 *** New command 'project-save-some-buffers' bound to 'C-x p C-x s'.
@@ -3009,6 +3010,11 @@ a remote host.  It must be used in conjunction with the function
 
 +++
 ** 'read-directory-name' now accepts an optional PREDICATE argument.
+
+---
+** JSON parse error line and column are now obsolete.
+The column number is no longer available; the line number will be
+removed in next Emacs release.
 
 
 * Changes in Emacs 31.1 on Non-Free Operating Systems
