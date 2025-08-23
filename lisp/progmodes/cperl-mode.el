@@ -2726,6 +2726,7 @@ PARSE-DATA is used to save status between calls in a loop."
 	   (if (listp indent) (setq indent (car indent)))
 	   (cond ((and (looking-at (rx (sequence (eval cperl--label-rx)
                                                  (not (in ":")))))
+                       (null (get-text-property (point) 'syntax-type))
                        (not (looking-at (rx (eval cperl--false-label-rx)))))
 		  (and (> indent 0)
 		       (setq indent (max cperl-min-label-indent
@@ -5064,7 +5065,7 @@ recursive calls in starting lines of here-documents."
 				(cperl-postpone-fontification
 				 (- (point) 2) (- (point) 1) 'face
 				 (if (memq qtag
-					   (append "ghijkmoqvFHIJKMORTVY" nil))
+				           (append "gijkmoqFIJKMOTY" nil))
                                      'font-lock-warning-face
 				   my-cperl-REx-0length-face))
 				(if (and (eq (char-after b) qtag)
