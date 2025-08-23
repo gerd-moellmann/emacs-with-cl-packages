@@ -5479,7 +5479,7 @@ igc_init_mac_late (void)
 #else // not HAVE_MACGUI
 
 void
-init_igc (void)
+igc_init (void)
 {
   init_global_igc ();
 }
