@@ -22,7 +22,6 @@ along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include "macterm.h"
 
-#include <AppKit/AppKit.h>
 #include <sys/socket.h>
 
 #include "character.h"
@@ -2561,7 +2560,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   if (!FRAME_TOOLTIP_P (f))
     {
       if (!self.shouldBeTitled)
-	windowStyle = (NSWindowStyleMaskBorderless | NSWindowStyleMaskResizable);
+	windowStyle = NSWindowStyleMaskBorderless;
       else
 	windowStyle = (NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
 		       | NSWindowStyleMaskMiniaturizable
@@ -2569,11 +2568,6 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
     }
   else
     windowStyle = NSWindowStyleMaskBorderless;
-
-  if (FRAME_UNDECORATED_ROUND (f))
-    {
-      windowStyle |= NSFullSizeContentViewWindowMask;
-    }
 
   if (oldWindow == nil)
     {
@@ -2698,14 +2692,6 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
       [window setIgnoresMouseEvents:YES];
       [window setExcludedFromWindowsMenu:YES];
       window.animationBehavior = NSWindowAnimationBehaviorNone;
-    }
-  if (FRAME_UNDECORATED_ROUND (f))
-    {
-      [window setTitlebarAppearsTransparent:YES];
-      [window setTitleVisibility:NSWindowTitleHidden];
-      [[window standardWindowButton:NSWindowCloseButton] setHidden:YES];
-      [[window standardWindowButton:NSWindowMiniaturizeButton] setHidden:YES];
-      [[window standardWindowButton:NSWindowZoomButton] setHidden:YES];
     }
 }
 
@@ -4282,10 +4268,10 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 - (void)updateWindowStyle
 {
   BOOL shouldBeTitled = self.shouldBeTitled;
-  struct frame *f = *emacsFrame;
 
   if (emacsWindow.hasTitleBar != shouldBeTitled)
     {
+      struct frame *f = *emacsFrame;
       Lisp_Object tool_bar_lines = get_frame_param (f, Qtool_bar_lines);
 
       if (FIXNUMP (tool_bar_lines) && XFIXNUM (tool_bar_lines) > 0)
@@ -4299,11 +4285,6 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 	    gui_set_frame_parameters (f, list1 (Fcons (Qtool_bar_lines,
 						       tool_bar_lines)));
 	  });
-      [self setupWindow];
-    }
-
-  if (([emacsWindow styleMask] & NSFullSizeContentViewWindowMask) != FRAME_UNDECORATED_ROUND (f))
-    {
       [self setupWindow];
     }
 
