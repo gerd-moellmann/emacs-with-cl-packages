@@ -115,6 +115,8 @@ static void mac_within_gui_allowing_inner_lisp (void (^) (void));
 static void mac_within_lisp (void (^) (void));
 static void mac_within_lisp_deferred_unless_popup (void (^) (void));
 
+static void mac_draw_queue_sync(void);
+
 #define MAC_SELECT_ALLOW_LISP_EVALUATION 1
 #if MAC_SELECT_ALLOW_LISP_EVALUATION
 static bool mac_select_allow_lisp_evaluation;
@@ -1225,6 +1227,12 @@ static bool handling_queued_nsevents_p;
 	   name:NSWorkspaceAccessibilityDisplayOptionsDidChangeNotification
 	 object:nil];
 
+  [[[NSWorkspace sharedWorkspace] notificationCenter]
+    addObserver:self
+       selector:@selector(willSleep:)
+	   name:NSWorkspaceWillSleepNotification
+	 object:nil];
+  
   [NSApp registerUserInterfaceItemSearchHandler:self];
   Vmac_help_topics = Qnil;
 
@@ -1315,6 +1323,12 @@ static bool handling_queued_nsevents_p;
 - (void)antialiasThresholdDidChange:(NSNotification *)notification
 {
   macfont_update_antialias_threshold ();
+}
+
+- (void)willSleep:(NSNotification *)notification {
+  // Do quick pre-sleep work here
+  NSLog(@"Entering sleep");
+  mac_draw_queue_sync();
 }
 
 - (void)updateObservedKeyPaths
