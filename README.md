@@ -55,7 +55,7 @@ A _self-contained_ app by default will go into `/Applications/Emacs.app`.
 
 ```bash
 ./autogen.sh
-CFLAGS="-O3 -mcpu=native" ./configure --with-native-compilation --with-tree-sitter --enable-mac-app=yes --enable-mac-self-contained
+CFLAGS="-O2 -mcpu=native" ./configure --with-native-compilation --with-tree-sitter --enable-mac-app=yes --enable-mac-self-contained
 ```
 
 You can specify another build directory for the self-contained app using `--enable-mac-app=/path/to/dir`.
