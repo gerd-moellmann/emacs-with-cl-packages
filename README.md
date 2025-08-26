@@ -13,7 +13,7 @@ Known working systems:
 - MacOS 14 (Sonoma) on ARM64 (M1, M3)
 - MacOS 12 (Monterey) on X86_64 (Intel)
 
-Please see the [issues](../../issues) for advice on build configurations for your system.
+Please see the [discussion](../../discussions/categories/show-and-tell) for advice on build configurations for your system.
 
 >[!IMPORTANT]
 > Please start a [discussion](../../discussions/categories/show-and-tell) to report your build experiences, even if you encounter no problems.  Mention your OS version, CPU, which branch you built, and any other relevant details, including the build/configure flags you used.
