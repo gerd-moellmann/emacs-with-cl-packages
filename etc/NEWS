@@ -2174,6 +2174,14 @@ include were committed and will be pushed.
 current VC fileset.
 
 +++
+*** New commands to report diffs of outstanding changes.
+'C-x v B =' ('vc-diff-outgoing-base') and 'C-x v B D'
+('vc-root-diff-outgoing-base') report diffs of changes since the merge
+base with the remote branch, including uncommitted changes.
+They are useful to view all outstanding (unmerged, unpushed) changes on
+the current branch.
+
++++
 *** New user option 'vc-use-incoming-outgoing-prefixes'.
 If this is customized to non-nil, 'C-x v I' and 'C-x v O' become prefix
 commands, such that the new incoming and outgoing commands have global
@@ -2521,6 +2529,18 @@ If non-nil, FFAP always finds remote files in buffers with remote
 'default-directory'.  If nil, FFAP finds local files first for absolute
 file names in above buffers.  The default is nil.
 
+** Debugging
+
++++
+*** New command 'edebug-bounce-to-previous-value' (bound to 'P')
+This command temporarily displays the outside current buffer with the
+outside point corresponding to the previous value, where the previous
+value is what Edebug has evaluated before its last stop point or what
+the user has evaluated in the context outside of Edebug.
+
+This replaces the binding of command 'edebug-view-outside' to 'P', which
+is still available on 'v'.
+
 ---
 ** Flymake
 
@@ -2604,6 +2624,11 @@ Latin-1 range 0-255.  This hard-coded maximum is replaced by
 'calc-string-maximum-character', and setting it to a higher value allows
 the display of matching vectors as Unicode strings.  The default value
 is 0xFF or 255 to preserve the existing behavior.
+
++++
+*** New user option 'calc-inhibit-startup-message'.
+If it is non-nil, inhibit Calc from printing its startup message.  The
+default value is nil to preserve the existing behavior.
 
 ** Time
 
@@ -2828,6 +2853,12 @@ If the new variable 'load-path-filter-function' is set to the new
 function 'load-path-filter-cache-directory-files', calling 'load' will
 cache the directories it scans and their files, and the following
 lookups should be faster.
+
++++
+** 'let-alist' supports indexing into lists.
+The macro 'let-alist' now interprets symbols containing numbers as list
+indices.  For example, '.key.0' looks up 'key' in the alist and then
+returns its first element.
 
 ** Lexical binding
 
