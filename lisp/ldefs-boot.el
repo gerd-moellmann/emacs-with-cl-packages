@@ -9732,7 +9732,8 @@ BUFFER is put back into its original major mode.
 
 
 (fn FUN &optional NAME)")
-(register-definition-prefixes "ehelp" '("ehelp-" "electric-"))
+ (autoload 'ehelp-command "ehelp" "Prefix command for ehelp." t 'keymap)
+(register-definition-prefixes "ehelp" '("ehelp-map" "electric-"))
 
 
 ;;; Generated autoloads from emacs-lisp/eieio.el
@@ -20240,6 +20241,29 @@ Otherwise they are treated as Emacs regexps (for backward compatibility).")
 (register-definition-prefixes "ls-lisp" '("ls-lisp-"))
 
 
+;;; Generated autoloads from progmodes/lua-mode.el
+
+(autoload 'lua-mode "lua-mode" "\
+Major mode for editing Lua code.
+
+(fn)" t)
+(add-to-list 'auto-mode-alist '("\\.lua\\'" . lua-mode))
+(add-to-list 'interpreter-mode-alist '("lua" . lua-mode))
+(defalias 'run-lua #'lua-start-process)
+(autoload 'lua-start-process "lua-mode" "\
+Start a Lua process named NAME, running PROGRAM.
+PROGRAM defaults to NAME, which defaults to `lua-default-application'.
+When called interactively, switch to the process buffer.
+
+STARTFILE is the name of a file, whose contents are sent to the process
+as its initial input.
+
+SWITCHES is a list of strings passed as arguments to PROGRAM.
+
+(fn &optional NAME PROGRAM STARTFILE &rest SWITCHES)" t)
+(register-definition-prefixes "lua-mode" '("lua-"))
+
+
 ;;; Generated autoloads from progmodes/lua-ts-mode.el
 
 (autoload 'lua-ts-inferior-lua "lua-ts-mode" "\
@@ -20250,11 +20274,7 @@ Major mode for editing Lua files, powered by tree-sitter.
 \\{lua-ts-mode-map}
 
 (fn)" t)
-(autoload 'lua-ts-mode-maybe "lua-ts-mode" "\
-Enable `lua-ts-mode' when its grammar is available.
-Also propose to install the grammar when `treesit-enabled-modes'
-is t or contains the mode name.")
-(when (treesit-available-p) (add-to-list 'auto-mode-alist '("\\.lua\\'" . lua-ts-mode-maybe)) (add-to-list 'interpreter-mode-alist '("\\<lua\\(?:jit\\)?" . lua-ts-mode-maybe)) (defvar treesit-major-mode-remap-alist) (add-to-list 'treesit-major-mode-remap-alist '(lua-mode . lua-ts-mode)))
+(when (treesit-available-p) (defvar treesit-major-mode-remap-alist) (add-to-list 'treesit-major-mode-remap-alist '(lua-mode . lua-ts-mode)))
 (register-definition-prefixes "lua-ts-mode" '("lua-ts-"))
 
 
@@ -25640,7 +25660,7 @@ Otherwise, PACKAGE must be a package name, and that name
 is lookup up in the package registry and the result is
 returned if found.
 
-Value is nil if no package with the given name is found.
+Value is nil if no package with the given name is found. 
 
 (fn PACKAGE)")
 (autoload 'delete-package "pkg" "\
@@ -27120,6 +27140,7 @@ Major mode for editing Python files, using tree-sitter library.
 \\{python-ts-mode-map}
 
 (fn)" t)
+(when (and (fboundp 'treesit-available-p) (treesit-available-p) (boundp 'treesit-major-mode-remap-alist)) (add-to-list 'treesit-major-mode-remap-alist '(python-mode . python-ts-mode)))
 (add-to-list 'auto-mode-alist '("/\\(?:Pipfile\\|\\.?flake8\\)\\'" . conf-mode))
 (register-definition-prefixes "python" '("inferior-python-mode" "python-" "run-python-internal" "subword-mode"))
 
@@ -36155,6 +36176,9 @@ When unspecified REMOTE-LOCATION is the place \\[vc-push] would push to.
 When called interactively with a prefix argument, prompt for REMOTE-LOCATION.
 In some version control systems REMOTE-LOCATION can be a remote branch name.
 
+This command is like `vc-root-diff-outgoing-base' except that it does
+not include uncommitted changes.
+
 See `vc-use-incoming-outgoing-prefixes' regarding giving this command a
 global binding.
 
@@ -36166,8 +36190,48 @@ When called interactively with a prefix argument, prompt for REMOTE-LOCATION.
 In some version control systems REMOTE-LOCATION can be a remote branch name.
 When called from Lisp optional argument FILESET overrides the VC fileset.
 
+This command is like `vc-diff-outgoing-base' except that it does not
+include uncommitted changes.
+
 See `vc-use-incoming-outgoing-prefixes' regarding giving this command a
 global binding.
+
+(fn &optional REMOTE-LOCATION FILESET)" t)
+(autoload 'vc-root-diff-outgoing-base "vc" "\
+Report diff of all changes since the merge base with REMOTE-LOCATION.
+The merge base with REMOTE-LOCATION means the common ancestor of the
+working revision and REMOTE-LOCATION.
+Uncommitted changes are included in the diff.
+
+When unspecified REMOTE-LOCATION is the place \\[vc-push] would push to.
+This default meaning for REMOTE-LOCATION may change in a future release
+of Emacs.
+
+When called interactively with a prefix argument, prompt for
+REMOTE-LOCATION.  In some version control systems, REMOTE-LOCATION can
+be a remote branch name.
+
+This command is like `vc-root-diff-outgoing' except that it includes
+uncommitted changes.
+
+(fn &optional REMOTE-LOCATION)" t)
+(autoload 'vc-diff-outgoing-base "vc" "\
+Report changes to VC fileset since the merge base with REMOTE-LOCATION.
+
+The merge base with REMOTE-LOCATION means the common ancestor of the
+working revision and REMOTE-LOCATION.
+Uncommitted changes are included in the diff.
+
+When unspecified REMOTE-LOCATION is the place \\[vc-push] would push to.
+This default meaning for REMOTE-LOCATION may change in a future release
+of Emacs.
+
+When called interactively with a prefix argument, prompt for
+REMOTE-LOCATION.  In some version control systems, REMOTE-LOCATION can
+be a remote branch name.
+
+This command is like to `vc-fileset-diff-outgoing' except that it
+includes uncommitted changes.
 
 (fn &optional REMOTE-LOCATION FILESET)" t)
 (autoload 'vc-version-ediff "vc" "\
