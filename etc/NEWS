@@ -435,6 +435,12 @@ When non-nil, it truncates the tab bar, and therefore prevents
 wrapping and resizing the tab bar to more than one line.
 
 ---
+*** New user option 'tab-line-define-keys'.
+When t, the default, it redefines window buffer switching keys
+such as 'C-x <left>' and 'C-x <right>' to tab-line specific variants
+for switching tabs.
+
+---
 *** New command 'tab-line-move-tab-forward' ('C-x M-<right>').
 Together with the new command 'tab-line-move-tab-backward'
 ('C-x M-<left>'), it can be used to move the current tab
@@ -614,6 +620,14 @@ To use the ':foreground' or current text color ensure the 'fill' attribute
 in the SVG is set to 'currentcolor', or set the image spec's ':css'
 value to 'svg {fill: currentcolor;}'.
 
+---
+** Errors signaled by 'emacsclient' connections can now enter the debugger.
+If 'debug-on-error' is non-nil, errors signaled by Lisp programs
+executed due to 'emacsclient' connections will now enter the Lisp
+debugger and show the backtrace.  If 'debug-on-error' is nil, these
+errors will be sent to 'emacsclient', as before, and will be displayed
+on the terminal from which 'emacsclient' was invoked.
+
 
 * Editing Changes in Emacs 31.1
 
@@ -761,6 +775,7 @@ the default UI you get, i.e., when 'register-use-preview' is 'traditional'.
 
 ** Tree-sitter
 
++++
 *** New user option 'treesit-enabled-modes'.
 You can customize it either to t to enable all available ts-modes,
 or to select a list of ts-modes to enable.  Depending on customization,
