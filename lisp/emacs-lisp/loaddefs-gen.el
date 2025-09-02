@@ -42,8 +42,6 @@
 (require 'radix-tree)
 (require 'lisp-mnt)
 (require 'generate-lisp-file)
-(require 'cl-lib)
-(require 'cl-extra)
 
 (defvar autoload-compute-prefixes t
   "If non-nil, autoload will add code to register the prefixes used in a file.
