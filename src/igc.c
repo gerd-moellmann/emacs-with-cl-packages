@@ -4809,6 +4809,30 @@ really know what you are doing!  */)
   return Qnil;
 }
 
+static bool
+read_gens (mps_gen_param_s **gens, int *ngens)
+{
+  const char *env = getenv ("EMACS_IGC_GENS");
+  if (env == NULL)
+    return false;
+  const char *end = env + strlen (env);
+  static struct mps_gen_param_s parms[10];
+  int i, n;
+  for (i = 0; i < ARRAYELTS (parms) && env < end; ++i, env += n)
+    {
+      int nitems = sscanf (env, "%zu %lf%n", &parms[i].mps_capacity,
+			   &parms[i].mps_mortality, &n);
+      if (nitems != 2)
+	return false;
+      fprintf (stderr, "gen %d: %zu %g\n", i, parms[i].mps_capacity,
+	       parms[i].mps_mortality);
+    }
+
+  *ngens = i;
+  *gens = parms;
+  return true;
+}
+
 static void
 make_arena (struct igc *gc)
 {
@@ -4820,12 +4844,18 @@ make_arena (struct igc *gc)
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
 
-  mps_gen_param_s gens[]
-    = { { 256000, 0.8 },
-	{ 256000, 0.6 },
-	{ 256000, 0.4 },
-	{ 2 * 256000, 0.2 } };
-  res = mps_chain_create (&gc->chain, gc->arena, ARRAYELTS (gens), gens);
+  mps_gen_param_s *gens;
+  int ngens;
+  if (!read_gens (&gens, &ngens))
+    {
+      static mps_gen_param_s default_gens[] = {
+	{ 256000, 0.8 }, { 256000, 0.6 }, { 256000, 0.4 }, { 2 * 256000, 0.2 }
+      };
+      gens = default_gens;
+      ngens = ARRAYELTS (default_gens);
+    }
+
+  res = mps_chain_create (&gc->chain, gc->arena, ngens, gens);
   IGC_CHECK_RES (res);
 }
 
