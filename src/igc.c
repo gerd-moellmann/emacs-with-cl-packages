@@ -4813,6 +4813,7 @@ static bool
 read_gens (mps_gen_param_s **gens, int *ngens)
 {
   const char *env = getenv ("EMACS_IGC_GENS");
+  const char *verbose = getenv ("EMACS_IGC_VERBOSE");
   if (env == NULL)
     return false;
   const char *end = env + strlen (env);
@@ -4824,8 +4825,9 @@ read_gens (mps_gen_param_s **gens, int *ngens)
 			   &parms[i].mps_mortality, &n);
       if (nitems != 2)
 	return false;
-      fprintf (stderr, "gen %d: %zu %g\n", i, parms[i].mps_capacity,
-	       parms[i].mps_mortality);
+      if (verbose)
+	fprintf (stderr, "gen %d: %zu %g\n", i, parms[i].mps_capacity,
+		 parms[i].mps_mortality);
     }
 
   *ngens = i;
