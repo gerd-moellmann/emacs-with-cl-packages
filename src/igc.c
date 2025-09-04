@@ -4032,33 +4032,6 @@ buffer_it_next (struct igc_buffer_it *it)
 }
 
 static bool
-arena_step (void)
-{
-  /* mps_arena_step does not guarantee to return swiftly.  And it seems
-     that it sometimes does an opportunistic full collection alleging
-     the client predicted lots of idle time.  But it doesn't tell how
-     it comes to that conclusion. This is caused by bug#79346 in MPS. */
-  if (!FIXNUMP (Vigc_step_interval)
-      || XFIXNUM (Vigc_step_interval) != 0)
-    {
-      double interval = 0;
-      if (NUMBERP (Vigc_step_interval))
-	{
-	  interval = XFLOATINT (Vigc_step_interval);
-	  if (interval < 0)
-	    interval = 0.05;
-	}
-
-      /* 1.0 is the lowest possible value for the third argument to
-	 mps_arena_step (bug#76505).  */
-      if (mps_arena_step (global_igc->arena, interval, 1.0))
-	return true;
-    }
-
-  return false;
-}
-
-static bool
 buffer_step (struct igc_buffer_it *it)
 {
   if (is_buffer_it_valid (it))
@@ -4111,7 +4084,6 @@ igc_on_idle (void)
     bool work_done = false;
     work_done |= process_one_message (global_igc);
     work_done |= buffer_step (&buffer_it);
-    work_done |= arena_step ();
 
     /* Don't always exhaust the max time we want to spend here.  */
     if (!work_done)
@@ -5367,6 +5339,34 @@ KEY is the key associated with DEPENDENCY in a hash table.  */)
   return Qt;
 }
 
+DEFUN ("igc--arena-step", Figc__arena_step, Sigc__arena_step, 2, 2, 0,
+       doc: /* Do some GC work.
+
+INTERVAL is the time, in seconds, that MPS is permitted to take.
+
+MULTIPLIER is the number of further similar calls that the client
+program expects to make during this idle period.
+
+Return t if there was work to do, nil otherwise. */)
+  (Lisp_Object interval, Lisp_Object multiplier)
+{
+  /* mps_arena_step does not guarantee to return swiftly.  And it seems
+     that it sometimes does an opportunistic full collection alleging
+     the client predicted lots of idle time.  But it doesn't tell how
+     it comes to that conclusion. This is caused by bug#79346 in MPS. */
+
+  /* 1.0 is the lowest possible value for the multiplier argument to
+     mps_arena_step (bug#76505).  */
+
+  double secs = extract_float (interval);
+  if (secs < 0.0)
+    xsignal1 (Qrange_error, interval);
+  CHECK_FIXNAT (multiplier);
+  EMACS_INT n = XFIXNAT (multiplier);
+  bool work_to_do = mps_arena_step (global_igc->arena, secs, n);
+  return work_to_do ? Qt : Qnil;
+}
+
 /***********************************************************************
 				  DTrace
  ***********************************************************************/
@@ -5487,17 +5487,10 @@ syms_of_igc (void)
 #ifdef HAVE_DTRACE
   defsubr (&Sigc_test_probe);
 #endif
+  defsubr (&Sigc__arena_step);
   DEFSYM (Qambig, "ambig");
   DEFSYM (Qexact, "exact");
   Fprovide (intern_c_string ("mps"), Qnil);
-
-  DEFVAR_LISP ("igc-step-interval", Vigc_step_interval,
-    doc: /* How much time MPS is allowed to spend in GC when Emacs is idle.
-The value is in seconds, and should be a non-negative integer or float.
-The default value is 0 which means not to do anything when idle.
-Negative values and values that are not numbers are handled as if they
-were the default value.  */);
-  Vigc_step_interval = make_fixnum (0);
 
   DEFVAR_BOOL ("igc--balance-intervals", igc__balance_intervals,
      doc: /* Whether to balance buffer intervals when idle.  */);
