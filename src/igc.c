@@ -4817,25 +4817,27 @@ static bool
 read_gens (mps_gen_param_s **gens, int *ngens)
 {
   const char *env = getenv ("EMACS_IGC_GENS");
-  const char *verbose = getenv ("EMACS_IGC_VERBOSE");
   if (env == NULL)
     return false;
+  const char *verbose = getenv ("EMACS_IGC_VERBOSE");
   const char *end = env + strlen (env);
   static struct mps_gen_param_s parms[10];
-  int i, n;
-  for (i = 0; i < ARRAYELTS (parms) && env < end; ++i, env += n)
+  *ngens = 0;
+  *gens = parms;
+  for (int i = 0; i < ARRAYELTS (parms) && env < end; ++i)
     {
-      int nitems = sscanf (env, "%zu %lf%n", &parms[i].mps_capacity,
-			   &parms[i].mps_mortality, &n);
-      if (nitems != 2)
-	return false;
-      if (verbose)
-	fprintf (stderr, "gen %d: %zu %g\n", i, parms[i].mps_capacity,
-		 parms[i].mps_mortality);
+      int nchars;
+      if (sscanf (env, "%zu %lf%n", &parms[i].mps_capacity,
+		  &parms[i].mps_mortality, &nchars) == 2)
+	{
+	  if (verbose)
+	    fprintf (stderr, "gen %d: %zu %lf\n", i, parms[i].mps_capacity,
+		     parms[i].mps_mortality);
+	  env += nchars;
+	  ++*ngens;
+	}
     }
 
-  *ngens = i;
-  *gens = parms;
   return true;
 }
 
