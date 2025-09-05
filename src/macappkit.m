@@ -11376,7 +11376,7 @@ mac_fill_menubar (widget_value *first_wv, bool deep_p)
 
 	  [NSApp setMainMenu:newMenu];
 
-	  if (windowMenu)
+	  if (windowMenu && [windowMenu numberOfItems])
 	    [NSApp setWindowsMenu:windowMenu];
 
 	  if (helpMenu)
