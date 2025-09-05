@@ -4813,12 +4813,26 @@ read_gens (mps_gen_param_s **gens, int *ngens)
   return true;
 }
 
+static bool
+read_pause_time (double *time)
+{
+  const char *env = getenv ("EMACS_IGC_PAUSE_TIME");
+  if (env == NULL)
+    return false;
+  return sscanf (env, "%lf", time) == 1;
+}
+
 static void
 make_arena (struct igc *gc)
 {
   mps_res_t res;
   MPS_ARGS_BEGIN (args)
   {
+    double pause_time;
+    if (read_pause_time (&pause_time))
+      MPS_ARGS_ADD (args, MPS_KEY_PAUSE_TIME, pause_time);
+    else
+      MPS_ARGS_ADD (args, MPS_KEY_PAUSE_TIME, 0.05);
     res = mps_arena_create_k (&gc->arena, mps_arena_class_vm (), args);
   }
   MPS_ARGS_END (args);
