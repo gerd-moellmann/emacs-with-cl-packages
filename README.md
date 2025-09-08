@@ -5,6 +5,9 @@ This is an experimental build of the [emacs-mac](https://bitbucket.org/mituharu/
 > [!WARNING]
 > This is an experimental build of `emacs-mac`; there will certainly be bugs. We are looking for feedback and testing from experienced users.  If you are familiar with or willing to learn about running new builds of Emacs, including under a debugger, perfect.  If you are a Mac developer familiar with ObjC or Mac Window frameworks, even better (get in touch)!  Other users should stick to the official NS build or recent v29.4 emacs-mac release for now.
 
+> [!NOTE]
+> Branch organization and naming are subject to change.
+
 ## Status
 
 Known working systems:
