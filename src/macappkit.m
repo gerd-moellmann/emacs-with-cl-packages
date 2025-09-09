@@ -13957,7 +13957,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 - (NSSize)integralSizeOfPageAtIndex:(NSUInteger)index
 {
   PDFPage *page = [self pageAtIndex:index];
-  NSRect bounds = [page boundsForBox:kPDFDisplayBoxTrimBox];
+  NSRect bounds = [page boundsForBox:kPDFDisplayBoxCropBox];
   int rotation = [page rotation];
 
   if (rotation == 0 || rotation == 180)
@@ -13981,7 +13981,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 		options:(NSDictionaryOf (NSString *, id) *)options /* unused */
 {
   PDFPage *page = [self pageAtIndex:index];
-  NSRect bounds = [page boundsForBox:kPDFDisplayBoxTrimBox];
+  NSRect bounds = [page boundsForBox:kPDFDisplayBoxCropBox];
   int rotation = [page rotation];
   CGFloat width, height;
 
@@ -13999,7 +13999,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
       CGContextSaveGState (ctx);
       CGContextTranslateCTM (ctx, NSMinX (rect), NSMinY (rect));
       CGContextScaleCTM (ctx, NSWidth (rect) / width, NSHeight (rect) / height);
-      [page drawWithBox:kPDFDisplayBoxTrimBox toContext:ctx];
+      [page drawWithBox:kPDFDisplayBoxCropBox toContext:ctx];
       CGContextRestoreGState (ctx);
     }
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101200
