@@ -2566,6 +2566,10 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
   window.contentView = visualEffectView;
   MRC_RELEASE (visualEffectView);
+
+  if ([window respondsToSelector:@selector(titlebarAppearsTransparent)])
+    [window setTitlebarAppearsTransparent:FRAME_MAC_TRANSPARENT_TITLEBAR(f)];
+
   FRAME_BACKGROUND_ALPHA_ENABLED_P (f) = true;
   if (FRAME_MAC_DOUBLE_BUFFERED_P (f))
     {
@@ -4284,6 +4288,16 @@ mac_set_frame_window_modified (struct frame *f, bool modified)
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
 
   mac_within_gui (^{[window setDocumentEdited:modified];});
+}
+
+void
+mac_set_frame_window_transparent_titlebar (struct frame *f, bool transparent)
+{
+  NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
+
+  mac_within_gui (^{
+      if ([window respondsToSelector: @selector(titlebarAppearsTransparent)])
+	[window setTitlebarAppearsTransparent:transparent];});
 }
 
 void

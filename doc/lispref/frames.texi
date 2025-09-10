@@ -2307,6 +2307,7 @@ application's window.  (It is not certain this will be implemented; try
 it and see if it works.)
 @end ignore
 
+@ignore
 @vindex ns-appearance@r{, a frame parameter}
 @item ns-appearance
 Only available on macOS, if set to @code{dark} draw this frame's
@@ -2318,6 +2319,9 @@ background.
 
 @vindex ns-transparent-titlebar@r{, a frame parameter}
 @item ns-transparent-titlebar
+@end ignore
+@vindex mac-transparent-titlebar@r{, a frame parameter}
+@item mac-transparent-titlebar
 Only available on macOS, if non-@code{nil}, set the titlebar and
 toolbar to be transparent.  This effectively sets the background color
 of both to match the Emacs background color.
