@@ -740,6 +740,8 @@ struct frame
   /* NSAppearance theme used on this frame.  */
   enum ns_appearance_type ns_appearance;
   bool_bf ns_transparent_titlebar;
+#else
+  bool_bf mac_transparent_titlebar;
 #endif
 
 #ifdef HAVE_TEXT_CONVERSION
