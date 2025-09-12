@@ -645,7 +645,7 @@ pair with 'completing-read', and removes it from the translation table.
 ** Internationalization
 
 ---
-*** Emacs now supports Unicode version 16.0.
+*** Emacs now supports Unicode Standard version 17.0.
 
 ---
 *** New input method 'greek-polytonic'.
