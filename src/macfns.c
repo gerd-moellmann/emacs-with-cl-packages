@@ -5276,7 +5276,8 @@ frame_parm_handler mac_frame_parm_handlers[] =
 #ifdef NS_IMPL_COCOA
   NULL, /* ns_set_apperance */
   NULL, /* ns_tranaprent_titlebar */
-#else
+#endif
+#ifdef HAVE_MACGUI
   mac_set_transparent_titlebar,
 #endif
 };
