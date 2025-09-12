@@ -539,6 +539,13 @@ title/tool/tab bars look slightly colored with the value of the
 @code{scroll-bar-background} frame parameter (or the frame background
 color) if the frame is focused and not in fullscreen.
 
+@vindex mac-transparent-titlebar
+ The title bar transparency can be controlled by the value of the
+@code{mac-transparent-titlebar} frame parameter.  If it is @code{nil},
+which is the default then title bar uses system color for its
+background.  If it is non-@code{nil} then the frame background color is
+used instead.
+
 @node Mac Fullscreen
 @section Fullscreen support on the Mac Port
 @cindex fullscreen support (Mac port)
