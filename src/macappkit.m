@@ -1954,6 +1954,25 @@ emacs_windows_need_display_p (void)
 
 @end				// EmacsController
 
+void
+init_activation_policy (void)
+{
+  mac_within_gui (^{
+    if ([NSApp activationPolicy] == NSApplicationActivationPolicyProhibited)
+      {
+	/* Set the app's activation policy to regular when we run
+	   outside of a bundle.  This is already done for us by
+	   Info.plist when we run inside a bundle.  */
+	[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+
+	const char *file = "mac/Emacs.app/Contents/Resources/Emacs.icns";
+	NSString *path
+	  = [NSString stringWithFormat:@"%s/../%s", SDATA (Vdata_directory), file];
+	NSImage *image = [[NSImage alloc] initByReferencingFile:path];
+	[NSApp setApplicationIconImage:image];
+      }});
+}
+
 OSStatus
 install_application_handler (void)
 {
