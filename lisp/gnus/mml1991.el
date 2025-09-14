@@ -25,8 +25,7 @@
 
 ;;; Code:
 
-(eval-when-compile (require 'mm-util))
-
+(require 'mm-util)
 (require 'mm-encode)
 (require 'mml-sec)
 
