@@ -999,7 +999,7 @@ make_frame (bool mini_p)
   f->ns_transparent_titlebar = false;
 #endif
 #ifdef HAVE_MACGUI
-  f->mac_transparent_titlebar = true;
+  f->mac_transparent_titlebar = false;
 #endif
 #endif
   f->select_mini_window_flag = false;
