@@ -5267,16 +5267,13 @@ frame_parm_handler mac_frame_parm_handlers[] =
   gui_set_no_special_glyphs,
   gui_set_alpha_background,
   NULL, /* mac_set_use_frame_synchronization */
-#ifdef HAVE_X_WINDOWS
-  NULL, /* mac_set_shaded */
-#endif
-#ifdef NS_IMPL_COCOA
-  NULL, /* ns_set_apperance */
-  NULL, /* ns_tranaprent_titlebar */
-#endif
-#ifdef HAVE_MACGUI
+  /* Skipping the following parameters from frame_parms that are not
+     compiled when HAVE_MACGUI is defined:
+     shaded
+     ns-appearance
+     ns-transparent-titlebar
+   */
   mac_set_transparent_titlebar,
-#endif
 };
 
 void
