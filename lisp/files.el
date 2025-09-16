@@ -555,9 +555,13 @@ if different users access the same file, using different lock file settings;
 if accessing files on a shared file system from different hosts,
 using a transform that puts the lock files on a local file system."
   :group 'files
-  :type '(repeat (list (regexp :tag "Regexp")
+  :type `(repeat (list (regexp :tag "Regexp")
                        (string :tag "Replacement")
-		       (boolean :tag "Uniquify")))
+                       (choice
+		        (const :tag "Uniquify" t)
+                        ,@(mapcar (lambda (algo)
+                                    (list 'const algo))
+                                  (secure-hash-algorithms)))))
   :version "28.1")
 
 (defcustom remote-file-name-inhibit-locks nil
@@ -3154,6 +3158,7 @@ ARC\\|ZIP\\|LZH\\|LHA\\|ZOO\\|[JEW]AR\\|XPI\\|RAR\\|CBR\\|7Z\\|SQUASHFS\\)\\'" .
     ("\\.oak\\'" . scheme-mode)
     ("\\.sgml?\\'" . sgml-mode)
     ("\\.x[ms]l\\'" . xml-mode)
+    ("\\.slnx\\'" . xml-mode)
     ("\\.dbk\\'" . xml-mode)
     ("\\.dtd\\'" . sgml-mode)
     ("\\.ds\\(ss\\)?l\\'" . dsssl-mode)
@@ -6245,7 +6250,13 @@ Before and after saving the buffer, this function runs
 		  ;; for saving the buffer.
 		  (setq tempname
 			(make-temp-file
-			 (expand-file-name "tmp" dir)))
+                         ;; The MSDOS 8+3 restricted namespace cannot be
+                         ;; relied upon to produce a different file name
+                         ;; if we append ".tmp".
+	                 (if (and (eq system-type 'ms-dos)
+		                  (not (msdos-long-file-names)))
+                             (expand-file-name "tmp" dir)
+                           (concat buffer-file-name ".tmp"))))
 		  ;; Pass in nil&nil rather than point-min&max
 		  ;; cause we're saving the whole buffer.
 		  ;; write-region-annotate-functions may use it.

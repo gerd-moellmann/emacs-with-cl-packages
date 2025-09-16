@@ -175,9 +175,58 @@ consulted.  Note that the keys of the
 plain symbols."
   (if-let* (((not (eq prop 'category)))
             (cat (completion--metadata-get-1 metadata 'category))
-            (over (completion--category-override cat prop)))
+            (over (completion-category-get cat prop)))
       (cdr over)
     (completion--metadata-get-1 metadata prop)))
+
+(defun completion-category-get (cat prop)
+  "Get property PROP of completion category CAT.
+
+This function consults `completion-category-overrides' and
+`completion-category-defaults' to determine the value for PROP in CAT.
+If no value is found in these variables, then this function goes over
+the parent categories of CAT (specified in the definition of CAT with
+`define-completion-category', which see), and chooses the first value
+any of them specify (directly or via inheriance), if any.
+
+If this fucntion finds a value VAL for PROP, it returns a cons cell with
+VAL at the `cdr'.  Otherwise, this function returns nil."
+  (seq-some (lambda (c) (completion--category-override c prop))
+            (completion--all-reachable-categories cat)))
+
+(defvar completion--all-reachable-categories-cache (make-hash-table))
+
+(defun completion--all-reachable-categories (cat)
+  (with-memoization (gethash cat completion--all-reachable-categories-cache)
+    (cons cat
+          (let* ((parents (get cat 'completion-category-parents))
+                 (aps (mapcar #'completion--all-reachable-categories parents)))
+            (if (cdr aps)
+                (merge-ordered-lists (nconc aps (list parents)))
+              (car aps))))))
+
+(defun define-completion-category (name &optional parents doc &rest defaults)
+  "Define NAME as a completion category, inheriting from PARENTS.
+DOC is a documentation string describing the category, and DEFAULTS is a
+plist (KEYWORD1 VALUE1 KEYWORD2 VALUE2 ...) specifying properties to
+associate with the category in `completion-category-defaults'.  For
+example, you can define a category `foo' that inherits from the `file'
+category but specifies a bespoke `group-function', as follows:
+
+  (define-completion-category \\='foo \\='(file)
+    \"Completion category for foo.\"
+    :group-function #\\='group-by-baz)"
+  (declare (indent defun) (doc-string 3))
+  (let (alist)
+    (while defaults
+      (push
+       (cons (intern (substring (symbol-name (pop defaults)) 1))
+             (pop defaults))
+       alist))
+    (setf (alist-get name completion-category-defaults) alist))
+  (put name 'completion-category-documentation doc)
+  (put name 'completion-category-parents (ensure-list parents))
+  name)
 
 (defun complete-with-action (action collection string predicate)
   "Perform completion according to ACTION.
@@ -1234,7 +1283,7 @@ an association list that can specify properties such as:
 Categories are symbols such as `buffer' and `file', used when
 completing buffer and file names, respectively.
 
-Also see `completion-category-overrides'.")
+Also see `completion-category-overrides' and `completion-category-get'.")
 
 (defcustom completion-category-overrides nil
   "List of category-specific user overrides for completion metadata.
@@ -1311,7 +1360,7 @@ overrides the default specified in `completion-category-defaults'."
 
 (defun completion--styles (metadata)
   (let* ((cat (completion-metadata-get metadata 'category))
-         (over (completion--category-override cat 'styles)))
+         (over (completion-category-get cat 'styles)))
     (if over
         (delete-dups (append (cdr over) (copy-sequence completion-styles)))
        completion-styles)))
@@ -1498,7 +1547,7 @@ pair of a group title string and a list of group candidate strings."
 
 (defun completion--cycle-threshold (metadata)
   (let* ((cat (completion-metadata-get metadata 'category))
-         (over (completion--category-override cat 'cycle)))
+         (over (completion-category-get cat 'cycle)))
     (if over (cdr over) completion-cycle-threshold)))
 
 (defvar-local completion-all-sorted-completions nil)
@@ -1616,7 +1665,7 @@ when the buffer's text is already an exact match."
              (completed
               (cond
                ((pcase completion-auto-help
-                  ('visible (get-buffer-window "*Completions*" 0))
+                  ('visible (minibuffer--completions-visible))
                   ('always t))
                 (minibuffer-completion-help beg end))
                (t (minibuffer-hide-completions)
@@ -1982,11 +2031,16 @@ DONT-CYCLE tells the function not to setup cycling."
 (defvar minibuffer--original-buffer nil
   "Buffer that was current when `completing-read' was called.")
 
-(defun minibuffer-complete-and-exit ()
+(defun minibuffer-complete-and-exit (&optional no-exit)
   "Exit if the minibuffer contains a valid completion.
 Otherwise, try to complete the minibuffer contents.  If
 completion leads to a valid completion, a repetition of this
 command will exit.
+
+If a completion candidate is selected in the *Completions* buffer, it
+will be inserted in the minibuffer first.  If NO-EXIT is non-nil, don't
+actually exit the minibuffer, just insert the selected completion if
+any.
 
 If `minibuffer-completion-confirm' is `confirm', do not try to
  complete; instead, ask for confirmation and accept any input if
@@ -1996,9 +2050,12 @@ If `minibuffer-completion-confirm' is `confirm-after-completion',
  preceding minibuffer command was a member of
  `minibuffer-confirm-exit-commands', and accept the input
  otherwise."
-  (interactive)
-  (completion-complete-and-exit (minibuffer--completion-prompt-end) (point-max)
-                                #'exit-minibuffer))
+  (interactive "P")
+  (when (completion--selected-candidate)
+    (minibuffer-choose-completion t t))
+  (unless no-exit
+    (completion-complete-and-exit (minibuffer--completion-prompt-end) (point-max)
+                                  #'exit-minibuffer)))
 
 (defun completion-complete-and-exit (beg end exit-function)
   (completion--complete-and-exit
@@ -2677,13 +2734,13 @@ so that the update is less likely to interfere with user typing."
 (defun completions--post-command-update ()
   "Update displayed *Completions* buffer after command, once."
   (remove-hook 'post-command-hook #'completions--post-command-update)
-  (when (and completion-eager-update (get-buffer-window "*Completions*" 0))
+  (when (and completion-eager-update (minibuffer--completions-visible))
     (completions--background-update)))
 
 (defun completions--after-change (_start _end _old-len)
   "Update displayed *Completions* buffer after change in buffer contents."
   (when (or completion-auto-deselect completion-eager-update)
-    (when-let* ((window (get-buffer-window "*Completions*" 0)))
+    (when-let* ((window (minibuffer--completions-visible)))
       (when completion-auto-deselect
         (with-selected-window window
           (completions--deselect)))
@@ -2885,7 +2942,7 @@ so that the update is less likely to interfere with user typing."
   ;; FIXME: We could/should use minibuffer-scroll-window here, but it
   ;; can also point to the minibuffer-parent-window, so it's a bit tricky.
   (interactive)
-  (when-let* ((win (get-buffer-window "*Completions*" 0)))
+  (when-let* ((win (minibuffer--completions-visible)))
     (with-selected-window win
       ;; Move point off any completions, so we don't move point there
       ;; again the next time `minibuffer-completion-help' is called.
@@ -3009,6 +3066,11 @@ Also respects the obsolete wrapper hook `completion-in-region-functions'.
   ;; completion-at-point called directly.
   "M-?" #'completion-help-at-point
   "TAB" #'completion-at-point
+  ;; If a completion is selected, RET will choose it.
+  "RET" `(menu-item "" minibuffer-choose-completion :filter
+                    ,(lambda (cmd)
+                       (when (completion--selected-candidate)
+                         cmd)))
   "M-<up>"   #'minibuffer-previous-completion
   "M-<down>" #'minibuffer-next-completion
   "M-RET"    #'minibuffer-choose-completion)
@@ -3215,6 +3277,17 @@ The completion method is determined by `completion-at-point-functions'."
   (define-key map "\n" 'exit-minibuffer)
   (define-key map "\r" 'exit-minibuffer))
 
+(defun minibuffer-completion-exit (&optional no-exit)
+  "Call `exit-minibuffer', inserting the selected completion first if any.
+
+If NO-EXIT is non-nil, don't `exit-minibuffer', just insert the selected
+completion."
+  (interactive "P")
+  (when (completion--selected-candidate)
+    (minibuffer-choose-completion t t))
+  (unless no-exit
+    (exit-minibuffer)))
+
 (defvar-keymap minibuffer-local-completion-map
   :doc "Local keymap for minibuffer input with completion."
   :parent minibuffer-local-map
@@ -3224,6 +3297,7 @@ The completion method is determined by `completion-at-point-functions'."
   ;; another binding for it.
   ;; "M-TAB"  #'minibuffer-force-complete
   "SPC"       #'minibuffer-complete-word
+  "RET"       #'minibuffer-completion-exit
   "?"         #'minibuffer-completion-help
   "<prior>"   #'switch-to-completions
   "M-v"       #'switch-to-completions
@@ -3332,19 +3406,29 @@ and `RET' accepts the input typed into the minibuffer."
 (defvar minibuffer-visible-completions--always-bind nil
   "If non-nil, force the `minibuffer-visible-completions' bindings on.")
 
+(defun minibuffer--completions-visible ()
+  "Return the window where the current *Completions* buffer is visible, if any."
+  (when-let* ((window (get-buffer-window "*Completions*" 0)))
+    (when (eq (buffer-local-value 'completion-reference-buffer
+                                  (window-buffer window))
+              ;; If there's no active minibuffer, we call
+              ;; `window-buffer' on nil, assuming that completion is
+              ;; happening in the selected window.
+              (window-buffer (active-minibuffer-window)))
+      window)))
+
+(defun completion--selected-candidate ()
+  "Return the selected completion candidate if any."
+  (when-let* ((window (minibuffer--completions-visible)))
+    (with-current-buffer (window-buffer window)
+      (get-text-property (point) 'completion--string))))
+
 (defun minibuffer-visible-completions--filter (cmd)
   "Return CMD if `minibuffer-visible-completions' bindings should be active."
   (if minibuffer-visible-completions--always-bind
       cmd
-    (when-let* ((window (get-buffer-window "*Completions*" 0)))
-      (when (and (eq (buffer-local-value 'completion-reference-buffer
-                                         (window-buffer window))
-                     (window-buffer (active-minibuffer-window)))
-                 (if (eq cmd #'minibuffer-choose-completion-or-exit)
-                     (with-current-buffer (window-buffer window)
-                       (get-text-property (point) 'completion--string))
-                   t))
-        cmd))))
+    (when-let* ((window (minibuffer--completions-visible)))
+      cmd)))
 
 (defun minibuffer-visible-completions--bind (binding)
   "Use BINDING when completions are visible.
@@ -3360,7 +3444,6 @@ displaying the *Completions* buffer exists."
   "<right>" (minibuffer-visible-completions--bind #'minibuffer-next-completion)
   "<up>"    (minibuffer-visible-completions--bind #'minibuffer-previous-line-completion)
   "<down>"  (minibuffer-visible-completions--bind #'minibuffer-next-line-completion)
-  "RET"     (minibuffer-visible-completions--bind #'minibuffer-choose-completion-or-exit)
   "C-g"     (minibuffer-visible-completions--bind #'minibuffer-hide-completions))
 
 ;;; Completion tables.
@@ -3487,7 +3570,11 @@ same as `substitute-in-file-name'."
               (unless (memq pred '(nil file-exists-p))
                 (let ((comp ())
                       (pred
-                       (if (eq pred 'file-directory-p)
+                       (if (and (eq pred 'file-directory-p)
+                                ;; File-name-handlers don't necessarily follow
+                                ;; that convention (bug#79236).
+                                (not (find-file-name-handler
+                                      realdir 'file-name-all-completions)))
                            ;; Brute-force speed up for directory checking:
                            ;; Discard strings which don't end in a slash.
                            (lambda (s)
@@ -4117,7 +4204,7 @@ style."
   "Split STRING into a pattern.
 A pattern is a list where each element is either a string
 or a symbol, see `completion-pcm--merge-completions'."
-  (if (and point (< point (length string)))
+  (if (and point (<= point (length string)))
       (let ((prefix (substring string 0 point))
             (suffix (substring string point)))
         (append (completion-pcm--string->pattern prefix)
@@ -4178,12 +4265,6 @@ or a symbol, see `completion-pcm--merge-completions'."
       (pcase p
         (`(,(or 'any 'any-delim) ,(or 'any 'point) . ,_)
          (setq p (cdr p)))
-        ;; This is not just a performance improvement: it turns a
-        ;; terminating `point' into an implicit `any', which affects
-        ;; the final position of point (because `point' gets turned
-        ;; into a non-greedy ".*?" regexp whereas we need it to be
-        ;; greedy when it's at the end, see bug#38458).
-        (`(point) (setq p nil)) ;Implicit terminating `any'.
         (_ (push (pop p) n))))
     (nreverse n)))
 
@@ -4634,10 +4715,19 @@ the same set of elements."
               ;; different capitalizations in different parts.
               ;; In practice, it doesn't seem to make any difference.
               (setq ccs (nreverse ccs))
+              ;; FIXED is a prefix of all of COMPS.  Try to grow that prefix.
               (let* ((prefix (try-completion fixed comps))
                      (unique (or (and (eq prefix t) (setq prefix fixed))
                                  (and (stringp prefix)
-                                      (eq t (try-completion prefix comps))))))
+                                      ;; If PREFIX is equal to all of COMPS,
+                                      ;; then PREFIX is a unique completion.
+                                      (seq-every-p
+                                       ;; PREFIX is still a prefix of all of
+                                       ;; COMPS, so if COMP is the same length,
+                                       ;; they're equal.
+                                       (lambda (comp)
+                                         (= (length prefix) (length comp)))
+                                       comps)))))
                 ;; If there's only one completion, `elem' is not useful
                 ;; any more: it can only match the empty string.
                 ;; FIXME: in some cases, it may be necessary to turn an
@@ -5113,22 +5203,22 @@ the minibuffer was activated, and execute the forms."
 When used in a minibuffer window, select the window with completions,
 and execute the forms."
   (declare (indent 0) (debug t))
-  `(let ((window (or (get-buffer-window "*Completions*" 0)
+  `(let ((window (or (minibuffer--completions-visible)
                      ;; Make sure we have a completions window.
                      (progn (minibuffer-completion-help)
-                            (get-buffer-window "*Completions*" 0)))))
+                            (minibuffer--completions-visible)))))
      (when window
        (with-selected-window window
          (completion--lazy-insert-strings)
          ,@body))))
 
-(defcustom minibuffer-completion-auto-choose t
+(defcustom minibuffer-completion-auto-choose nil
   "Non-nil means to automatically insert completions to the minibuffer.
 When non-nil, then `minibuffer-next-completion' and
 `minibuffer-previous-completion' will insert the completion
 selected by these commands to the minibuffer."
   :type 'boolean
-  :version "29.1")
+  :version "31.1")
 
 (defun minibuffer-next-completion (&optional n vertical)
   "Move to the next item in its completions window from the minibuffer.
@@ -5211,7 +5301,7 @@ inputs for the prompting command, instead of the default completion table."
             (user-error "No history available"))))
     ;; FIXME: Can we make it work for CRM?
     (let ((completion-in-region-mode-predicate
-           (lambda () (get-buffer-window "*Completions*" 0))))
+           (lambda () (minibuffer--completions-visible))))
       (completion-in-region
        (minibuffer--completion-prompt-end) (point-max)
        (completion-table-with-metadata
@@ -5229,7 +5319,7 @@ provided by the prompting command, instead of the completion table."
           minibuffer-default (funcall minibuffer-default-add-function)))
   (let ((completions (ensure-list minibuffer-default))
         (completion-in-region-mode-predicate
-         (lambda () (get-buffer-window "*Completions*" 0))))
+         (lambda () (minibuffer--completions-visible))))
     (completion-in-region
      (minibuffer--completion-prompt-end) (point-max)
      (completion-table-with-metadata

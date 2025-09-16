@@ -467,7 +467,7 @@ static struct fd_callback_data
 } fd_callback_info[FD_SETSIZE];
 
 static void
-clear_fd_callback_data(struct fd_callback_data* elem)
+clear_fd_callback_data (struct fd_callback_data* elem)
 {
   elem->func = NULL;
   elem->data = NULL;
@@ -577,7 +577,7 @@ delete_write_fd (int fd)
   fd_callback_info[fd].flags &= ~(FOR_WRITE | NON_BLOCKING_CONNECT_FD);
   if (fd_callback_info[fd].flags == 0)
     {
-      clear_fd_callback_data(&fd_callback_info[fd]);
+      clear_fd_callback_data (&fd_callback_info[fd]);
 
       if (fd == max_desc)
 	recompute_max_desc ();
@@ -4860,7 +4860,14 @@ deactivate_process (Lisp_Object proc)
   /* Beware SIGCHLD hereabouts.  */
 
   for (i = 0; i < PROCESS_OPEN_FDS; i++)
-    close_process_fd (&p->open_fd[i]);
+    {
+      if (p->open_fd[i] >= 0)
+	{
+	  fd_callback_info[p->open_fd[i]].thread = NULL;
+	  fd_callback_info[p->open_fd[i]].waiting_thread = NULL;
+	}
+      close_process_fd (&p->open_fd[i]);
+    }
 
   inchannel = p->infd;
   eassert (inchannel < FD_SETSIZE);
@@ -5107,6 +5114,10 @@ server_accept_connection (Lisp_Object server, int channel)
   fcntl (s, F_SETFL, O_NONBLOCK);
 
   p = XPROCESS (proc);
+  /* make_process calls pset_thread, but if the server process is not
+     locked to any thread, we need to undo what make_process did.  */
+  if (NILP (ps->thread))
+    pset_thread (p, Qnil);
 
   /* Build new contact information for this setup.  */
   contact = Fcopy_sequence (ps->childp);
@@ -5146,6 +5157,17 @@ server_accept_connection (Lisp_Object server, int channel)
     add_process_read_fd (s);
   if (s > max_desc)
     max_desc = s;
+  /* If the server process is locked to this thread, lock the client
+     process to the same thread, otherwise clear the thread of its I/O
+     descriptors.  */
+  eassert (!fd_callback_info[p->infd].thread);
+  if (NILP (ps->thread))
+    set_proc_thread (p, NULL);
+  else
+    {
+      eassert (XTHREAD (ps->thread) == current_thread);
+      set_proc_thread (p, XTHREAD (ps->thread));
+    }
 
   /* Setup coding system for new process based on server process.
      This seems to be the proper thing to do, as the coding system
@@ -8361,7 +8383,7 @@ delete_keyboard_wait_descriptor (int desc)
 #ifdef subprocesses
   eassert (desc >= 0 && desc < FD_SETSIZE);
 
-  clear_fd_callback_data(&fd_callback_info[desc]);
+  clear_fd_callback_data (&fd_callback_info[desc]);
 
   if (desc == max_desc)
     recompute_max_desc ();

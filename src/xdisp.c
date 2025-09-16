@@ -9159,6 +9159,16 @@ next_element_from_display_vector (struct it *it)
 
       it->c = GLYPH_CODE_CHAR (gc);
       it->len = CHAR_BYTES (it->c);
+      /* The character code in the display vector could be non-ASCII, in
+         which case we must make the iterator multibyte, so that a
+         suitable font for the character is looked up.  But don't do
+         that if the original character came from a unibyte buffer.  */
+      if (!ASCII_CHAR_P (it->c)
+	  && !it->multibyte_p
+	  && !(((it->sp == 0 && BUFFERP (it->object))
+		|| (it->sp > 1 && !NILP (it->stack[0].string)))
+	       && NILP (BVAR (current_buffer, enable_multibyte_characters))))
+	it->multibyte_p = 1;
 
       /* The entry may contain a face id to use.  Such a face id is
 	 the id of a Lisp face, not a realized face.  A face id of
@@ -17145,8 +17155,6 @@ redisplay_internal (void)
   bool polling_stopped_here = false;
   Lisp_Object tail, frame;
 
-  redisplay_counter++;
-
   /* Set a limit to the number of retries we perform due to horizontal
      scrolling, this avoids getting stuck in an uninterruptible
      infinite loop (Bug #24633).  */
@@ -17204,6 +17212,8 @@ redisplay_internal (void)
   if (popup_activated_p)
     return;
 #endif
+
+  redisplay_counter++;
 
   /* Record a function that clears redisplaying_p
      when we leave this function.  */
@@ -22689,8 +22699,23 @@ try_window_id (struct window *w)
       /* Give up if the row starts with a display property that draws
 	 on the fringes, since that could prevent correct display of
 	 line-prefix and wrap-prefix.  */
-      if (it.sp > 1
+      if ((it.sp > 1
 	  && it.method == GET_FROM_IMAGE && it.image_id == -1)
+	 /* Give up if there's a line/wrap-prefix property on buffer
+	    text, and the row begins with a display or overlay string.
+	    This is because in that case the iterator state produced by
+	    init_to_row_end is already set to the display/overlay
+	    string, and thus cannot be used to display the prefix
+	    before the display/overlay string.	 */
+	 || (it.sp == 1
+	     && it.method == GET_FROM_STRING
+	     && !it.string_from_prefix_prop_p
+	     && (!NILP (Fget_char_property (make_fixnum (IT_CHARPOS (it)),
+					    Qline_prefix,
+					    it.w->contents))
+		 || !NILP (Fget_char_property (make_fixnum (IT_CHARPOS (it)),
+					       Qwrap_prefix,
+					       it.w->contents)))))
 	GIVE_UP (26);
       start_pos = it.current.pos;
 
@@ -24742,15 +24767,19 @@ cursor_row_p (struct glyph_row *row)
 
 
 /* Push the property PROP so that it will be rendered at the current
-   position in IT.  Return true if PROP was successfully pushed, false
-   otherwise.  Called from handle_line_prefix to handle the
-   `line-prefix' and `wrap-prefix' properties.  */
+   position in IT.  FROM_BUFFER non-zero means the property was found on
+   buffer text, even though IT is set to iterate a string.
+   Return true if PROP was successfully pushed, false otherwise.
+   Called from handle_line_prefix to handle the `line-prefix' and
+   `wrap-prefix' properties.  */
 
 static bool
-push_prefix_prop (struct it *it, Lisp_Object prop)
+push_prefix_prop (struct it *it, Lisp_Object prop, int from_buffer)
 {
   struct text_pos pos =
     STRINGP (it->string) ? it->current.string_pos : it->current.pos;
+  bool phoney_display_string =
+    from_buffer && STRINGP (it->string) && it->string_from_display_prop_p;
 
   eassert (it->method == GET_FROM_BUFFER
 	   || it->method == GET_FROM_DISPLAY_VECTOR
@@ -24768,6 +24797,13 @@ push_prefix_prop (struct it *it, Lisp_Object prop)
      depends on that being set correctly, but some situations leave
      it->position not yet set when this function is called.  */
   push_it (it, &pos);
+
+  /* Reset this flag, since it is not relevant (comes from a display
+     string that follows iterator position).  If we don't do that, any
+     display properties on the prefix string will be ignored.  The call
+     to pop_it when we are done with the prefix will restore the flag.  */
+  if (phoney_display_string)
+    it->string_from_display_prop_p = false;
 
   if (STRINGP (prop))
     {
@@ -24826,7 +24862,7 @@ push_prefix_prop (struct it *it, Lisp_Object prop)
 #endif /* HAVE_WINDOW_SYSTEM */
   else
     {
-      pop_it (it);		/* bogus display property, give up */
+      pop_it (it);		/* bogus prefix property, give up */
       return false;
     }
 
@@ -24857,15 +24893,21 @@ get_it_property (struct it *it, Lisp_Object prop)
    current IT->OBJECT and the underlying buffer text.  */
 
 static Lisp_Object
-get_line_prefix_it_property (struct it *it, Lisp_Object prop)
+get_line_prefix_it_property (struct it *it, Lisp_Object prop,
+			     int *from_buffer)
 {
   Lisp_Object prefix = get_it_property (it, prop);
+
+  *from_buffer = BUFFERP (it->object);
 
   /* If we are looking at a display or overlay string, check also the
      underlying buffer text.  */
   if (NILP (prefix) && it->sp > 0 && STRINGP (it->object))
-    return Fget_char_property (make_fixnum (IT_CHARPOS (*it)), prop,
-			       it->w->contents);
+    {
+      *from_buffer = true;
+      return Fget_char_property (make_fixnum (IT_CHARPOS (*it)), prop,
+				 it->w->contents);
+    }
   return prefix;
 }
 
@@ -24876,21 +24918,22 @@ handle_line_prefix (struct it *it)
 {
   Lisp_Object prefix;
   bool wrap_prop = false;
+  int from_buffer;
 
   if (it->continuation_lines_width > 0)
     {
-      prefix = get_line_prefix_it_property (it, Qwrap_prefix);
+      prefix = get_line_prefix_it_property (it, Qwrap_prefix, &from_buffer);
       if (NILP (prefix))
 	prefix = Vwrap_prefix;
       wrap_prop = true;
     }
   else
     {
-      prefix = get_line_prefix_it_property (it, Qline_prefix);
+      prefix = get_line_prefix_it_property (it, Qline_prefix, &from_buffer);
       if (NILP (prefix))
 	prefix = Vline_prefix;
     }
-  if (! NILP (prefix) && push_prefix_prop (it, prefix))
+  if (! NILP (prefix) && push_prefix_prop (it, prefix, from_buffer))
     {
       /* If the prefix is wider than the window, and we try to wrap
 	 it, it would acquire its own wrap prefix, and so on till the

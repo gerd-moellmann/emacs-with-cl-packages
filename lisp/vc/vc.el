@@ -396,25 +396,28 @@
 ;;   revision shown, rather than the working revision, which is normally
 ;;   the case).  Not all backends support this.
 ;;
-;; - log-outgoing (buffer remote-location) (DEPRECATED)
+;; - log-outgoing (buffer upstream-location) (DEPRECATED)
 ;;
 ;;   Insert in BUFFER the revision log for the changes that will be
-;;   sent when performing a push operation to REMOTE-LOCATION.
+;;   sent when performing a push operation to UPSTREAM-LOCATION.
 ;;   Deprecated: implement incoming-revision and mergebase instead.
 ;;
-;; - log-incoming (buffer remote-location) (DEPRECATED)
+;; - log-incoming (buffer upstream-location) (DEPRECATED)
 ;;
 ;;   Insert in BUFFER the revision log for the changes that will be
-;;   received when performing a pull operation from REMOTE-LOCATION.
+;;   received when performing a pull operation from UPSTREAM-LOCATION.
 ;;   Deprecated: implement incoming-revision and mergebase instead.
 ;;
-;; * incoming-revision (remote-location)
+;; * incoming-revision (upstream-location &optional refresh)
 ;;
-;;   Return revision at the head of the branch at REMOTE-LOCATION.
+;;   Return revision at the head of the branch at UPSTREAM-LOCATION.
 ;;   If there is no such branch there, return nil.  (Should signal an
 ;;   error, not return nil, in the case that fetching data fails.)
 ;;   For a distributed VCS, should also fetch that revision into local
 ;;   storage for operating on by subsequent calls into the backend.
+;;   The backend may rely on cached information from a previous fetch
+;;   from UPSTREAM-LOCATION unless REFRESH is non-nil, which means that
+;;   the most up-to-date information possible is required.
 ;;
 ;; - log-search (buffer pattern)
 ;;
@@ -1277,20 +1280,6 @@ If the value is t, the backend is deduced in all modes."
                  (const :tag "All" t))
   :version "30.1")
 
-(defun vc-deduce-backend ()
-  (cond ((derived-mode-p 'vc-dir-mode)   vc-dir-backend)
-	((derived-mode-p 'log-view-mode) log-view-vc-backend)
-	((derived-mode-p 'log-edit-mode) log-edit-vc-backend)
-	((derived-mode-p 'diff-mode)     diff-vc-backend)
-	((or (eq vc-deduce-backend-nonvc-modes t)
-	     (derived-mode-p vc-deduce-backend-nonvc-modes))
-	 (ignore-errors (vc-responsible-backend default-directory)))
-	(vc-mode (vc-backend buffer-file-name))))
-
-(declare-function vc-dir-current-file "vc-dir" ())
-(declare-function vc-dir-deduce-fileset "vc-dir" (&optional state-model-only-files))
-(declare-function dired-vc-deduce-fileset "dired-aux" (&optional state-model-only-files not-state-changing))
-
 (defvar-local vc-buffer-overriding-fileset nil
   "Specialized, static value for `vc-deduce-fileset' for this buffer.
 If non-nil, this should be a list of length 2 or 5.
@@ -1303,6 +1292,21 @@ STATE-MODEL-ONLY-FILES argument to `vc-deduce-fileset' is nil.")
 Lisp code which sets this should also set `vc-buffer-overriding-fileset'
 such that the buffer's local variables also specify a VC backend,
 rendering the value of this variable unambiguous.")
+
+(defun vc-deduce-backend ()
+  (cond ((car vc-buffer-overriding-fileset))
+        ((derived-mode-p 'vc-dir-mode)   vc-dir-backend)
+        ((derived-mode-p 'log-view-mode) log-view-vc-backend)
+        ((derived-mode-p 'log-edit-mode) log-edit-vc-backend)
+        ((derived-mode-p 'diff-mode)     diff-vc-backend)
+        ((or (eq vc-deduce-backend-nonvc-modes t)
+             (derived-mode-p vc-deduce-backend-nonvc-modes))
+         (ignore-errors (vc-responsible-backend default-directory)))
+        (vc-mode (vc-backend buffer-file-name))))
+
+(declare-function vc-dir-current-file "vc-dir" ())
+(declare-function vc-dir-deduce-fileset "vc-dir" (&optional state-model-only-files))
+(declare-function dired-vc-deduce-fileset "dired-aux" (&optional state-model-only-files not-state-changing))
 
 (defun vc-deduce-fileset (&optional not-state-changing
 				    allow-unregistered
@@ -1644,7 +1648,18 @@ from which to check out the file(s)."
           ;; In the case there actually are any unregistered files then
           ;; `vc-deduce-backend', via `vc-only-files-state-and-model',
           ;; has already prompted the user to approve registering them.
-	  (let ((register (cl-remove-if #'vc-backend fileset-only-files)))
+          ;;
+          ;; FIXME: We should be able to use `vc-backend' instead of
+          ;; `vc-registered' here given that `vc-deduce-backend' just
+          ;; determined a state for all of the files.  However, there
+          ;; are case(s) where the cached information is out-of-date.
+          ;; For example, if we used C-x v v on a directory in *vc-dir*
+          ;; and thereby newly registered files within that directory,
+          ;; only that directory's name will have been passed to
+          ;; `vc-register', and so `vc-backend' will still consider them
+          ;; unregistered, even though `vc-dir-deduce-fileset' will
+          ;; return `added' for their states.
+	  (let ((register (cl-remove-if #'vc-registered fileset-only-files)))
             (if (not verbose)
 	        (vc-checkin ready-for-commit backend nil nil nil nil register)
 	      (let* ((revision (read-string "New revision or backend: "))
@@ -2536,58 +2551,71 @@ The merge base is a common ancestor between REV1 and REV2 revisions."
        (called-interactively-p 'interactive)))))
 
 ;;;###autoload
-(defun vc-root-diff-incoming (&optional remote-location)
-  "Report diff of all changes that would be pulled from REMOTE-LOCATION.
-When unspecified REMOTE-LOCATION is the place \\[vc-update] would pull from.
-When called interactively with a prefix argument, prompt for REMOTE-LOCATION.
-In some version control systems REMOTE-LOCATION can be a remote branch name.
+(defun vc-root-diff-incoming (&optional upstream-location)
+  "Report diff of all changes that would be pulled from UPSTREAM-LOCATION.
+When unspecified UPSTREAM-LOCATION is the place \\[vc-update] would pull
+from.  When called interactively with a prefix argument, prompt for
+UPSTREAM-LOCATION.  In some version control systems UPSTREAM-LOCATION
+can be a remote branch name.
 
 See `vc-use-incoming-outgoing-prefixes' regarding giving this command a
 global binding."
-  (interactive (list (vc--maybe-read-remote-location)))
+  (interactive (list (vc--maybe-read-upstream-location)))
   (vc--with-backend-in-rootdir "VC root-diff"
-    (vc-fileset-diff-incoming remote-location `(,backend (,rootdir)))))
+    (vc-diff-incoming upstream-location `(,backend (,rootdir)))))
 
 ;;;###autoload
-(defun vc-fileset-diff-incoming (&optional remote-location fileset)
-  "Report changes to VC fileset that would be pulled from REMOTE-LOCATION.
-When unspecified REMOTE-LOCATION is the place \\[vc-update] would pull from.
-When called interactively with a prefix argument, prompt for REMOTE-LOCATION.
-In some version control systems REMOTE-LOCATION can be a remote branch name.
-When called from Lisp optional argument FILESET overrides the VC fileset.
+(defun vc-diff-incoming (&optional upstream-location fileset)
+  "Report changes to VC fileset that would be pulled from UPSTREAM-LOCATION.
+When unspecified UPSTREAM-LOCATION is the place \\[vc-update] would pull
+from.  When called interactively with a prefix argument, prompt for
+UPSTREAM-LOCATION.  In some version control systems UPSTREAM-LOCATION
+can be a remote branch name.
+When called from Lisp optional argument FILESET overrides the VC
+fileset.
 
 See `vc-use-incoming-outgoing-prefixes' regarding giving this command a
 global binding."
-  (interactive (list (vc--maybe-read-remote-location) nil))
+  (interactive (list (vc--maybe-read-upstream-location) nil))
   (let* ((fileset (or fileset (vc-deduce-fileset t)))
          (backend (car fileset))
          (incoming (vc--incoming-revision backend
-                                          (or remote-location ""))))
+                                          (or upstream-location "")
+                                          'refresh)))
     (vc-diff-internal vc-allow-async-diff fileset
                       (vc-call-backend backend 'mergebase incoming)
                       incoming
                       (called-interactively-p 'interactive))))
 
 ;;;###autoload
-(defun vc-root-diff-outgoing (&optional remote-location)
-  "Report diff of all changes that would be pushed to REMOTE-LOCATION.
-When unspecified REMOTE-LOCATION is the place \\[vc-push] would push to.
-When called interactively with a prefix argument, prompt for REMOTE-LOCATION.
-In some version control systems REMOTE-LOCATION can be a remote branch name.
+(defun vc-root-diff-outgoing (&optional upstream-location)
+  "Report diff of all changes that would be pushed to UPSTREAM-LOCATION.
+When unspecified UPSTREAM-LOCATION is the place \\[vc-push] would push
+to.  When called interactively with a prefix argument, prompt for
+UPSTREAM-LOCATION.  In some version control systems UPSTREAM-LOCATION
+can be a remote branch name.
+
+This command is like `vc-root-diff-outgoing-base' except that it does
+not include uncommitted changes.
 
 See `vc-use-incoming-outgoing-prefixes' regarding giving this command a
 global binding."
-  (interactive (list (vc--maybe-read-remote-location)))
+  (interactive (list (vc--maybe-read-upstream-location)))
   (vc--with-backend-in-rootdir "VC root-diff"
-    (vc-fileset-diff-outgoing remote-location `(,backend (,rootdir)))))
+    (vc-diff-outgoing upstream-location `(,backend (,rootdir)))))
 
 ;;;###autoload
-(defun vc-fileset-diff-outgoing (&optional remote-location fileset)
-  "Report changes to VC fileset that would be pushed to REMOTE-LOCATION.
-When unspecified REMOTE-LOCATION is the place \\[vc-push] would push to.
-When called interactively with a prefix argument, prompt for REMOTE-LOCATION.
-In some version control systems REMOTE-LOCATION can be a remote branch name.
-When called from Lisp optional argument FILESET overrides the VC fileset.
+(defun vc-diff-outgoing (&optional upstream-location fileset)
+  "Report changes to VC fileset that would be pushed to UPSTREAM-LOCATION.
+When unspecified UPSTREAM-LOCATION is the place \\[vc-push] would push
+to.  When called interactively with a prefix argument, prompt for
+UPSTREAM-LOCATION.  In some version control systems UPSTREAM-LOCATION
+can be a remote branch name.
+When called from Lisp optional argument FILESET overrides the VC
+fileset.
+
+This command is like `vc-diff-outgoing-base' except that it does not
+include uncommitted changes.
 
 See `vc-use-incoming-outgoing-prefixes' regarding giving this command a
 global binding."
@@ -2596,11 +2624,11 @@ global binding."
   ;; for those VCS is to make a comparison between locally committed
   ;; changes and remote committed changes.
   ;; (Hence why we don't call `vc-buffer-sync-fileset'.)
-  (interactive (list (vc--maybe-read-remote-location)))
+  (interactive (list (vc--maybe-read-upstream-location)))
   (let* ((fileset (or fileset (vc-deduce-fileset t)))
          (backend (car fileset))
          (incoming (vc--incoming-revision backend
-                                          (or remote-location ""))))
+                                          (or upstream-location ""))))
     (vc-diff-internal vc-allow-async-diff fileset
                       (vc-call-backend backend 'mergebase incoming)
                       ;; FIXME: In order to exclude uncommitted
@@ -2624,9 +2652,74 @@ global binding."
                       ;;          'repository)
                       ;;      (ignore-errors
                       ;;        (vc-call-backend backend 'working-revision
-                      ;;                         (car fileset)))
+                      ;;                         (caadr fileset)))
                       (vc-call-backend backend 'working-revision
-                                       (car fileset))
+                                       (caadr fileset))
+                      (called-interactively-p 'interactive))))
+
+;; For the following two commands, the default meaning for
+;; UPSTREAM-LOCATION may become dependent on whether we are on a
+;; shorter-lived or longer-lived ("trunk") branch.  If we are on the
+;; trunk then it will always be the place `vc-push' would push to.  If
+;; we are on a shorter-lived branch, it may instead become the remote
+;; trunk branch from which the shorter-lived branch was branched.  That
+;; way you can use these commands to get a summary of all unmerged work
+;; outstanding on the short-lived branch.
+;;
+;; The obstacle to doing this is that VC lacks any distinction between
+;; shorter-lived and trunk branches.  But we all work with both of
+;; these, for almost any VCS workflow.  E.g. modern workflows which
+;; eschew traditional feature branches still have a long-lived trunk
+;; plus shorter-lived local branches for merge requests or patch series.
+;; --spwhitton
+
+;;;###autoload
+(defun vc-root-diff-outgoing-base (&optional upstream-location)
+  "Report diff of all changes since the merge base with UPSTREAM-LOCATION.
+The merge base with UPSTREAM-LOCATION means the common ancestor of the
+working revision and UPSTREAM-LOCATION.
+Uncommitted changes are included in the diff.
+
+When unspecified UPSTREAM-LOCATION is the place \\[vc-push] would push
+to.  This default meaning for UPSTREAM-LOCATION may change in a future
+release of Emacs.
+
+When called interactively with a prefix argument, prompt for
+UPSTREAM-LOCATION.  In some version control systems, UPSTREAM-LOCATION
+can be a remote branch name.
+
+This command is like `vc-root-diff-outgoing' except that it includes
+uncommitted changes."
+  (interactive (list (vc--maybe-read-upstream-location)))
+  (vc--with-backend-in-rootdir "VC root-diff"
+    (vc-diff-outgoing-base upstream-location `(,backend (,rootdir)))))
+
+;;;###autoload
+(defun vc-diff-outgoing-base (&optional upstream-location fileset)
+  "Report changes to VC fileset since the merge base with UPSTREAM-LOCATION.
+
+The merge base with UPSTREAM-LOCATION means the common ancestor of the
+working revision and UPSTREAM-LOCATION.
+Uncommitted changes are included in the diff.
+
+When unspecified UPSTREAM-LOCATION is the place \\[vc-push] would push
+to.  This default meaning for UPSTREAM-LOCATION may change in a future
+release of Emacs.
+
+When called interactively with a prefix argument, prompt for
+UPSTREAM-LOCATION.  In some version control systems, UPSTREAM-LOCATION
+can be a remote branch name.
+
+This command is like to `vc-fileset-diff-outgoing' except that it
+includes uncommitted changes."
+  (interactive (list (vc--maybe-read-upstream-location) nil))
+  (let* ((fileset (or fileset (vc-deduce-fileset t)))
+         (backend (car fileset))
+         (incoming (vc--incoming-revision backend
+                                          (or upstream-location ""))))
+    (vc-diff-internal vc-allow-async-diff fileset
+                      (vc-call-backend backend 'mergebase incoming)
+                      nil
                       (called-interactively-p 'interactive))))
 
 (declare-function ediff-load-version-control "ediff" (&optional silent))
@@ -3367,15 +3460,15 @@ Each function runs in the log output buffer without args.")
        (set-buffer-modified-p nil)
        (run-hooks 'vc-log-finish-functions)))))
 
-(defun vc-incoming-outgoing-internal (backend remote-location buffer-name type)
+(defun vc-incoming-outgoing-internal (backend upstream-location buffer-name type)
   (vc-log-internal-common
    backend buffer-name nil type
    (lambda (bk buf type-arg _files)
-     (vc-call-backend bk type-arg buf remote-location))
+     (vc-call-backend bk type-arg buf upstream-location))
    (lambda (_bk _files-arg _ret) nil)
    nil ;; Don't move point.
    (lambda (_ignore-auto _noconfirm)
-     (vc-incoming-outgoing-internal backend remote-location buffer-name type))))
+     (vc-incoming-outgoing-internal backend upstream-location buffer-name type))))
 
 ;;;###autoload
 (defun vc-print-log (&optional working-revision limit)
@@ -3422,7 +3515,7 @@ number of revisions to show; the default is `vc-log-show-limit'.
 When called interactively with a prefix argument, prompt for LIMIT, but
 if the prefix argument is a number, use it as LIMIT.
 A special case is when the prefix argument is 1: in this case
-the command prompts for the ID of a revision, and shows that revision
+the command prompts for the id of a REVISION, and shows that revision
 with its diffs (if the underlying VCS backend supports that)."
   (interactive
    (cond
@@ -3469,50 +3562,53 @@ The command prompts for the branch whose change log to show."
                            (list rootdir) branch t
                            (when (> vc-log-show-limit 0) vc-log-show-limit))))
 
+;; FIXME: Consider renaming to `vc-upstream-location-history'.
 (defvar vc-remote-location-history nil
-  "History for remote locations for VC incoming and outgoing commands.")
+  "History of upstream locations for VC incoming and outgoing commands.")
 
-(defun vc--maybe-read-remote-location ()
+(defun vc--maybe-read-upstream-location ()
   (and current-prefix-arg
-       (read-string "Remote location/branch (empty for default): " nil
+       (read-string "Upstream location/branch (empty for default): " nil
                     'vc-remote-location-history)))
 
-(defun vc--incoming-revision (backend remote-location)
-  (or (vc-call-backend backend 'incoming-revision remote-location)
+(defun vc--incoming-revision (backend upstream-location &optional refresh)
+  (or (vc-call-backend backend 'incoming-revision upstream-location refresh)
       (user-error "No incoming revision -- local-only branch?")))
 
 ;;;###autoload
-(defun vc-log-incoming (&optional remote-location)
-  "Show log of changes that will be received with pull from REMOTE-LOCATION.
-When unspecified REMOTE-LOCATION is the place \\[vc-update] would pull from.
-When called interactively with a prefix argument, prompt for REMOTE-LOCATION.
-In some version control systems REMOTE-LOCATION can be a remote branch name."
-  (interactive (list (vc--maybe-read-remote-location)))
+(defun vc-log-incoming (&optional upstream-location)
+  "Show log of changes that will be received with pull from UPSTREAM-LOCATION.
+When unspecified UPSTREAM-LOCATION is the place \\[vc-update] would pull
+from.  When called interactively with a prefix argument, prompt for
+UPSTREAM-LOCATION.  In some version control systems UPSTREAM-LOCATION
+can be a remote branch name."
+  (interactive (list (vc--maybe-read-upstream-location)))
   (vc--with-backend-in-rootdir "VC root-log"
-    (vc-incoming-outgoing-internal backend (or remote-location "")
+    (vc-incoming-outgoing-internal backend (or upstream-location "")
                                    "*vc-incoming*" 'log-incoming)))
 
-(defun vc-default-log-incoming (_backend buffer remote-location)
+(defun vc-default-log-incoming (_backend buffer upstream-location)
   (vc--with-backend-in-rootdir ""
-    (let ((incoming (vc--incoming-revision backend remote-location)))
+    (let ((incoming (vc--incoming-revision backend upstream-location 'refresh)))
       (vc-call-backend backend 'print-log (list rootdir) buffer t
                        incoming
                        (vc-call-backend backend 'mergebase incoming)))))
 
 ;;;###autoload
-(defun vc-log-outgoing (&optional remote-location)
-  "Show log of changes that will be sent with a push operation to REMOTE-LOCATION.
-When unspecified REMOTE-LOCATION is the place \\[vc-push] would push to.
-When called interactively with a prefix argument, prompt for REMOTE-LOCATION.
-In some version control systems REMOTE-LOCATION can be a remote branch name."
-  (interactive (list (vc--maybe-read-remote-location)))
+(defun vc-log-outgoing (&optional upstream-location)
+  "Show log of changes that will be sent with a push to UPSTREAM-LOCATION.
+When unspecified UPSTREAM-LOCATION is the place \\[vc-push] would push
+to.  When called interactively with a prefix argument, prompt for
+UPSTREAM-LOCATION.  In some version control systems UPSTREAM-LOCATION
+can be a remote branch name."
+  (interactive (list (vc--maybe-read-upstream-location)))
   (vc--with-backend-in-rootdir "VC root-log"
-    (vc-incoming-outgoing-internal backend (or remote-location "")
+    (vc-incoming-outgoing-internal backend (or upstream-location "")
                                    "*vc-outgoing*" 'log-outgoing)))
 
-(defun vc-default-log-outgoing (_backend buffer remote-location)
+(defun vc-default-log-outgoing (_backend buffer upstream-location)
   (vc--with-backend-in-rootdir ""
-    (let ((incoming (vc--incoming-revision backend remote-location)))
+    (let ((incoming (vc--incoming-revision backend upstream-location)))
       (vc-call-backend backend 'print-log (list rootdir) buffer t
                        ""
                        (vc-call-backend backend 'mergebase incoming)))))
@@ -3593,10 +3689,12 @@ to the working revision (except for keyword expansion)."
     ;; If any of the files is visited by the current buffer, make sure
     ;; buffer is saved.  If the user says `no', abort since we cannot
     ;; show the changes and ask for confirmation to discard them.
-    (when (or (not files) (memq (buffer-file-name) files))
+    (when-let* ((n (buffer-file-name))
+                ((or (not files) (member n files))))
       (vc-buffer-sync nil))
     (save-some-buffers nil (lambda ()
-                             (member (buffer-file-name) files)))
+                             (and-let* ((n (buffer-file-name)))
+                               (member n files))))
     (let (needs-save)
       (dolist (file files)
         (let ((buf (get-file-buffer file)))
@@ -4159,19 +4257,22 @@ marked revisions, use those."
                               'prepare-patch rev))
                            revisions)))
       (if vc-prepare-patches-separately
-          (dolist (patch (reverse patches)
-                         (message "Prepared %d patch%s..." (length patches)
-                                  (if (length> patches 1) "es" "")))
-            (compose-mail addressee
-                          (plist-get patch :subject)
-                          nil nil nil nil
-                          `((kill-buffer ,(plist-get patch :buffer))))
-            (rfc822-goto-eoh) (forward-line)
-            (save-excursion             ;don't jump to the end
-              (insert-buffer-substring
-               (plist-get patch :buffer)
-               (plist-get patch :body-start)
-               (plist-get patch :body-end))))
+          (cl-loop with l = (length patches)
+                   for patch in (reverse patches) do
+                   (compose-mail addressee
+                                 (plist-get patch :subject)
+                                 nil nil nil nil
+                                 `((kill-buffer ,(plist-get patch :buffer))))
+                   (rfc822-goto-eoh) (forward-line)
+                   (save-excursion      ;don't jump to the end
+                     (insert-buffer-substring
+                      (plist-get patch :buffer)
+                      (plist-get patch :body-start)
+                      (plist-get patch :body-end)))
+                   finally (message (ngettext "Prepared %d patch..."
+                                              "Prepared %d patches..."
+                                              l)
+                                    l))
         (compose-mail addressee subject nil nil nil nil
                       (mapcar
                        (lambda (p)

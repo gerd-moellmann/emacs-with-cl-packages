@@ -100,10 +100,10 @@
                      ;; Test that $$ in input is properly unquoted.
                      ("data/m-cttq$$t" "data/minibuffer-test-cttq$$tion")
                      ;; Test that env-vars are preserved.
-                     ("lisp/c${CTTQ1}et/se-u" "lisp/c${CTTQ1}et/semantic-utest")
-                     ("lisp/ced${CTTQ2}se-u" "lisp/ced${CTTQ2}semantic-utest")
+                     ("lisp/c${CTTQ1}et/se-u-c" "lisp/c${CTTQ1}et/semantic-utest-c.test")
+                     ("lisp/ced${CTTQ2}se-u-c" "lisp/ced${CTTQ2}semantic-utest-c.test")
                      ;; Test that env-vars don't prevent partial-completion.
-                     ("lis/c${CTTQ1}/se-u" "lisp/c${CTTQ1}et/semantic-utest")
+                     ("lis/c${CTTQ1}/se-u-c" "lisp/c${CTTQ1}et/semantic-utest-c.test")
                      ))
       (should (equal (completion-try-completion input
                                                 #'completion--file-name-table
@@ -118,11 +118,11 @@
                        ;; When an env var is in the completion bounds, try-completion
                        ;; won't change letter case.
                        ("lisp/c${CTTQ1}E" "lisp/c${CTTQ1}Et/")
-                       ("lisp/ced${CTTQ2}SE-U" "lisp/ced${CTTQ2}SEmantic-utest")
+                       ("lisp/ced${CTTQ2}SE-U-c" "lisp/ced${CTTQ2}SEmantic-utest-c.test")
                        ;; If the env var is before the completion bounds, try-completion
                        ;; *will* change letter case.
-                       ("lisp/c${CTTQ1}et/SE-U" "lisp/c${CTTQ1}et/semantic-utest")
-                       ("lis/c${CTTQ1}/SE-U" "lisp/c${CTTQ1}et/semantic-utest")
+                       ("lisp/c${CTTQ1}et/SE-U-c" "lisp/c${CTTQ1}et/semantic-utest-c.test")
+                       ("lis/c${CTTQ1}/SE-U-c" "lisp/c${CTTQ1}et/semantic-utest-c.test")
                        ))
         (should (equal (car (completion-try-completion input
                                                        #'completion--file-name-table
@@ -224,7 +224,11 @@
                    (completion-pcm--merge-try '("tes" point "ing")
                                               '("Testing" "testing")
                                               "" ""))
-           '("testing" . 4))))
+                 '("testing" . 7)))
+  (should (equal
+           (let ((completion-ignore-case t))
+             (completion-pcm-try-completion "tes" '("Testing" "testing") nil 3))
+           '("testing" . 7))))
 
 (ert-deftest completion-pcm-test-1 ()
   ;; Point is at end, this does not match anything
@@ -317,6 +321,31 @@
            (completion-pcm--merge-try
             '(prefix any "bar" any) '("xbarxfoo" "ybaryfoo") "" "")
            '("bar" . 3))))
+
+(ert-deftest completion-pcm-test-8 ()
+  ;; try-completion inserts the common prefix and suffix at point.
+  (should (equal (completion-pcm-try-completion
+                  "r" '("fooxbar" "fooybar") nil 0)
+                 '("foobar" . 3)))
+  ;; Even if point is at the end of the minibuffer.
+  (should (equal (completion-pcm-try-completion
+                  "" '("fooxbar" "fooybar") nil 0)
+                 '("foobar" . 3))))
+
+(ert-deftest completion-pcm-test-anydelim ()
+  ;; After each delimiter is a special wildcard which matches any
+  ;; sequence of delimiters.
+  (should (equal (completion-pcm-try-completion
+                  "-x" '("-_.x" "-__x") nil 2)
+                 '("-_x" . 3))))
+
+(ert-deftest completion-pcm-bug4219 ()
+  ;; With `completion-ignore-case', try-completion should change the
+  ;; case of existing text when the completions have different casing.
+  (should (equal
+           (let ((completion-ignore-case t))
+             (completion-pcm-try-completion "a" '("ABC" "ABD") nil 1))
+           '("AB" . 2))))
 
 (ert-deftest completion-substring-test-1 ()
   ;; One third of a match!
@@ -419,6 +448,17 @@
            15)))
 
 
+(defmacro with-minibuffer-setup (completing-read &rest body)
+  (declare (indent 1) (debug (collection body)))
+  `(catch 'result
+     (minibuffer-with-setup-hook
+         (lambda ()
+           (let ((redisplay-skip-initial-frame nil)
+                 (executing-kbd-macro nil)) ; Don't skip redisplay
+             (throw 'result (progn . ,body))))
+       (let ((executing-kbd-macro t)) ; Force the real minibuffer
+         ,completing-read))))
+
 (defmacro completing-read-with-minibuffer-setup (collection &rest body)
   (declare (indent 1) (debug (collection body)))
   `(catch 'result
@@ -440,21 +480,21 @@
             '("a" "ab" "ac")
           (execute-kbd-macro (kbd "a TAB TAB"))
           (should (equal (car messages) "Complete, but not unique"))
-          (should-not (get-buffer-window "*Completions*" 0))
+          (should-not (minibuffer--completions-visible))
           (execute-kbd-macro (kbd "b TAB"))
           (should (equal (car messages) "Sole completion"))))
       (let ((completion-auto-help t))
         (completing-read-with-minibuffer-setup
             '("a" "ab" "ac")
           (execute-kbd-macro (kbd "a TAB TAB"))
-          (should (get-buffer-window "*Completions*" 0))
+          (should (minibuffer--completions-visible))
           (execute-kbd-macro (kbd "b TAB"))
           (should (equal (car messages) "Sole completion"))))
       (let ((completion-auto-help 'visible))
         (completing-read-with-minibuffer-setup
          '("a" "ab" "ac" "achoo")
          (execute-kbd-macro (kbd "a TAB TAB"))
-         (should (get-buffer-window "*Completions*" 0))
+         (should (minibuffer--completions-visible))
          (execute-kbd-macro (kbd "ch TAB"))
          (should (equal (car messages) "Sole completion")))))))
 
@@ -463,19 +503,19 @@
     (completing-read-with-minibuffer-setup
         '("aa" "ab" "ac")
       (execute-kbd-macro (kbd "a TAB"))
-      (should (and (get-buffer-window "*Completions*" 0)
+      (should (and (minibuffer--completions-visible)
                    (eq (current-buffer) (get-buffer "*Completions*"))))
       (execute-kbd-macro (kbd "TAB TAB TAB"))
-      (should (and (get-buffer-window "*Completions*" 0)
+      (should (and (minibuffer--completions-visible)
                    (eq (current-buffer) (get-buffer " *Minibuf-1*"))))
       (execute-kbd-macro (kbd "S-TAB"))
-      (should (and (get-buffer-window "*Completions*" 0)
+      (should (and (minibuffer--completions-visible)
                    (eq (current-buffer) (get-buffer "*Completions*"))))))
   (let ((completion-auto-select 'second-tab))
     (completing-read-with-minibuffer-setup
         '("aa" "ab" "ac")
       (execute-kbd-macro (kbd "a TAB"))
-      (should (and (get-buffer-window "*Completions*" 0)
+      (should (and (minibuffer--completions-visible)
                    (not (eq (current-buffer) (get-buffer "*Completions*")))))
       (execute-kbd-macro (kbd "TAB TAB"))
       (should (eq (current-buffer) (get-buffer "*Completions*"))))))
@@ -555,6 +595,7 @@
 
 (ert-deftest completions-header-format-test ()
   (let ((completion-show-help nil)
+        (minibuffer-completion-auto-choose t)
         (completions-header-format nil))
     (completing-read-with-minibuffer-setup
         '("aa" "ab" "ac")
@@ -704,11 +745,91 @@
       (should (equal (minibuffer-contents) "ccc")))))
 
 (ert-deftest minibuffer-next-completion ()
-  (let ((default-directory (ert-resource-directory)))
+  (let ((default-directory (ert-resource-directory))
+        (minibuffer-completion-auto-choose t))
     (completing-read-with-minibuffer-setup #'read-file-name-internal
       (insert "d/")
       (execute-kbd-macro (kbd "M-<down> M-<down> M-<down>"))
       (should (equal "data/minibuffer-test-cttq$$tion" (minibuffer-contents))))))
+
+(ert-deftest minibuffer-completion-RET-prefix ()
+  ;; REQUIRE-MATCH=nil
+  (with-minibuffer-setup
+      (completing-read ":" '("aaa" "bbb" "ccc") nil nil)
+    (execute-kbd-macro (kbd "M-<down> M-<down> C-u RET"))
+    (should (equal "bbb" (minibuffer-contents))))
+  ;; REQUIRE-MATCH=t
+  (with-minibuffer-setup
+   (completing-read ":" '("aaa" "bbb" "ccc") nil t)
+   (execute-kbd-macro (kbd "M-<down> M-<down> C-u RET"))
+   (should (equal "bbb" (minibuffer-contents)))))
+
+(defun test/completion-at-point ()
+  (list (point-min) (point) '("test:a" "test:b")))
+
+(ert-deftest completion-in-region-next-completion ()
+  (with-current-buffer (get-buffer-create "*test*")
+    ;; Put this buffer in the selected window so
+    ;; `minibuffer--completions-visible' works.
+    (pop-to-buffer (current-buffer))
+    (setq-local completion-at-point-functions (list #'test/completion-at-point))
+    (insert "test:")
+    (completion-help-at-point)
+    (should (minibuffer--completions-visible))
+    ;; C-u RET and RET have basically the same behavior for
+    ;; completion-in-region-mode, since they both dismiss *Completions*
+    ;; while leaving completion-in-region-mode still active.
+    (execute-kbd-macro (kbd "M-<down>"))
+    (should (equal (completion--selected-candidate) "test:a"))
+    (execute-kbd-macro (kbd "C-u RET"))
+    (should (equal (buffer-string) "test:a"))
+    (delete-char -1)
+    (completion-help-at-point)
+    (execute-kbd-macro (kbd "M-<down> M-<down>"))
+    (should (equal (completion--selected-candidate) "test:b"))
+    (execute-kbd-macro (kbd "RET"))
+    (should (equal (buffer-string) "test:b"))))
+
+(ert-deftest completion-category-inheritance ()
+  (let ((completion-category-defaults
+         '((cat (display-sort-function . foo))
+           (dog (display-sort-function . bar)
+                (group-function        . baz)
+                (annotation-function   . qux)
+                (styles                basic))
+           (fel (annotation-function   . spam))
+           (testtesttest (styles substring))))
+        (origt (get 'testtesttest 'completion-category-parents))
+        (origc (get 'cat 'completion-category-parents)))
+    (unwind-protect
+        (progn
+          (put 'testtesttest 'completion-category-parents '(cat dog))
+          (put 'cat 'completion-category-parents '(fel))
+          ;; Value from first parent.
+          (should (eq
+                   (completion-metadata-get '((category . testtesttest))
+                                            'display-sort-function)
+                   'foo))
+          ;; Value from parent of first parent, not from second parent.
+          (should (eq
+                   (completion-metadata-get '((category . testtesttest))
+                                            'annotation-function)
+                   'spam))
+          ;; Value from second parent.
+          (should (eq
+                   (completion-metadata-get '((category . testtesttest))
+                                            'group-function)
+                   'baz))
+          ;; Property specified directly, takes precedence.
+          (should (equal
+                   (completion-metadata-get '((category . testtesttest))
+                                            'styles)
+                   '(substring)))
+          ;; Not specified and not inherited.
+          (should-not (completion-metadata-get '((category . testtesttest))
+                                               'affixation-function)))
+      (put 'cat 'completion-category-parents origc)
+      (put 'testtesttest 'completion-category-parents origt))))
 
 (provide 'minibuffer-tests)
 ;;; minibuffer-tests.el ends here

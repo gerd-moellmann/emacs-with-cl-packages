@@ -425,7 +425,8 @@ This variable is buffer-local."
    ;; Default openssh format: "user@host's password:".
    "\\|^[^@ \t\n]+@[^@ \t\n]+'s password: *\\'"
    ;; openssh-8.6p1 format: "(user@host) Password:".
-   "\\|^([^)@ \t\n]+@[^)@ \t\n]+) Password: *\\'")
+   ;; "(user@host) Password for user@host:"  (Bug#79424)
+   "\\|^([^)@ \t\n]+@[^)@ \t\n]+) Password\\(?: for [^)@ \t\n]+@[^)@ \t\n]+\\)?: *\\'")
   "Regexp matching prompts for passwords in the inferior process.
 This is used by `comint-watch-for-password-prompt'."
   :version "31.1"
@@ -1090,8 +1091,9 @@ See also `comint-input-ignoredups' and `comint-write-input-ring'."
                  (when (and (not (string-match history-ignore history))
 			    (or (null ignoredups)
 				(ring-empty-p ring)
-				(not (string-equal (ring-ref ring 0)
-						   history))))
+				(not (string-equal
+                                      (ring-ref ring (1- (ring-length ring)))
+				      history))))
 		   (when (= count ring-size)
 		     (ring-extend ring (min (- ring-max-size ring-size)
 					    ring-size))
@@ -1197,7 +1199,7 @@ This function makes `comint-dynamic-list-input-ring' obsolete."
              (ring-elements comint-input-ring)
            (user-error "No history available")))
         (completion-in-region-mode-predicate
-         (lambda () (get-buffer-window "*Completions*" 0))))
+         (lambda () (minibuffer--completions-visible))))
     (completion-in-region
      (comint-line-beginning-position) (point-max)
      (completion-table-with-metadata
@@ -3521,7 +3523,7 @@ The optional argument COMMON-SUBSTRING, if non-nil, should be a string
 specifying a common substring for adding the faces
 `completions-first-difference' and `completions-common-part' to
 the completions."
-  (let ((window (get-buffer-window "*Completions*" 0)))
+  (let ((window (minibuffer--completions-visible)))
     (setq completions (sort completions #'string-lessp))
     (if (and (eq last-command this-command)
 	     window (window-live-p window) (window-buffer window)

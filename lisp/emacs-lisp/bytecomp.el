@@ -3591,6 +3591,7 @@ This assumes the function has the `important-return-value' property."
          (cl-nset-exclusive-or 1 2)
          (cl-nreconc 1)
          (cl-sort 1) (cl-stable-sort 1) (cl-merge 2 3)
+         (cl-fill 1) (cl-replace 1)
          )))
   (dolist (entry mutating-fns)
     (put (car entry) 'mutates-arguments (cdr entry))))
@@ -5880,11 +5881,11 @@ and corresponding effects."
 ;;; Core compiler macros.
 
 (put 'featurep 'compiler-macro
-     (lambda (form feature &rest _ignore)
+     (lambda (form feature &rest rest)
        ;; Emacs-21's byte-code doesn't run under XEmacs or SXEmacs anyway, so
        ;; we can safely optimize away this test.
-       (if (member feature '('xemacs 'sxemacs 'emacs))
-           (eval form)
+       (if (and (member feature '('xemacs 'sxemacs 'emacs)) (not rest))
+           (featurep (cadr feature))
          form)))
 
 ;; Report comma operator used outside of backquote.

@@ -70,7 +70,7 @@
 ;; - get-change-comment (files rev)                OK
 ;; HISTORY FUNCTIONS
 ;; * print-log (files buffer &optional shortlog start-revision limit)   OK
-;; * incoming-revision (remote-location)           OK
+;; * incoming-revision (upstream-location &optional refresh)   OK
 ;; - log-search (buffer pattern)                   OK
 ;; - log-view-mode ()                              OK
 ;; - show-log-entry (revision)                     OK
@@ -1083,21 +1083,21 @@ If toggling on, also insert its message into the buffer."
   "C-c C-e" #'vc-git-log-edit-toggle-amend)
 
 (defun vc-git--log-edit-summary-check (limit)
-  (and (re-search-forward "^Summary: " limit t)
-       (when-let* ((regex
-                    (cond ((and (natnump vc-git-log-edit-summary-max-len)
-                                (natnump vc-git-log-edit-summary-target-len))
-                           (format ".\\{,%d\\}\\(.\\{,%d\\}\\)\\(.*\\)"
-                                   vc-git-log-edit-summary-target-len
-                                   (- vc-git-log-edit-summary-max-len
-                                      vc-git-log-edit-summary-target-len)))
-                          ((natnump vc-git-log-edit-summary-max-len)
-                           (format ".\\{,%d\\}\\(?2:.*\\)"
-                                   vc-git-log-edit-summary-max-len))
-                          ((natnump vc-git-log-edit-summary-target-len)
-                           (format ".\\{,%d\\}\\(.*\\)"
-                                   vc-git-log-edit-summary-target-len)))))
-         (re-search-forward regex limit t))))
+  (and-let* (((re-search-forward "^Summary: " limit t))
+             (regex
+              (cond ((and (natnump vc-git-log-edit-summary-max-len)
+                          (natnump vc-git-log-edit-summary-target-len))
+                     (format ".\\{,%d\\}\\(.\\{,%d\\}\\)\\(.*\\)"
+                             vc-git-log-edit-summary-target-len
+                             (- vc-git-log-edit-summary-max-len
+                                vc-git-log-edit-summary-target-len)))
+                    ((natnump vc-git-log-edit-summary-max-len)
+                     (format ".\\{,%d\\}\\(?2:.*\\)"
+                             vc-git-log-edit-summary-max-len))
+                    ((natnump vc-git-log-edit-summary-target-len)
+                     (format ".\\{,%d\\}\\(.*\\)"
+                             vc-git-log-edit-summary-target-len)))))
+    (re-search-forward regex limit t)))
 
 (define-derived-mode vc-git-log-edit-mode log-edit-mode "Log-Edit/git"
   "Major mode for editing Git log messages.
@@ -1605,19 +1605,20 @@ If LIMIT is a non-empty string, use it as a base revision."
                               start-revision))
 		'("--")))))))
 
-(defun vc-git-incoming-revision (remote-location)
-  (vc-git-command nil 0 nil "fetch"
-                  (and (not (string-empty-p remote-location))
-                       ;; Extract remote from "remote/branch".
-                       (replace-regexp-in-string "/.*" ""
-                                                 remote-location)))
-  (ignore-errors              ; in order to return nil if no such branch
-    (with-output-to-string
-      (vc-git-command standard-output 0 nil
-                      "log" "--max-count=1" "--pretty=format:%H"
-                      (if (string-empty-p remote-location)
-			  "@{upstream}"
-		        remote-location)))))
+(defun vc-git-incoming-revision (upstream-location &optional refresh)
+  (let ((rev (if (string-empty-p upstream-location)
+		 "@{upstream}"
+	       upstream-location)))
+    (when (or refresh (null (vc-git--rev-parse rev)))
+      (vc-git-command nil 0 nil "fetch"
+                      (and (not (string-empty-p upstream-location))
+                           ;; Extract remote from "remote/branch".
+                           (replace-regexp-in-string "/.*" ""
+                                                     upstream-location))))
+    (ignore-errors            ; in order to return nil if no such branch
+      (with-output-to-string
+        (vc-git-command standard-output 0 nil
+                        "log" "--max-count=1" "--pretty=format:%H" rev)))))
 
 (defun vc-git-log-search (buffer pattern)
   "Search the log of changes for PATTERN and output results into BUFFER.

@@ -1,4 +1,4 @@
-;;; vc-hooks.el --- resident support for version-control  -*- lexical-binding:t -*-
+;;; vc-hooks.el --- Preloaded support for version control  -*- lexical-binding:t -*-
 
 ;; Copyright (C) 1992-1996, 1998-2025 Free Software Foundation, Inc.
 
@@ -23,10 +23,9 @@
 
 ;;; Commentary:
 
-;; This is the always-loaded portion of VC.  It takes care of
-;; VC-related activities that are done when you visit a file, so that
-;; vc.el itself is loaded only when you use a VC command.  See the
-;; commentary of vc.el.
+;; This is the preloaded portion of VC.  It takes care of VC-related
+;; activities that are done when you visit a file, so that vc.el itself
+;; is loaded only when you use a VC command.  See commentary of vc.el.
 
 ;;; Code:
 
@@ -952,13 +951,14 @@ In the latter case, VC mode is deactivated for this buffer."
   "O"   #'vc-log-outgoing
   "M L" #'vc-log-mergebase
   "M D" #'vc-diff-mergebase
+  "B =" #'vc-diff-outgoing-base
+  "B D" #'vc-root-diff-outgoing-base
   "m"   #'vc-merge
   "r"   #'vc-retrieve-tag
   "s"   #'vc-create-tag
   "u"   #'vc-revert
   "v"   #'vc-next-action
   "+"   #'vc-update
-  ;; I'd prefer some kind of symmetry with vc-update:
   "P"   #'vc-push
   "="   #'vc-diff
   "D"   #'vc-root-diff
@@ -976,11 +976,11 @@ In the latter case, VC mode is deactivated for this buffer."
 
 (defvar-keymap vc-incoming-prefix-map
   "L" #'vc-log-incoming
-  "=" #'vc-fileset-diff-incoming
+  "=" #'vc-diff-incoming
   "D" #'vc-root-diff-incoming)
 (defvar-keymap vc-outgoing-prefix-map
   "L" #'vc-log-outgoing
-  "=" #'vc-fileset-diff-outgoing
+  "=" #'vc-diff-outgoing
   "D" #'vc-root-diff-outgoing)
 
 (defcustom vc-use-incoming-outgoing-prefixes nil

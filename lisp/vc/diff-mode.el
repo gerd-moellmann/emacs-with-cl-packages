@@ -1618,6 +1618,8 @@ else cover the whole buffer."
 (defvar whitespace-style)
 (defvar whitespace-trailing-regexp)
 
+(declare-function project-change-to-matching-directory "project")
+
 ;; Prevent applying `view-read-only' to diff-mode buffers (bug#75993).
 ;; We don't derive from `special-mode' because that would inhibit the
 ;; `self-insert-command' binding of normal keys.
@@ -1645,6 +1647,8 @@ In read-only buffers the following bindings are also available:
   (add-hook 'font-lock-mode-hook #'diff--font-lock-cleanup nil 'local)
   (setq-local imenu-generic-expression
               diff-imenu-generic-expression)
+  (setq-local project-find-matching-buffer-function
+              #'project-change-to-matching-directory)
   ;; These are not perfect.  They would be better done separately for
   ;; context diffs and unidiffs.
   ;; (setq-local paragraph-start

@@ -244,7 +244,7 @@ automatically)."
   ;; `eglot.el' is installed via GNU ELPA in an older Emacs.
   `(((rust-ts-mode rust-mode) . ("rust-analyzer"))
     ((cmake-mode cmake-ts-mode)
-     . ,(eglot-alternatives '((("neocmakelsp" "--stdio") "cmake-language-server"))))
+     . ,(eglot-alternatives '(("neocmakelsp" "--stdio") "cmake-language-server")))
     (vimrc-mode . ("vim-language-server" "--stdio"))
     ((python-mode python-ts-mode)
      . ,(eglot-alternatives
@@ -675,6 +675,7 @@ This can be useful when using docker to run a language server.")
 (defconst eglot--uri-path-allowed-chars
   (let ((vec (copy-sequence url-path-allowed-chars)))
     (aset vec ?: nil) ;; see github#639
+    (aset vec ?% nil) ;; see bug#78984
     vec)
   "Like `url-path-allowed-chars' but more restrictive.")
 
@@ -2008,12 +2009,6 @@ If optional MARKER, return a marker instead"
 
 
 ;;; More helpers
-(defconst eglot--uri-path-allowed-chars
-  (let ((vec (copy-sequence url-path-allowed-chars)))
-    (aset vec ?: nil) ;; see github#639
-    vec)
-  "Like `url-path-allowed-chars' but more restrictive.")
-
 (defun eglot--snippet-expansion-fn ()
   "Compute a function to expand snippets.
 Doubles as an indicator of snippet support."
@@ -2242,7 +2237,7 @@ Use `eglot-managed-p' to determine if current buffer is managed.")
         (when (and eglot-autoshutdown
                    (null (eglot--managed-buffers server))
                    ;; Don't shutdown if up again soon.
-                   (not revert-buffer-in-progress-p))
+                   (with-no-warnings (not revert-buffer-in-progress-p)))
           (eglot-shutdown server)))))))
 
 (defun eglot--managed-mode-off ()
@@ -3723,7 +3718,7 @@ for which LSP on-type-formatting should be requested."
                        (let ((case-fold-search nil))
                          (and (search-forward parlabel (line-end-position) t)
                               (list (match-beginning 0) (match-end 0))))
-                     (mapcar #'1+ (append parlabel nil)))))
+                     (list (1+ (aref parlabel 0)) (1+ (aref parlabel 1))))))
                (if (and beg end)
                    (add-face-text-property
                     beg end
@@ -3736,7 +3731,7 @@ for which LSP on-type-formatting should be requested."
              (insert "\n  "
                      (propertize
                       (if (stringp parlabel) parlabel
-                        (apply #'substring siglabel (mapcar #'1+ parlabel)))
+                        (substring siglabel (aref parlabel 0) (aref parlabel 1)))
                       'face (and (eq i active-param) 'eldoc-highlight-function-argument))
                      ": " fpardoc)))))
       (buffer-string))))
