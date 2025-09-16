@@ -5,6 +5,9 @@ This is an experimental build of the [emacs-mac](https://bitbucket.org/mituharu/
 > [!WARNING]
 > This is an experimental build of `emacs-mac`; there will certainly be bugs. We are looking for feedback and testing from experienced users.  If you are familiar with or willing to learn about running new builds of Emacs, including under a debugger, perfect.  If you are a Mac developer familiar with ObjC or Mac Window frameworks, even better (get in touch)!  Other users should stick to the official NS build or recent v29.4 emacs-mac release for now.
 
+> [!NOTE]
+> Branch organization and naming are subject to change.
+
 ## Status
 
 Known working systems:
@@ -13,7 +16,7 @@ Known working systems:
 - MacOS 14 (Sonoma) on ARM64 (M1, M3)
 - MacOS 12 (Monterey) on X86_64 (Intel)
 
-Please see the [issues](../../issues) for advice on build configurations for your system.
+Please see the [discussion](../../discussions/categories/show-and-tell) for advice on build configurations for your system.
 
 >[!IMPORTANT]
 > Please start a [discussion](../../discussions/categories/show-and-tell) to report your build experiences, even if you encounter no problems.  Mention your OS version, CPU, which branch you built, and any other relevant details, including the build/configure flags you used.
@@ -55,7 +58,7 @@ A _self-contained_ app by default will go into `/Applications/Emacs.app`.
 
 ```bash
 ./autogen.sh
-CFLAGS="-O3 -mcpu=native" ./configure --with-native-compilation --with-tree-sitter --enable-mac-app=yes --enable-mac-self-contained
+CFLAGS="-O2 -mcpu=native" ./configure --with-native-compilation --with-tree-sitter --enable-mac-app=yes --enable-mac-self-contained
 ```
 
 You can specify another build directory for the self-contained app using `--enable-mac-app=/path/to/dir`.
@@ -67,7 +70,7 @@ You can specify another build directory for the self-contained app using `--enab
 
 ```bash
 ./autogen.sh
-CFLAGS="-O3 -mcpu=native" ./configure --with-native-compilation --with-tree-sitter
+CFLAGS="-O2 -mcpu=native" ./configure --with-native-compilation --with-tree-sitter  
 ```
 
 ### Build
