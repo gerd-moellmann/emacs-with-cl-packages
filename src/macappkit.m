@@ -6485,7 +6485,8 @@ static BOOL emacsViewUpdateLayerDisabled;
   if (self == EmacsMainView.class)
     {
       NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
-
+      if ([defaults objectForKey:@"NSAutoFillHeuristicControllerEnabled"] == nil)
+	[defaults registerDefaults:@{@"NSAutoFillHeuristicControllerEnabled" : @false}];
       if ([defaults objectForKey:@"ApplePressAndHoldEnabled"] == nil)
 	[defaults registerDefaults:@{@"ApplePressAndHoldEnabled" : @"NO"}];
     }
