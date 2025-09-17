@@ -10982,9 +10982,7 @@ it has to be wrapped in `(eval (quote ...))'.
 If NAME is already defined as a test and Emacs is running
 in batch mode, an error is signaled.
 
-(fn NAME () [DOCSTRING] [:expected-result RESULT-TYPE] [:tags \\='(TAG...)] BODY...)" nil t)
-(function-put 'ert-deftest 'doc-string-elt 3)
-(function-put 'ert-deftest 'lisp-indent-function 2)
+(fn NAME () [DOCSTRING] [:expected-result RESULT-TYPE] [:tags \\='(TAG...)] BODY...)" nil 'macro)
 (autoload 'ert-run-tests-batch "ert" "\
 Run the tests specified by SELECTOR, printing results to the terminal.
 
@@ -17127,8 +17125,7 @@ inlined into the compiled format versions.  This means that if you
 change its definition, you should explicitly call
 `ibuffer-recompile-formats'.
 
-(fn SYMBOL (&key NAME INLINE PROPS SUMMARIZER) &rest BODY)" nil t)
-(function-put 'define-ibuffer-column 'lisp-indent-function 'defun)
+(fn SYMBOL (&key NAME INLINE PROPS SUMMARIZER) &rest BODY)" nil 'macro)
 (autoload 'define-ibuffer-sorter "ibuf-macs" "\
 Define a method of sorting named NAME.
 DOCUMENTATION is the documentation of the function, which will be called
@@ -17139,9 +17136,7 @@ For sorting, the forms in BODY will be evaluated with `a' bound to one
 buffer object, and `b' bound to another.  BODY should return a non-nil
 value if and only if `a' is \"less than\" `b'.
 
-(fn NAME DOCUMENTATION (&key DESCRIPTION) &rest BODY)" nil t)
-(function-put 'define-ibuffer-sorter 'lisp-indent-function 1)
-(function-put 'define-ibuffer-sorter 'doc-string-elt 2)
+(fn NAME DOCUMENTATION (&key DESCRIPTION) &rest BODY)" nil 'macro)
 (autoload 'define-ibuffer-op "ibuf-macs" "\
 Generate a function which operates on a buffer.
 OP becomes the name of the function; if it doesn't begin with
@@ -17184,9 +17179,7 @@ BODY define the operation; they are forms to evaluate per each
 marked buffer.  BODY is evaluated with `buf' bound to the
 buffer object.
 
-(fn OP ARGS DOCUMENTATION (&key INTERACTIVE MARK MODIFIER-P DANGEROUS OPSTRING ACTIVE-OPSTRING BEFORE AFTER COMPLEX) &rest BODY)" nil t)
-(function-put 'define-ibuffer-op 'lisp-indent-function 2)
-(function-put 'define-ibuffer-op 'doc-string-elt 3)
+(fn OP ARGS DOCUMENTATION (&key INTERACTIVE MARK MODIFIER-P DANGEROUS OPSTRING ACTIVE-OPSTRING BEFORE AFTER COMPLEX) &rest BODY)" nil 'macro)
 (autoload 'define-ibuffer-filter "ibuf-macs" "\
 Define a filter named NAME.
 DOCUMENTATION is the documentation of the function.
@@ -17201,9 +17194,7 @@ not a particular buffer should be displayed or not.  The forms in BODY
 will be evaluated with BUF bound to the buffer object, and QUALIFIER
 bound to the current value of the filter.
 
-(fn NAME DOCUMENTATION (&key READER DESCRIPTION) &rest BODY)" nil t)
-(function-put 'define-ibuffer-filter 'lisp-indent-function 2)
-(function-put 'define-ibuffer-filter 'doc-string-elt 2)
+(fn NAME DOCUMENTATION (&key READER DESCRIPTION) &rest BODY)" nil 'macro)
 (register-definition-prefixes "ibuf-macs" '("ibuffer-"))
 
 
@@ -17773,6 +17764,8 @@ Stop collecting IGC stats." t)
 Start collecting IGC statistics.
 
 (fn TYPE FILE SECS)" t)
+(autoload 'igc-start-idle-timer "igc" "\
+Start a timer to do GC work while Emacs is idle.")
 (register-definition-prefixes "igc" '("igc-"))
 
 
@@ -25500,8 +25493,7 @@ PACKAGE, or the current package if PACKAGE is not specified.
 Return what RESULT-FORM evaluates to, if specified, and the loop ends
 normally, or else if an explcit return occurs the value it transfers.
 
-(fn (VAR &optional (PACKAGE \\='*package*) RESULT-FORM) &body BODY)" nil t)
-(function-put 'do-symbols 'lisp-indent-function 1)
+(fn (VAR &optional (package \\='*package*) result-form) &body BODY)" nil 'macro)
 (autoload 'do-external-symbols "pkg" "\
 Loop over external symbols in a package.
 
@@ -25511,7 +25503,7 @@ PACKAGE, or the current package if PACKAGE is not specified.
 Return what RESULT-FORM evaluates to, if specified, and the loop ends
 normally, or else if an explcit return occurs the value it transfers.
 
-(fn (VAR &optional (PACKAGE \\='*package*) RESULT-FORM) &body BODY)" nil t)
+(fn (VAR &optional (package \\='*package*) result-form) &body BODY)" nil 'macro)
 (autoload 'do-all-symbols "pkg" "\
 Loop over all symbols in all registered packages.
 
@@ -25521,7 +25513,7 @@ PACKAGE, or the current package if PACKAGE is not specified.
 Return what RESULT-FORM evaluates to, if specified, and the loop ends
 normally, or else if an explcit return occurs the value it transfers.
 
-(fn (VAR &optional RESULT-FORM) &body BODY)" nil t)
+(fn (VAR &optional result-form) &body BODY)" nil 'macro)
 (autoload 'internal-symbols "pkg" "\
 
 
@@ -25533,7 +25525,7 @@ normally, or else if an explcit return occurs the value it transfers.
 (autoload 'without-package-locks "pkg" "\
 
 
-(fn &body BODY)" nil t)
+(fn &body BODY)" nil 'macro)
 (autoload 'pkg--with-package-locks "pkg" "\
 
 
@@ -25541,13 +25533,11 @@ normally, or else if an explcit return occurs the value it transfers.
 (autoload 'with-unlocked-packages "pkg" "\
 
 
-(fn (&rest PACKAGES) &rest BODY)" nil t)
-(function-put 'with-unlocked-packages 'lisp-indent-function 1)
+(fn (&REST packages) &rest BODY)" nil 'macro)
 (autoload 'with-locked-packages "pkg" "\
 
 
-(fn (&rest PACKAGES) &rest BODY)" nil t)
-(function-put 'with-locked-packages 'lisp-indent-function 1)
+(fn (&REST packages) &rest BODY)" nil 'macro)
 (autoload 'make-package "pkg" "\
 Create and return a new package with name NAME.
 
@@ -25660,7 +25650,7 @@ Otherwise, PACKAGE must be a package name, and that name
 is lookup up in the package registry and the result is
 returned if found.
 
-Value is nil if no package with the given name is found.
+Value is nil if no package with the given name is found. 
 
 (fn PACKAGE)")
 (autoload 'delete-package "pkg" "\
@@ -33985,6 +33975,12 @@ relative only to the time worked today, and not to past time.
 (register-definition-prefixes "timeclock" '("timeclock-"))
 
 
+;;; Generated autoloads from emacs-lisp/timeout.el
+
+(push '(timeout 2 1) package--builtin-versions)
+(register-definition-prefixes "timeout" '("timeout-"))
+
+
 ;;; Generated autoloads from emacs-lisp/timer-list.el
 
 (autoload 'list-timers "timer-list" "\
@@ -34573,7 +34569,7 @@ Interactively, with a prefix argument, prompt for a different method." t)
 
 ;;; Generated autoloads from transient.el
 
-(push '(transient 0 9 4) package--builtin-versions)
+(push '(transient 0 10 0) package--builtin-versions)
 (autoload 'transient-insert-suffix "transient" "\
 Insert a SUFFIX into PREFIX before LOC.
 PREFIX is a prefix command, a symbol.
@@ -34668,9 +34664,15 @@ nil, the grammar is installed to the standard location, the
 
 (fn LANG &optional OUT-DIR)" t)
 (defvar treesit-enabled-modes nil "\
-Specify what treesit modes to enable by default.
+Specify which tree-sitter based major modes to enable by default.
 The value can be either a list of ts-modes to enable,
-or t to enable all ts-modes.")
+or t to enable all ts-modes.  The value nil (the default)
+means not to enable any tree-sitter based modes.
+
+Enabling a tree-stter based mode means that visiting files in the
+corresponding programming language will automatically turn on that
+mode, instead of any non-tree-sitter based modes for the same
+language.")
 (custom-autoload 'treesit-enabled-modes "treesit" nil)
 (register-definition-prefixes "treesit" '("treesit-"))
 
@@ -36150,31 +36152,35 @@ The merge base is a common ancestor between REV1 and REV2 revisions.
 
 (fn FILES REV1 REV2)" t)
 (autoload 'vc-root-diff-incoming "vc" "\
-Report diff of all changes that would be pulled from REMOTE-LOCATION.
-When unspecified REMOTE-LOCATION is the place \\[vc-update] would pull from.
-When called interactively with a prefix argument, prompt for REMOTE-LOCATION.
-In some version control systems REMOTE-LOCATION can be a remote branch name.
+Report diff of all changes that would be pulled from UPSTREAM-LOCATION.
+When unspecified UPSTREAM-LOCATION is the place \\[vc-update] would pull
+from.  When called interactively with a prefix argument, prompt for
+UPSTREAM-LOCATION.  In some version control systems UPSTREAM-LOCATION
+can be a remote branch name.
 
 See `vc-use-incoming-outgoing-prefixes' regarding giving this command a
 global binding.
 
-(fn &optional REMOTE-LOCATION)" t)
+(fn &optional UPSTREAM-LOCATION)" t)
 (autoload 'vc-diff-incoming "vc" "\
-Report changes to VC fileset that would be pulled from REMOTE-LOCATION.
-When unspecified REMOTE-LOCATION is the place \\[vc-update] would pull from.
-When called interactively with a prefix argument, prompt for REMOTE-LOCATION.
-In some version control systems REMOTE-LOCATION can be a remote branch name.
-When called from Lisp optional argument FILESET overrides the VC fileset.
+Report changes to VC fileset that would be pulled from UPSTREAM-LOCATION.
+When unspecified UPSTREAM-LOCATION is the place \\[vc-update] would pull
+from.  When called interactively with a prefix argument, prompt for
+UPSTREAM-LOCATION.  In some version control systems UPSTREAM-LOCATION
+can be a remote branch name.
+When called from Lisp optional argument FILESET overrides the VC
+fileset.
 
 See `vc-use-incoming-outgoing-prefixes' regarding giving this command a
 global binding.
 
-(fn &optional REMOTE-LOCATION FILESET)" t)
+(fn &optional UPSTREAM-LOCATION FILESET)" t)
 (autoload 'vc-root-diff-outgoing "vc" "\
-Report diff of all changes that would be pushed to REMOTE-LOCATION.
-When unspecified REMOTE-LOCATION is the place \\[vc-push] would push to.
-When called interactively with a prefix argument, prompt for REMOTE-LOCATION.
-In some version control systems REMOTE-LOCATION can be a remote branch name.
+Report diff of all changes that would be pushed to UPSTREAM-LOCATION.
+When unspecified UPSTREAM-LOCATION is the place \\[vc-push] would push
+to.  When called interactively with a prefix argument, prompt for
+UPSTREAM-LOCATION.  In some version control systems UPSTREAM-LOCATION
+can be a remote branch name.
 
 This command is like `vc-root-diff-outgoing-base' except that it does
 not include uncommitted changes.
@@ -36182,13 +36188,15 @@ not include uncommitted changes.
 See `vc-use-incoming-outgoing-prefixes' regarding giving this command a
 global binding.
 
-(fn &optional REMOTE-LOCATION)" t)
+(fn &optional UPSTREAM-LOCATION)" t)
 (autoload 'vc-diff-outgoing "vc" "\
-Report changes to VC fileset that would be pushed to REMOTE-LOCATION.
-When unspecified REMOTE-LOCATION is the place \\[vc-push] would push to.
-When called interactively with a prefix argument, prompt for REMOTE-LOCATION.
-In some version control systems REMOTE-LOCATION can be a remote branch name.
-When called from Lisp optional argument FILESET overrides the VC fileset.
+Report changes to VC fileset that would be pushed to UPSTREAM-LOCATION.
+When unspecified UPSTREAM-LOCATION is the place \\[vc-push] would push
+to.  When called interactively with a prefix argument, prompt for
+UPSTREAM-LOCATION.  In some version control systems UPSTREAM-LOCATION
+can be a remote branch name.
+When called from Lisp optional argument FILESET overrides the VC
+fileset.
 
 This command is like `vc-diff-outgoing-base' except that it does not
 include uncommitted changes.
@@ -36196,44 +36204,44 @@ include uncommitted changes.
 See `vc-use-incoming-outgoing-prefixes' regarding giving this command a
 global binding.
 
-(fn &optional REMOTE-LOCATION FILESET)" t)
+(fn &optional UPSTREAM-LOCATION FILESET)" t)
 (autoload 'vc-root-diff-outgoing-base "vc" "\
-Report diff of all changes since the merge base with REMOTE-LOCATION.
-The merge base with REMOTE-LOCATION means the common ancestor of the
-working revision and REMOTE-LOCATION.
+Report diff of all changes since the merge base with UPSTREAM-LOCATION.
+The merge base with UPSTREAM-LOCATION means the common ancestor of the
+working revision and UPSTREAM-LOCATION.
 Uncommitted changes are included in the diff.
 
-When unspecified REMOTE-LOCATION is the place \\[vc-push] would push to.
-This default meaning for REMOTE-LOCATION may change in a future release
-of Emacs.
+When unspecified UPSTREAM-LOCATION is the place \\[vc-push] would push
+to.  This default meaning for UPSTREAM-LOCATION may change in a future
+release of Emacs.
 
 When called interactively with a prefix argument, prompt for
-REMOTE-LOCATION.  In some version control systems, REMOTE-LOCATION can
-be a remote branch name.
+UPSTREAM-LOCATION.  In some version control systems, UPSTREAM-LOCATION
+can be a remote branch name.
 
 This command is like `vc-root-diff-outgoing' except that it includes
 uncommitted changes.
 
-(fn &optional REMOTE-LOCATION)" t)
+(fn &optional UPSTREAM-LOCATION)" t)
 (autoload 'vc-diff-outgoing-base "vc" "\
-Report changes to VC fileset since the merge base with REMOTE-LOCATION.
+Report changes to VC fileset since the merge base with UPSTREAM-LOCATION.
 
-The merge base with REMOTE-LOCATION means the common ancestor of the
-working revision and REMOTE-LOCATION.
+The merge base with UPSTREAM-LOCATION means the common ancestor of the
+working revision and UPSTREAM-LOCATION.
 Uncommitted changes are included in the diff.
 
-When unspecified REMOTE-LOCATION is the place \\[vc-push] would push to.
-This default meaning for REMOTE-LOCATION may change in a future release
-of Emacs.
+When unspecified UPSTREAM-LOCATION is the place \\[vc-push] would push
+to.  This default meaning for UPSTREAM-LOCATION may change in a future
+release of Emacs.
 
 When called interactively with a prefix argument, prompt for
-REMOTE-LOCATION.  In some version control systems, REMOTE-LOCATION can
-be a remote branch name.
+UPSTREAM-LOCATION.  In some version control systems, UPSTREAM-LOCATION
+can be a remote branch name.
 
 This command is like to `vc-fileset-diff-outgoing' except that it
 includes uncommitted changes.
 
-(fn &optional REMOTE-LOCATION FILESET)" t)
+(fn &optional UPSTREAM-LOCATION FILESET)" t)
 (autoload 'vc-version-ediff "vc" "\
 Show differences between REV1 and REV2 of FILES using ediff.
 This compares two revisions of the files in FILES.  Currently,
@@ -36381,7 +36389,7 @@ number of revisions to show; the default is `vc-log-show-limit'.
 When called interactively with a prefix argument, prompt for LIMIT, but
 if the prefix argument is a number, use it as LIMIT.
 A special case is when the prefix argument is 1: in this case
-the command prompts for the ID of a revision, and shows that revision
+the command prompts for the id of a REVISION, and shows that revision
 with its diffs (if the underlying VCS backend supports that).
 
 (fn &optional LIMIT REVISION)" t)
@@ -36391,19 +36399,21 @@ The command prompts for the branch whose change log to show.
 
 (fn BRANCH)" t)
 (autoload 'vc-log-incoming "vc" "\
-Show log of changes that will be received with pull from REMOTE-LOCATION.
-When unspecified REMOTE-LOCATION is the place \\[vc-update] would pull from.
-When called interactively with a prefix argument, prompt for REMOTE-LOCATION.
-In some version control systems REMOTE-LOCATION can be a remote branch name.
+Show log of changes that will be received with pull from UPSTREAM-LOCATION.
+When unspecified UPSTREAM-LOCATION is the place \\[vc-update] would pull
+from.  When called interactively with a prefix argument, prompt for
+UPSTREAM-LOCATION.  In some version control systems UPSTREAM-LOCATION
+can be a remote branch name.
 
-(fn &optional REMOTE-LOCATION)" t)
+(fn &optional UPSTREAM-LOCATION)" t)
 (autoload 'vc-log-outgoing "vc" "\
-Show log of changes that will be sent with a push operation to REMOTE-LOCATION.
-When unspecified REMOTE-LOCATION is the place \\[vc-push] would push to.
-When called interactively with a prefix argument, prompt for REMOTE-LOCATION.
-In some version control systems REMOTE-LOCATION can be a remote branch name.
+Show log of changes that will be sent with a push to UPSTREAM-LOCATION.
+When unspecified UPSTREAM-LOCATION is the place \\[vc-push] would push
+to.  When called interactively with a prefix argument, prompt for
+UPSTREAM-LOCATION.  In some version control systems UPSTREAM-LOCATION
+can be a remote branch name.
 
-(fn &optional REMOTE-LOCATION)" t)
+(fn &optional UPSTREAM-LOCATION)" t)
 (autoload 'vc-log-search "vc" "\
 Search the VC log of changes for PATTERN and show log of matching changes.
 
@@ -36584,6 +36594,44 @@ of the other working trees FROM and TO.
 BACKEND is the VC backend.
 
 (fn BACKEND FROM TO)" t)
+(autoload 'vc-apply-to-other-working-tree "vc" "\
+Apply VC fileset's local changes to working tree under DIRECTORY.
+Must be called from within an existing VC working tree.
+When called interactively, prompts for DIRECTORY.
+With a prefix argument (when called from Lisp, with optional argument
+MOVE non-nil), don't just copy the changes, but move them, from the
+current working tree to DIRECTORY.
+
+When called from a `diff-mode' buffer, move or copy the changes
+specified by the contents of that buffer, only.
+
+If any changes to be moved or copied can't be applied to DIRECTORY, it
+is an error, and no changes are applied.
+If any changes to be moved can't be reverse-applied to this working
+tree, it is an error, and no changes are moved.
+
+(fn DIRECTORY &optional MOVE)" t)
+(autoload 'vc-apply-root-to-other-working-tree "vc" "\
+Apply all local changes in this working tree to the tree under DIRECTORY.
+Must be called from within an existing VC working tree.
+When called interactively, prompts for DIRECTORY.
+With a prefix argument (when called from Lisp, with optional argument
+MOVE non-nil), don't just copy the changes, but move them, from the
+current working tree to DIRECTORY.
+
+With a double prefix argument (\\[universal-argument] \\[universal-argument]; when called from Lisp, with
+optional argument PREVIEW non-nil), don't actually apply changes to
+DIRECTORY, but instead show all those changes in a `diff-mode' buffer
+with `default-directory' set to DIRECTORY.
+You can then selectively apply changes with `diff-mode' commands like
+`diff-apply-hunk' and `diff-apply-buffer'.
+
+If any changes to be moved or copied can't be applied to DIRECTORY, it
+is an error, and (except with \\[universal-argument] \\[universal-argument]) no changes are applied.
+If any changes to be moved can't be reverse-applied to this working
+tree, it is an error, and no changes are moved.
+
+(fn DIRECTORY &optional MOVE PREVIEW)" t)
 (register-definition-prefixes "vc" '("log-view-vc-prev-" "vc-" "with-vc-properties"))
 
 
@@ -39649,7 +39697,8 @@ run a specific program.  The program must be a member of
 (provide 'loaddefs)
 
 ;; Local Variables:
-;; no-byte-compile: t;; version-control: never
+;; no-byte-compile: t
+;; version-control: never
 ;; no-update-autoloads: t
 ;; no-native-compile: t
 ;; coding: utf-8-emacs-unix
