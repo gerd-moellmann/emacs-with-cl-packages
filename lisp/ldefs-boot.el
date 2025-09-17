@@ -25660,7 +25660,7 @@ Otherwise, PACKAGE must be a package name, and that name
 is lookup up in the package registry and the result is
 returned if found.
 
-Value is nil if no package with the given name is found. 
+Value is nil if no package with the given name is found.
 
 (fn PACKAGE)")
 (autoload 'delete-package "pkg" "\

@@ -255,8 +255,12 @@ but as a plain Lisp variable, not a user option.)
 
 ** Mouse
 
+*** New mode 'mouse-shift-adjust-mode' extends selection with 'S-<mouse-1>'.
+When enabled, you can use the left mouse button with the <Shift> modifier
+to extend the boundaries of the active region by dragging the mouse pointer.
+
 ---
-*** 'context-menu-mode now' includes a "Send to..." menu item.
+*** 'context-menu-mode' now includes a "Send to..." menu item.
 The menu item enables sending current file(s) or region text to external
 (non-Emacs) applications or services.  See send-to.el for customisations.
 
@@ -967,6 +971,12 @@ By default, this is nil, and the Doxygen comment blocks in C/C++ sources
 are highlighted like other comments.  When non-nil, Doxygen comment
 blocks are syntax-highlighted if the Doxygen grammar library is
 available.
+
+** Csharp-ts-mode
+
+*** Renamed feature in 'treesit-font-lock-feature-list'
+The feature 'property' has been renamed to 'attribute', since this is
+what it is called in the general C# community.
 
 ** Go-ts mode
 
@@ -2072,8 +2082,14 @@ other working trees:
 - 'C-x v w c': Add a new working tree.
 - 'C-x v w w': Visit this file in another working tree.
 - 'C-x v w s': Like 'C-x p p' but limited to other working trees.
+- 'C-x v w a': Copy or move fileset changes to another working tree.
+- 'C-x v w A': Copy or move all changes to another working tree.
 - 'C-x v w x': Delete a working tree you no longer need.
 - 'C-x v w R': Relocate a working tree to another file name.
+
+The new user option 'vc-no-confirm-moving-changes' controls whether
+'C-x v w a' and 'C-x v w A' ask for confirmation when moving changes
+between working trees.  The default is to ask for confirmation.
 
 In addition, Lisp programs that extend VC can invoke the new backend
 functions to obtain a list of other working trees, and to add, remove
@@ -2525,6 +2541,12 @@ frame and be interpreted as a command.
 This specifies in which major modes should the 'global-hl-line-mode' be
 switched on.  The default is t, which means enable it in all major
 modes.
+
+---
+*** New value 'all' for the user option 'global-hl-line-sticky-flag'.
+It updates the line highlighting in all windows and buffers,
+unlike the value t that updates only windows that display
+the current buffer.
 
 ---
 *** New user option 'display-fill-column-indicator-warning'.
