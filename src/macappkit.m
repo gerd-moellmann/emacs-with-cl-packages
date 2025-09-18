@@ -116,6 +116,8 @@ static void mac_within_gui_allowing_inner_lisp (void (^) (void));
 static void mac_within_lisp (void (^) (void));
 static void mac_within_lisp_deferred_unless_popup (void (^) (void));
 
+static void mac_draw_queue_sync(void);
+
 #define MAC_SELECT_ALLOW_LISP_EVALUATION 1
 #if MAC_SELECT_ALLOW_LISP_EVALUATION
 static bool mac_select_allow_lisp_evaluation;
@@ -1244,6 +1246,12 @@ static bool handling_queued_nsevents_p;
 	   name:NSWorkspaceAccessibilityDisplayOptionsDidChangeNotification
 	 object:nil];
 
+  [[[NSWorkspace sharedWorkspace] notificationCenter]
+    addObserver:self
+       selector:@selector(willSleep:)
+	   name:NSWorkspaceWillSleepNotification
+	 object:nil];
+
   [NSApp registerUserInterfaceItemSearchHandler:self];
   Vmac_help_topics = Qnil;
 
@@ -1334,6 +1342,12 @@ static bool handling_queued_nsevents_p;
 - (void)antialiasThresholdDidChange:(NSNotification *)notification
 {
   macfont_update_antialias_threshold ();
+}
+
+- (void)willSleep:(NSNotification *)notification {
+  // Do quick pre-sleep work here
+  NSLog(@"Entering sleep");
+  mac_draw_queue_sync();
 }
 
 - (void)updateObservedKeyPaths
@@ -6485,6 +6499,7 @@ static BOOL emacsViewUpdateLayerDisabled;
   if (self == EmacsMainView.class)
     {
       NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+
       if ([defaults objectForKey:@"NSAutoFillHeuristicControllerEnabled"] == nil)
 	[defaults registerDefaults:@{@"NSAutoFillHeuristicControllerEnabled" : @false}];
       if ([defaults objectForKey:@"ApplePressAndHoldEnabled"] == nil)
@@ -11474,7 +11489,7 @@ mac_fill_menubar (widget_value *first_wv, bool deep_p)
 
 	  [NSApp setMainMenu:newMenu];
 
-	  if (windowMenu)
+	  if (windowMenu && [windowMenu numberOfItems])
 	    [NSApp setWindowsMenu:windowMenu];
 
 	  if (helpMenu)
@@ -14060,7 +14075,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 - (NSSize)integralSizeOfPageAtIndex:(NSUInteger)index
 {
   PDFPage *page = [self pageAtIndex:index];
-  NSRect bounds = [page boundsForBox:kPDFDisplayBoxTrimBox];
+  NSRect bounds = [page boundsForBox:kPDFDisplayBoxCropBox];
   int rotation = [page rotation];
 
   if (rotation == 0 || rotation == 180)
@@ -14084,7 +14099,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
 		options:(NSDictionaryOf (NSString *, id) *)options /* unused */
 {
   PDFPage *page = [self pageAtIndex:index];
-  NSRect bounds = [page boundsForBox:kPDFDisplayBoxTrimBox];
+  NSRect bounds = [page boundsForBox:kPDFDisplayBoxCropBox];
   int rotation = [page rotation];
   CGFloat width, height;
 
@@ -14102,7 +14117,7 @@ static NSDate *documentRasterizerCacheOldestTimestamp;
       CGContextSaveGState (ctx);
       CGContextTranslateCTM (ctx, NSMinX (rect), NSMinY (rect));
       CGContextScaleCTM (ctx, NSWidth (rect) / width, NSHeight (rect) / height);
-      [page drawWithBox:kPDFDisplayBoxTrimBox toContext:ctx];
+      [page drawWithBox:kPDFDisplayBoxCropBox toContext:ctx];
       CGContextRestoreGState (ctx);
     }
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 101200
