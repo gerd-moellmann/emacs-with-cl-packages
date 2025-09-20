@@ -1955,6 +1955,18 @@ OSStatus
 install_application_handler (void)
 {
   mac_within_gui (^{
+      if (mac_operating_system_version.major >= 26)
+	/* Disable some event-related macOS 26 features so as to avoid
+	   the following problems:
+	   1. Can't get events from the Carbon main event queue.
+	   2. Rerouting a C-g event to the GUI queue from -[EmacsMenu
+	      performKeyEquivalent:] causes hang.
+	   3. Deferring a menu bar click event may fail and report
+	      "Canceling unexpected menu tracking:".  */
+	[NSUserDefaults.standardUserDefaults
+	    registerDefaults:@{@"NSEventConcurrentProcessingEnabled" : @"NO",
+	      @"NSApplicationUpdateCycleEnabled" : @"NO"}];
+
       [EmacsApplication sharedApplication];
       emacsController = [[EmacsController alloc] init];
       [NSApp setDelegate:emacsController];
