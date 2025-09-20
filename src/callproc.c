@@ -1366,7 +1366,14 @@ emacs_posix_spawn_init_actions (posix_spawn_file_actions_t *actions,
   /* Haiku appears to have linkable posix_spawn_file_actions_chdir,
      but it always fails.  So use the _np function instead.  */
 #if defined HAVE_POSIX_SPAWN_FILE_ACTIONS_ADDCHDIR && !defined HAIKU
-  error = posix_spawn_file_actions_addchdir (actions, cwd);
+#if defined DARWIN_OS
+  if (__builtin_available (macos 26.0, *))
+#endif
+    error = posix_spawn_file_actions_addchdir (actions, cwd);
+#if defined DARWIN_OS
+  else
+    error = posix_spawn_file_actions_addchdir_np (actions, cwd);
+#endif
 #elif defined HAVE_POSIX_SPAWN_FILE_ACTIONS_ADDCHDIR_NP
   error = posix_spawn_file_actions_addchdir_np (actions, cwd);
 #elif defined DARWIN_OS
