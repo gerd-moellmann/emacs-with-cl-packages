@@ -565,14 +565,6 @@ project, during completion.  That makes some items shorter.
 The category defaults are the same as for 'buffer' but any user
 customizations would need to be re-added.
 
-** Registers
-
-*** New functions 'buffer-to-register' and 'file-to-register'.
-These allow users to interactively store file and buffers in registers.
-Killed buffers stored in a register using 'buffer-to-register' are
-automatically converted to a file-query value if the buffer was visiting
-a file.
-
 ** IDLWAVE has been moved to GNU ELPA.
 The version bundled with Emacs is out-of-date, and is now marked as
 obsolete.  Use 'M-x list-packages' to install the 'idlwave' package from
@@ -795,9 +787,20 @@ with finer grained control.
 
 ** Register
 
++++
+*** New functions 'buffer-to-register' and 'file-to-register'.
+These allow users to interactively store file and buffers in registers.
+Killed buffers stored in a register using 'buffer-to-register' are
+automatically converted to a file-query value if the buffer was visiting
+a file.
+
+---
 *** The "*Register Preview*" buffer shows only suitable registers.
 That was already the case for the "fancy" UI but is now also true in
 the default UI you get, i.e., when 'register-use-preview' is 'traditional'.
+
+---
+*** The "*Register Preview*" buffer shows sorted items.
 
 ** Tree-sitter
 
@@ -966,9 +969,36 @@ at point to explore.
 
 ** Hideshow
 
++++
 *** New user option 'hs-display-lines-hidden'.
-If this option is non-nil, Hideshow displays the number of hidden
-lines next to the ellipsis.
+If this option is non-nil, Hideshow displays the number of hidden lines
+next to the ellipsis.  By default this is disabled.
+
++++
+*** New user option 'hs-show-indicators'.
+This user option determines if hideshow should display indicators to
+show and toggle the block hiding.  If non-nil, the indicators are enabled.
+
+By default this is disabled.
+
+*** New user option 'hs-indicator-maximum-buffer-size'.
+This user option limits the display of hideshow indicators to buffers
+that are not too large.  By default, buffers larger than 2MB have the
+indicators disabled; the value of nil will activate the indicators
+regardless of the buffer size.
+
++++
+*** New user option 'hs-indicator-type'.
+This user option determine which indicator type should be used for the
+block indicators.
+
+The possible values can be: 'fringe', display the indicators in the
+fringe (the default); 'margin', display the indicators in the margin;
+nil, display the indicators at end-of-line.
+
+The new icons 'hs-indicator-show' and 'hs-indicator-hide', can be used
+for customize the indicators appearance, only if 'hs-indicator-type' is
+set to 'margin' or nil.
 
 ** C-ts mode
 
