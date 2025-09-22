@@ -5614,8 +5614,9 @@ Use overlay to highlight the minibuffer window when another window
 is selected.  But don't warn in case when the *Completions* window
 becomes selected."
   (if (eq window (selected-window))
-      (when (overlayp minibuffer-nonselected-overlay)
-        (delete-overlay minibuffer-nonselected-overlay))
+      (with-current-buffer (window-buffer window)
+        (when (overlayp minibuffer-nonselected-overlay)
+          (delete-overlay minibuffer-nonselected-overlay)))
     (unless (eq major-mode 'completion-list-mode)
       (with-current-buffer (window-buffer window)
         (let ((ov (make-overlay (point-min) (point-max))))
@@ -5625,6 +5626,8 @@ becomes selected."
           (setq minibuffer-nonselected-overlay ov))))))
 
 (defun minibuffer-nonselected-setup ()
+  (add-hook 'window-buffer-change-functions
+            'minibuffer-nonselected-check nil t)
   (add-hook 'window-selection-change-functions
             'minibuffer-nonselected-check nil t))
 
