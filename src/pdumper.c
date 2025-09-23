@@ -5141,10 +5141,9 @@ dump_mmap_contiguous_heap (struct dump_memory_map *maps, int nr_maps,
       dump_mmap_release (&maps[i]);
   return ret;
 }
-#endif
+#endif /* not HAVE_MPS */
 
 #ifdef HAVE_MPS
-
 static void
 dump_mmap_release_mps (struct dump_memory_map *map)
 {
@@ -5540,7 +5539,7 @@ pdumper_next_object (struct pdumper_object_it *it)
 
   return NULL;
 }
-# endif
+#endif
 
 bool
 dump_loaded_p (void)
