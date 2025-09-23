@@ -904,7 +904,6 @@ void *lisp_malloc_loser EXTERNALLY_VISIBLE;
 #endif
 
 #ifndef HAVE_MPS
-
 /* Allocate memory for Lisp data.
    NBYTES is the number of bytes to allocate;
    it must be a multiple of LISP_ALIGNMENT.
@@ -6880,9 +6879,7 @@ process_mark_stack (ptrdiff_t base_sp)
 		/* If the value is forwarded to a buffer or keyboard field,
 		   these are marked when we see the corresponding object.
 		   And if it's forwarded to a C variable, either it's not
-		   a Lisp_Object var, or it's staticpro'd already, or it's
-		   reachable from font_style_table which is also
-		   staticpro'd.  */
+		   a Lisp_Object var, or it's staticpro'd already.  */
 		break;
 	      default: emacs_abort ();
 	      }
