@@ -17,118 +17,52 @@ etc., so I'd say it's pretty backwards compatible.
 
 `C-h i d m emacs RET s gerd RET`
 
-## What's not there/not supported
+Former head maintainer for Emacs 21 who didn't use Emacs for 2ß years
+after stepping down, and who doesn't consider himself a member of the
+GNU/Emacs project today.
 
-* Documentation
-* Tests
+I don't follow `emacs-devel` or `emacs-bugs`.
 
-## Common Lisp packages
+## What's the plan?
 
-### What's there
+None.
+
+## Features
+
+### Common Lisp packages (not ported)
 
 You can use packages much like in Common Lisp. For details, read
-`lisp/emacs-lisp/pkg.el` and `src/pkg.c`, and maybe
-`admin/cl-packages.org`, although I haven't kept that up-to-date for
-some time, I guess.
+`lisp/emacs-lisp/pkg.el` and `src/pkg.c`.
 
-### What's the plan?
+### Incremental and generational GC (ported)
 
-None. I don't think CL packages will land in Emacs in my lifetime.
-The resistance against this, or anything CL for that matter, is simply
-too high among current Emacs maintainers.
+GC based on Ravenbrook MPS, ported to mainstream Emacs in early 2024,
+branch `feature/igc`.
 
-So, why do this? Because I can. Some people like to tinker with their
-init files, others go a step further :-).
+### Child frames and tooltips on ttys (ported and landed)
 
-## New GC
+Ported to mainstream Emacs and has landed in master.
 
-This is an incremental and generational GC that is based on Ravenbrook
-MPS.
+### DTrace support (not ported)
 
-I ported this to mainline Emacs (branch feature/igc on
-`savannah.gnu.org`) and it was developed further there and here.  At the
-moment the future of this branch is unclear.
+DTrace USDT provider. Configure `--with-dtrace=no` to disable it. This
+is only tested on macOS.
 
-Works well for me on macOS. I'm using this daily.
+### TTY menus in Lisp (not ported)
 
-## Child frames on ttys
+See `lisp/tm.el`. Can also can be used with mainstream master.  Use `M-x
+tm-menu-mode` to activate. See the doc string of that function. The
+menu's behavior is patterned after what macOS does.
 
-This has meanwhile landed in master on savannah.
+### Markers, Text indices, and marker vectors (ported)
 
-## DTrace support
+A text index is a data structure which supports byte/character position
+conversions with predictable performance.  See `text-index.c`.  A marker
+vector is used as replacement for doubly-linked lists of markers, with
+better performance. See `marker-vector.c`. Port found in
+`scratch/text-index`.
 
-My Emacs is now beginning to be a DTrace USDT provider. Configure
-`--with-dtrace=no` to disable it. This is only tested on
-macOS. Development is ongoing in a very slow pace.
+## Emacs Mac Port (not ported)
 
-## TTY menus in Lisp
-
-This is an implementation of TTY menus that is entirely written in Emacs
-Lisp. See lisp/tm.el. That file can also be used with a current master
-from savannah. Use `M-x tm-menu-mode` to activate. See the doc string of
-that function. The menu's behavior is patterned after what macOS does.
-
-It's unclear at the moment if that will land in GNU because I haven't
-offered it for inclusion, and reason for that is that I'm not interested
-in the inevitable discussions about the macOS menu behavior and whatnot.
-
-## Markers, Text indices, and marker vectors
-
-Emacs internal text encoding is an extended UTF-8. Characters can be
-between 1 and 5 bytes long in this encoding. Such a variable-length
-representation requires a conversion between character and byte
-positions.
-
-This position conversion is currently sped up in Emacs by consulting the
-doubly-linked list of markers that each buffer has. Each marker contains
-a character and a byte position. A heuristic is used to pick a suitable
-marker from whose known position one can scan forward or backward in the
-buffer text to convert character to byte positions and vice versa.
-
-This has some problems:
-
-- Adding a marker is O(1), but deleting a marker is O(N).
-
-- Iteration over markers to update them when text is inserted/deleted
-  accesses memory all over the place, the marker objects.
-
-- A possibly large number of "cache marker" are produced to make it more
-  likely that the heuristic finds suitable markers.
-
-- The heuristic doesn't really work in some use cases.
-
-What I've done here is:
-
-- Add text indices: A text index is a data structure which supports such
-position conversions with predictable performance and without relying on
-markers and heuristics. The implementation can be found in
-`text-index.c`. Please read the comment at the start of that file for
-details.
-
-- Add marker vectors: I had already changed the doubly-linked list of
-markers to use marker vectors in igc. This is now ported to the non-igc
-case, so that both can use a common implementation. (Please note that
-`feature/igc` still uses the old implementation. It will use the new one
-should this land in master.)
-
-- Remove positions from markers: Store the character position of a marker
-in the marker vector and compute the byte position as needed using text
-indices. This allows position adjustments when text changes t be done by
-iterating over the marker vector without touching other memory.
-
-### Status
-
-I am using this on a daily basis.
-
-There is also a branch `scratch/text-index` on savannah where I ported
-this to master.  If that lands in master or when is unclear.  Stefan
-Monnier seems interested, and has run some benchmarks that look
-good. One notorious case was sped up by 2 orders of magnitude in an
-early version.
-
-## Emacs Mac Port
-
-Now merged https://github.com/jdtsmith/emacs-mac, so you can build
-`--with-mac` as an alternative to `with-ns`.
-
-I have ported `igc` to `mac`.
+I am using `mac` instead of `NS`. See
+https://github.com/jdtsmith/emacs-mac, Also ported `igc` to `mac`.
