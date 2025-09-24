@@ -4813,6 +4813,22 @@ really know what you are doing!  */)
   return Qnil;
 }
 
+DEFUN ("igc--set-pause-time", Figc__set_pause_time,
+       Sigc__set_pause_time, 1, 1, 0,
+       doc: /* Set the arena pause time, in seconds, to PAUSE-TIME.
+PAUSE-TIME should be a non-negative number.
+Setting pause time to 1.0e+INF disables incremental garbage collection.
+
+For internal use only. */)
+  (Lisp_Object pause_time)
+{
+  double secs = extract_float (pause_time);
+  if (secs < 0.0)
+    xsignal1 (Qrange_error, pause_time);
+  mps_arena_pause_time_set (global_igc->arena, secs);
+  return Qnil;
+}
+
 /* Read GC generation settings from environment variable
    EMACS_IGC_GENS. Value must be a string consisting of pairs SIZE
    MORTALITY, where SIZE Is the size of the generation in KB, and
@@ -4826,27 +4842,41 @@ really know what you are doing!  */)
    512 MB and a mortality of 0.2. */
 
 static bool
-read_gens (mps_gen_param_s **gens, int *ngens)
+read_gens (size_t *ngens, mps_gen_param_s parms[*ngens])
 {
   const char *env = getenv ("EMACS_IGC_GENS");
   if (env == NULL)
     return false;
   const char *end = env + strlen (env);
-  static struct mps_gen_param_s parms[10];
+  const size_t len = *ngens;
   *ngens = 0;
-  *gens = parms;
-  for (int i = 0; i < ARRAYELTS (parms) && env < end; ++i)
+  for (size_t i = 0; i < len && env < end; ++i)
     {
       int nchars;
+#if __MINGW32_MAJOR_VERSION >= 5
+      if (sscanf (env, "%u %lf%n", &parms[i].mps_capacity,
+		  &parms[i].mps_mortality, &nchars)
+	  == 2)
+#else
       if (sscanf (env, "%zu %lf%n", &parms[i].mps_capacity,
-		  &parms[i].mps_mortality, &nchars) == 2)
+		  &parms[i].mps_mortality, &nchars)
+	  == 2)
+#endif
 	{
 	  env += nchars;
-	  ++*ngens;
+	  *ngens = i + 1;
 	}
+      else
+	goto parse_error;
     }
 
-  return true;
+  if (*ngens > 0 && env == end)
+    return true;
+
+ parse_error:
+  fprintf (stderr, "Failed to parse EMACS_IGC_GENS: %s\n",
+	   getenv ("EMACS_IGC_GENS"));
+  emacs_abort ();
 }
 
 /* Read GC maximum pause time from environment variable
@@ -4880,7 +4910,11 @@ read_commit_limit (size_t *limit)
   const char *env = getenv ("EMACS_IGC_COMMIT_LIMIT");
   if (env == NULL)
     return false;
+#if __MINGW32_MAJOR_VERSION >= 5
+  return sscanf (env, "%u", limit) == 1;
+#else
   return sscanf (env, "%zu", limit) == 1;
+#endif
 }
 
 static void
@@ -4890,8 +4924,9 @@ make_arena (struct igc *gc)
   MPS_ARGS_BEGIN (args)
   {
     double pause_time;
-    if (read_pause_time (&pause_time))
-      MPS_ARGS_ADD (args, MPS_KEY_PAUSE_TIME, pause_time);
+    if (!read_pause_time (&pause_time))
+      pause_time = 0.01;
+    MPS_ARGS_ADD (args, MPS_KEY_PAUSE_TIME, pause_time);
 
     size_t commit_limit;
     if (read_commit_limit (&commit_limit))
@@ -4902,12 +4937,12 @@ make_arena (struct igc *gc)
   MPS_ARGS_END (args);
   IGC_CHECK_RES (res);
 
-  mps_gen_param_s *gens;
-  int ngens;
-  if (!read_gens (&gens, &ngens))
+  size_t ngens = 10;
+  mps_gen_param_s gens[ngens];
+  if (!read_gens (&ngens, gens))
     {
-      static mps_gen_param_s default_gens[] = { { 128000, 0.8 }, { 5 * 128000, 0.4 } };
-      gens = default_gens;
+      static const mps_gen_param_s default_gens[] = { { 16000, 0.5 } };
+      memcpy (gens, default_gens, sizeof (default_gens));
       ngens = ARRAYELTS (default_gens);
     }
 
@@ -4917,7 +4952,8 @@ make_arena (struct igc *gc)
 	fprintf (stderr, "gen %d: %zu %lf\n", i, gens[i].mps_capacity,
 		 gens[i].mps_mortality);
       fprintf (stderr, "pause time %lf\n", mps_arena_pause_time (gc->arena));
-      fprintf (stderr, "commit limit %zu\n", mps_arena_commit_limit (gc->arena));
+      fprintf (stderr, "commit limit %zu\n",
+	       mps_arena_commit_limit (gc->arena));
     }
 
   res = mps_chain_create (&gc->chain, gc->arena, ngens, gens);
@@ -5567,6 +5603,7 @@ syms_of_igc (void)
   defsubr (&Sigc__roots);
   defsubr (&Sigc__collect);
   defsubr (&Sigc__set_commit_limit);
+  defsubr (&Sigc__set_pause_time);
   defsubr (&Sigc__add_extra_dependency);
   defsubr (&Sigc__remove_extra_dependency);
 #ifdef HAVE_DTRACE
