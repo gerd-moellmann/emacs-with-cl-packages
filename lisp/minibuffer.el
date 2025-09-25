@@ -3442,8 +3442,8 @@ displaying the *Completions* buffer exists."
 
 (defvar-keymap minibuffer-visible-completions-map
   :doc "Local keymap for minibuffer input with visible completions."
-  "<left>"  (minibuffer-visible-completions--bind #'minibuffer-previous-completion)
-  "<right>" (minibuffer-visible-completions--bind #'minibuffer-next-completion)
+  "<left>"  (minibuffer-visible-completions--bind #'minibuffer-previous-column-completion)
+  "<right>" (minibuffer-visible-completions--bind #'minibuffer-next-column-completion)
   "<up>"    (minibuffer-visible-completions--bind #'minibuffer-previous-line-completion)
   "<down>"  (minibuffer-visible-completions--bind #'minibuffer-next-line-completion)
   "C-g"     (minibuffer-visible-completions--bind #'minibuffer-hide-completions))
@@ -5226,15 +5226,15 @@ selected by these commands to the minibuffer."
   "Move to the next item in its completions window from the minibuffer.
 When the optional argument VERTICAL is non-nil, move vertically
 to the next item on the next line using `next-line-completion'.
-Otherwise, move to the next item horizontally using `next-completion'.
+Otherwise, move to the next item horizontally using `next-column-completion'.
 When `minibuffer-completion-auto-choose' is non-nil, then also
 insert the selected completion candidate to the minibuffer."
   (interactive "p")
   (let ((auto-choose minibuffer-completion-auto-choose))
     (with-minibuffer-completions-window
-      (if vertical
+      (if (or vertical (eq completions-format 'vertical))
           (next-line-completion (or n 1))
-        (next-completion (or n 1)))
+        (next-column-completion (or n 1)))
       (when auto-choose
         (let ((completion-auto-deselect nil))
           (choose-completion nil t t))))))
@@ -5263,6 +5263,26 @@ When `minibuffer-completion-auto-choose' is non-nil, then also
 insert the selected completion candidate to the minibuffer."
   (interactive "p")
   (minibuffer-next-completion (- (or n 1)) t))
+
+(defun minibuffer-next-column-completion (&optional n)
+  "Move to the next completion column from the minibuffer.
+This means to move to the completion candidate in the next column
+in the *Completions* buffer while point stays in the minibuffer.
+When `minibuffer-completion-auto-choose' is non-nil, then also
+insert the selected completion candidate to the minibuffer."
+  (interactive "p")
+  (with-minibuffer-completions-window
+    (next-column-completion (or n 1))))
+
+(defun minibuffer-previous-column-completion (&optional n)
+  "Move to the previous completion column from the minibuffer.
+This means to move to the completion candidate on the previous column
+in the *Completions* buffer while point stays in the minibuffer.
+When `minibuffer-completion-auto-choose' is non-nil, then also
+insert the selected completion candidate to the minibuffer."
+  (interactive "p")
+  (with-minibuffer-completions-window
+    (next-column-completion (- (or n 1)))))
 
 (defun minibuffer-choose-completion (&optional no-exit no-quit)
   "Run `choose-completion' from the minibuffer in its completions window.
@@ -5576,7 +5596,7 @@ and make sexp navigation more intuitive.
 The list of prompts activating this mode in specific minibuffer
 interactions is customizable via `minibuffer-regexp-prompts'."
   :global t
-  :initialize 'custom-initialize-delay
+  :initialize #'custom-initialize-delay
   :init-value t
   (if minibuffer-regexp-mode
       (progn
@@ -5606,30 +5626,32 @@ It's displayed on the minibuffer window when the minibuffer
 remains active, but the minibuffer window is no longer selected."
   :version "31.1")
 
-(defvar-local minibuffer-nonselected-overlay nil)
+(defvar-local minibuffer--nonselected-overlay nil)
 
-(defun minibuffer-nonselected-check (window)
+(defun minibuffer--nonselected-check (window)
   "Check if the active minibuffer's window is no longer selected.
 Use overlay to highlight the minibuffer window when another window
 is selected.  But don't warn in case when the *Completions* window
 becomes selected."
   (if (eq window (selected-window))
       (with-current-buffer (window-buffer window)
-        (when (overlayp minibuffer-nonselected-overlay)
-          (delete-overlay minibuffer-nonselected-overlay)))
-    (unless (eq major-mode 'completion-list-mode)
+        (when (overlayp minibuffer--nonselected-overlay)
+          (delete-overlay minibuffer--nonselected-overlay)))
+    (unless (eq (buffer-local-value 'completion-reference-buffer
+                                    (window-buffer))
+                (window-buffer window))
       (with-current-buffer (window-buffer window)
         (let ((ov (make-overlay (point-min) (point-max))))
           (overlay-put ov 'face 'minibuffer-nonselected)
-          (overlay-put ov 'window window)
           (overlay-put ov 'evaporate t)
-          (setq minibuffer-nonselected-overlay ov))))))
+          (setq minibuffer--nonselected-overlay ov))))))
 
-(defun minibuffer-nonselected-setup ()
+(defun minibuffer--nonselected-setup ()
+  "Setup hooks for `minibuffer-nonselected-mode' to update the overlay."
   (add-hook 'window-buffer-change-functions
-            'minibuffer-nonselected-check nil t)
+            #'minibuffer--nonselected-check nil t)
   (add-hook 'window-selection-change-functions
-            'minibuffer-nonselected-check nil t))
+            #'minibuffer--nonselected-check nil t))
 
 (define-minor-mode minibuffer-nonselected-mode
   "Minor mode to warn about non-selected active minibuffer.
@@ -5637,12 +5659,12 @@ Use the face `minibuffer-nonselected' to highlight the minibuffer
 window when the minibuffer remains active, but the minibuffer window
 is no longer selected."
   :global t
-  :initialize 'custom-initialize-delay
+  :initialize #'custom-initialize-delay
   :init-value t
   :version "31.1"
   (if minibuffer-nonselected-mode
-      (add-hook 'minibuffer-setup-hook #'minibuffer-nonselected-setup)
-    (remove-hook 'minibuffer-setup-hook #'minibuffer-nonselected-setup)))
+      (add-hook 'minibuffer-setup-hook #'minibuffer--nonselected-setup)
+    (remove-hook 'minibuffer-setup-hook #'minibuffer--nonselected-setup)))
 
 
 (provide 'minibuffer)

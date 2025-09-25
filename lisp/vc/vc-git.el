@@ -1122,8 +1122,8 @@ It is based on `log-edit-mode', and has Git-specific extensions."
        ("Sign-Off" . ,(boolean-arg-fn "--signoff")))
      comment)))
 
-(defmacro vc-git--with-apply-temp-to-staging (temp &rest body)
-  (declare (indent 1) (debug (symbolp body)))
+(cl-defmacro vc-git--with-apply-temp ((temp &rest args) &body body)
+  (declare (indent 1))
   `(let ((,temp (make-nearby-temp-file ,(format "git-%s" temp))))
      (unwind-protect (progn ,@body
                             ;; This uses `file-local-name' to strip the
@@ -1131,7 +1131,8 @@ It is based on `log-edit-mode', and has Git-specific extensions."
                             ;; because we've had at least one problem
                             ;; report where relativizing the file name
                             ;; meant that Git failed to find it.
-                            (vc-git-command nil 0 nil "apply" "--cached"
+                            (vc-git-command nil 0 nil "apply"
+                                            ,@(or args '("--cached"))
                                             (file-local-name ,temp)))
        (delete-file ,temp))))
 
@@ -1144,7 +1145,7 @@ For a regular checkin, FILES is the list of files to check in.
 To check in a patch, PATCH-STRING is the patch text.
 It is an error to supply both or neither."
   (unless (xor files patch-string)
-    (error "Invalid call to `vc-hg--checkin'"))
+    (error "Invalid call to `vc-git--checkin'"))
   (let* ((file1 (or (car files) default-directory))
          (root (vc-git-root file1))
          (default-directory (expand-file-name root))
@@ -1235,7 +1236,7 @@ It is an error to supply both or neither."
                 ;; to have the Unix EOL format, because Git expects
                 ;; that, even on Windows.
                 (or pcsw vc-git-commits-coding-system) 'unix)))
-          (vc-git--with-apply-temp-to-staging patch
+          (vc-git--with-apply-temp (patch)
             (with-temp-file patch
               (insert patch-string)))))
       (when to-stash (vc-git--stash-staged-changes to-stash)))
@@ -1246,10 +1247,32 @@ It is an error to supply both or neither."
            (lambda ()
              (when (and msg-file (file-exists-p msg-file))
                (delete-file msg-file))
+             ;; If PATCH-STRING didn't come from C-x v = or C-x v D, we
+             ;; now need to update the working tree to include the
+             ;; changes from the commit we just created.
+             ;; If there are conflicts we want to favor the working
+             ;; tree's version and the version from the commit will just
+             ;; show up in the diff of uncommitted changes.
+             ;;
+             ;; 'git apply --3way --ours' is the way Git provides to
+             ;; achieve this.  This requires that the index match the
+             ;; working tree and also implies the --index option, which
+             ;; means applying the changes to the index in addition to
+             ;; the working tree.  These are both okay here because
+             ;; before doing this we know the index is empty (we just
+             ;; committed) and so we can just make use of it and reset
+             ;; afterwards.
+             (when patch-string
+               (vc-git-command nil 0 nil "add" "--all")
+               (vc-git--with-apply-temp (patch "--3way" "--ours")
+                 (with-temp-file patch
+                   (insert patch-string)))
+               (vc-git-command nil 0 nil "reset"))
              (when to-stash
-               (vc-git--with-apply-temp-to-staging cached
+               (vc-git--with-apply-temp (cached)
                  (with-temp-file cached
-                   (vc-git-command t 0 nil "stash" "show" "-p")))))))
+                   (vc-git-command t 0 nil "stash" "show" "-p")))
+               (vc-git-command nil 0 nil "stash" "drop")))))
       (when msg-file
         (let ((coding-system-for-write
                (or pcsw vc-git-commits-coding-system)))
@@ -1390,7 +1413,7 @@ REV is ignored."
                 (unwind-protect
                     (progn
                       (vc-git-command nil 0 nil "read-tree" "HEAD")
-                      ;; See `vc-git--with-apply-temp-to-staging'
+                      ;; See `vc-git--with-apply-temp'
                       ;; regarding use of `file-local-name'.
                       (vc-git-command nil 0 nil "apply" "--cached"
                                       (file-local-name cached))
@@ -2131,6 +2154,25 @@ This requires git 1.8.4 or later, for the \"-L\" option of \"git log\"."
   (with-output-to-string
     (vc-git-command standard-output 1 nil
                     "log" "--max-count=1" "--pretty=format:%B" rev)))
+
+(defun vc-git-cherry-pick-comment (_files rev reverse)
+  ;; Don't just call `vc-git-get-change-comment' in order to make one
+  ;; fewer call out to Git.  We have to resolve REV because even if it's
+  ;; already a hash it may be an abbreviated one.
+  (let (comment)
+    (with-temp-buffer
+      (vc-git-command t 0 nil "log" "-n1" "--pretty=format:%H%n%B" rev)
+      (goto-char (point-min))
+      (setq rev (buffer-substring-no-properties (point) (pos-eol)))
+      (forward-line 1)
+      (setq comment (buffer-substring-no-properties (point) (point-max))))
+    (if reverse
+        (format "Summary: %s\n(cherry picked from commit %s)\n"
+                comment rev)
+      (format "Summary: Revert \"%s\"\n\nThis reverts commit %s.\n"
+              (car (split-string comment "\n" t
+                                 split-string-default-separators))
+              rev))))
 
 (defun vc-git--assert-allowed-rewrite (rev)
   (when (and (not (and vc-allow-rewriting-published-history
