@@ -310,10 +310,8 @@ TEST_TARGETS=\
     ztfm$(EXEEXT)
 
 # Another deviation: MS-Windows doesn't have 'fork'.
-ifneq ($(PFM),w3i3gc)
-ifneq ($(PFM),w3i6gc)
+ifeq ($(findstring $(PFM),w3i3gc w3i6gc anangc),)
 TEST_TARGETS += forktest$(EXEEXT)
-endif
 endif
 
 # This target records programs that we were once able to build but
@@ -354,8 +352,8 @@ printf "Performance ratio (hot/rash) for $(2): %d%%\n" $$RATIO
 endef
 
 testratio: phony
-	$(MAKE) -f $(PFM).gmk VARIETY=hot djbench gcbench
-	$(MAKE) -f $(PFM).gmk VARIETY=rash djbench gcbench
+	$(MAKE) -f $(PFM).gmk VARIETY=hot djbench$(EXEEXT) gcbench$(EXEEXT)
+	$(MAKE) -f $(PFM).gmk VARIETY=rash djbench$(EXEEXT) gcbench$(EXEEXT)
 	$(call ratio,gcbench,amc)
 	$(call ratio,djbench,mvff)
 
