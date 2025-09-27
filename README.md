@@ -12,6 +12,7 @@ This is an experimental build of the [emacs-mac](https://bitbucket.org/mituharu/
 
 Known working systems:
 
+- MacOS 26
 - MacOS 15 (Sequoia) on ARM64 (M1, M2, M3, M4), X86_64 (Intel)
 - MacOS 14 (Sonoma) on ARM64 (M1, M3)
 - MacOS 12 (Monterey) on X86_64 (Intel)
@@ -115,18 +116,30 @@ to associate the native lisp files.  This is useful for debugging, to quickly re
 
 ## Additions
 
-Several additional features and fixes have been added on top of `emacs-mac` and Emacs proper.
+Several additional features and fixes have been added on top of upstream `emacs-mac` and Emacs proper.
 
 ### Features
 
-- A `New Frame` Dock Menu Item
-- New variable `mac-underwave-thickness` to customize the thickness of squiggly underlines (e.g., as drawn by linters or spell-checkers)
-- A new [full-featured `Window` menu](https://github.com/jdtsmith/emacs-mac/pull/21) (including tab and tiling support, with default system shortcuts, e.g. `C-Fn-left/right/up/down`).  Thanks to @rymndhng!
+- A `New Frame` Dock Menu entry.
+- Support compiling with non-system versions of CLANG.
+- New custom variable `mac-underwave-thickness` to customize the thickness of squiggly underlines (e.g., as drawn by linters or spell-checkers).
+- A new [full-featured `Window` menu](../../pull/21) (including tab and tiling support, with default system shortcuts, e.g. `C-Fn-left/right/up/down`).  Thanks to @rymndhng!
+- Add a new `mac-raise-all-frames` command, also found in the `Window` menu ("Bring All to Front").
+- A new `mac-toggle-frame-full-screen` command for toggling "real" full-screen window display.
+- Automatically enable Retina 2x support for known high-DPI images.
+- Support for ["transparent" title bar](../../pull/91).  Thanks to @pkryger!
 
 ### Bug fixes
 
-- Care is taken to avoid crashes when selecting certain fonts from the system font panel.
+- Avoid crashes when selecting certain fonts from the system font panel.
+- Guard against using native image API when unavailable.
 - Prevent zombie "Emacs Web Content" processes [on SVG load](../../issues/9), ~~restoring normal WebView SVG rendering for MacOS v14+~~.  Update: `WebView` is deprecated, so this has been reverted and another workaround installed. It's recommended to build with RSVG (it is enabled by default if the `librsvg2` library is found during build).
+- Fix [occasional hangs](../../pull/20) when callbacks are invoked on dying threads.
+- Fix [rare occasional hangs](../../pull/86) upon waking from sleep with multiple monitors.
+- Normalized the use of `CF|NS_NOESCAPE` to prevent compilation issues and hangs when built with non-system CLANG.  See [this PR](../../pull/76).
+- Handle cropped PDF images correctly.
+- Correctly handle pixel-doubled images during allocation (fix regression from FSF upstream).
+- Fix various compiler warnings related to type casting. 
 
 ## Debugging
 

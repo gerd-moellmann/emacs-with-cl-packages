@@ -3332,7 +3332,16 @@ decode_env_path (const char *evarname, const char *defalt, bool empty)
     path = 0;
   if (!path)
     {
+
+#ifdef MAC_SELF_CONTAINED
+      path = mac_relocate (defalt);
+#elif defined NS_SELF_CONTAINED
+      /* ns_relocate needs a valid autorelease pool around it.  */
+      autorelease = ns_alloc_autorelease_pool ();
+      path = ns_relocate (defalt);
+#else
       path = defalt;
+#endif
 #ifdef NS_SELF_CONTAINED
       if (path)
 	path = ns_relocate (path);

@@ -1972,6 +1972,18 @@ OSStatus
 install_application_handler (void)
 {
   mac_within_gui (^{
+      if (mac_operating_system_version.major >= 26)
+	/* Disable some event-related macOS 26 features so as to avoid
+	   the following problems:
+	   1. Can't get events from the Carbon main event queue.
+	   2. Rerouting a C-g event to the GUI queue from -[EmacsMenu
+	      performKeyEquivalent:] causes hang.
+	   3. Deferring a menu bar click event may fail and report
+	      "Canceling unexpected menu tracking:".  */
+	[NSUserDefaults.standardUserDefaults
+	    registerDefaults:@{@"NSEventConcurrentProcessingEnabled" : @"NO",
+	      @"NSApplicationUpdateCycleEnabled" : @"NO"}];
+
       [EmacsApplication sharedApplication];
       emacsController = [[EmacsController alloc] init];
       [NSApp setDelegate:emacsController];
@@ -2580,6 +2592,10 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 
   window.contentView = visualEffectView;
   MRC_RELEASE (visualEffectView);
+
+  if ([window respondsToSelector:@selector(titlebarAppearsTransparent)])
+    [window setTitlebarAppearsTransparent:FRAME_MAC_TRANSPARENT_TITLEBAR(f)];
+
   FRAME_BACKGROUND_ALPHA_ENABLED_P (f) = true;
   if (FRAME_MAC_DOUBLE_BUFFERED_P (f))
     {
@@ -4297,6 +4313,16 @@ mac_set_frame_window_modified (struct frame *f, bool modified)
   NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
 
   mac_within_gui (^{[window setDocumentEdited:modified];});
+}
+
+void
+mac_set_frame_window_transparent_titlebar (struct frame *f, bool transparent)
+{
+  NSWindow *window = FRAME_MAC_WINDOW_OBJECT (f);
+
+  mac_within_gui (^{
+      if ([window respondsToSelector: @selector(titlebarAppearsTransparent)])
+	[window setTitlebarAppearsTransparent:transparent];});
 }
 
 void
