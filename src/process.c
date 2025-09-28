@@ -5382,9 +5382,6 @@ wait_reading_process_output (intmax_t time_limit, int nsecs, int read_kbd,
 #endif
   specpdl_ref count = SPECPDL_INDEX ();
 
-  /* Close to the current time if known, an invalid timespec otherwise.  */
-  struct timespec now = invalid_timespec ();
-
   eassert (wait_proc == NULL
 	   || NILP (wait_proc->thread)
 	   || XTHREAD (wait_proc->thread) == current_thread);
@@ -5409,7 +5406,7 @@ wait_reading_process_output (intmax_t time_limit, int nsecs, int read_kbd,
   else if (time_limit > 0 || nsecs > 0)
     {
       wait = TIMEOUT;
-      now = current_timespec ();
+      struct timespec now = monotonic_coarse_timespec ();
       end_time = timespec_add (now, make_timespec (time_limit, nsecs));
     }
   else
@@ -5496,8 +5493,7 @@ wait_reading_process_output (intmax_t time_limit, int nsecs, int read_kbd,
       /* Exit if already run out.  */
       if (wait == TIMEOUT)
 	{
-	  if (!timespec_valid_p (now))
-	    now = current_timespec ();
+	  struct timespec now = monotonic_coarse_timespec ();
 	  if (timespec_cmp (end_time, now) <= 0)
 	    break;
 	  timeout = timespec_sub (end_time, now);
@@ -5756,8 +5752,7 @@ wait_reading_process_output (intmax_t time_limit, int nsecs, int read_kbd,
 	      && timespec_valid_p (timer_delay)
 	      && timespec_cmp (timer_delay, timeout) < 0)
 	    {
-	      if (!timespec_valid_p (now))
-		now = current_timespec ();
+	      struct timespec now = monotonic_coarse_timespec ();
 	      struct timespec timeout_abs = timespec_add (now, timeout);
 	      if (!timespec_valid_p (got_output_end_time)
 		  || timespec_cmp (timeout_abs, got_output_end_time) < 0)
@@ -5766,10 +5761,6 @@ wait_reading_process_output (intmax_t time_limit, int nsecs, int read_kbd,
 	    }
 	  else
 	    got_output_end_time = invalid_timespec ();
-
-	  /* NOW can become inaccurate if time can pass during pselect.  */
-	  if (timeout.tv_sec > 0 || timeout.tv_nsec > 0)
-	    now = invalid_timespec ();
 
 #if defined HAVE_GETADDRINFO_A || defined HAVE_GNUTLS
 	  if (retry_for_async
@@ -5912,7 +5903,7 @@ wait_reading_process_output (intmax_t time_limit, int nsecs, int read_kbd,
 	    }
 	  if (timespec_cmp (cmp_time, huge_timespec) < 0)
 	    {
-	      now = current_timespec ();
+	      struct timespec now = monotonic_coarse_timespec ();
 	      if (timespec_cmp (cmp_time, now) <= 0)
 		break;
 	    }
@@ -8179,7 +8170,7 @@ wait_reading_process_output (intmax_t time_limit, int nsecs, int read_kbd,
   else if (time_limit > 0 || nsecs > 0)
     {
       wait = TIMEOUT;
-      end_time = timespec_add (current_timespec (),
+      end_time = timespec_add (monotonic_coarse_timespec (),
                                make_timespec (time_limit, nsecs));
     }
   else
@@ -8211,7 +8202,7 @@ wait_reading_process_output (intmax_t time_limit, int nsecs, int read_kbd,
       /* Exit if already run out.  */
       if (wait == TIMEOUT)
 	{
-	  struct timespec now = current_timespec ();
+	  struct timespec now = monotonic_coarse_timespec ();
 	  if (timespec_cmp (end_time, now) <= 0)
 	    break;
 	  timeout = timespec_sub (end_time, now);
