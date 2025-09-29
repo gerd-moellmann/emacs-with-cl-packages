@@ -5269,6 +5269,7 @@ frame_parm_handler mac_frame_parm_handlers[] =
   mac_set_override_redirect,
   gui_set_no_special_glyphs,
   gui_set_alpha_background,
+  gui_set_borders_respect_alpha_background,
   NULL, /* mac_set_use_frame_synchronization */
   /* Skipping the following parameters from frame_parms that are not
      compiled when HAVE_MACGUI is defined:
