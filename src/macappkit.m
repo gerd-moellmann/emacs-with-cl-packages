@@ -2594,7 +2594,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   MRC_RELEASE (visualEffectView);
 
   if ([window respondsToSelector:@selector(titlebarAppearsTransparent)])
-    [window setTitlebarAppearsTransparent:FRAME_MAC_TRANSPARENT_TITLEBAR(f)];
+    [window setTitlebarAppearsTransparent:FRAME_MAC_TRANSPARENT_TITLEBAR(f) ? YES : NO];
 
   FRAME_BACKGROUND_ALPHA_ENABLED_P (f) = true;
   if (FRAME_MAC_DOUBLE_BUFFERED_P (f))
@@ -4322,7 +4322,7 @@ mac_set_frame_window_transparent_titlebar (struct frame *f, bool transparent)
 
   mac_within_gui (^{
       if ([window respondsToSelector: @selector(titlebarAppearsTransparent)])
-	[window setTitlebarAppearsTransparent:transparent];});
+	[window setTitlebarAppearsTransparent:transparent ? YES : NO];});
 }
 
 void
