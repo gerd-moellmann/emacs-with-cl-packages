@@ -2593,9 +2593,6 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   window.contentView = visualEffectView;
   MRC_RELEASE (visualEffectView);
 
-  if ([window respondsToSelector:@selector(titlebarAppearsTransparent)])
-    [window setTitlebarAppearsTransparent:FRAME_MAC_TRANSPARENT_TITLEBAR(f) ? YES : NO];
-
   FRAME_BACKGROUND_ALPHA_ENABLED_P (f) = true;
   if (FRAME_MAC_DOUBLE_BUFFERED_P (f))
     {
@@ -2670,6 +2667,11 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
 	  && !FRAME_PARENT_FRAME (f))
 	window.collectionBehavior = NSWindowCollectionBehaviorFullScreenPrimary;
       window.animationBehavior = NSWindowAnimationBehaviorDocumentWindow;
+      if ([window respondsToSelector:@selector(titlebarAppearsTransparent)])
+	{
+	  BOOL transparent = FRAME_MAC_TRANSPARENT_TITLEBAR(f) ? YES : NO;
+	  [window setTitlebarAppearsTransparent:transparent];
+	}
     }
   else
     {
