@@ -4353,7 +4353,7 @@ read0 (source_t *source, bool locate_syms)
 	       there a better way? */
 	    package = pkg_find_package (pkg_name);
 	    if (NILP (package))
-	      pkg_error ("unknown symbol package '%s'", pkg_name);
+	      pkg_error ("unknown symbol package '%s'", SDATA (pkg_name));
 
 	    /* Symbol name starts after the package prefix.  */
 	    symbol_start = rb.start + colon_offset + ncolons;
