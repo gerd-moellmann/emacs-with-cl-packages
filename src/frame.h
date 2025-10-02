@@ -453,9 +453,6 @@ struct frame
   /* True if this is an undecorated frame.  */
   bool_bf undecorated : 1;
 
-  /* True if this is an undecorated frame with round corners.  */
-  bool_bf undecorated_round : 1;
-
   /* Nonzero if this frame's window does not want to receive input focus
      via mouse clicks or by moving the mouse into it.  */
   bool_bf no_accept_focus : 1;
@@ -1279,7 +1276,6 @@ FRAME_PARENT_FRAME (struct frame *f)
 }
 
 #define FRAME_UNDECORATED(f) ((f)->undecorated)
-#define FRAME_UNDECORATED_ROUND(f) ((f)->undecorated_round)
 
 #if defined (HAVE_WINDOW_SYSTEM)
 #ifdef HAVE_NTGUI
