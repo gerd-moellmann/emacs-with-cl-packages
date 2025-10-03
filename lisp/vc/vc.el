@@ -3567,10 +3567,9 @@ with its diffs (if the underlying VCS backend supports that)."
 		  "Limit display (unlimited: 0): "
 		  (format "%s" vc-log-show-limit)
 		  nil nil nil))))
-       (when (<= lim 0) (setq lim nil))
-       (list lim)))
+       (list (and (plusp lim) lim))))
     (t
-     (list (when (> vc-log-show-limit 0) vc-log-show-limit)))))
+     (list (and (plusp vc-log-show-limit) vc-log-show-limit)))))
   (vc--with-backend-in-rootdir "VC revision log"
     (let* ((with-diff (and (eq limit 1) revision))
            (vc-log-short-style (and (not with-diff) vc-log-short-style)))
@@ -4574,7 +4573,7 @@ When called from Lisp, BACKEND is the VC backend."
   (when-let* ((p (project-current nil directory)))
     (project-remember-project p))
 
-  (vc-dir directory backend))
+  (dired directory))
 
 (defvar project-prompter)
 
@@ -4885,6 +4884,24 @@ MOVE non-nil means to move instead of copy."
       (diff-apply-buffer nil nil 'reverse))
     (message "Changes %s to `%s'"
              (if move "moved" "applied") directory)))
+
+;;;###autoload
+(defun vc-kill-other-working-tree-buffers (backend)
+  "Kill buffers visiting versions of this file in other working trees.
+BACKEND is the VC backend.
+
+This command kills the buffers that \\[vc-switch-working-tree] switches to,
+except that this command works only in file-visiting buffers."
+  (interactive (list (vc-responsible-backend default-directory)))
+  (when (cdr uniquify-managed)
+    (cl-loop with trees = (vc-call-backend backend
+                                           'known-other-working-trees)
+             for item in uniquify-managed
+             for buf = (uniquify-item-buffer item)
+             when (and (not (eq buf (current-buffer)))
+                       (cl-find (uniquify-item-dirname item) trees
+                                :test #'file-in-directory-p))
+             do (kill-buffer buf))))
 
 (defun vc-default-cherry-pick-comment (files rev reverse)
   (if reverse (format "Summary: Reverse-apply changes from revision %s\n\n"
