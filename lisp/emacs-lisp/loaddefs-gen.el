@@ -421,6 +421,7 @@ don't include."
   (let ((defs nil)
         (load-name (loaddefs-generate--file-load-name file main-outfile))
         (compute-prefixes t)
+        symbol-packages
         read-symbol-shorthands
         local-outfile inhibit-autoloads)
     (with-temp-buffer
