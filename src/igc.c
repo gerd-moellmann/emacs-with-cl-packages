@@ -514,21 +514,17 @@ pvec_type_name (enum pvec_type type)
   return pvec_type_names[type];
 }
 
+struct igc_stat
+{
+  size_t nbytes;
+  size_t nobjs;
+  size_t largest;
+};
+
 struct igc_stats
 {
-  struct
-  {
-    size_t nbytes;
-    size_t nobjs;
-    size_t largest;
-  } obj[IGC_OBJ_NUM_TYPES];
-
-  struct
-  {
-    size_t nbytes;
-    size_t nobjs;
-    size_t largest;
-  } pvec[PVEC_TAG_MAX + 1];
+  struct igc_stat obj[IGC_OBJ_NUM_TYPES];
+  struct igc_stat pvec[PVEC_TAG_MAX + 1];
 };
 
 /* Always having a header makes it possible to have an
@@ -2020,6 +2016,30 @@ static mps_res_t fix_marker_vector (mps_ss_t ss, struct Lisp_Vector *v);
 static mps_res_t fix_weak_hash_table_strong_part (mps_ss_t ss, struct Lisp_Weak_Hash_Table_Strong_Part *t);
 static mps_res_t fix_weak_hash_table_weak_part (mps_ss_t ss, struct Lisp_Weak_Hash_Table_Weak_Part *w);
 
+static void
+collect_stats_1 (struct igc_stat *s, size_t nbytes)
+{
+  s->nbytes += nbytes;
+  s->nobjs += 1;
+  s->largest = max (s->largest, nbytes);
+}
+
+static void
+collect_stats (struct igc_stats *st, struct igc_header *header)
+{
+  mps_word_t obj_type = igc_header_type (header);
+  igc_assert (obj_type < IGC_OBJ_NUM_TYPES);
+  size_t size = obj_size (header);
+  collect_stats_1 (&st->obj[obj_type], size);
+  if (obj_type == IGC_OBJ_VECTOR)
+    {
+      struct Lisp_Vector *v = (struct Lisp_Vector *) header;
+      enum pvec_type pvec_type = pseudo_vector_type (v);
+      igc_assert (0 <= pvec_type && pvec_type <= PVEC_TAG_MAX);
+      collect_stats_1 (&st->pvec[pvec_type], size);
+    }
+}
+
 static mps_res_t
 dflt_scan_obj (mps_ss_t ss, mps_addr_t base_start, mps_addr_t base_limit,
 	       void *closure)
@@ -2031,26 +2051,7 @@ dflt_scan_obj (mps_ss_t ss, mps_addr_t base_start, mps_addr_t base_limit,
     struct igc_header *header = base;
 
     if (closure)
-      {
-	struct igc_stats *st = closure;
-	mps_word_t obj_type = igc_header_type (header);
-	igc_assert (obj_type < IGC_OBJ_NUM_TYPES);
-	size_t size = obj_size (header);
-	st->obj[obj_type].nbytes += size;
-	st->obj[obj_type].nobjs += 1;
-	if (size > st->obj[obj_type].largest)
-	  st->obj[obj_type].largest = size;
-	if (obj_type == IGC_OBJ_VECTOR)
-	  {
-	    struct Lisp_Vector* v = (struct Lisp_Vector*) client;
-	    enum pvec_type pvec_type = pseudo_vector_type (v);
-	    igc_assert (0 <= pvec_type && pvec_type <= PVEC_TAG_MAX);
-	    st->pvec[pvec_type].nbytes += size;
-	    st->pvec[pvec_type].nobjs += 1;
-	    if (size > st->pvec[pvec_type].largest)
-	      st->pvec[pvec_type].largest = size;
-	  }
-      }
+      collect_stats (closure, header);
 
     if (header_tag (header) == IGC_TAG_EXTHDR)
       {
@@ -4673,15 +4674,23 @@ walk_pool (struct igc *gc, mps_pool_t p, struct igc_stats *st)
 }
 
 static Lisp_Object
-make_entry (const char *s, intmax_t n, intmax_t bytes, intmax_t largest)
+make_entry (const char *s, uintmax_t n, uintmax_t bytes,
+	    uintmax_t largest)
 {
-  return list4 (build_string (s), make_int (n), make_int (bytes), make_int (largest));
+  return list4 (build_string (s), make_uint (n), make_uint (bytes),
+		make_uint (largest));
 }
 
 #ifndef __clang__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wsuggest-attribute=noreturn"
 #endif
+
+static Lisp_Object
+make_stat_entry (const char *name, struct igc_stat const *s)
+{
+  return make_entry (name, s->nobjs, s->nbytes, s->largest);
+}
 
 DEFUN ("igc-info", Figc_info, Sigc_info, 0, 0, 0,
        doc: /* Return information about incremental GC.
@@ -4697,7 +4706,6 @@ In addition, there are several pseudo-objects which provide overall
 IGC statistics:
  - committed       -- the amount of committed memory in bytes
  - commit-limit    -- max amount of memory the arena is allowed to commit;
-     the value -1 means no limit
  - spare-committed -- memory which remains committed and which the
      arena is managing as free memory
  - reserved        -- total address space reserved by the arena
@@ -4713,35 +4721,36 @@ IGC statistics:
   walk_pool (gc, gc->weak_hash_pool, &st);
   walk_pool (gc, gc->immovable_pool, &st);
 
-  Lisp_Object result = Qnil, e;
+  Lisp_Object result = Qnil;
   for (int i = 0; i < IGC_OBJ_NUM_TYPES; ++i)
-    {
-      e = make_entry (obj_type_name (i), st.obj[i].nobjs, st.obj[i].nbytes, st.obj[i].largest);
-      result = Fcons (e, result);
-    }
+    result = Fcons (make_stat_entry (obj_type_name (i), &st.obj[i]),
+		    result);
+
   for (enum pvec_type i = 0; i <= PVEC_TAG_MAX; ++i)
-    {
-      e = make_entry (pvec_type_name (i), st.pvec[i].nobjs, st.pvec[i].nbytes, st.pvec[i].largest),
-	result = Fcons (e, result);
-    }
-  e = list4 (build_string ("pause-time"), Qnil, make_float (mps_arena_pause_time (gc->arena)),
-	     Qnil);
-  result = Fcons (e, result);
-  e = list4 (build_string ("spare"), Qnil, make_float (mps_arena_spare (gc->arena)),
-	     Qnil);
-  result = Fcons (e, result);
-  e = make_entry ("reserved", 1, mps_arena_reserved (gc->arena), 0);
-  result = Fcons (e, result);
-  e = make_entry ("spare-committed", 1, mps_arena_spare_committed (gc->arena), 0);
-  result = Fcons (e, result);
-  size_t commit_limit = mps_arena_commit_limit (gc->arena);
-  /* Don't assume size_t and intmax_t are of the same width.  */
-  e = make_entry ("commit-limit", 1,
-		  commit_limit == SIZE_MAX ? (intmax_t) -1 : commit_limit,
-		  0);
-  result = Fcons (e, result);
-  e = make_entry ("committed", 1, mps_arena_committed (gc->arena), 0);
-  result = Fcons (e, result);
+    result = Fcons (make_stat_entry (pvec_type_name (i), &st.pvec[i]),
+		    result);
+
+  Lisp_Object entries[] = {
+    list4 (build_string ("pause-time"), Qnil,
+	   make_float (mps_arena_pause_time (gc->arena)), Qnil),
+
+    list4 (build_string ("spare"), Qnil,
+	   make_float (mps_arena_spare (gc->arena)), Qnil),
+
+    make_entry ("reserved", 1, mps_arena_reserved (gc->arena), 0),
+
+    make_entry ("spare-committed", 1,
+		mps_arena_spare_committed (gc->arena), 0),
+
+    make_entry ("commit-limit", 1, mps_arena_commit_limit (gc->arena),
+		0),
+
+    make_entry ("committed", 1, mps_arena_committed (gc->arena), 0),
+  };
+
+  for (size_t i = 0; i < ARRAYELTS (entries); i++)
+    result = Fcons (entries[i], result);
+
   return result;
 }
 
