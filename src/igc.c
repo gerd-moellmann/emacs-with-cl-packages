@@ -4887,59 +4887,13 @@ read_gens (size_t *ngens, mps_gen_param_s parms[*ngens])
   emacs_abort ();
 }
 
-/* Read GC maximum pause time from environment variable
-   EMACS_IGC_PAUSE_TIME. Value must be a floating point number
-   specifying the pause time in seconds. Example:
-
-   export EMACS_IGC_PAUSE_TIME=0.05
-
-   says to use 50ms maximum pause time. */
-
-static bool
-read_pause_time (double *time)
-{
-  const char *env = getenv ("EMACS_IGC_PAUSE_TIME");
-  if (env == NULL)
-    return false;
-  return sscanf (env, "%lf", time) == 1;
-}
-
-/* Read GC commit limit from environment variable
-   EMACS_IGC_COMMIT_LIMIT. Value must be an integer number specifying
-   the commit limit in bytes. Example:
-
-   export EMACS_IGC_COMMIT_LIMIT=1000000000
-
-   Do not use this, except for testing.  */
-
-static bool
-read_commit_limit (size_t *limit)
-{
-  const char *env = getenv ("EMACS_IGC_COMMIT_LIMIT");
-  if (env == NULL)
-    return false;
-#if __MINGW32_MAJOR_VERSION >= 5
-  return sscanf (env, "%u", limit) == 1;
-#else
-  return sscanf (env, "%zu", limit) == 1;
-#endif
-}
-
 static void
 make_arena (struct igc *gc)
 {
   mps_res_t res;
   MPS_ARGS_BEGIN (args)
   {
-    double pause_time;
-    if (!read_pause_time (&pause_time))
-      pause_time = 0.01;
-    MPS_ARGS_ADD (args, MPS_KEY_PAUSE_TIME, pause_time);
-
-    size_t commit_limit;
-    if (read_commit_limit (&commit_limit))
-      MPS_ARGS_ADD (args, MPS_KEY_COMMIT_LIMIT, commit_limit);
-
+    MPS_ARGS_ADD (args, MPS_KEY_PAUSE_TIME, 0.01);
     res = mps_arena_create_k (&gc->arena, mps_arena_class_vm (), args);
   }
   MPS_ARGS_END (args);
@@ -5496,6 +5450,33 @@ Return t if there was work to do, nil otherwise. */)
   return work_to_do ? Qt : Qnil;
 }
 
+/* Only used for debugging.  */
+extern int ArenaDescribe(mps_arena_t, FILE *, size_t depth);
+
+DEFUN ("igc--describe-arena", Figc__describe_arena, Sigc__describe_arena,
+       0, 0, 0,
+       doc: /* Return a string describing the MPS arena.
+
+Only useful for low-level debugging. */)
+  (void)
+{
+#ifdef HAVE_OPEN_MEMSTREAM
+  char *buffer = NULL;
+  size_t size = 0;
+  FILE *f = open_memstream (&buffer, &size);
+  if (!f)
+    report_file_error ("open_memstream failed", Qnil);
+  ArenaDescribe (global_igc->arena, f, 0);
+  fclose (f);
+  Lisp_Object description = make_string (buffer, size);
+  free (buffer);
+  return description;
+#else	/* !HAVE_OPEN_MEMSTREAM */
+  ArenaDescribe (global_igc->arena, stderr, 0);
+  return build_string ("Description of MPS arena was sent to standard error");
+#endif	/* !HAVE_OPEN_MEMSTREAM */
+}
+
 /***********************************************************************
 				  DTrace
  ***********************************************************************/
@@ -5618,6 +5599,7 @@ syms_of_igc (void)
   defsubr (&Sigc_test_probe);
 #endif
   defsubr (&Sigc__arena_step);
+  defsubr (&Sigc__describe_arena);
   DEFSYM (Qambig, "ambig");
   DEFSYM (Qexact, "exact");
   Fprovide (intern_c_string ("mps"), Qnil);
