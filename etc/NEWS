@@ -1841,7 +1841,7 @@ To unconditionally enable 'flyspell-mode' from a hook, use this instead:
 Connection-related objects for which no associated buffers exist, except
 for Tramp internal buffers, are flushed.  This is helpful to prune
 connections after you close remote-file buffers without having to either
-cherry pick via 'tramp-cleanup-connection' or clear them all via
+cherry-pick via 'tramp-cleanup-connection' or clear them all via
 'tramp-cleanup-all-connections'.
 
 +++
@@ -2390,6 +2390,8 @@ You can get back the old behavior with something like this:
 
     (with-eval-after-load 'log-view
       (keymap-set log-view-mode-map "m" #'log-view-toggle-mark-entry))
+
+In addition, a new command 'U' removes all marks.
 
 ** Diff mode
 
