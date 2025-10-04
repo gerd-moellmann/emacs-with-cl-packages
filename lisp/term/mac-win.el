@@ -3131,10 +3131,9 @@ standard ones in `x-handle-args'."
     (define-key-after mac-window-menu-map [mac-merge-all-frame-tabs]
       '(menu-item "Merge All Frames" mac-merge-all-frame-tabs
                   :enable (mac-send-action 'mergeAllWindows t)))
-
     (define-key-after mac-window-menu-map [mac-separator-tab]
       menu-bar-separator)
-    (define-key-after mac-window-menu-map [mac-merge-all-frame-tabs]
+    (define-key-after mac-window-menu-map [mac-raise-all-frames]
       '(menu-item "Bring All to Front" mac-raise-all-frames
                   :enable (mac-send-action 'arrangeInFront t)))
 
