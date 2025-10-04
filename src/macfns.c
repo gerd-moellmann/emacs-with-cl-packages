@@ -1215,20 +1215,6 @@ mac_set_override_redirect (struct frame *f, Lisp_Object new_value, Lisp_Object o
     }
 }
 
-static void
-mac_set_transparent_titlebar (struct frame *f, Lisp_Object new_value, Lisp_Object old_value)
-{
-  if (!EQ (new_value, old_value))
-    {
-      bool transparent = NILP (new_value) ? false : true;
-      FRAME_MAC_TRANSPARENT_TITLEBAR (f) = transparent;
-
-      block_input ();
-      mac_set_frame_window_transparent_titlebar (f, transparent);
-      unblock_input ();
-    }
-}
-
 /* Functions called only from `gui_set_frame_parameters'
    to set individual parameters.
 
@@ -2543,12 +2529,6 @@ DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame,
   mac_default_scroll_bar_color_parameter (f, parms, Qscroll_bar_background,
 					  "scrollBarBackground",
 					  "ScrollBarBackground", false);
-
-  tem = gui_display_get_arg (dpyinfo, parms, Qmac_transparent_titlebar,
-			     NULL, NULL, RES_TYPE_BOOLEAN);
-  FRAME_MAC_TRANSPARENT_TITLEBAR (f) = !NILP (tem) && !EQ (tem, Qunbound);
-  store_frame_param (f, Qmac_transparent_titlebar,
-		     FRAME_MAC_TRANSPARENT_TITLEBAR (f) ? Qt : Qnil);
 
   /* Init faces before gui_default_parameter is called for the
      scroll-bar-width parameter because otherwise we end up in
@@ -5267,13 +5247,7 @@ frame_parm_handler mac_frame_parm_handlers[] =
   gui_set_no_special_glyphs,
   gui_set_alpha_background,
   NULL, /* mac_set_use_frame_synchronization */
-  /* Skipping the following parameters from frame_parms that are not
-     compiled when HAVE_MACGUI is defined:
-     shaded
-     ns-appearance
-     ns-transparent-titlebar
-   */
-  mac_set_transparent_titlebar,
+  NULL, /* mac_set_shaded */
 };
 
 void
