@@ -1098,9 +1098,6 @@ make_frame (bool mini_p)
   f->ns_appearance = ns_appearance_system_default;
   f->ns_transparent_titlebar = false;
 #endif
-#ifdef HAVE_MACGUI
-  f->mac_transparent_titlebar = false;
-#endif
 #endif
   f->select_mini_window_flag = false;
   /* This one should never be zero.  */
@@ -4642,9 +4639,6 @@ static const struct frame_parm_table frame_parms[] =
   {"ns-appearance",		SYMBOL_INDEX (Qns_appearance)},
   {"ns-transparent-titlebar",	SYMBOL_INDEX (Qns_transparent_titlebar)},
 #endif
-#ifdef HAVE_MACGUI
-  {"mac-transparent-titlebar",  SYMBOL_INDEX (Qmac_transparent_titlebar)},
-#endif
 };
 
 #ifdef HAVE_WINDOW_SYSTEM
@@ -7049,9 +7043,6 @@ syms_of_frame (void)
 #ifdef NS_IMPL_COCOA
   DEFSYM (Qns_appearance, "ns-appearance");
   DEFSYM (Qns_transparent_titlebar, "ns-transparent-titlebar");
-#endif
-#ifdef HAVE_MACGUI
-  DEFSYM (Qmac_transparent_titlebar, "mac-transparent-titlebar");
 #endif
 
   DEFSYM (Qalpha, "alpha");
