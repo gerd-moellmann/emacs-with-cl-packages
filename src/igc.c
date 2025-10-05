@@ -2041,17 +2041,13 @@ collect_stats (struct igc_stats *st, struct igc_header *header)
 }
 
 static mps_res_t
-dflt_scan_obj (mps_ss_t ss, mps_addr_t base_start, mps_addr_t base_limit,
-	       void *closure)
+dflt_scan_obj (mps_ss_t ss, mps_addr_t base_start, mps_addr_t base_limit)
 {
   MPS_SCAN_BEGIN (ss)
   {
     mps_addr_t base = base_start;
     mps_addr_t client = base;
     struct igc_header *header = base;
-
-    if (closure)
-      collect_stats (closure, header);
 
     if (header_tag (header) == IGC_TAG_EXTHDR)
       {
@@ -2168,7 +2164,10 @@ dflt_scanx (mps_ss_t ss, mps_addr_t base_start, mps_addr_t base_limit,
   {
     for (mps_addr_t base = base_start; base < base_limit;
 	 base = dflt_skip (base))
-      IGC_FIX_CALL (ss, dflt_scan_obj (ss, base, base_limit, closure));
+      {
+	collect_stats (closure, base);
+	IGC_FIX_CALL (ss, dflt_scan_obj (ss, base, base_limit));
+      }
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
@@ -2179,7 +2178,9 @@ dflt_scan (mps_ss_t ss, mps_addr_t base_start, mps_addr_t base_limit)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    IGC_FIX_CALL (ss, dflt_scanx (ss, base_start, base_limit, NULL));
+    for (mps_addr_t base = base_start; base < base_limit;
+	 base = dflt_skip (base))
+      IGC_FIX_CALL (ss, dflt_scan_obj (ss, base, base_limit));
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
@@ -4689,11 +4690,6 @@ make_fake_entry (const char *name, double (*f) (mps_arena_t),
 		Qnil);
 }
 
-#ifndef __clang__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wsuggest-attribute=noreturn"
-#endif
-
 DEFUN ("igc-info", Figc_info, Sigc_info, 0, 0, 0,
        doc: /* Return information about incremental GC.
 The return value is a list of elements describing the various
@@ -4748,10 +4744,6 @@ IGC statistics:
   return result;
 }
 
-#ifndef __clang__
-#pragma GCC diagnostic pop
-#endif
-
 DEFUN ("igc--roots", Figc__roots, Sigc__roots, 0, 0, 0,
        doc: /* Return the list of IGC roots.
 The return value is a list of elements, one each for every
@@ -4777,6 +4769,7 @@ root.  Each element has the form (LABEL TYPE START END), where
   return roots;
 }
 
+/* FIXME: amcz pools should not contain references! */
 static struct igc_exthdr *
 igc_external_header (struct igc_header *h)
 {
