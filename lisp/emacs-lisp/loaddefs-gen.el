@@ -426,6 +426,12 @@ don't include."
         local-outfile inhibit-autoloads)
     (with-temp-buffer
       (insert-file-contents file)
+
+      ;; Determine how to read symbols.
+      (setq symbol-packages
+            (cdr (assq 'symbol-packages
+                       (hack-local-variables-prop-line))))
+
       (goto-char (point-max))
       ;; We "open-code" this version of `hack-local-variables',
       ;; because it's really slow in bootstrap-emacs.
