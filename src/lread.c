@@ -3903,11 +3903,13 @@ read0 (source_t *source, bool locate_syms)
 	int ch = read_and_buffer (&rb, source);
 	switch (ch)
 	  {
-	  case 'P':
 	  case 'p':
-	    /* #P FORM and #p FORM: read with `symbol-packages' bound to
-	       t or nil. */
-	    obj = read_with_symbol_packages (ch == 'P' ? Qt : Qnil,
+	    /* #p[+-]X: read X with `symbol-packages' bound to t or
+                nil. */
+	    ch = read_and_buffer (&rb, source);
+	    if (ch != '+' && ch != '-')
+	      invalid_syntax_with_buffer (&rb, source);
+	    obj = read_with_symbol_packages (ch == '+' ? Qt : Qnil,
 					     source, locate_syms);
 	    break;
 
