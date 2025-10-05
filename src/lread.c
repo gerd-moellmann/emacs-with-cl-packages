@@ -3783,6 +3783,14 @@ is_symbol_constituent (int c)
   return true;
 }
 
+static Lisp_Object
+read_with_symbol_packages (Lisp_Object symbol_packages, source_t *source, bool locate_syms)
+{
+  specpdl_ref count = SPECPDL_INDEX ();
+  specbind (Qsymbol_packages, symbol_packages);
+  return unbind_to (count, read0 (source, locate_syms));
+}
+
 /* Read a Lisp object.
    If LOCATE_SYMS is true, symbols are read with position.  */
 static Lisp_Object
@@ -3895,6 +3903,14 @@ read0 (source_t *source, bool locate_syms)
 	int ch = read_and_buffer (&rb, source);
 	switch (ch)
 	  {
+	  case 'P':
+	  case 'p':
+	    /* #P FORM and #p FORM: read with `symbol-packages' bound to
+	       t or nil. */
+	    obj = read_with_symbol_packages (ch == 'P' ? Qt : Qnil,
+					     source, locate_syms);
+	    break;
+
 	  case '\'':
 	    /* #'X -- special syntax for (function X) */
 	    read_stack_push ((struct read_stack_entry) {
