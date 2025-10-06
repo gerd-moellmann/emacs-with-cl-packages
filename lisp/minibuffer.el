@@ -5687,11 +5687,10 @@ is no longer selected."
                                       require-match initial-input
                                       hist def inherit-input-method)
   "Like `completing-read' but return a symbol."
-  (let ((string (completing-read prompt collection predicate
-                                 require-match initial-input
-                                 hist def inherit-input-method))
-        (symbol-packages t))
-    (car (read-from-string string))))
+  (string-to-symbol
+   (completing-read prompt collection predicate
+                    require-match initial-input
+                    hist def inherit-input-method)))
 
 (provide 'minibuffer)
 
