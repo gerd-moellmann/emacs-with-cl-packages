@@ -260,11 +260,9 @@ If `current-prefix-arg' is non-nil, also read a buffer and a \"context\"
 \(Lisp expression).  Return (FUNCTION BUFFER FUNCTION-CONTEXT)."
   (cons
    (let ((default (function-called-at-point)))
-     (let ((name (completing-read (format-prompt prompt default)
-                                  obarray 'fboundp t nil nil
-                                  (if default (symbol-name default))))
-           (symbol-packages t))
-       (car (read-from-string name))))
+     (completing-read-symbol (format-prompt prompt default)
+                             obarray 'fboundp t nil nil
+                             (if default (symbol-name default))))
    (when current-prefix-arg
      (list
       (read-buffer "Output to buffer" trace-buffer)
