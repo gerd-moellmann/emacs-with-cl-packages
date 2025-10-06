@@ -5679,9 +5679,14 @@ is no longer selected."
       (add-hook 'minibuffer-setup-hook #'minibuffer--nonselected-setup)
     (remove-hook 'minibuffer-setup-hook #'minibuffer--nonselected-setup)))
 
+;; GNU without packages sometimes uses completing-read to get a string
+;; and then uses intern to make that a symbol. This is wrong if packages
+;; are involved, where read-from-string can be used to get a symbol,
+;; respecting package names.
 (defun completing-read-symbol (prompt collection &optional predicate
                                       require-match initial-input
                                       hist def inherit-input-method)
+  "Like `completing-read' but return a symbol."
   (let ((string (completing-read prompt collection predicate
                                  require-match initial-input
                                  hist def inherit-input-method))
