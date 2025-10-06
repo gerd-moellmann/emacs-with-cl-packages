@@ -7577,6 +7577,9 @@ OBJECT if it is readable."
       (prin1-to-string object))))
 
 (defun string-to-symbol (string)
+  "Convert STRING to a symbol using the Lisp reader.
+Signal an error if STRING does not look like a valid symbol, or if it is
+not entirely made of a symbol."
   (let* ((symbol-packages t)
          (val (read-from-string string))
          (symbol (car val))
