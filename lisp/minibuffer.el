@@ -5679,6 +5679,14 @@ is no longer selected."
       (add-hook 'minibuffer-setup-hook #'minibuffer--nonselected-setup)
     (remove-hook 'minibuffer-setup-hook #'minibuffer--nonselected-setup)))
 
+(defun completing-read-symbol (prompt collection &optional predicate
+                                      require-match initial-input
+                                      hist def inherit-input-method)
+  (let ((string (completing-read prompt collection predicate
+                                 require-match initial-input
+                                 hist def inherit-input-method))
+        (symbol-packages t))
+    (car (read-from-string string))))
 
 (provide 'minibuffer)
 
