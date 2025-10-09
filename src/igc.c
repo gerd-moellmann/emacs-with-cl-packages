@@ -3023,7 +3023,9 @@ root_create_main_thread (struct igc *gc)
   void *start = &main_thread.s;
   void *end = (char *) &main_thread.s + sizeof (main_thread.s);
   root_create_exact (gc, start, end, scan_main_thread, "main-thread");
-  root_create_ambig (gc, main_thread.s.m_getcjmp, main_thread.s.m_getcjmp + 1,
+  sys_jmp_buf *jmpbuf = main_thread.s.m_getcjmp;
+  size_t jmpbuf_size = igc_round (sizeof *jmpbuf, GCALIGNMENT);
+  root_create_ambig (gc, jmpbuf, (char *) jmpbuf + jmpbuf_size,
 		     "main-thread-getcjmp");
 }
 
@@ -5045,6 +5047,14 @@ make_pool_awl (struct igc *gc, mps_fmt_t fmt, mps_awl_find_dependent_t find_depe
 }
 
 static mps_pool_t
+make_pool_awl0 (struct igc *gc, mps_fmt_t fmt,
+		mps_awl_find_dependent_t find_dependent)
+{
+  return make_pool_with_class (gc, fmt, mps_class_awl0 (),
+			       find_dependent);
+}
+
+static mps_pool_t
 make_pool_amcz (struct igc *gc, mps_fmt_t fmt)
 {
   return make_pool_with_class (gc, fmt, mps_class_amcz (), NULL);
@@ -5066,7 +5076,7 @@ make_igc (void)
   gc->leaf_fmt = make_dflt_fmt (gc);
   gc->leaf_pool = make_pool_amcz (gc, gc->leaf_fmt);
   gc->weak_fmt = make_dflt_fmt (gc);
-  gc->weak_pool = make_pool_awl (gc, gc->weak_fmt, NULL);
+  gc->weak_pool = make_pool_awl0 (gc, gc->weak_fmt, NULL);
   gc->weak_hash_fmt = make_dflt_fmt (gc);
   gc->weak_hash_pool = make_pool_awl (gc, gc->weak_hash_fmt, weak_hash_find_dependent);
   gc->immovable_fmt = make_dflt_fmt (gc);
