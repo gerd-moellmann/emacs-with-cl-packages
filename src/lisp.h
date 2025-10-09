@@ -6397,6 +6397,10 @@ struct module_global_reference
   /* Pseudovector header, must come first. */
   struct vectorlike_header header;
 
+#  ifdef HAVE_MPS
+  ptrdiff_t pin_index;
+#  endif
+
   /* Holds the emacs_value for the object.  The Lisp_Object stored
      therein must be the same as the hash key.  */
   struct emacs_value_tag value;
