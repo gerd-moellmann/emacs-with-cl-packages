@@ -127,7 +127,6 @@ Several additional features and fixes have been added on top of upstream `emacs-
 - Add a new `mac-raise-all-frames` command, also found in the `Window` menu ("Bring All to Front").
 - A new `mac-toggle-frame-full-screen` command for toggling "real" full-screen window display.
 - Automatically enable Retina 2x support for known high-DPI images.
-- Support for ["transparent" title bar](../../pull/91).  Thanks to @pkryger!
 
 ### Bug fixes
 
