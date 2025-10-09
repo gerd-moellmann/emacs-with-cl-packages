@@ -4749,6 +4749,14 @@ make_fake_entry (const char *name, double (*f) (mps_arena_t),
 		Qnil);
 }
 
+static Lisp_Object
+make_fake_entry_pins (const char *name)
+{
+  return list4 (build_string (name), Qnil,
+		make_uint (global_igc->pins.used),
+		make_uint (global_igc->pins.capacity));
+}
+
 DEFUN ("igc-info", Figc_info, Sigc_info, 0, 0, 0,
        doc: /* Return information about incremental GC.
 The return value is a list of elements describing the various
@@ -4796,6 +4804,7 @@ IGC statistics:
 		     mps_arena_spare_committed, a),
     make_fake_entry ("commit-limit", NULL, mps_arena_commit_limit, a),
     make_fake_entry ("committed", NULL, mps_arena_committed, a),
+    make_fake_entry_pins ("pins (used, capacity)"),
   };
   for (size_t i = 0; i < ARRAYELTS (fake_entries); i++)
     result = Fcons (fake_entries[i], result);
