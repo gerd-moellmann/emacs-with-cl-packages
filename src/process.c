@@ -2414,7 +2414,8 @@ arguments are defined:
 :buffer BUFFER -- BUFFER is the buffer (or buffer-name) to associate
 with the process.  Process output goes at the end of that buffer,
 unless you specify a filter function to handle the output.  If BUFFER
-is not given, the value of NAME is used.
+is not given, the value of NAME is used.  BUFFER may be also nil, meaning
+that this process is not associated with any buffer.
 
 :coding CODING -- If CODING is a symbol, it specifies the coding
 system used for both reading and writing for this process.  If CODING
@@ -2479,10 +2480,15 @@ usage:  (make-pipe-process &rest ARGS)  */)
   if (inchannel > max_desc)
     max_desc = inchannel;
 
-  buffer = plist_get (contact, QCbuffer);
-  if (NILP (buffer))
-    buffer = name;
-  buffer = Fget_buffer_create (buffer, Qnil);
+  {
+    Lisp_Object buffer_member = plist_member (contact, QCbuffer);
+    if (NILP (buffer_member))
+      buffer = name;
+    else
+      buffer = XCAR (XCDR (buffer_member));
+  }
+  if (!NILP (buffer))
+    buffer = Fget_buffer_create (buffer, Qnil);
   pset_buffer (p, buffer);
 
   pset_childp (p, contact);
@@ -6087,7 +6093,11 @@ wait_reading_process_output (intmax_t time_limit, int nsecs, int read_kbd,
 		 process gone just because its pipe is closed.  */
 	      else if (nread == 0 && !NETCONN_P (proc) && !SERIALCONN_P (proc)
 		       && !PIPECONN_P (proc))
+#ifdef WINDOWSNT
 		;
+#else
+		delete_read_fd (channel);
+#endif
 	      else if (nread == 0 && PIPECONN_P (proc))
 		{
 		  /* Preserve status of processes already terminated.  */
