@@ -228,7 +228,6 @@ struct thread_state
 
 # ifdef HAVE_MPS
   void *gc_info;
-  ptrdiff_t pin_index;
 # endif
 
 } GCALIGNED_STRUCT;

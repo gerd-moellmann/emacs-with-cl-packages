@@ -34,6 +34,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 #include "../mps/code/mps.h"
 #include "../mps/code/mpsavm.h"
 #include "../mps/code/mpscamc.h"
+#include "../mps/code/mpscams.h"
 #include "../mps/code/mpscawl.h"
 #include "../mps/code/mpslib.h"
 #ifdef __clang__
@@ -925,22 +926,6 @@ struct igc_thread
 typedef struct igc_thread igc_thread;
 IGC_DEFINE_LIST (igc_thread);
 
-/* The following struct is used to register/deregister objects that
-   should not move in memory.  Objects are made immovable by
-   creating/removing ambiguous references to them.  This is part of the
-   global struct igc.  */
-
-struct igc_pins
-{
-  ptrdiff_t capacity;
-  ptrdiff_t used;
-  ptrdiff_t free;
-  union {
-    void *obj;
-    ptrdiff_t next_free;
-  } *entries;
-};
-
 /* The registry for an MPS arena.  There is only one arena used.  */
 
 struct igc
@@ -971,44 +956,9 @@ struct igc
 
   /* Registered threads.  */
   struct igc_thread_list *threads;
-
-  /* Ambiguous references to objects to make them immovable.  */
-  struct igc_pins pins;
 };
 
 static bool process_one_message (struct igc *gc);
-
-static ptrdiff_t
-pin (struct igc *gc, void *obj)
-{
-  struct igc_pins *p = &gc->pins;
-  if (p->used == p->capacity)
-    {
-      p->entries = igc_xpalloc_ambig (p->entries, &p->capacity,
-				      1, -1, sizeof *p->entries);
-      for (ptrdiff_t i = p->used; i < p->capacity; ++i)
-	{
-	  p->entries[i].next_free = p->free;
-	  p->free = i;
-	}
-    }
-
-  const ptrdiff_t e = p->free;
-  p->free = p->entries[e].next_free;
-  p->entries[e].obj = obj;
-  ++p->used;
-  return e;
-}
-
-static void
-unpin (struct igc *gc, void *obj, ptrdiff_t i)
-{
-  struct igc_pins *p = &gc->pins;
-  eassert (p->entries[i].obj == obj);
-  p->entries[i].next_free = p->free;
-  p->free = i;
-  --p->used;
-}
 
 /* The global registry.  */
 
@@ -3355,7 +3305,6 @@ igc_thread_remove (void **pinfo)
 {
   struct igc_thread_list *t = *pinfo;
   *pinfo = NULL;
-  unpin (global_igc, t->d.ts, t->d.ts->pin_index);
   destroy_root (&t->d.stack_root);
   destroy_root (&t->d.specpdl_root);
   destroy_root (&t->d.bc_root);
@@ -4364,14 +4313,7 @@ igc_alloc_global_ref (void)
   struct Lisp_Vector *v
     = alloc_immovable (header_size + nwords_mem * word_size, IGC_OBJ_VECTOR);
   XSETPVECTYPESIZE (v, PVEC_MODULE_GLOBAL_REFERENCE, 0, nwords_mem);
-  ((struct module_global_reference *) v)->pin_index = pin (global_igc, v);
   return v;
-}
-
-void
-igc_free_global_ref (struct module_global_reference *r)
-{
-  unpin (global_igc, r, r->pin_index);
 }
 #endif
 
@@ -4457,7 +4399,6 @@ igc_alloc_pseudovector (size_t nwords_mem, size_t nwords_lisp,
 	 scanning the bytecode stack (scan_bc), and making thread_state
 	 immovable simplifies the code.  */
       v = alloc_immovable (client_size, IGC_OBJ_VECTOR);
-      ((struct thread_state *) v)->pin_index = pin (global_igc, v);
     }
   else
     v = alloc (client_size, IGC_OBJ_VECTOR);
@@ -5041,6 +4982,12 @@ make_pool_amc (struct igc *gc, mps_fmt_t fmt)
 }
 
 static mps_pool_t
+make_pool_ams (struct igc *gc, mps_fmt_t fmt)
+{
+  return make_pool_with_class (gc, fmt, mps_class_ams (), NULL);
+}
+
+static mps_pool_t
 make_pool_awl (struct igc *gc, mps_fmt_t fmt, mps_awl_find_dependent_t find_dependent)
 {
   return make_pool_with_class (gc, fmt, mps_class_awl (), find_dependent);
@@ -5080,7 +5027,7 @@ make_igc (void)
   gc->weak_hash_fmt = make_dflt_fmt (gc);
   gc->weak_hash_pool = make_pool_awl (gc, gc->weak_hash_fmt, weak_hash_find_dependent);
   gc->immovable_fmt = make_dflt_fmt (gc);
-  gc->immovable_pool = make_pool_amc (gc, gc->immovable_fmt);
+  gc->immovable_pool = make_pool_ams (gc, gc->immovable_fmt);
 
   root_create_charset_table (gc);
   root_create_buffer (gc, &buffer_defaults);
