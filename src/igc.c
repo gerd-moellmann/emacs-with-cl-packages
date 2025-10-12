@@ -977,8 +977,6 @@ struct igc
 
 static bool process_one_message (struct igc *gc);
 
-/* Allocate new initialized igc_pins structure.  */
-
 static struct igc_pins *
 make_pins (void)
 {
@@ -987,42 +985,31 @@ make_pins (void)
   return p;
 }
 
-/* Make sure that at least 1 free pin entry exists in P.  */
-
 static void
-ensure_free_pin (struct igc_pins *p)
+enlarge_pins (struct igc_pins *p)
 {
-  if (p->free < 0)
+  eassert (p->free < 0);
+  const ptrdiff_t used = p->capacity;
+  p->entries = igc_xpalloc_ambig (p->entries, &p->capacity,
+				  1, -1, sizeof *p->entries);
+  for (ptrdiff_t i = used; i < p->capacity; ++i)
     {
-      const ptrdiff_t used = p->capacity;
-      p->entries = igc_xpalloc_ambig (p->entries, &p->capacity, 1, -1,
-				      sizeof *p->entries);
-      for (ptrdiff_t i = used; i < p->capacity; ++i)
-	{
-	  p->entries[i].next_free = p->free;
-	  p->free = i;
-	}
+      p->entries[i].next_free = p->free;
+      p->free = i;
     }
 }
-
-/* Pin OBJ.  This add an ambiguous reference to OBJ to the pin registry
-   of GC, which makes OBJ immovable, and also means that OBJ will not
-   die before that reference is removed again by calling unpin.  Value
-   is the index of the pin entry, which is needed to unpin.  */
 
 static ptrdiff_t
 pin (struct igc *gc, void *obj)
 {
   struct igc_pins *p = gc->pins;
-  ensure_free_pin (p);
+  if (p->free < 0)
+    enlarge_pins (p);
   const ptrdiff_t e = p->free;
   p->free = p->entries[e].next_free;
   p->entries[e].obj = obj;
   return e;
 }
-
-/* Unpin OBJ in GC. I is the index of the pin returned when calling
-   pin.  */
 
 static void
 unpin (struct igc *gc, void *obj, ptrdiff_t i)
@@ -1032,8 +1019,6 @@ unpin (struct igc *gc, void *obj, ptrdiff_t i)
   p->entries[i].next_free = p->free;
   p->free = i;
 }
-
-/* Return the number of pins recorded in GC.  */
 
 static ptrdiff_t
 count_pins (struct igc *gc)
