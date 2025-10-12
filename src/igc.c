@@ -2986,10 +2986,21 @@ root_create (struct igc *gc, void *start, void *end, mps_rank_t rank,
   return register_root (gc, root, start, end, ambig, label);
 }
 
+static bool
+word_aligned (void *ptr)
+{
+  return ((intptr_t)ptr & (sizeof (void *) - 1)) == 0;
+}
+
 static igc_root_list *
 root_create_ambig (struct igc *gc, void *start, void *end,
 		   const char *label)
 {
+  /* Partial words cannot contain ambiguous references.  Ignore them.  */
+  while (!word_aligned (end))
+    end = (char *) end - 1;
+  igc_assert (word_aligned (start));
+  igc_assert (start < end);
   return root_create (gc, start, end, mps_rank_ambig (), scan_ambig, NULL,
 		      true, label);
 }
@@ -3043,9 +3054,7 @@ root_create_main_thread (struct igc *gc)
   void *start = &main_thread.s;
   void *end = (char *) &main_thread.s + sizeof (main_thread.s);
   root_create_exact (gc, start, end, scan_main_thread, "main-thread");
-  sys_jmp_buf *jmpbuf = main_thread.s.m_getcjmp;
-  size_t jmpbuf_size = igc_round (sizeof *jmpbuf, GCALIGNMENT);
-  root_create_ambig (gc, jmpbuf, (char *) jmpbuf + jmpbuf_size,
+  root_create_ambig (gc, main_thread.s.m_getcjmp, main_thread.s.m_getcjmp + 1,
 		     "main-thread-getcjmp");
 }
 
