@@ -933,6 +933,7 @@ IGC_DEFINE_LIST (igc_thread);
 struct igc_pins
 {
   ptrdiff_t capacity;
+  ptrdiff_t used;
   ptrdiff_t free;
   union {
     void *obj;
@@ -972,62 +973,41 @@ struct igc
   struct igc_thread_list *threads;
 
   /* Ambiguous references to objects to make them immovable.  */
-  struct igc_pins *pins;
+  struct igc_pins pins;
 };
 
 static bool process_one_message (struct igc *gc);
 
-static struct igc_pins *
-make_pins (void)
-{
-  struct igc_pins *p = xzalloc (sizeof *p);
-  p->free = -1;
-  return p;
-}
-
-static void
-enlarge_pins (struct igc_pins *p)
-{
-  eassert (p->free < 0);
-  const ptrdiff_t used = p->capacity;
-  p->entries = igc_xpalloc_ambig (p->entries, &p->capacity,
-				  1, -1, sizeof *p->entries);
-  for (ptrdiff_t i = used; i < p->capacity; ++i)
-    {
-      p->entries[i].next_free = p->free;
-      p->free = i;
-    }
-}
-
 static ptrdiff_t
 pin (struct igc *gc, void *obj)
 {
-  struct igc_pins *p = gc->pins;
-  if (p->free < 0)
-    enlarge_pins (p);
+  struct igc_pins *p = &gc->pins;
+  if (p->used == p->capacity)
+    {
+      p->entries = igc_xpalloc_ambig (p->entries, &p->capacity,
+				      1, -1, sizeof *p->entries);
+      for (ptrdiff_t i = p->used; i < p->capacity; ++i)
+	{
+	  p->entries[i].next_free = p->free;
+	  p->free = i;
+	}
+    }
+
   const ptrdiff_t e = p->free;
   p->free = p->entries[e].next_free;
   p->entries[e].obj = obj;
+  ++p->used;
   return e;
 }
 
 static void
 unpin (struct igc *gc, void *obj, ptrdiff_t i)
 {
-  struct igc_pins *p = gc->pins;
+  struct igc_pins *p = &gc->pins;
   eassert (p->entries[i].obj == obj);
   p->entries[i].next_free = p->free;
   p->free = i;
-}
-
-static ptrdiff_t
-count_pins (struct igc *gc)
-{
-  struct igc_pins *p = gc->pins;
-  ptrdiff_t n = p->capacity;
-  for (ptrdiff_t i = p->free; i >= 0; i = p->entries[i].next_free)
-    --n;
-  return n;
+  --p->used;
 }
 
 /* The global registry.  */
@@ -4784,8 +4764,8 @@ static Lisp_Object
 make_fake_entry_pins (const char *name)
 {
   return list4 (build_string (name), Qnil,
-		make_uint (count_pins (global_igc)),
-		make_uint (global_igc->pins->capacity));
+		make_uint (global_igc->pins.used),
+		make_uint (global_igc->pins.capacity));
 }
 
 DEFUN ("igc-info", Figc_info, Sigc_info, 0, 0, 0,
@@ -5093,7 +5073,6 @@ static struct igc *
 make_igc (void)
 {
   struct igc *gc = xzalloc (sizeof *gc);
-  gc->pins = make_pins ();
   make_arena (gc);
 
   /* We cannot let the GC run until at least all staticpros have been
