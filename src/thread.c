@@ -1298,7 +1298,7 @@ init_threads (void)
   main_thread.s.thread_id = sys_thread_self ();
   main_thread.s.buffer_disposition = Qnil;
 #ifdef HAVE_MPS
-  main_thread.s.bc = xmalloc (sizeof (*main_thread.s.bc));
+  main_thread.s.bc = xzalloc (sizeof (*main_thread.s.bc));
 #endif
   init_bc_thread (main_thread.s.bc);
 #ifdef HAVE_MPS
