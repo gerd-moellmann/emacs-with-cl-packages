@@ -145,10 +145,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # ifndef HASH_glyph_matrix_559A8DDA89
 #  error "struct glyph_matrix changed"
 # endif
-# ifndef HASH_frame_2DF695D4B8
+# ifndef HASH_frame_2B78606BC6
 #  error "struct frame changed"
 # endif
-# ifndef HASH_window_AAD29CF361
+# ifndef HASH_window_part_E738CB387B
 #  error "struct window changed"
 # endif
 # ifndef HASH_Lisp_Vector_64AF2E46CE
@@ -163,7 +163,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # ifndef HASH_Lisp_User_Ptr_7DC5544B44
 #  error "struct Lisp_User_Ptr changed"
 # endif
-# ifndef HASH_thread_state_6E2079C09F
+# ifndef HASH_thread_state_2A19B25EF0
 #  error "struct thread_state changed"
 # endif
 # ifndef HASH_Lisp_Mutex_744F44A86D
@@ -172,7 +172,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # ifndef HASH_coding_system_77D58F21B9
 #  error "struct coding_system changed"
 # endif
-# ifndef HASH_terminal_4E8E555B40
+# ifndef HASH_terminal_AC512E7FF7
 #  error "struct terminal changed"
 # endif
 # ifndef HASH_Lisp_Native_Comp_Unit_B0ECD25036
@@ -190,19 +190,19 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # ifndef HASH_itree_tree_A8CE87B78A
 #  error "struct itree_tree changed"
 # endif
-# ifndef HASH_image_7243288625
+# ifndef HASH_image_7E2596A8EF
 #  error "struct image changed"
 # endif
 # ifndef HASH_image_cache_3EC6F9D296
 #  error "struct image_cache changed"
 # endif
-# ifndef HASH_face_97AE235079
+# ifndef HASH_face_AFDFB2FC46
 #  error "struct face changed"
 # endif
 # ifndef HASH_face_cache_C289FB8D72
 #  error "struct face_cache changed"
 # endif
-# ifndef HASH_module_global_reference_85FFC23A88
+# ifndef HASH_module_global_reference_DC69127EC6
 #  error "struct module_global_reference changed"
 # endif
 # ifndef HASH_Lisp_TS_Parser_66A8E2974E
@@ -211,10 +211,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # ifndef HASH_Lisp_TS_Query_31B815035A
 #  error "struct Lisp_TS_Parser changed"
 # endif
-# ifndef HASH_xwidget_E5EDCB4855
+# ifndef HASH_xwidget_CB63F4256A
 #  error "struct xwidget changed"
 # endif
-# ifndef HASH_xwidget_view_20FB8762B0
+# ifndef HASH_xwidget_view_A7B4409F79
 #  error "struct xwidget_view changed"
 # endif
 
