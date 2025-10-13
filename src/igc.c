@@ -920,6 +920,7 @@ struct igc_thread
   /* Back pointer to Emacs' thread object.  Allocated so that it doesn't
      move in memory.  Maybe NULL for the GUI thread in the 'mac' port.  */
   struct thread_state *ts;
+  struct bc_thread_state *bc;
 };
 
 typedef struct igc_thread igc_thread;
@@ -1730,8 +1731,7 @@ scan_bc (mps_ss_t ss, void *start, void *end, void *closure)
   MPS_SCAN_BEGIN (ss)
   {
     struct igc_thread_list *t = closure;
-    igc_assert (t->d.ts != NULL);
-    struct bc_thread_state *bc = &t->d.ts->bc;
+    struct bc_thread_state *bc = t->d.bc;
     igc_assert (start == (void *) bc->stack);
     igc_assert (end == (void *) bc->stack_end);
     /* FIXME/igc: AFAIU the current top frame starts at
@@ -3127,8 +3127,8 @@ static void
 root_create_bc (struct igc_thread_list *t)
 {
   struct igc *gc = t->d.gc;
-  igc_assert (t->d.ts != NULL);
-  struct bc_thread_state *bc = &t->d.ts->bc;
+  struct bc_thread_state *bc = t->d.ts->bc;
+  t->d.bc = bc;
   igc_assert (bc->stack != NULL);
   mps_root_t root;
   mps_res_t res = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
