@@ -175,7 +175,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # ifndef HASH_terminal_AC512E7FF7
 #  error "struct terminal changed"
 # endif
-# ifndef HASH_Lisp_Native_Comp_Unit_B0ECD25036
+# ifndef HASH_Lisp_Native_Comp_Unit_B617D9AE7C
 #  error "struct Lisp_Native_Comp_Unit changed"
 # endif
 # ifndef HASH_pvec_type_9A5F4E1904
@@ -1730,8 +1730,7 @@ scan_bc (mps_ss_t ss, void *start, void *end, void *closure)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    struct igc_thread_list *t = closure;
-    struct bc_thread_state *bc = t->d.bc;
+    struct bc_thread_state *bc = closure;
     igc_assert (start == (void *) bc->stack);
     igc_assert (end == (void *) bc->stack_end);
     /* FIXME/igc: AFAIU the current top frame starts at
@@ -3128,11 +3127,10 @@ root_create_bc (struct igc_thread_list *t)
 {
   struct igc *gc = t->d.gc;
   struct bc_thread_state *bc = t->d.ts->bc;
-  t->d.bc = bc;
   igc_assert (bc->stack != NULL);
   mps_root_t root;
   mps_res_t res = mps_root_create_area (&root, gc->arena, mps_rank_ambig (), 0,
-					bc->stack, bc->stack_end, scan_bc, t);
+					bc->stack, bc->stack_end, scan_bc, bc);
   IGC_CHECK_RES (res);
   igc_assert (t->d.bc_root == NULL);
   t->d.bc_root = register_root (gc, root, bc->stack, bc->stack_end, true,
