@@ -2348,10 +2348,7 @@ Runs of equal candidate strings are eliminated.  GROUP-FUN is a
       (when track-eob
         (with-selected-window window
           (goto-char (point-max))
-          (previous-completion 1)
-          (recenter -1)
-          (when cursor-face-highlight-mode
-            (redisplay--update-cursor-face-highlight window))))))
+          (recenter -1)))))
   (remove-hook 'window-scroll-functions
                'completion--lazy-insert-strings-on-scroll t))
 
