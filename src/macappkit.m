@@ -6540,6 +6540,7 @@ static BOOL emacsViewUpdateLayerDisabled;
 	[defaults registerDefaults:@{@"NSAutoFillHeuristicControllerEnabled" : @false}];
       if ([defaults objectForKey:@"ApplePressAndHoldEnabled"] == nil)
 	[defaults registerDefaults:@{@"ApplePressAndHoldEnabled" : @"NO"}];
+      [defaults setBool:NO forKey:@"NSAutomaticPeriodSubstitutionEnabled"];
     }
 }
 
