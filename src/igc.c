@@ -175,7 +175,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # ifndef HASH_terminal_AC512E7FF7
 #  error "struct terminal changed"
 # endif
-# ifndef HASH_Lisp_Native_Comp_Unit_B617D9AE7C
+# ifndef HASH_Lisp_Native_Comp_Unit_876BE72D27
 #  error "struct Lisp_Native_Comp_Unit changed"
 # endif
 # ifndef HASH_pvec_type_9A5F4E1904
@@ -3068,10 +3068,10 @@ root_create_main_thread (struct igc *gc)
 		     "main-thread-getcjmp");
 }
 
-void
+struct igc_root_list *
 igc_root_create_ambig (void *start, void *end, const char* label)
 {
-  root_create_ambig (global_igc, start, end, label);
+  return root_create_ambig (global_igc, start, end, label);
 }
 
 void
@@ -3080,18 +3080,18 @@ igc_root_create_exact (Lisp_Object *start, Lisp_Object *end)
   root_create_exact (global_igc, start, end, scan_exact, "exact");
 }
 
-static void
+static struct igc_root_list *
 root_create_exact_ptr (struct igc *gc, void *var_addr)
 {
   char *start = var_addr;
   char *end = start + sizeof (void *);
-  root_create_exact (gc, start, end, scan_ptr_exact, "exact-ptr");
+  return root_create_exact (gc, start, end, scan_ptr_exact, "exact-ptr");
 }
 
-void
+struct igc_root_list *
 igc_root_create_exact_ptr (void *var_addr)
 {
-  root_create_exact_ptr (global_igc, var_addr);
+  return root_create_exact_ptr (global_igc, var_addr);
 }
 
 static void
