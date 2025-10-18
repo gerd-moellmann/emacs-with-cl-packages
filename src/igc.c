@@ -319,9 +319,6 @@ igc_assert_fail (const char *file, unsigned line, const char *msg)
 # define igc_assert(expr) ((void) (true || (expr)))
 #endif
 
-#define IGC_NOT_IMPLEMENTED() \
-  igc_assert_fail (__FILE__, __LINE__, "not implemented")
-
 /* An enum for telemetry event categories seems to be missing from MPS.
    The docs only mention the bare numbers.  */
 
@@ -353,12 +350,6 @@ enum
   IGC_ALIGN_DFLT = IGC_ALIGN,
 };
 
-static bool
-is_pure (const mps_addr_t addr)
-{
-  return false;
-}
-
 static enum pvec_type
 pseudo_vector_type (const struct Lisp_Vector *v)
 {
@@ -366,11 +357,11 @@ pseudo_vector_type (const struct Lisp_Vector *v)
 }
 
 static bool
-is_builtin_subr (enum igc_obj_type type, void *client)
+is_builtin_subr (enum igc_obj_type type, void *addr)
 {
-  if (type == IGC_OBJ_VECTOR && pseudo_vector_type (client) == PVEC_SUBR)
+  if (type == IGC_OBJ_VECTOR && pseudo_vector_type (addr) == PVEC_SUBR)
     {
-      Lisp_Object subr = make_lisp_ptr (client, Lisp_Vectorlike);
+      Lisp_Object subr = make_lisp_ptr (addr, Lisp_Vectorlike);
       return !NATIVE_COMP_FUNCTIONP (subr);
     }
   return false;
@@ -690,7 +681,7 @@ igc_header_nwords (const struct igc_header *h)
 struct igc_fwd
 {
   struct igc_header header;
-  mps_addr_t new_base_addr;
+  mps_addr_t new_addr;
 };
 
 static_assert (sizeof (struct igc_header) == 8);
@@ -746,8 +737,8 @@ static unsigned alloc_hash (void);
 static size_t igc_round (size_t nbytes, size_t align);
 
 /* Called throughout Emacs to initialize the GC header of an object
-   which does not live in GC-managed memory, such as pure objects and
-   builtin symbols.  */
+   which does not live in GC-managed memory, such as a builtin
+   symbol.  */
 void gc_init_header (union gc_header *header, enum igc_obj_type type)
 {
   struct igc_header *h = (struct igc_header *) header;
@@ -869,9 +860,9 @@ alloc_hash (void)
 
 #ifdef IGC_CHECK_FWD
 void
-igc_check_fwd (void *client, bool is_vector)
+igc_check_fwd (void *addr, bool is_vector)
 {
-  struct igc_header *h = client;
+  struct igc_header *h = addr;
   igc_assert (header_type (h) != IGC_OBJ_FWD);
   igc_assert (obj_size (h) >= sizeof (struct igc_fwd));
 }
@@ -1209,19 +1200,17 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
     if (tag == Lisp_Symbol)
       {
 	ptrdiff_t off = word ^ tag;
-	mps_addr_t client = (mps_addr_t) ((char *) lispsym + off);
-	mps_addr_t base = client;
-	if (MPS_FIX1 (ss, base))
+	mps_addr_t addr = (mps_addr_t) ((char *) lispsym + off);
+	if (MPS_FIX1 (ss, addr))
 	  {
-	    mps_res_t res = MPS_FIX2 (ss, &base);
+	    mps_res_t res = MPS_FIX2 (ss, &addr);
 	    if (res != MPS_RES_OK)
 	      return res;
-	    if (base == NULL)
+	    if (addr == NULL)
 	      *(Lisp_Object *) p = Qnil;
 	    else
 	      {
-		client = base;
-		ptrdiff_t new_off = (char *) client - (char *) lispsym;
+		ptrdiff_t new_off = (char *) addr - (char *) lispsym;
 		*p = new_off | tag;
 	      }
 	  }
@@ -1232,20 +1221,16 @@ fix_lisp_obj (mps_ss_t ss, Lisp_Object *pobj)
 	   reference is somewhere completely off, so that MPS_FIX2 asserts.
 	   IOW, MPS_FIX1 has undefined behavior if called on an address that
 	   is not in the arena.  */
-	mps_addr_t client = (mps_addr_t) (word ^ tag);
-	mps_addr_t base = client;
-	if (MPS_FIX1 (ss, base))
+	mps_addr_t addr = (mps_addr_t) (word ^ tag);
+	if (MPS_FIX1 (ss, addr))
 	  {
-	    mps_res_t res = MPS_FIX2 (ss, &base);
+	    mps_res_t res = MPS_FIX2 (ss, &addr);
 	    if (res != MPS_RES_OK)
 	      return res;
-	    if (base == NULL)
+	    if (addr == NULL)
 	      *(Lisp_Object *) p = Qnil;
 	    else
-	      {;
-		client = base;
-		*p = (mps_word_t) client | tag;
-	      }
+	      *p = (mps_word_t) addr | tag;
 	  }
       }
   }
@@ -1258,22 +1243,16 @@ fix_raw (mps_ss_t ss, mps_addr_t *p)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    mps_addr_t client = *p;
-    if (client == NULL)
+    mps_addr_t addr = *p;
+    if (addr == NULL)
       return MPS_RES_OK;
-    if (is_aligned (client))
+    igc_assert (is_aligned (addr));
+    if (MPS_FIX1 (ss, addr))
       {
-	mps_addr_t base = client;
-	if (MPS_FIX1 (ss, base))
-	  {
-	    mps_res_t res = MPS_FIX2 (ss, &base);
-	    if (res != MPS_RES_OK)
-	      return res;
-	    if (base == NULL)
-	      *p = NULL;
-	    else
-	      *p = base;
-	  }
+	mps_res_t res = MPS_FIX2 (ss, &addr);
+	if (res != MPS_RES_OK)
+	  return res;
+	*p = addr;
       }
   }
   MPS_SCAN_END (ss);
@@ -1287,23 +1266,20 @@ fix_wrapped_vec (mps_ss_t ss, mps_addr_t *p)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    mps_addr_t client = *p;
-    if (client == NULL)
+    mps_addr_t addr = *p;
+    if (addr == NULL)
       return MPS_RES_OK;
-    if (is_aligned (client))
+    igc_assert (is_aligned (addr));
+    addr = (char *) addr - sizeof (struct Lisp_Vector);
+    if (MPS_FIX1 (ss, addr))
       {
-	client = (char *) client - sizeof (struct Lisp_Vector);
-	mps_addr_t base = client;
-	if (MPS_FIX1 (ss, base))
-	  {
-	    mps_res_t res = MPS_FIX2 (ss, &base);
-	    if (res != MPS_RES_OK)
-	      return res;
-	    if (base == NULL)
-	      *p = NULL;
-	    else
-	      *p = (char *) base + sizeof (struct Lisp_Vector);
-	  }
+	mps_res_t res = MPS_FIX2 (ss, &addr);
+	if (res != MPS_RES_OK)
+	  return res;
+	if (addr == NULL)
+	  *p = NULL;
+	else
+	  *p = (char *) addr + sizeof (struct Lisp_Vector);
       }
   }
   MPS_SCAN_END (ss);
@@ -1317,45 +1293,20 @@ fix_wrapped_bytes (mps_ss_t ss, mps_addr_t *p)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    mps_addr_t client = *p;
-    if (client == NULL)
+    mps_addr_t addr = *p;
+    if (addr == NULL)
       return MPS_RES_OK;
-    if (is_aligned (client))
+    igc_assert (is_aligned (addr));
+    addr = (char *) addr - sizeof (struct Lisp_String_Data);
+    if (MPS_FIX1 (ss, addr))
       {
-	client = (char *) client - sizeof (struct Lisp_String_Data);
-	mps_addr_t base = client;
-	if (MPS_FIX1 (ss, base))
-	  {
-	    mps_res_t res = MPS_FIX2 (ss, &base);
-	    if (res != MPS_RES_OK)
-	      return res;
-	    if (base == NULL)
-	      *p = NULL;
-	    else
-	      *p = (char *) base + sizeof (struct Lisp_String_Data);
-	  }
-      }
-  }
-  MPS_SCAN_END (ss);
-  return MPS_RES_OK;
-}
-
-static mps_res_t
-fix_base (mps_ss_t ss, mps_addr_t *p)
-{
-  MPS_SCAN_BEGIN (ss)
-  {
-    mps_addr_t base = *p;
-    if (base == NULL)
-      return MPS_RES_OK;
-    if (is_aligned (base))
-      {
-	if (MPS_FIX1 (ss, base))
-	  {
-	    mps_res_t res = MPS_FIX2 (ss, p);
-	    if (res != MPS_RES_OK)
-	      return res;
-	  }
+	mps_res_t res = MPS_FIX2 (ss, &addr);
+	if (res != MPS_RES_OK)
+	  return res;
+	if (addr == NULL)
+	  *p = NULL;
+	else
+	  *p = (char *) addr + sizeof (struct Lisp_String_Data);
       }
   }
   MPS_SCAN_END (ss);
@@ -1424,16 +1375,6 @@ fix_base (mps_ss_t ss, mps_addr_t *p)
     }									\
   while (0)
 
-#define IGC_FIX12_BASE(ss, p)						\
-  do									\
-    {									\
-      mps_res_t res;							\
-      MPS_FIX_CALL (ss, res = fix_base (ss, (mps_addr_t *) (p)));	\
-      if (res != MPS_RES_OK)						\
-	return res;							\
-    }									\
-  while (0)
-
 #define IGC_FIX12_NOBJS(ss, a, n)                            \
   do                                                         \
     {                                                        \
@@ -1454,10 +1395,10 @@ fix_base (mps_ss_t ss, mps_addr_t *p)
     }                                  \
   while (0)
 
-#define IGC_FIX_CALL_FN(ss, type, client_addr, fn) \
+#define IGC_FIX_CALL_FN(ss, type, addr, fn)	   \
   do                                               \
     {                                              \
-      type *obj_ = (type *) client_addr;           \
+      type *obj_ = (type *) addr;		   \
       mps_res_t res;                               \
       MPS_FIX_CALL (ss, res = fn (ss, obj_));      \
       if (res != MPS_RES_OK)                       \
@@ -1870,39 +1811,39 @@ scan_hash_table_user_test (mps_ss_t ss, void *start, void *end, void *closure)
  ***********************************************************************/
 
 static void
-dflt_pad (mps_addr_t base_addr, size_t nbytes)
+dflt_pad (mps_addr_t addr, size_t nbytes)
 {
   igc_assert (nbytes >= sizeof (struct igc_header));
-  struct igc_header *h = base_addr;
+  struct igc_header *h = addr;
   set_header (h, IGC_OBJ_PAD, nbytes, 0);
 }
 
 static void
-dflt_fwd (mps_addr_t old_base_addr, mps_addr_t new_base_addr)
+dflt_fwd (mps_addr_t old_addr, mps_addr_t new_addr)
 {
-  struct igc_header *h = old_base_addr;
+  struct igc_header *h = old_addr;
   igc_assert (obj_size (h) >= sizeof (struct igc_fwd));
   igc_assert (header_type (h) != IGC_OBJ_PAD);
-  struct igc_fwd *f = old_base_addr;
+  struct igc_fwd *f = old_addr;
   set_header (&f->header, IGC_OBJ_FWD, to_bytes (igc_header_nwords (h)), 0);
-  f->new_base_addr = new_base_addr;
+  f->new_addr = new_addr;
 }
 
 static mps_addr_t
-is_dflt_fwd (mps_addr_t base_addr)
+is_dflt_fwd (mps_addr_t addr)
 {
-  struct igc_fwd *f = base_addr;
+  struct igc_fwd *f = addr;
   if (header_type (&f->header) == IGC_OBJ_FWD)
-    return f->new_base_addr;
+    return f->new_addr;
   return NULL;
 }
 
 static mps_addr_t
-dflt_skip (mps_addr_t base_addr)
+dflt_skip (mps_addr_t addr)
 {
-  struct igc_header *h = base_addr;
-  mps_addr_t next = (char *) base_addr + obj_size (h);
-  igc_assert (next > base_addr);
+  struct igc_header *h = addr;
+  mps_addr_t next = (char *) addr + obj_size (h);
+  igc_assert (next > addr);
   return next;
 }
 
@@ -2125,13 +2066,12 @@ collect_stats (struct igc_stats *st, struct igc_header *header)
 }
 
 static mps_res_t
-dflt_scan_obj (mps_ss_t ss, mps_addr_t base_start, mps_addr_t base_limit)
+dflt_scan_obj (mps_ss_t ss, mps_addr_t start)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    mps_addr_t base = base_start;
-    mps_addr_t client = base;
-    struct igc_header *header = base;
+    mps_addr_t addr = start;
+    struct igc_header *header = addr;
 
     if (header_tag (header) == IGC_TAG_EXTHDR)
       {
@@ -2152,11 +2092,11 @@ dflt_scan_obj (mps_ss_t ss, mps_addr_t base_start, mps_addr_t base_limit)
 	continue;
 
       case IGC_OBJ_HANDLER:
-	IGC_FIX_CALL_FN (ss, struct handler, client, fix_handler);
+	IGC_FIX_CALL_FN (ss, struct handler, addr, fix_handler);
 	break;
 
       case IGC_OBJ_CONS:
-	IGC_FIX_CALL_FN (ss, struct Lisp_Cons, client, fix_cons);
+	IGC_FIX_CALL_FN (ss, struct Lisp_Cons, addr, fix_cons);
 	break;
 
       case IGC_OBJ_STRING_DATA:
@@ -2173,65 +2113,65 @@ dflt_scan_obj (mps_ss_t ss, mps_addr_t base_start, mps_addr_t base_limit)
 	emacs_abort ();
 
       case IGC_OBJ_SYMBOL:
-	IGC_FIX_CALL_FN (ss, struct Lisp_Symbol, client, fix_symbol);
+	IGC_FIX_CALL_FN (ss, struct Lisp_Symbol, addr, fix_symbol);
 	break;
 
       case IGC_OBJ_INTERVAL:
-	IGC_FIX_CALL_FN (ss, struct interval, client, fix_interval);
+	IGC_FIX_CALL_FN (ss, struct interval, addr, fix_interval);
 	break;
 
       case IGC_OBJ_STRING:
-	IGC_FIX_CALL_FN (ss, struct Lisp_String, client, fix_string);
+	IGC_FIX_CALL_FN (ss, struct Lisp_String, addr, fix_string);
 	break;
 
       case IGC_OBJ_VECTOR:
-	IGC_FIX_CALL_FN (ss, struct Lisp_Vector, client, fix_vector);
+	IGC_FIX_CALL_FN (ss, struct Lisp_Vector, addr, fix_vector);
 	break;
 
       case IGC_OBJ_MARKER_VECTOR:
-	IGC_FIX_CALL_FN (ss, struct Lisp_Vector, client, fix_marker_vector);
+	IGC_FIX_CALL_FN (ss, struct Lisp_Vector, addr, fix_marker_vector);
 	break;
 
       case IGC_OBJ_ITREE_TREE:
-	IGC_FIX_CALL_FN (ss, struct itree_tree, client, fix_itree_tree);
+	IGC_FIX_CALL_FN (ss, struct itree_tree, addr, fix_itree_tree);
 	break;
 
       case IGC_OBJ_ITREE_NODE:
-	IGC_FIX_CALL_FN (ss, struct itree_node, client, fix_itree_node);
+	IGC_FIX_CALL_FN (ss, struct itree_node, addr, fix_itree_node);
 	break;
 
       case IGC_OBJ_IMAGE:
-	IGC_FIX_CALL_FN (ss, struct image, client, fix_image);
+	IGC_FIX_CALL_FN (ss, struct image, addr, fix_image);
 	break;
 
       case IGC_OBJ_IMAGE_CACHE:
-	IGC_FIX_CALL_FN (ss, struct image_cache, client, fix_image_cache);
+	IGC_FIX_CALL_FN (ss, struct image_cache, addr, fix_image_cache);
 	break;
 
       case IGC_OBJ_FACE:
-	IGC_FIX_CALL_FN (ss, struct face, client, fix_face);
+	IGC_FIX_CALL_FN (ss, struct face, addr, fix_face);
 	break;
 
       case IGC_OBJ_FACE_CACHE:
-	IGC_FIX_CALL_FN (ss, struct face_cache, client, fix_face_cache);
+	IGC_FIX_CALL_FN (ss, struct face_cache, addr, fix_face_cache);
 	break;
 
       case IGC_OBJ_BLV:
-	IGC_FIX_CALL_FN (ss, struct Lisp_Buffer_Local_Value, client,
+	IGC_FIX_CALL_FN (ss, struct Lisp_Buffer_Local_Value, addr,
 			 fix_blv);
 	break;
 
       case IGC_OBJ_DUMPED_CHARSET_TABLE:
-	IGC_FIX_CALL (ss, fix_charset_table (ss, (struct charset *) client,
+	IGC_FIX_CALL (ss, fix_charset_table (ss, (struct charset *) addr,
 					     obj_size (header)));
 	break;
 
       case IGC_OBJ_WEAK_HASH_TABLE_STRONG_PART:
-	IGC_FIX_CALL_FN (ss, struct Lisp_Weak_Hash_Table_Strong_Part, client,
+	IGC_FIX_CALL_FN (ss, struct Lisp_Weak_Hash_Table_Strong_Part, addr,
 			 fix_weak_hash_table_strong_part);
 	break;
       case IGC_OBJ_WEAK_HASH_TABLE_WEAK_PART:
-	IGC_FIX_CALL_FN (ss, struct Lisp_Weak_Hash_Table_Weak_Part, client,
+	IGC_FIX_CALL_FN (ss, struct Lisp_Weak_Hash_Table_Weak_Part, addr,
 			 fix_weak_hash_table_weak_part);
 	break;
       }
@@ -2241,16 +2181,15 @@ dflt_scan_obj (mps_ss_t ss, mps_addr_t base_start, mps_addr_t base_limit)
 }
 
 static mps_res_t
-dflt_scanx (mps_ss_t ss, mps_addr_t base_start, mps_addr_t base_limit,
+dflt_scanx (mps_ss_t ss, mps_addr_t start, mps_addr_t limit,
 	    void *closure)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    for (mps_addr_t base = base_start; base < base_limit;
-	 base = dflt_skip (base))
+    for (mps_addr_t addr = start; addr < limit; addr = dflt_skip (addr))
       {
-	collect_stats (closure, base);
-	IGC_FIX_CALL (ss, dflt_scan_obj (ss, base, base_limit));
+	collect_stats (closure, addr);
+	IGC_FIX_CALL (ss, dflt_scan_obj (ss, addr));
       }
   }
   MPS_SCAN_END (ss);
@@ -2258,13 +2197,12 @@ dflt_scanx (mps_ss_t ss, mps_addr_t base_start, mps_addr_t base_limit,
 }
 
 static mps_res_t
-dflt_scan (mps_ss_t ss, mps_addr_t base_start, mps_addr_t base_limit)
+dflt_scan (mps_ss_t ss, mps_addr_t start, mps_addr_t limit)
 {
   MPS_SCAN_BEGIN (ss)
   {
-    for (mps_addr_t base = base_start; base < base_limit;
-	 base = dflt_skip (base))
-      IGC_FIX_CALL (ss, dflt_scan_obj (ss, base, base_limit));
+    for (mps_addr_t addr = start; addr < limit; addr = dflt_skip (addr))
+      IGC_FIX_CALL (ss, dflt_scan_obj (ss, addr));
   }
   MPS_SCAN_END (ss);
   return MPS_RES_OK;
@@ -2507,7 +2445,7 @@ fix_weak_hash_table_strong_part (mps_ss_t ss, struct Lisp_Weak_Hash_Table_Strong
 #ifdef WORDS_BIGENDIAN
 	    off = sizeof (t->entries[i].intptr) - sizeof (mps_word_t);
 #endif
-	    IGC_FIX12_BASE (ss, ((char *) &t->entries[i].intptr) + off);
+	    IGC_FIX12_RAW (ss, ((char *) &t->entries[i].intptr) + off);
 	  }
       }
   }
@@ -2551,7 +2489,7 @@ fix_weak_hash_table_weak_part (mps_ss_t ss, struct Lisp_Weak_Hash_Table_Weak_Par
 #ifdef WORDS_BIGENDIAN
 	    off = sizeof (w->entries[i].intptr) - sizeof (mps_word_t);
 #endif
-	    IGC_FIX12_BASE (ss, ((char *) &w->entries[i].intptr) + off);
+	    IGC_FIX12_RAW (ss, ((char *) &w->entries[i].intptr) + off);
 	    bool is_now_nil = w->entries[i].intptr == 0;
 
 	    if (is_now_nil && !was_nil)
@@ -3000,20 +2938,14 @@ root_create (struct igc *gc, void *start, void *end, mps_rank_t rank,
   return register_root (gc, root, start, end, ambig, label);
 }
 
-static bool
-word_aligned (void *ptr)
-{
-  return ((intptr_t) ptr & (sizeof (void *) - 1)) == 0;
-}
-
 static igc_root_list *
 root_create_ambig (struct igc *gc, void *start, void *end,
 		   const char *label)
 {
   /* Partial words cannot contain ambiguous references.  Ignore them.  */
-  while (!word_aligned (end))
+  while (!is_aligned (end))
     end = (char *) end - 1;
-  igc_assert (word_aligned (start));
+  igc_assert (is_aligned (start));
   igc_assert (start < end);
   return root_create (gc, start, end, mps_rank_ambig (), scan_ambig, NULL,
 		      true, label);
@@ -3898,10 +3830,9 @@ finalize_vector (mps_addr_t v)
 }
 
 static void
-finalize (struct igc *gc, mps_addr_t base)
+finalize (struct igc *gc, mps_addr_t addr)
 {
-  mps_addr_t client = base;
-  struct igc_header *h = base;
+  struct igc_header *h = addr;
   if (header_tag (h) == IGC_TAG_EXTHDR)
     {
       struct igc_exthdr *exthdr = header_exthdr (h);
@@ -3911,7 +3842,7 @@ finalize (struct igc *gc, mps_addr_t base)
   switch (igc_header_type (h))
     {
     case IGC_OBJ_VECTOR:
-      finalize_vector (client);
+      finalize_vector (addr);
       break;
 
     default:
@@ -3937,9 +3868,8 @@ maybe_process_messages (void)
 }
 
 static void
-maybe_finalize (mps_addr_t client, enum pvec_type tag)
+maybe_finalize (mps_addr_t ref, enum pvec_type tag)
 {
-  mps_addr_t ref = client;
   struct igc_header *h = ref;
   if (header_tag (h) == IGC_TAG_EXTHDR)
     {
@@ -4036,10 +3966,10 @@ process_one_message (struct igc *gc)
   mps_message_t msg;
   if (mps_message_get (&msg, gc->arena, mps_message_type_finalization ()))
     {
-      mps_addr_t base_addr;
-      mps_message_finalization_ref (&base_addr, gc->arena, msg);
+      mps_addr_t addr;
+      mps_message_finalization_ref (&addr, gc->arena, msg);
       /* FIXME/igc: other threads should be suspended while finalizing objects.  */
-      finalize (gc, base_addr);
+      finalize (gc, addr);
     }
   else if (mps_message_get (&msg, gc->arena, mps_message_type_gc_start ()))
     {
@@ -4074,6 +4004,13 @@ igc_process_messages (void)
     if (!process_one_message (global_igc))
       break;
   }
+}
+
+static void
+process_all_messages (void)
+{
+  while (process_one_message (global_igc))
+    ;
 }
 
 /* Discard entries for killed buffers from LIST and return the resulting
@@ -4297,12 +4234,23 @@ DEFUN ("igc--collect", Figc__collect, Sigc__collect, 0, 0, 0,
   return Qnil;
 }
 
+DEFUN ("igc--process-messages", Figc__process_messages,
+       Sigc__process_messages, 0, 0, 0,
+       doc: /* Process all queued MPS messages.
+
+For internal use only. */)
+(void)
+{
+  process_all_messages ();
+  return Qnil;
+}
+
 size_t
 igc_hash (Lisp_Object key)
 {
   mps_word_t word = XLI (key);
   mps_word_t tag = word & IGC_TAG_MASK;
-  mps_addr_t client = NULL;
+  mps_addr_t addr = NULL;
   switch (tag)
     {
     case Lisp_Type_Unused0:
@@ -4315,7 +4263,7 @@ igc_hash (Lisp_Object key)
     case Lisp_Symbol:
       {
 	ptrdiff_t off = word ^ tag;
-	client = (mps_addr_t) ((char *) lispsym + off);
+	addr = (mps_addr_t) ((char *) lispsym + off);
       }
       break;
 
@@ -4323,17 +4271,16 @@ igc_hash (Lisp_Object key)
     case Lisp_Vectorlike:
     case Lisp_Cons:
     case Lisp_Float:
-      client = (mps_addr_t) (word ^ tag);
+      addr = (mps_addr_t) (word ^ tag);
       break;
     }
 
-  struct igc_header *h = client;
+  struct igc_header *h = addr;
   return igc_header_hash (h);
 }
 
 /* Allocate an object of client size SIZE and of type TYPE from
-   allocation point AP.  Value is a pointer to the client area of the new
-   object.  */
+   allocation point AP.  Value is a pointer to the new object.  */
 
 static mps_addr_t
 alloc_impl (size_t size, enum igc_obj_type type, mps_ap_t ap)
@@ -4368,8 +4315,8 @@ alloc_impl (size_t size, enum igc_obj_type type, mps_ap_t ap)
 }
 
 /* Allocate an object of client size SIZE and of type TYPE from a
-   type-dependent allocation point.  Value is a pointer to the client
-   area of the new object.  */
+   type-dependent allocation point.  Value is a pointer to the new
+   object.  */
 
 static mps_addr_t
 alloc (size_t size, enum igc_obj_type type)
@@ -4379,7 +4326,7 @@ alloc (size_t size, enum igc_obj_type type)
 
 /* Allocate an object of client size SIZE and of type TYPE from MPS in a
    way tnat ensure that the object will not move in memory.  Value is a
-   pointer to the client area of the new object.  */
+   pointer to the new object.  */
 
 static mps_addr_t
 alloc_immovable (size_t size, enum igc_obj_type type)
@@ -4481,18 +4428,18 @@ igc_alloc_pseudovector (size_t nwords_mem, size_t nwords_lisp,
 			size_t nwords_zero, enum pvec_type tag)
 {
   /* header_size comes from lisp.h.  */
-  size_t client_size = header_size + nwords_mem * sizeof (Lisp_Object);
+  size_t size = header_size + nwords_mem * sizeof (Lisp_Object);
   struct Lisp_Vector *v;
   if (tag == PVEC_THREAD)
     {
       /* Alloc thread_state immovable because we need access to it for
 	 scanning the bytecode stack (scan_bc), and making thread_state
 	 immovable simplifies the code.  */
-      v = alloc_immovable (client_size, IGC_OBJ_VECTOR);
+      v = alloc_immovable (size, IGC_OBJ_VECTOR);
       ((struct thread_state *) v)->pin_index = pin (global_igc, v);
     }
   else
-    v = alloc (client_size, IGC_OBJ_VECTOR);
+    v = alloc (size, IGC_OBJ_VECTOR);
   XSETPVECTYPESIZE (v, tag, nwords_lisp, nwords_mem - nwords_lisp);
   maybe_finalize (v, tag);
   return v;
@@ -4565,21 +4512,19 @@ igc_alloc_lisp_obj_vec (size_t n)
 }
 
 static mps_addr_t
-weak_hash_find_dependent (mps_addr_t base)
+weak_hash_find_dependent (mps_addr_t addr)
 {
-  struct igc_header *h = base;
+  struct igc_header *h = addr;
   switch (igc_header_type (h))
     {
     case IGC_OBJ_WEAK_HASH_TABLE_WEAK_PART:
       {
-	mps_addr_t client = base;
-	struct Lisp_Weak_Hash_Table_Weak_Part *w = client;
+	struct Lisp_Weak_Hash_Table_Weak_Part *w = addr;
 	return w->strong;
       }
     case IGC_OBJ_WEAK_HASH_TABLE_STRONG_PART:
       {
-	mps_addr_t client = base;
-	struct Lisp_Weak_Hash_Table_Strong_Part *w = client;
+	struct Lisp_Weak_Hash_Table_Strong_Part *w = addr;
 	return w->weak;
       }
     default:
@@ -4599,27 +4544,27 @@ Lisp_Object
 weak_hash_table_entry (struct Lisp_Weak_Hash_Table_Entry entry)
 {
   intptr_t alignment = entry.intptr & 1;
-  mps_addr_t client;
+  mps_addr_t addr;
 
   if (alignment == 0)
     {
-      client = (mps_addr_t) (uintptr_t) entry.intptr;
+      addr = (mps_addr_t) (uintptr_t) entry.intptr;
     }
   else
     {
       EMACS_UINT real_ptr = entry.intptr ^ alignment;
-      client = (mps_addr_t) (uintptr_t) real_ptr;
+      addr = (mps_addr_t) (uintptr_t) real_ptr;
     }
 
   switch (XFIXNUM (entry.fixnum))
     {
     case Lisp_Symbol:
-      return make_lisp_symbol (client);
+      return make_lisp_symbol (addr);
     case Lisp_Int0:
     case Lisp_Int1:
       return make_fixnum ((EMACS_INT) entry.intptr >> 1);
     default:
-      return make_lisp_ptr (client, XFIXNUM (entry.fixnum));
+      return make_lisp_ptr (addr, XFIXNUM (entry.fixnum));
     }
 }
 
@@ -4627,7 +4572,7 @@ struct Lisp_Weak_Hash_Table_Entry
 make_weak_hash_table_entry (Lisp_Object obj)
 {
   struct Lisp_Weak_Hash_Table_Entry entry = { 0, };
-  mps_addr_t client;
+  mps_addr_t addr;
   entry.fixnum = make_fixnum (XTYPE (obj));
 
   if (FIXNUMP (obj))
@@ -4636,11 +4581,11 @@ make_weak_hash_table_entry (Lisp_Object obj)
       return entry;
     }
   else if (BARE_SYMBOL_P (obj))
-    client = XBARE_SYMBOL (obj);
+    addr = XBARE_SYMBOL (obj);
   else
-    client = XUNTAG (obj, XTYPE (obj), void);
+    addr = XUNTAG (obj, XTYPE (obj), void);
 
-  entry.intptr = (EMACS_UINT) (uintptr_t) client;
+  entry.intptr = (EMACS_UINT) (uintptr_t) addr;
 
   return entry;
 }
@@ -4880,7 +4825,6 @@ root.  Each element has the form (LABEL TYPE START END), where
   return roots;
 }
 
-/* FIXME: amcz pools should not contain references! */
 static struct igc_exthdr *
 igc_external_header (struct igc_header *h)
 {
@@ -5167,23 +5111,23 @@ igc_header_size (void)
 }
 
 static enum igc_obj_type
-builtin_obj_type_and_hash (size_t *hash, enum igc_obj_type type, void *client)
+builtin_obj_type_and_hash (size_t *hash, enum igc_obj_type type, void *addr)
 {
-  if (c_symbol_p (client))
+  if (c_symbol_p (addr))
     {
-      *hash = igc_hash (make_lisp_symbol (client));
+      *hash = igc_hash (make_lisp_symbol (addr));
       return IGC_OBJ_BUILTIN_SYMBOL;
     }
 
-  if (client == &main_thread.s)
+  if (addr == &main_thread.s)
     {
-      *hash = igc_hash (make_lisp_ptr (client, Lisp_Vectorlike));
+      *hash = igc_hash (make_lisp_ptr (addr, Lisp_Vectorlike));
       return IGC_OBJ_BUILTIN_THREAD;
     }
 
-  if (is_builtin_subr (type, client))
+  if (is_builtin_subr (type, addr))
     {
-      *hash = igc_hash (make_lisp_ptr (client, Lisp_Vectorlike));
+      *hash = igc_hash (make_lisp_ptr (addr, Lisp_Vectorlike));
       return IGC_OBJ_BUILTIN_SUBR;
     }
 
@@ -5198,37 +5142,6 @@ builtin_obj_type_and_hash (size_t *hash, enum igc_obj_type type, void *client)
     }
 
   emacs_abort ();
-}
-
-static enum igc_obj_type
-pure_obj_type_and_hash (size_t *hash_o, enum igc_obj_type type, void *client)
-{
-  switch (type)
-    {
-    case IGC_OBJ_STRING:
-      *hash_o = igc_hash (make_lisp_ptr (client, Lisp_String));
-      return type;
-
-    case IGC_OBJ_VECTOR:
-      *hash_o = igc_hash (make_lisp_ptr (client, Lisp_Vectorlike));
-      return type;
-
-    case IGC_OBJ_CONS:
-      *hash_o = igc_hash (make_lisp_ptr (client, Lisp_Cons));
-      return type;
-
-    case IGC_OBJ_STRING_DATA:
-      *hash_o = (uintptr_t) client & IGC_HEADER_HASH_MASK;
-      return type;
-
-    case IGC_OBJ_FLOAT:
-      *hash_o = igc_hash (make_lisp_ptr (client, Lisp_Float));
-      return type;
-
-    default:
-      IGC_NOT_IMPLEMENTED ();
-      emacs_abort ();
-    }
 }
 
 /* Called from the dumper at the end of dumping an object.  This
@@ -5285,12 +5198,10 @@ igc_dump_finish_obj (void *client, enum igc_obj_type type,
       }
 
   /* We are dumping some non-MPS object, e.g. a built-in symbol.  */
-  size_t client_size = end - base;
-  size_t nbytes = alloc_size (client_size);
+  size_t size = end - base;
+  size_t nbytes = alloc_size (size);
   size_t hash;
-  type = (is_pure (client)
-	  ? pure_obj_type_and_hash (&hash, type, client)
-	  : builtin_obj_type_and_hash (&hash, type, client));
+  type = builtin_obj_type_and_hash (&hash, type, client);
   set_header (out, type, nbytes, hash);
   return base + nbytes;
 }
@@ -5441,7 +5352,7 @@ KEY is the key to associate with DEPENDENCY in a hash table.  */)
 {
   mps_word_t word = XLI (obj);
   mps_word_t tag = word & IGC_TAG_MASK;
-  mps_addr_t client = NULL;
+  mps_addr_t addr = NULL;
   switch (tag)
     {
     case Lisp_Type_Unused0:
@@ -5449,24 +5360,24 @@ KEY is the key to associate with DEPENDENCY in a hash table.  */)
 
     case Lisp_Int0:
     case Lisp_Int1:
+    case Lisp_Float:
       return Qnil;
 
     case Lisp_Symbol:
       {
 	ptrdiff_t off = word ^ tag;
-	client = (mps_addr_t) ((char *) lispsym + off);
+	addr = (mps_addr_t) ((char *) lispsym + off);
       }
       break;
 
     case Lisp_String:
     case Lisp_Vectorlike:
     case Lisp_Cons:
-    case Lisp_Float:
-      client = (mps_addr_t) (word ^ tag);
+      addr = (mps_addr_t) (word ^ tag);
       break;
     }
 
-  struct igc_header *h = client;
+  struct igc_header *h = addr;
   struct igc_exthdr *exthdr = igc_external_header (h);
   Lisp_Object hash = exthdr->extra_dependency;
   if (!WEAK_HASH_TABLE_P (hash))
@@ -5491,7 +5402,7 @@ KEY is the key associated with DEPENDENCY in a hash table.  */)
 {
   mps_word_t word = XLI (obj);
   mps_word_t tag = word & IGC_TAG_MASK;
-  mps_addr_t client = NULL;
+  mps_addr_t addr = NULL;
   switch (tag)
     {
     case Lisp_Type_Unused0:
@@ -5499,24 +5410,24 @@ KEY is the key associated with DEPENDENCY in a hash table.  */)
 
     case Lisp_Int0:
     case Lisp_Int1:
+    case Lisp_Float:
       return Qnil;
 
     case Lisp_Symbol:
       {
 	ptrdiff_t off = word ^ tag;
-	client = (mps_addr_t) ((char *) lispsym + off);
+	addr = (mps_addr_t) ((char *) lispsym + off);
       }
       break;
 
     case Lisp_String:
     case Lisp_Vectorlike:
     case Lisp_Cons:
-    case Lisp_Float:
-      client = (mps_addr_t) (word ^ tag);
+      addr = (mps_addr_t) (word ^ tag);
       break;
     }
 
-  struct igc_header *h = client;
+  struct igc_header *h = addr;
   struct igc_exthdr *exthdr = igc_external_header (h);
   Lisp_Object hash = exthdr->extra_dependency;
   if (!WEAK_HASH_TABLE_P (hash))
@@ -5698,6 +5609,7 @@ syms_of_igc (void)
   defsubr (&Sigc_info);
   defsubr (&Sigc__roots);
   defsubr (&Sigc__collect);
+  defsubr (&Sigc__process_messages);
   defsubr (&Sigc__set_commit_limit);
   defsubr (&Sigc__set_pause_time);
   defsubr (&Sigc__add_extra_dependency);
