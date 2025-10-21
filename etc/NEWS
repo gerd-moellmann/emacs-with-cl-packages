@@ -1057,6 +1057,13 @@ The new icons 'hs-indicator-show' and 'hs-indicator-hide' can be used
 to customize the indicators appearance only if 'hs-indicator-type' is
 set to 'margin' or nil.
 
++++
+*** New user option 'hs-hide-block-behavior'.
+This user option controls how 'hs-hide-block' and 'hs-toggle-hiding'
+should hide a block.  If set to 'after-bol', hide the innermost block to
+which the current line belongs.  If set to 'after-cursor', hide the block
+after cursor position.  By default this is set to 'after-bol'.
+
 ** C-ts mode
 
 +++
@@ -2792,6 +2799,10 @@ The tabulated listings produced by 'flymake-show-buffer-diagnostics' and
 'flymake-show-project-diagnostics' now automatically adjust their column
 widths based on content, optimizing display space and readability.
 
+*** New value 'auto' of user option 'flymake-indicator-type'.
+This value set by default tries to use fringes if possible,
+otherwise falls back to margins.
+
 *** New user option 'elisp-flymake-byte-compile-executable'.
 This allows customizing the Emacs executable used for Flymake byte
 compilation in 'emacs-lisp-mode'.  This option should be set when editing
@@ -3133,6 +3144,15 @@ and signal an error if they are given a non-number.
 ** New functions 'oddp' and 'evenp'.
 They return non-nil if an integer is odd or even, respectively, and
 signal an error if they are given a non-integer.
+
++++
+** New functions 'drop-while' and 'take-while'.
+These work like 'drop' and 'take' but use a predicate instead of counting.
+
++++
+** New functions 'any' and 'all'.
+These return non-nil for lists where any and all elements, respectively,
+satisfy a given predicate.
 
 +++
 ** The 'defvar-local' macro second argument is now optional.
