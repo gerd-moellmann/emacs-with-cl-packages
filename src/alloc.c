@@ -5549,7 +5549,7 @@ hash_table_free_bytes (void *p, ptrdiff_t nbytes)
 #endif
 }
 
-Lisp_Object *
+Lisp_KV_Vector
 hash_table_alloc_kv (void *h, ptrdiff_t nobjs)
 {
   if (nobjs == 0)
@@ -5562,7 +5562,7 @@ hash_table_alloc_kv (void *h, ptrdiff_t nobjs)
 }
 
 void
-hash_table_free_kv (void *h, Lisp_Object *p, ptrdiff_t nobjs)
+hash_table_free_kv (void *h, Lisp_KV_Vector p, ptrdiff_t nobjs)
 {
 #ifndef HAVE_MPS
   hash_table_free_bytes (p, nobjs * sizeof *p);

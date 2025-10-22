@@ -2685,8 +2685,8 @@ dump_vectorlike_generic (struct dump_context *ctx,
 /* Return a vector of KEY, VALUE pairs in the given hash table H.
    No room for growth is included.  */
 static void
-hash_table_contents (struct Lisp_Hash_Table *h, Lisp_Object **key,
-		     Lisp_Object **value)
+hash_table_contents (struct Lisp_Hash_Table *h, Lisp_KV_Vector *key,
+		     Lisp_KV_Vector *value)
 {
   ptrdiff_t size = h->count;
   *key = hash_table_alloc_kv (h, size);
@@ -2694,11 +2694,11 @@ hash_table_contents (struct Lisp_Hash_Table *h, Lisp_Object **key,
   ptrdiff_t n = 0;
 
   DOHASH (h, k, v)
-    {
-      (*key)[n] = k;
-      (*value)[n] = v;
-      ++n;
-    }
+  {
+    kv_vector_data (*key)[n] = k;
+    kv_vector_data (*value)[n] = v;
+    ++n;
+  }
 }
 
 static dump_off
@@ -2736,7 +2736,7 @@ hash_table_std_test (const struct hash_table_test *t)
 static void
 hash_table_freeze (struct Lisp_Hash_Table *h)
 {
-  Lisp_Object *key, *value;
+  Lisp_KV_Vector key, value;
   hash_table_contents (h, &key, &value);
   h->key = key;
   h->value = value;
@@ -2751,11 +2751,11 @@ hash_table_freeze (struct Lisp_Hash_Table *h)
 
 static dump_off
 dump_hash_vec (struct dump_context *ctx,
-	       const Lisp_Object array[], size_t len)
+	       const Lisp_KV_Vector array, size_t len)
 {
 #ifdef HAVE_MPS
-  struct Lisp_Vector *v = (struct Lisp_Vector *)((char *)array - sizeof (*v));
-  return dump_vectorlike_generic (ctx, &v->header) + sizeof (*v);
+  const struct Lisp_Vector *v = array;
+  return dump_vectorlike_generic (ctx, &v->header);
 #endif
   dump_align_output (ctx, DUMP_ALIGNMENT);
   struct dump_flags old_flags = ctx->flags;
@@ -2766,7 +2766,7 @@ dump_hash_vec (struct dump_context *ctx,
   for (size_t i = 0; i < len; i++)
     {
       Lisp_Object out;
-      const Lisp_Object *slot = &array[i];
+      const Lisp_Object *slot = kv_vector_data (array) + i;
       dump_object_start_1 (ctx, &out, sizeof out);
       dump_field_lv (ctx, &out, slot, slot, WEIGHT_STRONG);
       dump_object_finish_1 (ctx, &out, sizeof out);
@@ -2791,7 +2791,7 @@ dump_hash_table_value (struct dump_context *ctx, struct Lisp_Hash_Table *h)
 static dump_off
 dump_hash_table (struct dump_context *ctx, Lisp_Object object)
 {
-#if CHECK_STRUCTS && !defined HASH_Lisp_Hash_Table_DC3E781B68
+#if CHECK_STRUCTS && !defined HASH_Lisp_Hash_Table_4D998522EC
 # error "Lisp_Hash_Table changed. See CHECK_STRUCTS comment in config.h."
 #endif
   const struct Lisp_Hash_Table *hash_in = XHASH_TABLE (object);

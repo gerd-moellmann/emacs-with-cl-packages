@@ -2605,6 +2605,23 @@ INLINE int
 			     Hash Tables
  ***********************************************************************/
 
+/* A Lisp_KV_Vector is used for hash tables and obarrays to store keys
+   or values.  */
+#ifdef HAVE_MPS
+typedef struct Lisp_Vector *Lisp_KV_Vector;
+#else
+typedef Lisp_Object *Lisp_KV_Vector;
+#endif
+
+INLINE Lisp_Object *
+kv_vector_data (Lisp_KV_Vector v)
+{
+#ifdef HAVE_MPS
+  return v->contents;
+#else
+  return v;
+#endif
+}
 /* The structure of a Lisp hash table.  */
 
 struct Lisp_Weak_Hash_Table;
@@ -2764,8 +2781,8 @@ struct Lisp_Hash_Table
   /* Vectors of keys and values.  If the key is HASH_UNUSED_ENTRY_KEY,
      then this slot is unused.  This is gc_marked specially if the table
      is weak.  */
-  Lisp_Object *key;
-  Lisp_Object *value;
+  Lisp_KV_Vector key;
+  Lisp_KV_Vector value;
 
   /* The comparison and hash functions.  */
   const struct hash_table_test *test;
@@ -2865,7 +2882,7 @@ INLINE Lisp_Object
 HASH_KEY (const struct Lisp_Hash_Table *h, ptrdiff_t idx)
 {
   eassert (idx >= 0 && idx < h->table_size);
-  return h->key[idx];
+  return kv_vector_data (h->key)[idx];
 }
 
 /* Value is the value part of entry IDX in hash table H.  */
@@ -2873,7 +2890,7 @@ INLINE Lisp_Object
 HASH_VALUE (const struct Lisp_Hash_Table *h, ptrdiff_t idx)
 {
   eassert (idx >= 0 && idx < h->table_size);
-  return h->value[idx];
+  return kv_vector_data (h->value)[idx];
 }
 
 /* Value is the hash code computed for entry IDX in hash table H.  */
@@ -2956,8 +2973,8 @@ extern Lisp_Object weak_hash_from_key (struct Lisp_Weak_Hash_Table *h, Lisp_Obje
    The body may remove the current entry or alter its value slot, but not
    mutate TABLE in any other way.  */
 # define DOHASH(h, k, v)						\
-  for (Lisp_Object *dohash_##k##_##v##_k = (h)->key,			\
-		   *dohash_##k##_##v##_v = (h)->value,			\
+  for (Lisp_Object *dohash_##k##_##v##_k = kv_vector_data ((h)->key),	\
+	           *dohash_##k##_##v##_v = kv_vector_data ((h)->value), \
                    *dohash_##k##_##v##_end = dohash_##k##_##v##_k	\
                                              + HASH_TABLE_SIZE (h),	\
 	           *dohash_##k##_##v##_base = dohash_##k##_##v##_k,	\
@@ -2966,7 +2983,7 @@ extern Lisp_Object weak_hash_from_key (struct Lisp_Weak_Hash_Table *h, Lisp_Obje
 	 && (k = dohash_##k##_##v##_k[0],				\
 	     v = dohash_##k##_##v##_v[0], /*maybe unused*/ (void)v,	\
            true);			                                \
-       eassert (dohash_##k##_##v##_base == (h)->key			\
+       eassert (dohash_##k##_##v##_base == kv_vector_data ((h)->key)	\
 		&& dohash_##k##_##v##_end				\
 		   == dohash_##k##_##v##_base				\
 		+ HASH_TABLE_SIZE (h)),					\
@@ -4263,14 +4280,14 @@ INLINE void
 set_hash_key_slot (struct Lisp_Hash_Table *h, ptrdiff_t idx, Lisp_Object val)
 {
   eassert (idx >= 0 && idx < h->table_size);
-  h->key[idx] = val;
+  kv_vector_data (h->key)[idx] = val;
 }
 
 INLINE void
 set_hash_value_slot (struct Lisp_Hash_Table *h, ptrdiff_t idx, Lisp_Object val)
 {
   eassert (idx >= 0 && idx < h->table_size);
-  h->value[idx] = val;;
+  kv_vector_data (h->value)[idx] = val;
 }
 
 #ifdef HAVE_MPS
@@ -4987,8 +5004,8 @@ extern int valid_lisp_object_p (Lisp_Object);
 
 void *hash_table_alloc_bytes (ptrdiff_t nbytes) ATTRIBUTE_MALLOC_SIZE ((1));
 void hash_table_free_bytes (void *p, ptrdiff_t nbytes);
-Lisp_Object *hash_table_alloc_kv (void *h, ptrdiff_t nobjs);
-void hash_table_free_kv (void *h, Lisp_Object *p, ptrdiff_t nobjs);
+Lisp_KV_Vector hash_table_alloc_kv (void *h, ptrdiff_t nobjs);
+void hash_table_free_kv (void *h, Lisp_KV_Vector p, ptrdiff_t nobjs);
 
 /* Defined in gmalloc.c.  */
 #if !defined DOUG_LEA_MALLOC && !defined SYSTEM_MALLOC
