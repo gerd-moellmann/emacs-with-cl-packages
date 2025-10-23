@@ -471,7 +471,12 @@ load_gccjit_if_necessary (bool mandatory)
 
 
 /* Increase this number to force a new Vcomp_abi_hash to be generated.  */
-#define ABI_VERSION "12"
+#define ABI_VERSION 13
+
+/* The name of a global emitted to the text segment that contains the
+   ABI version that was used to generate the file.  This is checked
+   against the current ABI version when a file is loaded.  */
+#define ABI_VERSION_SYM STR (ABI_ ## ABI_VERSION)
 
 /* Length of the hashes used for eln file naming.  */
 #define HASH_LENGTH 8
@@ -797,7 +802,7 @@ hash_native_abi (void)
 
   Vcomp_abi_hash =
     comp_hash_string (
-      concat3 (build_string (ABI_VERSION),
+      concat3 (build_string (STR (ABI_VERSION)),
 	       concat3 (Vemacs_version, Vsystem_configuration,
 			Vsystem_configuration_options),
 	       Fmapconcat (intern_c_string ("comp--subr-signature"),
@@ -2972,6 +2977,28 @@ declare_runtime_imported_funcs (void)
   return Freverse (field_list);
 }
 
+/* Emit an exported global whose symbol name contains the ABI
+   version used when generating it.  */
+
+static void
+emit_abi_version (void)
+{
+  gcc_jit_context_new_global (comp.ctxt, NULL, GCC_JIT_GLOBAL_EXPORTED,
+			      comp.void_ptr_type, ABI_VERSION_SYM);
+}
+
+/* Check ABI version of CU against the current version. Do this because
+   relying on a substring of an MD5 checksum as part of an eln's file
+   name is prone to fail.  */
+
+static void
+check_abi_version (struct Lisp_Native_Comp_Unit *cu)
+{
+  if (dynlib_sym (cu->handle, ABI_VERSION_SYM) == NULL)
+    error ("File '%s' has incompatible ABI version",
+	   SDATA (cu->file));
+}
+
 /*
   This emit the code needed by every compilation unit to be loaded.
 */
@@ -4893,6 +4920,7 @@ DEFUN ("comp--compile-ctxt-to-file0", Fcomp__compile_ctxt_to_file0,
     CALLNI (comp-data-container-idx, CALLNI (comp-ctxt-d-ephemeral, Vcomp_ctxt));
 
   emit_ctxt_code ();
+  emit_abi_version ();
 
   /* Define inline functions.  */
   define_CAR_CDR ();
@@ -5314,6 +5342,8 @@ load_comp_unit (struct Lisp_Native_Comp_Unit *comp_u, bool loading_dump,
 
   if (!comp_u->loaded_once)
     {
+      check_abi_version (comp_u);
+
       struct thread_state ***current_thread_reloc =
 	dynlib_sym (handle, CURRENT_THREAD_RELOC_SYM);
       bool **f_symbols_with_pos_enabled_reloc =
