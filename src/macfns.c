@@ -41,10 +41,6 @@ along with GNU Emacs Mac port.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#ifdef GLYPH_DEBUG
-static int dpyinfo_refcount;
-#endif
-
 static struct mac_display_info *mac_display_info_for_name (Lisp_Object);
 
 /* Let the user specify an display with a Lisp object.
