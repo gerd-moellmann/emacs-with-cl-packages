@@ -512,7 +512,7 @@ base_obj = dispnew.o frame.o scroll.o xdisp.o menu.o $(XMENU_OBJ) window.o     \
 	profiler.o decompress.o 					       \
 	pkg.o $(IGCOBJ)							       \
 	thread.o systhread.o sqlite.o  treesit.o			       \
-	itree.o json.o 							       \
+	itree.o json.o gc-handles.o					       \
 	marker-vector.o 						       \
 	$(MSDOS_OBJ) $(MSDOS_X_OBJ) $(MAC_OBJ) $(NS_OBJ) $(CYGWIN_OBJ) $(FONT_OBJ)        \
 	$(W32_OBJ) $(WINDOW_SYSTEM_OBJ) $(XGSELOBJ)			       \
