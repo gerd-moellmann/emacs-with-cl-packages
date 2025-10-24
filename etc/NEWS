@@ -435,6 +435,11 @@ This will inhibit implied resizing while a new frame is made and can be
 useful on tiling window managers where the initial frame size should be
 specified by external means.
 
+---
+*** Frames can now be renamed to F<number> on text terminals.
+Unlike with other frame names, an attempt to rename to F<number> throws
+an error when a frame of that name already exists.
+
 ** Mode Line
 
 +++
@@ -2042,6 +2047,24 @@ name of the directory now reverts the Dired buffer.
 With a new value of the prefix argument (1), this command copies file
 names relative to the root directory of the current project.
 
++++
+*** Warning when Dired displays a file name with a literal newline.
+On visiting a directory that contains a file whose name has a newline,
+and Dired displays that character as a literal newline, Emacs now
+automatically pops up a buffer warning that such a display can be
+problematic for Dired and showing a way to change the display to use the
+unproblematic character '\n'.
+
++++
+*** New user option 'dired-auto-toggle-b-switch'.
+When this user option is non-nil and 'dired-listing-switches' does not
+include the '-b' switch, then on visiting a directory containing a file
+whose name has a newline, Emacs automatically adds the '-b' switch and
+redisplays the directory in Dired to show '\n' in the file name instead
+of a literal newline.  This prevents executing many Dired operations on
+such a file from failing and signaling an error.  The default value of
+this user option is nil.
+
 ** Grep
 
 +++
@@ -2650,6 +2673,13 @@ New faces have been added to 'icomplete-vertical-mode':
   appearance of unselected candidate prefixes.
 
 ** Customize
+
++++
+*** New function 'custom-initialize-after-file-load'.
+Useful to delay initialization to the end of the file, so it can use
+functions defined later than the variable, as is common for minor modes.
+'define-globalized-minor-mode' now automatically uses it if the
+init-value is non-nil.
 
 ---
 *** New major mode 'Customize-dirlocals-mode'.

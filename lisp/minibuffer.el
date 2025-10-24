@@ -2351,7 +2351,7 @@ Runs of equal candidate strings are eliminated.  GROUP-FUN is a
           (goto-char (point-max))
           (recenter -1)))))
   (remove-hook 'window-scroll-functions
-               'completion--lazy-insert-strings-on-scroll t))
+               #'completion--lazy-insert-strings-on-scroll t))
 
 (defun completion--lazy-insert-strings (&optional button)
   (setq button (or button completions--lazy-insert-button))
@@ -5619,7 +5619,7 @@ and make sexp navigation more intuitive.
 The list of prompts activating this mode in specific minibuffer
 interactions is customizable via `minibuffer-regexp-prompts'."
   :global t
-  :initialize #'custom-initialize-delay
+  :initialize #'custom-initialize-after-file-load
   :init-value t
   (if minibuffer-regexp-mode
       (progn
@@ -5713,7 +5713,7 @@ Use the face `minibuffer-nonselected' to highlight the contents of the
 minibuffer window when the minibuffer remains active but its window is
 no longer selected."
   :global t
-  :initialize #'custom-initialize-delay
+  :initialize #'custom-initialize-after-file-load
   :init-value t
   :version "31.1"
   (if minibuffer-nonselected-mode
