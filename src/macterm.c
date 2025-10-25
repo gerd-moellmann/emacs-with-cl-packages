@@ -5858,6 +5858,8 @@ mac_initialize (void)
 
   record_startup_key_modifiers ();
 
+  init_activation_policy ();
+
   unblock_input ();
 }
 
