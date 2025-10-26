@@ -73,6 +73,11 @@ typedef Lisp_Object **comp_data_vector_t;
 typedef Lisp_Object *comp_data_vector_t;
 #endif
 
+/* If this is defined, and USE_POINTER_TO_CONSTANTS is defined, use
+   pinning instead of roots. */
+
+#define COMP_USE_PINS 1
+
 struct Lisp_Native_Comp_Unit
 {
   struct vectorlike_header header;
@@ -110,7 +115,6 @@ struct Lisp_Native_Comp_Unit
   /* Pointer into the data segment where the compilation unit is
      stored (COMP_UNIT_SYM), and an exact root for it.  */
   Lisp_Object *comp_unit;
-  gc_root_t comp_unit_root;
 
   /* Pointers into data segment where constant vectors are found. */
   comp_data_vector_t data_relocs;
@@ -121,9 +125,15 @@ struct Lisp_Native_Comp_Unit
   size_t n_data_relocs;
   size_t n_data_eph_relocs;
 
-  /* Exact roots for the vectors. */
+  /* Pins */
+  ptrdiff_t data_vec_pin;
+  ptrdiff_t data_eph_vec_pin;
+  ptrdiff_t comp_unit_pin;
+
+  /* Roots for the vectors. */
   gc_root_t data_relocs_root;
   gc_root_t data_eph_relocs_root;
+  gc_root_t comp_unit_root;
 
   bool loaded_once;
   bool load_ongoing;

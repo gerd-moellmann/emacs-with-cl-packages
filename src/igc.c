@@ -1065,6 +1065,7 @@ static void
 unpin (struct igc *gc, void *obj, ptrdiff_t i)
 {
   struct igc_pins *p = gc->pins;
+  eassert (i >= 0 && i < p->capacity);
   eassert (p->entries[i].obj == obj);
   p->entries[i].next_free = p->free;
   p->free = i;
@@ -3265,12 +3266,30 @@ maybe_destroy_root (struct igc_root_list **root)
     destroy_root (root);
 }
 
+static void
+maybe_unpin (void *obj, ptrdiff_t *pin)
+{
+  if (*pin >= 0)
+    {
+      igc_unpin (obj, *pin);
+      *pin = -1;
+    }
+}
+
 void
 igc_root_destroy_comp_unit (struct Lisp_Native_Comp_Unit *u)
 {
+#ifdef COMP_USE_PINS
+  if (VECTORP (u->data_vec))
+    maybe_unpin (XVECTOR (u->data_vec)->contents, &u->data_vec_pin);
+  if (VECTORP (u->data_eph_vec))
+    maybe_unpin (XVECTOR (u->data_eph_vec), &u->data_eph_vec_pin);
+  maybe_unpin (u, &u->comp_unit_pin);
+#else
   maybe_destroy_root (&u->data_relocs_root);
   maybe_destroy_root (&u->data_eph_relocs_root);
   maybe_destroy_root (&u->comp_unit_root);
+#endif
 }
 
 void
@@ -4397,6 +4416,18 @@ alloc_immovable (size_t size, enum igc_obj_type type)
 {
   struct igc_thread_list *t = current_thread->gc_info;
   return alloc_impl (size, type, t->d.immovable_ap);
+}
+
+ptrdiff_t
+igc_pin (void *obj)
+{
+  return pin (global_igc, obj);
+}
+
+void
+igc_unpin (void *obj, ptrdiff_t idx)
+{
+  unpin (global_igc, obj, idx);
 }
 
 #ifdef HAVE_MODULES
