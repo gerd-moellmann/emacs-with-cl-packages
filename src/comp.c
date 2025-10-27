@@ -2923,13 +2923,9 @@ declare_imported_data_relocs (Lisp_Object container, const char *code_symbol,
 					 container)));
 
 #ifdef USE_POINTER_TO_CONSTANTS
-  /* volatile Lisp_Object *CODE_SYMBOL[1] */
+  /* Lisp_Object *CODE_SYMBOL[1] */
   EMACS_INT len = 1;
-#ifdef COMP_USE_PINS
   gcc_jit_type *type = comp.lisp_obj_ptr_type;
-#else
-  gcc_jit_type *type = gcc_jit_type_get_volatile (comp.lisp_obj_ptr_type);
-#endif
 #else
   /* Lisp_Object CODE_SYMBOL[N], N = number of constants. */
   EMACS_INT len = *nconstants;
@@ -5346,26 +5342,16 @@ unset_cu_load_ongoing (Lisp_Object comp_u)
 
 static void
 setup_constants (comp_data_vector_t vec, Lisp_Object constants,
-		 size_t *n, gc_root_t *root, ptrdiff_t *pin)
+		 size_t *n, ptrdiff_t *pin)
 {
   *n = ASIZE (constants);
-  Lisp_Object *contents = &XVECTOR (constants)->contents[0];
+  Lisp_Object *contents = XVECTOR (constants)->contents;
 
 #ifdef USE_POINTER_TO_CONSTANTS
-
   if (*n > 0)
     {
 # ifdef HAVE_MPS
-      eassert (*root == NULL);
-      /* Ensure that the root can be scanned. */
-      *vec = NULL;
-#ifdef COMP_USE_PINS
       *pin = igc_pin (contents);
-#else
-      // FIXME/elnroots: ambig works, exact does not.
-      //*root = igc_root_create_exact_ptr (vec);
-      *root = igc_root_create_ambig (vec, vec + 1, "eln constants");
-# endif
 # endif
       *vec = contents;
       *n = 1;
@@ -5373,24 +5359,11 @@ setup_constants (comp_data_vector_t vec, Lisp_Object constants,
   else
     {
       *vec = NULL;
-      *root = NULL;
-      *pin = -1;
+      *pin = IGC_NO_PIN;
     }
-
-#else /* not USE_POINTER_TO_CONSTANTS */
-
-# ifdef HAVE_MPS
-  if (*n > 0)
-    {
-      eassert (*root == NULL);
-      /* Ensure that the root can be scanned. */
-      memset (vec, 0, *n * sizeof *vec);
-      *root = igc_root_create_n (vec, *n);
-    }
-# endif
+#else
   memcpy (vec, contents, *n * sizeof *contents);
-
-#endif /* not USE_POINTER_TO_CONSTANTS */
+#endif
 }
 
 Lisp_Object
@@ -5429,13 +5402,9 @@ load_comp_unit (struct Lisp_Native_Comp_Unit *comp_u, bool loading_dump,
     {
 #ifdef HAVE_MPS
       comp_u->comp_unit = saved_cu;
-# ifdef COMP_USE_PINS
       comp_u->comp_unit_pin = igc_pin (comp_u);
       comp_u->data_vec_pin = -1;
       comp_u->data_eph_vec_pin = -1;
-# endif
-# else
-      comp_u->comp_unit_root = igc_root_create_n (saved_cu, 1);
 # endif
       *saved_cu = comp_u_lisp_obj;
     }
@@ -5497,8 +5466,7 @@ load_comp_unit (struct Lisp_Native_Comp_Unit *comp_u, bool loading_dump,
 	 the Lisp vector read, otherwise copy Lisp objects to the vector
 	 created in the data segment.  */
       setup_constants (comp_u->data_relocs, comp_u->data_vec,
-		       &comp_u->n_data_relocs, &comp_u->data_relocs_root,
-		       &comp_u->data_vec_pin);
+		       &comp_u->n_data_relocs, &comp_u->data_vec_pin);
     }
 
   if (!loading_dump)
@@ -5510,7 +5478,6 @@ load_comp_unit (struct Lisp_Native_Comp_Unit *comp_u, bool loading_dump,
 	    = load_static_obj (comp_u, TEXT_DATA_RELOC_EPHEMERAL_SYM);
 	  setup_constants (comp_u->data_eph_relocs, comp_u->data_eph_vec,
 			   &comp_u->n_data_eph_relocs,
-			   &comp_u->data_eph_relocs_root,
 			   &comp_u->data_eph_vec_pin);
 	}
 
@@ -5525,18 +5492,8 @@ load_comp_unit (struct Lisp_Native_Comp_Unit *comp_u, bool loading_dump,
       if (!recursive_load)
 	{
 # ifdef HAVE_MPS
-	  /* Get rid of the root or pin for ephemeral objects (objects
-	     only used by top-level code.  */
-#  ifdef COMP_USE_PINS
-	  if (comp_u->data_eph_vec_pin >= 0)
-	    {
-	      igc_unpin (&XVECTOR (comp_u->data_eph_vec)->contents[0],
-			 comp_u->data_eph_vec_pin);
-	      comp_u->data_eph_vec_pin = -1;
-	    }
-#  else
-	  igc_root_destroy_comp_unit_eph (comp_u);
-#  endif
+	  igc_maybe_unpin (XVECTOR (comp_u->data_eph_vec)->contents,
+			   &comp_u->data_eph_vec_pin);
 # endif
 	  /* No longer needed after top-level code has run.  Let the
 	     vector be GC'd. */
@@ -5561,15 +5518,7 @@ unload_comp_unit (struct Lisp_Native_Comp_Unit *cu)
     return;
 
 # ifdef HAVE_MPS
-#  ifdef COMP_USE_PINS
-  if (cu->comp_unit_pin >= 0)
-    {
-      igc_unpin (cu, cu->comp_unit_pin);
-      cu->comp_unit_pin = -1;
-    }
-#  else
-  igc_root_destroy_comp_unit (cu);
-#  endif
+  igc_unpin_comp_unit (cu);
 # endif
 
   Lisp_Object *saved_cu = dynlib_sym (cu->handle, COMP_UNIT_SYM);
@@ -5747,11 +5696,12 @@ LATE-LOAD has to be non-nil when loading for deferred compilation.  */)
   struct Lisp_Native_Comp_Unit *comp_u = allocate_native_comp_unit ();
   Lisp_Object encoded_filename = ENCODE_FILE (filename);
 
-#ifdef COMP_USE_PINS
-  comp_u->data_vec_pin = -1;
-  comp_u->data_eph_vec_pin = -1;
-  comp_u->comp_unit_pin = -1;
+#ifdef HAVE_MPS
+  igc_init_pin (&comp_u->data_vec_pin);
+  igc_init_pin (&comp_u->data_eph_vec_pin);
+  igc_init_pin (&comp_u->comp_unit_pin);
 #endif
+
   if (!NILP (Fgethash (filename, Vcomp_loaded_comp_units_h, Qnil))
       && !file_in_eln_sys_dir (filename)
       && !NILP (Ffile_writable_p (filename)))

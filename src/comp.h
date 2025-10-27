@@ -23,13 +23,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 // clang-format off
 
 #include <dynlib.h>
-# include "lisp.h"
-
-#ifdef HAVE_MPS
-typedef struct igc_root_list *gc_root_t;
-#else
-typedef void *gc_root_t;
-#endif
+#include "lisp.h"
 
 /* Shared .eln objects contain printed representations of Lisp vectors
    representing constant Lisp objects used in native-compiled
@@ -61,22 +55,19 @@ typedef void *gc_root_t;
    static Lisp_Object **constants;
    Lisp_Object constant = (*constants)[17];
 
-   The advantage of the first method is slightly faster native code, the
-   advantage of the second method is slightly less latency of
-   incremental GC.
+   The advantage of the first method is slightly faster native code
+   (maybe), the advantage of the second method is (definitely) less
+   latency of incremental GC. With MPS, we use the second method. */
 
-   Define USE_POINTER_TO_CONSTANTS to use the second method. */
+#ifdef HAVE_MPS
+#define USE_POINTER_TO_CONSTANTS 1
+#endif
 
 #ifdef USE_POINTER_TO_CONSTANTS
 typedef Lisp_Object **comp_data_vector_t;
 #else
 typedef Lisp_Object *comp_data_vector_t;
 #endif
-
-/* If this is defined, and USE_POINTER_TO_CONSTANTS is defined, use
-   pinning instead of roots. */
-
-#define COMP_USE_PINS 1
 
 struct Lisp_Native_Comp_Unit
 {
@@ -129,11 +120,6 @@ struct Lisp_Native_Comp_Unit
   ptrdiff_t data_vec_pin;
   ptrdiff_t data_eph_vec_pin;
   ptrdiff_t comp_unit_pin;
-
-  /* Roots for the vectors. */
-  gc_root_t data_relocs_root;
-  gc_root_t data_eph_relocs_root;
-  gc_root_t comp_unit_root;
 
   bool loaded_once;
   bool load_ongoing;

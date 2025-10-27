@@ -3265,43 +3265,42 @@ igc_destroy_root_with_start (void *start)
     }
 }
 
-static void
-maybe_destroy_root (struct igc_root_list **root)
+ptrdiff_t
+igc_pin (void *obj)
 {
-  if (*root)
-    destroy_root (root);
+  return pin (global_igc, obj);
 }
 
-static void
-maybe_unpin (void *obj, ptrdiff_t *pin)
+void
+igc_unpin (void *obj, ptrdiff_t idx)
+{
+  unpin (global_igc, obj, idx);
+}
+
+void
+igc_maybe_unpin (void *obj, ptrdiff_t *pin)
 {
   if (*pin >= 0)
     {
       igc_unpin (obj, *pin);
-      *pin = -1;
+      *pin = IGC_NO_PIN;
     }
 }
 
 void
-igc_root_destroy_comp_unit (struct Lisp_Native_Comp_Unit *u)
+igc_init_pin (ptrdiff_t *pin)
 {
-#ifdef COMP_USE_PINS
-  if (VECTORP (u->data_vec))
-    maybe_unpin (XVECTOR (u->data_vec)->contents, &u->data_vec_pin);
-  if (VECTORP (u->data_eph_vec))
-    maybe_unpin (XVECTOR (u->data_eph_vec), &u->data_eph_vec_pin);
-  maybe_unpin (u, &u->comp_unit_pin);
-#else
-  maybe_destroy_root (&u->data_relocs_root);
-  maybe_destroy_root (&u->data_eph_relocs_root);
-  maybe_destroy_root (&u->comp_unit_root);
-#endif
+  *pin = IGC_NO_PIN;
 }
 
 void
-igc_root_destroy_comp_unit_eph (struct Lisp_Native_Comp_Unit *u)
+igc_unpin_comp_unit (struct Lisp_Native_Comp_Unit *cu)
 {
-  maybe_destroy_root (&u->data_eph_relocs_root);
+  if (VECTORP (cu->data_vec))
+    igc_maybe_unpin (XVECTOR (cu->data_vec)->contents, &cu->data_vec_pin);
+  if (VECTORP (cu->data_eph_vec))
+    igc_maybe_unpin (XVECTOR (cu->data_eph_vec)->contents, &cu->data_eph_vec_pin);
+  igc_maybe_unpin (cu, &cu->comp_unit_pin);
 }
 
 static mps_res_t
@@ -4459,18 +4458,6 @@ alloc_immovable (size_t size, enum igc_obj_type type)
 {
   struct igc_thread_list *t = current_thread->gc_info;
   return alloc_impl (size, type, t->d.immovable_ap);
-}
-
-ptrdiff_t
-igc_pin (void *obj)
-{
-  return pin (global_igc, obj);
-}
-
-void
-igc_unpin (void *obj, ptrdiff_t idx)
-{
-  unpin (global_igc, obj, idx);
 }
 
 #ifdef HAVE_MODULES
