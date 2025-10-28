@@ -487,6 +487,10 @@ ALL_OBJC_CFLAGS = $(EMACS_CFLAGS) \
 ALL_CXX_CFLAGS = $(EMACS_CFLAGS) \
   $(filter-out $(NON_CXX_CFLAGS),$(WARN_CFLAGS)) $(CXXFLAGS)
 
+orc-lisp.h: lisp.h config.h
+	$(AM_V_CC)$(CC) -E --include=config.h --no-line-commands \
+		$(CPPFLAGS) $(ALL_CFLAGS) $(PROFILING_CFLAGS) $< -o $@
+
 .SUFFIXES: .c .m .cc
 .c.o:
 	$(AM_V_CC)$(CC) -c $(CPPFLAGS) $(ALL_CFLAGS) $(PROFILING_CFLAGS) $<
@@ -556,7 +560,7 @@ ALLOBJS = $(VMLIMIT_OBJ) $(obj) $(otherobj)
 ifneq ($(HAVE_BE_APP),yes)
 all: emacs$(EXEEXT) $(pdmp) $(OTHER_FILES)
 else
-all: Emacs Emacs.pdmp $(OTHER_FILES)
+all: Emacs Emacs.pdmp $(OTHER_FILES) orc-lisp.h
 endif
 ifeq ($(HAVE_NATIVE_COMP):$(NATIVE_DISABLED),yes:)
 all: ../native-lisp

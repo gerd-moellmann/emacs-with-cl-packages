@@ -402,3 +402,5 @@ exec/*.s.s
 /src/run-emacs.lldb
 /carbon/Emacs.app
 /mac/Emacs.app/Contents/MacOS/libexec/
+
+/src/orc-lisp.h
