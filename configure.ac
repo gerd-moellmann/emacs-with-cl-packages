@@ -599,6 +599,7 @@ OPTION_DEFAULT_OFF([small-ja-dic],[generate a smaller-size Japanese dictionary])
 OPTION_DEFAULT_OFF([android],[cross-compile Android application package])
 OPTION_DEFAULT_ON([android-debug],[don't build Emacs as a debug package on Android])
 OPTION_DEFAULT_OFF([mps],[use MPS for garbage collection])
+OPTION_DEFAULT_OFF([llvm],[use LLVM])
 
 # Find out of Android support is enabled and mailutils has defaulted
 # to `yes-unless-android'.  Disable it if so.
@@ -1307,6 +1308,7 @@ packages targeting Android 2.2.])])
   passthrough="$passthrough --with-rsvg=$with_rsvg"
   passthrough="$passthrough --with-mps=$with_mps"
   passthrough="$passthrough --with-dtrace=$with_dtrace"
+  passthrough="$passthrough --with-llvm=$with_llvm"
 
   # Now pass through some checking-related options.
   emacs_val="--enable-check-lisp-object-type=$enable_check_lisp_object_type"
@@ -5640,6 +5642,55 @@ if test "${with_gpm}" != "no"; then
 fi
 AC_SUBST([LIBGPM])
 
+#-----------------------------------------------------------------------
+### Using LLVM
+#
+# On macOS, with Homebrew, the installation of LLVM does not make
+# includes, libs, and tools like llvm-config automatically usable. This
+# can be done by adding something like the following to ~/.zshenv:
+#
+# export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
+# llvm_include=$(llvm-config --includedir)
+# llvm_lib=$(llvm-config --libdir)
+# export C_INCLUDE_PATH="$llvm_include:$C_INCLUDE_PATH"
+# export CPLUS_INCLUDE_PATH="$llvm_include:$CPLUS_INCLUDE_PATH"
+# export LIBRARY_PATH="$llvm_lib:$LIBRARY_PATH"
+# export LD_LIBRARY_PATH="$llvm_lib:$LD_LIBRARY_PATH"
+
+AC_SUBST([HAVE_LLVM])
+AC_SUBST([LLVM_LIBS])
+HAVE_LLVM=no
+LLVM_LIBS=
+if test "${with_llvm}" != "no"; then
+   # Check for the llvm-config tool in PATH.
+   AC_PATH_PROG([llvm_config], [llvm-config], [])
+   if test "$llvm_config" = ""; then
+     AC_MSG_ERROR([llvm-config command not found])
+   fi
+
+   # Compile a program using LLVM
+   AC_PROG_CXX([clang++ g++])
+   AC_LANG_PUSH([C++])
+   OLD_LIBS=$LIBS
+   LLVM_LIBS=`llvm-config --libs`
+   LIBS="$LLVM_LIBS $LIBS"
+   AC_LINK_IFELSE(
+     [AC_LANG_PROGRAM([#include <llvm/ExecutionEngine/Orc/CompileUtils.h>],
+       [llvm::orc::SimpleCompiler *x])],
+     [emacs_llvm=yes],
+     [emacs_llvm=no])
+   AC_LANG_POP([C++])
+   LIBS=$OLD_LIBS
+
+  if test $emacs_llvm = yes; then
+    HAVE_LLVM=yes
+    AC_DEFINE([HAVE_LLVM], [1],
+      [Define to 1 if you have LLVM ($LLVM_LIBS).])
+  fi
+fi
+
+#-----------------------------------------------------------------------
+
 AC_SUBST([HAVE_MPS])
 HAVE_MPS=no
 MPSOBJ=
@@ -7854,6 +7905,7 @@ AS_ECHO(["  Does Emacs use -lXaw3d?                                 ${HAVE_XAW3D
   Does Emacs support sound?                               ${HAVE_SOUND}
   Does Emacs use -lgpm?                                   ${HAVE_GPM}
   Does Emacs use incremental GC with MPS?                 ${HAVE_MPS}
+  Does Emacs use LLVM?			                  ${HAVE_LLVM}
   Does Emacs use -ldbus?                                  ${HAVE_DBUS}
   Does Emacs use -lgconf?                                 ${HAVE_GCONF}
   Does Emacs use GSettings?                               ${HAVE_GSETTINGS}
