@@ -46,8 +46,8 @@
   "Current indentation level.")
 
 ;; For now, generate a preprocessed lisp.h that can be included in
-;; native compiled C files. This is ca. 9000 lines but it's much easier
-;; to get something working for now.
+;; native compiled C files produced from Lisp. This is ca. 9000 lines
+;; but it's much easier to get something working.
 
 (defvar orc-lisp-h "orc-lisp.h"
   "Name of a preprocessed lisp.h that is used in ORC C files.")
@@ -56,7 +56,8 @@
   "Current ORC compilation context")
 
 (defmacro with-orc-indentation (&body body)
-  "Execute BODY with i`org--indent-level' incremented."
+  "Execute BODY with `org--indent-level' incremented."
+  (declare (indent 0) (debug t))
   `(let ((orc--indent-level (1+ orc--indent-level)))
      ,@body))
 
@@ -65,10 +66,24 @@
 FORMAT is a format string for `format', and ARGS are arguments for it.
 Indentation is according to the current value of `org--indent-level'."
   (indent-to (* orc--indent-level orc--indent-width))
-  (insert (apply #'format format args) "\n"))
+  (insert (apply #'format format args)))
+
+(defun orc-format-line (format &rest args)
+  "Like `org-format' but add a newline at the end."
+  (apply #'orc-format args)
+  (insert "\n"))
+
+(defmacro with-orc-compound (&body body)
+  "Insert a C compound statement around BODY."
+  (declare (indent 0) (debug t))
+  `(progn
+     (with-orc-indentation
+       (org-format-line "{")
+       (with-orc-indentation ,@body)
+       (org-format-line "}"))))
 
 (defun orc--prelude ()
-  (orc-format "#include \"%s\"\n\n" orc-lisp-h))
+  (insert "#include \"%s\"\n\n" orc-lisp-h))
 
 (defun orc--final-pass (ctxt)
   "Final native compiler pass for ORC."
