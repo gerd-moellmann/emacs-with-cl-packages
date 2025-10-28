@@ -39,11 +39,18 @@
   "Context for an ORC compilation."
   (comp-ctxt nil))
 
-(defvar orc--indent-width 4
+(defvar orc--indent-width 2
   "Indentation width to use.")
 
 (defvar orc--indent-level ß
   "Current indentation level.")
+
+;; For now, generate a preprocessed lisp.h that can be included in
+;; native compiled C files. This is ca. 9000 lines but it's much easier
+;; to get something working for now.
+
+(defvar orc-lisp-h "orc-lisp.h"
+  "Name of a preprocessed lisp.h that is used in ORC C files.")
 
 (defvar orc-ctxt nil
   "Current ORC compilation context")
@@ -60,10 +67,15 @@ Indentation is according to the current value of `org--indent-level'."
   (indent-to (* orc--indent-level orc--indent-width))
   (insert (apply #'format format args) "\n"))
 
+(defun orc--prelude ()
+  (orc-format "#include \"%s\"\n\n" orc-lisp-h))
+
 (defun orc--final-pass (ctxt)
   "Final native compiler pass for ORC."
   (let ((orc-ctxt (make-orc :comp-ctxt ctxt)))
-    orc-ctxt))
+    (with-current-buffer (get-buffer-create "*ORC*")
+      (erase-buffer)
+      (orc--prelude))))
 
 (defun orc--around-comp--final (_old-fun &rest _args)
   "Around-advice for `comp--final'."
@@ -71,7 +83,7 @@ Indentation is according to the current value of `org--indent-level'."
   (orc--final-pass comp-ctxt))
 
 (define-minor-mode orc-mode
-  "Global minor mode ORC native compilation."
+  "Global minor mode for compilation using LLVM ORC."
   :global t :group 'lisp
   (if orc-mode
       (advice-add 'comp--final :around #'orc--around-comp--final)
