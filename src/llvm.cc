@@ -1,3 +1,4 @@
+#include "config.h"
 
 #include <clang/Basic/DiagnosticOptions.h>
 #include <clang/CodeGen/CodeGenAction.h>
@@ -21,8 +22,10 @@
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/TargetParser/Host.h>
 
-namespace emacs
+namespace Emacs
 {
+
+#if 0
 
 using clang::CompilerInstance;
 using clang::CompilerInvocation;
@@ -42,74 +45,50 @@ using llvm::StringError;
 class CCompiler
 {
 public:
-  CCompiler ()
-  {
-    // Setup custom diagnostic options.
-    auto DO = IntrusiveRefCntPtr<DiagnosticOptions> (
-      new DiagnosticOptions ());
-    DO->ShowColors = 1;
-
-    // Setup stderr custom diagnostic consumer.
-    DC = std::make_unique<TextDiagnosticPrinter> (llvm::errs (),
-						  DO.get ());
-
-    // Create custom diagnostics engine.
-    // The engine will NOT take ownership of the DiagnosticConsumer
-    // object.
-    DE = std::make_unique<
-      DiagnosticsEngine> (nullptr /* DiagnosticIDs */, std::move (DO),
-			  DC.get (),
-			  false /* own DiagnosticConsumer */);
-  }
-
   struct CompileResult
   {
     std::unique_ptr<LLVMContext> C;
     std::unique_ptr<Module> M;
   };
 
+  CCompiler ()
+  {
+    auto DO = IntrusiveRefCntPtr<DiagnosticOptions> (new DiagnosticOptions ());
+    DC = std::make_unique<TextDiagnosticPrinter> (llvm::errs (), DO.get ());
+    DE = std::make_unique<DiagnosticsEngine> (nullptr, std::move (DO), DC.get (), false);
+  }
+
   Expected<CompileResult> compile (const char *code) const
   {
     using std::errc;
-    const auto err
-      = [] (errc ec) { return std::make_error_code (ec); };
-
+    const auto err = [] (errc ec) { return std::make_error_code (ec); };
     const char code_fname[] = "jit.c";
 
-    // Create compiler instance.
     CompilerInstance CC;
-
-    // Setup compiler invocation.
-    bool ok
-      = CompilerInvocation::CreateFromArgs (CC.getInvocation (),
-					    { code_fname }, *DE);
-    // We control the arguments, so we assert.
+    bool ok = CompilerInvocation::CreateFromArgs (CC.getInvocation (),
+	{ code_fname }, *DE);
     assert (ok);
 
-    // Setup custom diagnostic printer.
-    CC.createDiagnostics (DC.get (),
-			  false /* own DiagnosticConsumer */);
+    CC.createDiagnostics (DC.get (), false);
 
     // Configure remapping from pseudo file name to in-memory code
     // buffer code_fname -> code_buffer.
     //
     // PreprocessorOptions take ownership of MemoryBuffer.
     CC.getPreprocessorOpts ()
-      .addRemappedFile (code_fname,
-			MemoryBuffer::getMemBuffer (code).release ());
+      .addRemappedFile (code_fname, MemoryBuffer::getMemBuffer (code).release ());
 
     // Configure codegen options.
     auto &CG = CC.getCodeGenOpts ();
-    CG.OptimizationLevel = 3;
+    CG.OptimizationLevel = 2;
     CG.setInlining (clang::CodeGenOptions::NormalInlining);
 
     // Generate LLVM IR.
     EmitLLVMOnlyAction A;
     if (!CC.ExecuteAction (A))
       {
-	return llvm::make_error<
-	  StringError> ("Failed to generate LLVM IR from C code!",
-			err (errc::invalid_argument));
+	return llvm::make_error<StringError> ("Failed to generate LLVM IR from C code!",
+	    err (errc::invalid_argument));
       }
 
     // Take generated LLVM IR module and the LLVMContext.
@@ -303,4 +282,7 @@ extern "C"
   }
 }
 
-} // namespace emacs
+
+#endif
+
+} // namespace Emacs
