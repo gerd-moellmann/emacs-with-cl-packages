@@ -5645,48 +5645,33 @@ AC_SUBST([LIBGPM])
 #-----------------------------------------------------------------------
 ### Using LLVM
 #
-# On macOS, with Homebrew, the installation of LLVM does not make
-# includes, libs, and tools like llvm-config automatically usable. This
-# can be done by adding something like the following to ~/.zshenv:
+# The following depends only on the availability of llvm-config in PATH.
+# On macOS using Homebrew this is not automatically the case. You can
 #
-# export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
-# llvm_include=$(llvm-config --includedir)
-# llvm_lib=$(llvm-config --libdir)
-# export C_INCLUDE_PATH="$llvm_include:$C_INCLUDE_PATH"
-# export CPLUS_INCLUDE_PATH="$llvm_include:$CPLUS_INCLUDE_PATH"
-# export LIBRARY_PATH="$llvm_lib:$LIBRARY_PATH"
-# export LD_LIBRARY_PATH="$llvm_lib:$LD_LIBRARY_PATH"
+#   PATH="/opt/homebrew/opt/llvm/bin:$PATH"
 
 AC_SUBST([HAVE_LLVM])
 AC_SUBST([LLVM_LIBS])
+AC_SUBST([LLVM_CFLAGS])
+AC_SUBST([LLVM_OBJ])
 HAVE_LLVM=no
 LLVM_LIBS=
+LLVM_OBJ=
+LLVM_CFLAGS=
 if test "${with_llvm}" != "no"; then
-   # Check for the llvm-config tool in PATH.
    AC_PATH_PROG([llvm_config], [llvm-config], [])
    if test "$llvm_config" = ""; then
      AC_MSG_ERROR([llvm-config command not found])
    fi
 
-   # Compile a program using LLVM
+   HAVE_LLVM=yes
    AC_PROG_CXX([clang++ g++])
-   AC_LANG_PUSH([C++])
-   OLD_LIBS=$LIBS
    LLVM_LIBS=`llvm-config --libs`
-   LIBS="$LLVM_LIBS $LIBS"
-   AC_LINK_IFELSE(
-     [AC_LANG_PROGRAM([#include <llvm/ExecutionEngine/Orc/CompileUtils.h>],
-       [llvm::orc::SimpleCompiler *x])],
-     [emacs_llvm=yes],
-     [emacs_llvm=no])
-   AC_LANG_POP([C++])
-   LIBS=$OLD_LIBS
+   LLVM_CFLAGS=`llvm-config --cppflags`
+   LLVM_OBJ=llvm.o
 
-  if test $emacs_llvm = yes; then
-    HAVE_LLVM=yes
-    AC_DEFINE([HAVE_LLVM], [1],
-      [Define to 1 if you have LLVM ($LLVM_LIBS).])
-  fi
+   AC_DEFINE([HAVE_LLVM], [1],
+     [Define to 1 if you have LLVM.])
 fi
 
 #-----------------------------------------------------------------------

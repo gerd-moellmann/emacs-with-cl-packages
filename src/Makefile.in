@@ -364,6 +364,8 @@ IGCOBJ = @IGCOBJ@
 MPS_CONFIG= @MPS_CONFIG@
 
 LLVM_LIBS=@LLVM_LIBS@
+LLVM_OBJ=@LLVM_OBJ@
+LLVM_CFLAGS=@LLVM_CFLAGS@
 
 #-----------------------------------------------------------------------
 # DTrace
@@ -481,7 +483,8 @@ EMACS_CFLAGS=-Demacs $(MYCPPFLAGS) -I. -I$(srcdir) \
   $(LIBGNUTLS_CFLAGS) $(NOTIFY_CFLAGS) $(CAIRO_CFLAGS) \
   $(WERROR_CFLAGS) $(HAIKU_CFLAGS) $(XCOMPOSITE_CFLAGS) $(XSHAPE_CFLAGS) \
   $(ANDROID_BUILD_CFLAGS) $(GIF_CFLAGS) $(JPEG_CFLAGS) $(SQLITE3_CFLAGS) \
-  $(LIBGMP_CFLAGS) $(TIFF_CFLAGS) $(LIBSELINUX_CFLAGS) $(MPS_CFLAGS)
+  $(LIBGMP_CFLAGS) $(TIFF_CFLAGS) $(LIBSELINUX_CFLAGS) $(MPS_CFLAGS) \
+  $(LLVM_CFLAGS)
 ALL_CFLAGS = $(EMACS_CFLAGS) $(WARN_CFLAGS) $(CFLAGS)
 ALL_OBJC_CFLAGS = $(EMACS_CFLAGS) \
   $(filter-out $(NON_OBJC_CFLAGS),$(WARN_CFLAGS)) $(CFLAGS) \
@@ -489,7 +492,7 @@ ALL_OBJC_CFLAGS = $(EMACS_CFLAGS) \
 ALL_CXX_CFLAGS = $(EMACS_CFLAGS) \
   $(filter-out $(NON_CXX_CFLAGS),$(WARN_CFLAGS)) $(CXXFLAGS)
 
-orc-lisp.h: lisp.h config.h
+comp-c-lisp.h: lisp.h config.h
 	$(AM_V_CC)$(CC) -E --include=config.h --no-line-commands \
 		$(CPPFLAGS) $(ALL_CFLAGS) $(PROFILING_CFLAGS) $< -o $@
 
@@ -524,7 +527,7 @@ base_obj = dispnew.o frame.o scroll.o xdisp.o menu.o $(XMENU_OBJ) window.o     \
 	$(W32_OBJ) $(WINDOW_SYSTEM_OBJ) $(XGSELOBJ)			       \
 	$(HAIKU_OBJ) $(PGTK_OBJ) $(ANDROID_OBJ)
 doc_obj = $(base_obj) $(MAC_OBJC_OBJ) $(NS_OBJC_OBJ)
-obj = $(doc_obj) $(HAIKU_CXX_OBJ) $(DTRACE_OBJ)
+obj = $(doc_obj) $(HAIKU_CXX_OBJ) $(DTRACE_OBJ) $(LLVM_OBJ)
 
 ## Object files used on some machine or other.
 ## These go in the DOC file on all machines in case they are needed.
@@ -644,7 +647,7 @@ LIBES = $(LIBS) $(W32_LIBS) $(LIBS_GNUSTEP) $(PGTK_LIBS) $(LIBX_BASE) $(LIBIMAGE
    $(NOTIFY_LIBS) $(LIB_MATH) $(LIBZ) $(LIBMODULES) $(LIBSYSTEMD_LIBS) \
    $(LIBGMP) $(LIBGCCJIT_LIBS) $(XINPUT_LIBS) $(HAIKU_LIBS) \
    $(TREE_SITTER_LIBS) $(SQLITE3_LIBS) $(XCOMPOSITE_LIBS) $(XSHAPE_LIBS) \
-   $(ANDROID_LIBS)
+   $(ANDROID_LIBS) $(LLVM_LIBS)
 
 ## FORCE it so that admin/unidata can decide whether this file is
 ## up-to-date.  Although since charprop depends on bootstrap-emacs,

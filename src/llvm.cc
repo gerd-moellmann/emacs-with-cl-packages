@@ -226,10 +226,8 @@ public:
   }
 };
 
-} // namespace emacs
-
 int
-llvm_compile (const char *code)
+compile_c (const char *code)
 {
   const char code[]
     = "extern void libc_puts(const char*);"
@@ -296,3 +294,13 @@ llvm_compile (const char *code)
 
   return 0;
 }
+
+extern "C"
+{
+  bool llvm_compile (const char *c)
+  {
+    return emacs::compile_c (c) == 0;
+  }
+}
+
+} // namespace emacs

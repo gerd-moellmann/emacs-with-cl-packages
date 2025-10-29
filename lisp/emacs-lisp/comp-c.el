@@ -1,4 +1,4 @@
-;;; orc.el --- LLVM ORC jit compilation of Lisp code -*- lexical-binding: t -*-
+;;; comp-cc.el --- Compile to C code -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2025 Free Software Foundation, Inc.
 
@@ -24,10 +24,10 @@
 ;; translated to GCC jit IR in comp.c in a last pass (function
 ;; comp--final).
 ;;
-;; For ORC, we reuse the native compiler except its last pass
-;; comp--final. We translate the native compiler's IR to C which we can
-;; pass to LLVM ORC. The intermediate C representation is used because
-;; it is much simpler to generate.
+;; To generate C code instead, we reuse the native compiler except its
+;; last pass comp--final. We translate the native compiler's IR to C
+;; which we can be used with other compilers. The intermediate C
+;; representation is used because it is much simpler to generate.
 
 ;;; Code:
 
@@ -35,73 +35,74 @@
 (require 'cl-macs)
 (require 'comp)
 
-(cl-defstruct orc
-  "Context for an ORC compilation."
+(cl-defstruct comp-c
+  "Context for compilation to C."
   (comp-ctxt nil))
 
-(defvar orc--indent-width 2
+(defvar comp-c--indent-width 2
   "Indentation width to use.")
 
-(defvar orc--indent-level ß
+(defvar comp-c--indent-level ß
   "Current indentation level.")
 
 ;; For now, generate a preprocessed lisp.h that can be included in
 ;; native compiled C files produced from Lisp. This is ca. 9000 lines
-;; but it's much easier to get something working.
+;; but it's much easier to get something working. Check src/Makefile.in
+;; for the name of the header file.
 
-(defvar orc-lisp-h "orc-lisp.h"
-  "Name of a preprocessed lisp.h that is used in ORC C files.")
+(defvar comp-c-lisp-h "comp-c-lisp.h"
+  "Name of a preprocessed lisp.h that is used in COMP-C C files.")
 
-(defvar orc-ctxt nil
-  "Current ORC compilation context")
+(defvar comp-c-ctxt nil
+  "Current COMP-C compilation context")
 
-(defmacro with-orc-indentation (&body body)
+(defmacro with-comp-c-indentation (&body body)
   "Execute BODY with `org--indent-level' incremented."
   (declare (indent 0) (debug t))
-  `(let ((orc--indent-level (1+ orc--indent-level)))
+  `(let ((comp-c--indent-level (1+ comp-c--indent-level)))
      ,@body))
 
-(defun orc-format (format &rest args)
+(defun comp-c-format (format &rest args)
   "Print an indented line to the current buffer.
 FORMAT is a format string for `format', and ARGS are arguments for it.
 Indentation is according to the current value of `org--indent-level'."
-  (indent-to (* orc--indent-level orc--indent-width))
+  (indent-to (* comp-c--indent-level comp-c--indent-width))
   (insert (apply #'format format args)))
 
-(defun orc-format-line (format &rest args)
+(defun comp-c-format-line (format &rest args)
   "Like `org-format' but add a newline at the end."
-  (apply #'orc-format args)
+  (apply #'comp-c-format format args)
   (insert "\n"))
 
-(defmacro with-orc-compound (&body body)
+(defmacro with-comp-c-compound (&body body)
   "Insert a C compound statement around BODY."
   (declare (indent 0) (debug t))
   `(progn
-     (with-orc-indentation
+     (with-comp-c-indentation
        (org-format-line "{")
-       (with-orc-indentation ,@body)
+       (with-comp-c-indentation ,@body)
        (org-format-line "}"))))
 
-(defun orc--prelude ()
-  (insert "#include \"%s\"\n\n" orc-lisp-h))
+(defun comp-c--prelude ()
+  (insert "#include \"%s\"\n\n" comp-c-lisp-h))
 
-(defun orc--final-pass (ctxt)
-  "Final native compiler pass for ORC."
-  (let ((orc-ctxt (make-orc :comp-ctxt ctxt)))
-    (with-current-buffer (get-buffer-create "*ORC*")
+(defun comp-c--final-pass (ctxt)
+  "Final native compiler pass for COMP-C."
+  (let ((comp-c-ctxt (make-comp-c :comp-ctxt ctxt)))
+    (with-current-buffer (get-buffer-create "*COMP-C*")
       (erase-buffer)
-      (orc--prelude))))
+      (comp-c--prelude))))
 
-(defun orc--around-comp--final (_old-fun &rest _args)
+(defun comp-c--around-comp--final (_old-fun &rest _args)
   "Around-advice for `comp--final'."
   (cl-assert (comp-ctxt-p comp-ctxt))
-  (orc--final-pass comp-ctxt))
+  (comp-c--final-pass comp-ctxt))
 
-(define-minor-mode orc-mode
-  "Global minor mode for compilation using LLVM ORC."
+(define-minor-mode comp-c-mode
+  "Global minor mode for compilation using LLVM COMP-C."
   :global t :group 'lisp
-  (if orc-mode
-      (advice-add 'comp--final :around #'orc--around-comp--final)
-    (advice-remove 'comp--final #'orc--around-comp--final)))
+  (if comp-c-mode
+      (advice-add 'comp--final :around #'comp-c--around-comp--final)
+    (advice-remove 'comp--final #'comp-c--around-comp--final)))
 
-(provide 'orc)
+(provide 'comp-c)
