@@ -42,7 +42,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #endif
 
 
-#define REGEXP_CACHE_SIZE 20
+#define REGEXP_CACHE_SIZE 50
 
 /* If the regexp is non-nil, then the buffer contains the compiled form
    of that regexp, suitable for searching.  */
