@@ -1,123 +1,35 @@
 #include "config.h"
 
-#include <clang/Basic/DiagnosticOptions.h>
-#include <clang/CodeGen/CodeGenAction.h>
-#include <clang/Frontend/CompilerInstance.h>
-#include <clang/Frontend/TextDiagnosticPrinter.h>
-#include <clang/Lex/PreprocessorOptions.h>
-
-#include <llvm/ExecutionEngine/JITSymbol.h>
-#include <llvm/ExecutionEngine/Orc/CompileUtils.h>
-#include <llvm/ExecutionEngine/Orc/Core.h>
-#include <llvm/ExecutionEngine/Orc/ExecutionUtils.h>
-#include <llvm/ExecutionEngine/Orc/ExecutorProcessControl.h>
-#include <llvm/ExecutionEngine/Orc/IRCompileLayer.h>
-#include <llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h>
-#include <llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h>
-#include <llvm/ExecutionEngine/Orc/Shared/ExecutorAddress.h>
-#include <llvm/ExecutionEngine/SectionMemoryManager.h>
-#include <llvm/IR/DataLayout.h>
-#include <llvm/IR/LLVMContext.h>
-#include <llvm/IR/Module.h>
-#include <llvm/Support/TargetSelect.h>
-#include <llvm/TargetParser/Host.h>
+#include <memory>
+#include "llvm/ADT/StringRef.h"
+#include "llvm/ExecutionEngine/Orc/CompileUtils.h"
+#include "llvm/ExecutionEngine/Orc/Core.h"
+#include "llvm/ExecutionEngine/Orc/ExecutionUtils.h"
+#include "llvm/ExecutionEngine/Orc/ExecutorProcessControl.h"
+#include "llvm/ExecutionEngine/Orc/IRCompileLayer.h"
+#include "llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h"
+#include "llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h"
+#include "llvm/ExecutionEngine/Orc/SelfExecutorProcessControl.h"
+#include "llvm/ExecutionEngine/Orc/Shared/ExecutorSymbolDef.h"
+#include "llvm/ExecutionEngine/SectionMemoryManager.h"
+#include "llvm/IR/DataLayout.h"
+#include "llvm/IR/LLVMContext.h"
 
 namespace Emacs
 {
 
-#if 0
-
-using clang::CompilerInstance;
-using clang::CompilerInvocation;
-using clang::DiagnosticConsumer;
-using clang::DiagnosticOptions;
-using clang::DiagnosticsEngine;
-using clang::EmitLLVMOnlyAction;
-using clang::TextDiagnosticPrinter;
-
-using llvm::Expected;
-using llvm::IntrusiveRefCntPtr;
-using llvm::LLVMContext;
-using llvm::MemoryBuffer;
-using llvm::Module;
-using llvm::StringError;
-
-class CCompiler
-{
-public:
-  struct CompileResult
-  {
-    std::unique_ptr<LLVMContext> C;
-    std::unique_ptr<Module> M;
-  };
-
-  CCompiler ()
-  {
-    auto DO = IntrusiveRefCntPtr<DiagnosticOptions> (new DiagnosticOptions ());
-    DC = std::make_unique<TextDiagnosticPrinter> (llvm::errs (), DO.get ());
-    DE = std::make_unique<DiagnosticsEngine> (nullptr, std::move (DO), DC.get (), false);
-  }
-
-  Expected<CompileResult> compile (const char *code) const
-  {
-    using std::errc;
-    const auto err = [] (errc ec) { return std::make_error_code (ec); };
-    const char code_fname[] = "jit.c";
-
-    CompilerInstance CC;
-    bool ok = CompilerInvocation::CreateFromArgs (CC.getInvocation (),
-	{ code_fname }, *DE);
-    assert (ok);
-
-    CC.createDiagnostics (DC.get (), false);
-
-    // Configure remapping from pseudo file name to in-memory code
-    // buffer code_fname -> code_buffer.
-    //
-    // PreprocessorOptions take ownership of MemoryBuffer.
-    CC.getPreprocessorOpts ()
-      .addRemappedFile (code_fname, MemoryBuffer::getMemBuffer (code).release ());
-
-    // Configure codegen options.
-    auto &CG = CC.getCodeGenOpts ();
-    CG.OptimizationLevel = 2;
-    CG.setInlining (clang::CodeGenOptions::NormalInlining);
-
-    // Generate LLVM IR.
-    EmitLLVMOnlyAction A;
-    if (!CC.ExecuteAction (A))
-      {
-	return llvm::make_error<StringError> ("Failed to generate LLVM IR from C code!",
-	    err (errc::invalid_argument));
-      }
-
-    // Take generated LLVM IR module and the LLVMContext.
-    auto M = A.takeModule ();
-    auto C = std::unique_ptr<LLVMContext> (A.takeLLVMContext ());
-
-    // TODO: Can this become nullptr when the action succeeds?
-    assert (M);
-
-    return CompileResult{ std::move (C), std::move (M) };
-  }
-
-private:
-  std::unique_ptr<DiagnosticConsumer> DC;
-  std::unique_ptr<DiagnosticsEngine> DE;
-};
-
 using llvm::cantFail;
 using llvm::DataLayout;
+using llvm::Error;
 using llvm::Expected;
-using llvm::JITEvaluatedSymbol;
-using llvm::JITSymbolFlags;
+using llvm::IntrusiveRefCntPtr;
+using llvm::MemoryBuffer;
 using llvm::SectionMemoryManager;
 using llvm::StringRef;
 
 using llvm::orc::ConcurrentIRCompiler;
-// using llvm::orc::DynamicLibrarySearchGenerator;
+using llvm::orc::DynamicLibrarySearchGenerator;
 using llvm::orc::ExecutionSession;
-using llvm::orc::ExecutorAddr;
 using llvm::orc::ExecutorSymbolDef;
 using llvm::orc::IRCompileLayer;
 using llvm::orc::JITDylib;
@@ -128,9 +40,10 @@ using llvm::orc::RTDyldObjectLinkingLayer;
 using llvm::orc::SelfExecutorProcessControl;
 using llvm::orc::ThreadSafeModule;
 
-// Simple JIT engine based on the KaleidoscopeJIT.
-// https://www.llvm.org/docs/tutorial/BuildingAJIT1.html
-class Jit
+/* This is from the LLVM Kaleidoscope example.
+   llvm-project/llvm/examples/Kaleidoscope/BuildingAJIT/Chapter1/ */
+
+class JIT
 {
 private:
   std::unique_ptr<ExecutionSession> ES;
@@ -141,15 +54,15 @@ private:
   RTDyldObjectLinkingLayer ObjectLayer;
   IRCompileLayer CompileLayer;
 
-  JITDylib &JD;
+  JITDylib &MainJD;
 
 public:
-  Jit (std::unique_ptr<ExecutionSession> ES,
+  JIT (std::unique_ptr<ExecutionSession> ES,
        JITTargetMachineBuilder JTMB, DataLayout DL)
       : ES (std::move (ES)), DL (std::move (DL)),
 	Mangle (*this->ES, this->DL),
 	ObjectLayer (*this->ES,
-		     [] ()
+		     [] (const MemoryBuffer &)
 		       {
 			 return std::make_unique<
 			   SectionMemoryManager> ();
@@ -157,54 +70,57 @@ public:
 	CompileLayer (*this->ES, ObjectLayer,
 		      std::make_unique<ConcurrentIRCompiler> (
 			std::move (JTMB))),
-	JD (this->ES->createBareJITDylib ("main"))
+	MainJD (this->ES->createBareJITDylib ("<main>"))
   {
-    // https://www.llvm.org/docs/ORCv2.html#how-to-add-process-and-library-symbols-to-jitdylibs
-    // JD.addGenerator(
-    //     cantFail(DynamicLibrarySearchGenerator::GetForCurrentProcess(
-    //         DL.getGlobalPrefix())));
-    cantFail (JD.define (llvm::orc::absoluteSymbols (
-      { { Mangle ("libc_puts"),
-	  { ExecutorAddr::fromPtr (&puts),
-	    JITSymbolFlags::Exported } } })));
+    MainJD.addGenerator (
+      cantFail (DynamicLibrarySearchGenerator::GetForCurrentProcess (
+	DL.getGlobalPrefix ())));
   }
 
-  ~Jit ()
+  ~JIT ()
   {
     if (auto Err = ES->endSession ())
       ES->reportError (std::move (Err));
   }
 
-  static std::unique_ptr<Jit> Create ()
+  static Expected<std::unique_ptr<JIT>> Create ()
   {
-    auto EPC = cantFail (SelfExecutorProcessControl::Create ());
-    auto ES = std::make_unique<ExecutionSession> (std::move (EPC));
+    auto EPC = SelfExecutorProcessControl::Create ();
+    if (!EPC)
+      return EPC.takeError ();
+
+    auto ES = std::make_unique<ExecutionSession> (std::move (*EPC));
 
     JITTargetMachineBuilder JTMB (
       ES->getExecutorProcessControl ().getTargetTriple ());
 
-    auto DL = cantFail (JTMB.getDefaultDataLayoutForTarget ());
+    auto DL = JTMB.getDefaultDataLayoutForTarget ();
+    if (!DL)
+      return DL.takeError ();
 
-    return std::make_unique<Jit> (std::move (ES), std::move (JTMB),
-				  std::move (DL));
+    return std::make_unique<JIT> (std::move (ES), std::move (JTMB),
+				  std::move (*DL));
   }
 
-  Expected<ResourceTrackerSP> addModule (ThreadSafeModule TSM)
+  const DataLayout &getDataLayout () const { return DL; }
+
+  JITDylib &getMainJITDylib () { return MainJD; }
+
+  Error addModule (ThreadSafeModule TSM,
+		   ResourceTrackerSP RT = nullptr)
   {
-    auto RT = JD.createResourceTracker ();
-    if (auto E = CompileLayer.add (RT, std::move (TSM)))
-      {
-	return E;
-      }
-    return RT;
+    if (!RT)
+      RT = MainJD.getDefaultResourceTracker ();
+    return CompileLayer.add (RT, std::move (TSM));
   }
 
   Expected<ExecutorSymbolDef> lookup (StringRef Name)
   {
-    return ES->lookup ({ &JD }, Mangle (Name.str ()));
+    return ES->lookup ({ &MainJD }, Mangle (Name.str ()));
   }
 };
 
+#if 0
 int
 compile_c (const char *code)
 {
@@ -274,6 +190,7 @@ compile_c (const char *code)
   return 0;
 }
 
+
 extern "C"
 {
   bool llvm_compile (const char *c)
@@ -281,8 +198,6 @@ extern "C"
     return emacs::compile_c (c) == 0;
   }
 }
-
-
 #endif
 
 } // namespace Emacs
