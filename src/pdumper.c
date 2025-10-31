@@ -3404,10 +3404,16 @@ dump_charset_table (struct dump_context *ctx)
   dump_clear_referrer (ctx);
 #ifndef HAVE_MPS
   dump_emacs_reloc_to_dump_ptr_raw (ctx, &charset_table, offset);
-#else
+# else
   size_t size = ctx->offset - offset;
   if (size > sizeof charset_table_init)
-    emacs_abort ();
+    {
+      fprintf (stderr,
+	       "CHARSET_TABLE_INIT_SIZE is %zu, need at least %zu\n",
+	       sizeof charset_table_init / sizeof *charset_table_init,
+	       size / sizeof *charset_table_init);
+      emacs_abort ();
+    }
   dump_emacs_reloc_copy_from_dump (ctx, offset, &charset_table_init,
 				   size);
 #endif
