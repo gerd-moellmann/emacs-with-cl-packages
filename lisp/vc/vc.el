@@ -398,6 +398,16 @@
 ;;   Relocate the working tree, assumed to be one that uses the same
 ;;   backing repository as this working tree, at FROM to TO.
 ;;   Callers must ensure that FROM is not the current working tree.
+;;
+;; - delete-revision (rev)
+;;
+;;   Remove REV from the revision history of the current branch.
+;;   For a distributed VCS, this means a rebase operation to rewrite the
+;;   history of the current branch so that it no longer contains REV (or
+;;   its changes).  For a centralized VCS this may mean something
+;;   different; for example CVS has true undos (not yet implemented in
+;;   Emacs).  A distributed VCS that implements this must also implement
+;;   revision-published-p.
 
 ;; HISTORY FUNCTIONS
 ;;
@@ -3765,7 +3775,7 @@ UPSTREAM-LOCATION.  In some version control systems UPSTREAM-LOCATION
 can be a remote branch name."
   (interactive (list (vc--maybe-read-upstream-location)))
   (vc--with-backend-in-rootdir "VC root-log"
-    (vc-incoming-outgoing-internal backend (or upstream-location "")
+    (vc-incoming-outgoing-internal backend upstream-location
                                    "*vc-incoming*" 'log-incoming)))
 
 (defun vc-default-log-incoming (_backend buffer upstream-location)
@@ -3784,7 +3794,7 @@ UPSTREAM-LOCATION.  In some version control systems UPSTREAM-LOCATION
 can be a remote branch name."
   (interactive (list (vc--maybe-read-upstream-location)))
   (vc--with-backend-in-rootdir "VC root-log"
-    (vc-incoming-outgoing-internal backend (or upstream-location "")
+    (vc-incoming-outgoing-internal backend upstream-location
                                    "*vc-outgoing*" 'log-outgoing)))
 
 (defun vc-default-log-outgoing (_backend buffer upstream-location)
