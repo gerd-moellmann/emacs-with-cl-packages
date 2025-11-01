@@ -2503,12 +2503,14 @@ face_inheritance_cycle (struct frame *f, Lisp_Object face, Lisp_Object child)
       Lisp_Object tail;
       for (tail = face; CONSP (tail); tail = XCDR (tail))
 	{
-	  ok = get_lface_attributes (NULL, f, XCAR (tail), face_attrs,
+	  Lisp_Object member_face = XCAR (tail);
+	  ok = get_lface_attributes (NULL, f, member_face, face_attrs,
 				     false, NULL);
 	  if (!ok)
 	    break;
 	  parent_face = face_attrs[LFACE_INHERIT_INDEX];
-	  if (EQ (parent_face, child))
+	  if (EQ (parent_face, member_face)
+	      || EQ (parent_face, child))
 	    cycle_found = true;
 	  else if (!NILP (parent_face)
 		   && !UNSPECIFIEDP (parent_face)
@@ -2525,7 +2527,8 @@ face_inheritance_cycle (struct frame *f, Lisp_Object face, Lisp_Object child)
       if (ok)
 	{
 	  parent_face = face_attrs[LFACE_INHERIT_INDEX];
-	  if (EQ (parent_face, child))
+	  if (EQ (parent_face, face)
+	      || EQ (parent_face, child))
 	    cycle_found = true;
 	  else if (!NILP (parent_face)
 		   && !UNSPECIFIEDP (parent_face)
@@ -3774,7 +3777,7 @@ FRAME 0 means change the face on all frames, and change the default
 	for (tail = value; CONSP (tail); tail = XCDR (tail))
 	  if (!SYMBOLP (XCAR (tail)))
 	    break;
-      if (face_inheritance_cycle (f, value, face))
+      if (EQ (value, face) || face_inheritance_cycle (f, value, face))
 	signal_error ("Face inheritance results in inheritance cycle", value);
       else if (NILP (tail))
 	ASET (lface, LFACE_INHERIT_INDEX, value);
