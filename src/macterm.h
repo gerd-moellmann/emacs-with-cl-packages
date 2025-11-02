@@ -339,6 +339,9 @@ struct mac_output
 #define FRAME_MAC_DOUBLE_BUFFERED_P(f) \
   ((f)->output_data.mac->double_buffered_p)
 
+#define FRAME_MAC_TRANSPARENT_TITLEBAR(f) \
+  ((f)->mac_transparent_titlebar)
+
 /* This gives the mac_display_info structure for the display F is on.  */
 #define FRAME_DISPLAY_INFO(f) ((void) (f), (&one_mac_display_info))
 

@@ -539,6 +539,38 @@ title/tool/tab bars look slightly colored with the value of the
 @code{scroll-bar-background} frame parameter (or the frame background
 color) if the frame is focused and not in fullscreen.
 
+@vindex mac-transparent-titlebar
+  The title bar transparency can be controlled by the value of the
+@code{mac-transparent-titlebar} frame parameter.  If it is @code{nil},
+which is the default then title bar uses system color for its
+background.  If it is non-@code{nil} then the frame background color is
+used instead.
+
+It is recommended that the theme applied on the frame with transparent
+title bar matches current macOS appearance.  That is, when macOS
+appearance is Light the theme should have a light colored background.
+Likewise, when macOS appearance is Dark the theme should have a dark
+colored background.
+
+The theme can be automatically changed when macOS appearance changes by
+registering a @code{mac-effective-appearance-change-hook}, for example:
+
+@example
+(add-hook
+ 'mac-effective-appearance-change-hook
+ (lambda ()
+   "Switch theme according to current system setting."
+   (when-let* ((appearance (plist-get (mac-application-state)
+                                      :appearance))
+               (desired-theme (let ((case-fold-search t))
+                                (if (string-match-p "dark" appearance)
+                                    (cadr modus-themes-to-toggle)
+                                  (car modus-themes-to-toggle))))
+               ((not (eq desired-theme
+                         (car custom-enabled-themes)))))
+     (message "Loading theme: %s" desired-theme))))
+@end example
+
 @node Mac Fullscreen
 @section Fullscreen support on the Mac Port
 @cindex fullscreen support (Mac port)
