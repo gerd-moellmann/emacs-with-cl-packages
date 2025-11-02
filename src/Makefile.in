@@ -748,7 +748,7 @@ $(LIBEGNU_ARCHIVE): $(config_h)
 	$(MAKE) -C $(dir $@) all
 
 mps.o: $(config_h)
-	$(AM_V_CC)$(CC) $(CFLAGS) $(MPS_CONFIG) $(DEPFLAGS) \
+	$(AM_V_CC)$(CC) -g -O2 $(MPS_CFLAGS) $(MPS_CONFIG) $(DEPFLAGS) \
 	-c $(top_srcdir)/mps/code/mps.c -o $@
 
 ifeq ($(HAVE_PDUMPER),yes)
