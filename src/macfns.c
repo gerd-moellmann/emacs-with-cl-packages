@@ -2536,6 +2536,9 @@ DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame,
                          "alpha", "Alpha", RES_TYPE_NUMBER);
   gui_default_parameter (f, parms, Qalpha_background, Qnil,
                          "alphaBackground", "AlphaBackground", RES_TYPE_NUMBER);
+  gui_default_parameter (f, parms, Qborders_respect_alpha_background, Qnil,
+                         "bordersRespectAlphaBackground",
+                         "BordersRespectAlphaBackground", RES_TYPE_NUMBER);
 
   mac_default_scroll_bar_color_parameter (f, parms, Qscroll_bar_foreground,
 					  "scrollBarForeground",
@@ -5264,6 +5267,7 @@ frame_parm_handler mac_frame_parm_handlers[] =
   mac_set_override_redirect,
   gui_set_no_special_glyphs,
   gui_set_alpha_background,
+  gui_set_borders_respect_alpha_background,
   NULL, /* mac_set_use_frame_synchronization */
   /* Skipping the following parameters from frame_parms that are not
      compiled when HAVE_MACGUI is defined:
