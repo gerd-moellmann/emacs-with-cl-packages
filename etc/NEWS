@@ -277,6 +277,15 @@ minibuffer window using the 'minibuffer-nonselected' face in case
 when the minibuffer window is no longer selected, but the minibuffer
 is still waiting for input.
 
++++
+*** 'read-multiple-choice' now uses the minibuffer to read a character.
+It still can use 'read-key' when the variable
+'read-char-choice-use-read-key' is non-nil.
+
+*** 'map-y-or-n-p' now uses the minibuffer to read a character.
+It still can use 'read-key' when the variable
+'y-or-n-p-use-read-key' is non-nil.
+
 ** Mouse
 
 *** New mode 'mouse-shift-adjust-mode' extends selection with 'S-<mouse-1>'.
@@ -434,6 +443,16 @@ determines whether to call 'delete-frame'.
 This will inhibit implied resizing while a new frame is made and can be
 useful on tiling window managers where the initial frame size should be
 specified by external means.
+
++++
+*** New option 'alter-fullscreen-frames'.
+This option is useful to maintain a consistent state when attempting to
+resize fullscreen frames.  It defaults to 'inhibit' on NS builds which
+means that a fullscreen frame would not change size.  It defaults to nil
+everywhere else which means that the window manager is supposed to
+either resize the frame and change the fullscreen status accordingly or
+keep the frame size unchanged.  The value t means to first reset the
+fullscreen status and then resize the frame.
 
 ---
 *** Frames can now be renamed to F<number> on text terminals.
@@ -1029,6 +1048,18 @@ if it is already on.
 Now 'treesit-explore-mode' (or 'treesit-explore') prompts for a parser
 rather than a language, and it is now possible to select a local parser
 at point to explore.
+
++++
+*** Tree-sitter query predicate :equal, :match, and :pred are deprecated
+Use :eq?, :match?, :pred? instead.  The change is because newer
+tree-sitter library mandates query predicates to end with question mark.
+Emacs will transparently converts :equal, :match and :pred to :eq?,
+:match? and :pred?, respectively, so existing queries still work fine
+with latest tree-sitter library.  Predicate :equal is changed to :eq? to
+better follow tree-sitter’s convention.  Also, the :match?  predicates
+can now take the regexp as either the first or second argument, so it
+works with both tree-sitter convention (regexp arg second) and Emacs
+convention (regexp arg first).
 
 ** Hideshow
 
@@ -2640,7 +2671,7 @@ Meant to be given a global binding convenient to the user.  Example:
 
 - 'speedbar-prefer-window' tells 'speedbar' to open a side window
   instead of a frame.
-- 'speedbar-dedicated-window' defines whether the 'speedbar' is
+- 'speedbar-window-dedicated-window' defines whether 'speedbar' is
   displayed in a dedicated window.
 - 'speedbar-window-default-width' defines the initial width of the
   'speedbar-window'.
@@ -3399,6 +3430,12 @@ removed in next Emacs release.
 This is an abbreviation for using the name of the keymap as the prefix
 command name.  E.g., '(defvar-keymap foo-map :prefix t)' is equivalent
 to '(defvar-keymap foo-map :prefix 'foo-map)'.
+
+---
+** Emacs PGTK toolkit respects dark and light modes.
+Emacs when built with the pure GTK toolkit now respects desktop
+dark and light modes for drawing a GTK toolbar and widgets,
+automatically toggling between them.
 
 
 * Changes in Emacs 31.1 on Non-Free Operating Systems
