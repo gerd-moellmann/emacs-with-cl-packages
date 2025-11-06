@@ -690,6 +690,12 @@ or strings.  If set to 'on-mismatch', mismatched parens inside comments
 and strings will not be highlighted.  If set to nil (the default),
 highlight the parens wherever they are.
 
++++
+** New user option 'view-lossage-auto-refresh'.
+If this option is non-nil, the lossage buffer in 'view-lossage' will be
+refreshed automatically for each new input keystroke and command
+performed.
+
 ** Change in SVG foreground color handling.
 SVG images no longer have the 'fill' attribute set to the value of
 ':foreground' or the current text foreground color.  The 'currentcolor'
@@ -1099,6 +1105,9 @@ This user option controls how 'hs-hide-block' and 'hs-toggle-hiding'
 should hide a block.  If set to 'after-bol', hide the innermost block to
 which the current line belongs.  If set to 'after-cursor', hide the block
 after cursor position.  By default this is set to 'after-bol'.
+
++++
+*** The variable 'hs-special-modes-alist' is now obsolete.
 
 ** C-ts mode
 
@@ -3036,6 +3045,16 @@ represented more efficiently in the future.
 Other functions that use 'aset' to modify string data, such as
 'subst-char-in-string' with a non-nil INPLACE argument, will signal an
 error if called with arguments that would violate these rules.
+
++++
+** More program constants are combined by the compiler.
+The compiler now unifies more constants that are 'equal' for better code
+generation.  This does not affect correct programs but may expose some
+coding mistakes.  For example,
+
+    (eq (cdr '(1 2 3)) '(2 3)))
+
+may return either nil or t.
 
 ** Nested backquotes are not supported any more in Pcase patterns.
 
