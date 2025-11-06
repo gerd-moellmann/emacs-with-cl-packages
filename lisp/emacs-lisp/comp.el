@@ -3711,7 +3711,8 @@ last directory in `native-comp-eln-load-path')."
 		       clauses))))
            `(let (,@(nreverse clauses)) ,@body))))
     (with-env (native-comp-speed native-comp-debug
-                                 native-comp-driver-options)
+                                 native-comp-driver-options
+                                 comp-log-time-report)
       (batch-native-compile-1 for-tarball))))
 
 ;; In use by elisp-mode.el
