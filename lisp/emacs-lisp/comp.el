@@ -143,6 +143,9 @@ Emacs Lisp file:
 (defvar comp-log-time-report nil
   "If non-nil, log a time report for each pass.")
 
+(defvar comp-log-csv nil
+  "Log time report to in CSV format if non-nil.")
+
 (defvar comp-dry-run nil
   "If non-nil, run everything but the C back-end.")
 
@@ -3527,6 +3530,17 @@ session."
                (rename-file newfile oldfile t)
              (delete-file oldfile)))))
 
+(defun comp-csv-report (file report)
+  "Write time report fo FILE.csv if enabled."
+  (when comp-log-csv
+    (with-temp-buffer
+      (goto-char (point-max))
+      (insert (format "\"%s\"" file))
+      (cl-loop for (pass . time) in (reverse report)
+               do (insert (format ",%s,%f" pass time)))
+      (insert "\n")
+      (write-region (point-min) (point-max) (format "%s.csv" file)))))
+
 (defun comp--native-compile (function-or-file &optional with-late-load output)
   "Compile FUNCTION-OR-FILE into native code.
 When WITH-LATE-LOAD is non-nil, mark the compilation unit for late
@@ -3570,6 +3584,7 @@ the deferred compilation mechanism."
                             do (funcall f data))
                    finally
                    (when comp-log-time-report
+                     (comp-csv-report function-or-file report)
                      (comp-log (format "Done compiling %S" data) 0)
                      (cl-loop for (pass . time) in (reverse report)
                               do (comp-log (format "Pass %s took: %fs."
@@ -3711,8 +3726,8 @@ last directory in `native-comp-eln-load-path')."
 		       clauses))))
            `(let (,@(nreverse clauses)) ,@body))))
     (with-env (native-comp-speed native-comp-debug
-                                 native-comp-driver-options
-                                 comp-log-time-report)
+               native-comp-driver-options
+               comp-log-csv comp-log-time-report)
       (batch-native-compile-1 for-tarball))))
 
 ;; In use by elisp-mode.el
