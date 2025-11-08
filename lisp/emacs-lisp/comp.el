@@ -3537,7 +3537,7 @@ session."
       (goto-char (point-max))
       (insert (format "\"%s\"" file))
       (cl-loop for (pass . time) in (reverse report)
-               do (insert (format ",%s,%f" pass time)))
+               do (insert (format ",\"%s\",%f" pass time)))
       (insert "\n")
       (write-region (point-min) (point-max) (format "%s.csv" file)))))
 
