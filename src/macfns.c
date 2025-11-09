@@ -2383,7 +2383,9 @@ DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame,
 
   f->output_method = output_mac;
 #ifdef HAVE_MPS
-  f->output_data.mac = igc_xzalloc_ambig (sizeof *f->output_data.mac);
+  f->output_data.mac
+    = igc_xzalloc_ambig_with_label (sizeof *f->output_data.mac,
+				    "mac:output_data");
 #else
   f->output_data.mac = xzalloc (sizeof *f->output_data.mac);
 #endif
