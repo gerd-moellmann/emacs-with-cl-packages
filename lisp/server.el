@@ -1270,8 +1270,10 @@ The following commands are accepted by the client:
 		args-left)
 	    ;; Remove this line from STRING.
 	    (setq string (substring string (match-end 0)))
-	    (setq args-left
-		  (mapcar #'server-unquote-arg (split-string request " " t)))
+	    (cl-assert (equal (substring request -1) " ")
+		       nil "emacsclient request did not end in SPC: %S" request)
+	    (setq args-left (mapcar #'server-unquote-arg
+				    (nbutlast (split-string request " "))))
 	    (while args-left
               (pcase (pop args-left)
                 ;; -version CLIENT-VERSION: obsolete at birth.
@@ -1484,6 +1486,9 @@ The following commands are accepted by the client:
 Adding or removing strings from this variable while the Emacs
 server is processing a series of eval requests will affect what
 Emacs evaluates.
+
+This list includes empty strings if empty string arguments were passed
+when invoking emacsclient.
 
 See also `argv' for a similar variable which works for
 invocations of \"emacs\".")
@@ -2090,7 +2095,7 @@ something that cannot be printed readably."
       (process-send-string process
 			   (concat "-eval "
 				   (server-quote-arg (format "%S" form))
-				   "\n"))
+				   " \n"))
       (while (memq (process-status process) '(open run))
 	(accept-process-output process 0.01))
       (goto-char (point-min))

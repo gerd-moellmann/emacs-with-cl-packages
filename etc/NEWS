@@ -715,6 +715,12 @@ debugger and show the backtrace.  If 'debug-on-error' is nil, these
 errors will be sent to 'emacsclient', as before, and will be displayed
 on the terminal from which 'emacsclient' was invoked.
 
++++
+** Empty string arguments to emacsclient are no longer ignored.
+Emacs previously discarded arguments to emacsclient of zero length, such
+as in 'emacsclient --eval "(length (pop server-eval-args-left))" ""'.
+These are no longer discarded.
+
 
 * Editing Changes in Emacs 31.1
 
@@ -1108,6 +1114,11 @@ after cursor position.  By default this is set to 'after-bol'.
 
 +++
 *** The variable 'hs-special-modes-alist' is now obsolete.
+Instead of customizing Hideshow for a mode by setting the elements of
+'hs-special-modes-alist', such as START, COMMENT-START,
+FORWARD-SEXP-FUNC, etc., major mode authors should set the corresponding
+buffer-local variables 'hs-block-start-regexp', 'hs-c-start-regexp',
+'hs-forward-sexp-function', etc.
 
 ** C-ts mode
 
@@ -1981,6 +1992,10 @@ the Tramp manual.
 ** Diff
 
 ---
+*** 'diff-mode' now refrains from automatically refining big hunks.
+What is big is defined by the new 'diff-refine-threshold' variable.
+
+---
 *** New command 'diff-kill-ring-save'.
 This command copies to the 'kill-ring' a region of text modified
 according to diffs in the current buffer, but without applying the diffs
@@ -2014,6 +2029,13 @@ overlap.
 They suggest the previous revision as the default for REV1, not the last
 one as before.  This makes them different from 'vc-diff' and
 'vc-root-diff' when those are called without a prefix argument.
+
++++
+*** 'diff-apply-buffer' now considers the region and can reverse-apply.
+If the region is active, this command now applies all hunks that the
+region overlaps; otherwise, it applies all hunks.
+With a prefix argument, it now reverse-applies the hunks.
+This matches the existing prefix argument to 'diff-apply-hunk'.
 
 ** Ediff
 
@@ -2514,15 +2536,6 @@ The new command 'log-view-copy-revision-as-kill', bound to 'w' in Log
 View mode, copies to the kill ring the ID of the revision at point in
 the log entry.  If there are marked revisions, it copies the IDs of
 those, instead.
-
-** Diff mode
-
-+++
-*** 'diff-apply-buffer' now considers the region and can reverse-apply.
-If the region is active, this command now applies all hunks that the
-region overlaps; otherwise, it applies all hunks.
-With a prefix argument, it now reverse-applies the hunks.
-This matches the existing prefix argument to 'diff-apply-hunk'.
 
 ** Package
 
