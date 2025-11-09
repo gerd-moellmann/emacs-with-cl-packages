@@ -5120,7 +5120,12 @@ make_arena (struct igc *gc)
   mps_gen_param_s gens[ngens];
   if (!read_gens (&ngens, gens))
     {
-      static const mps_gen_param_s default_gens[] = { { 16000, 0.5 } };
+      static const mps_gen_param_s default_gens[]
+	= { { 256000, 0.8 },
+	    { 256000, 0.6 },
+	    { 256000, 0.4 },
+	    { 256000, 0.2 },
+	    { 256000, 0.1 } };
       memcpy (gens, default_gens, sizeof (default_gens));
       ngens = ARRAYELTS (default_gens);
     }
