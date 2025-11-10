@@ -10859,7 +10859,7 @@ static NSString *localizedMenuTitleForEdit, *localizedMenuTitleForHelp, *localiz
 	 defined, because NSGetSizeAndAlignment does not support bit
 	 fields (at least as of Mac OS X 10.5).  */
       EmacsWeakLispObject *weakLispObject =
-	[[EmacsWeakLispObject alloc] initWithLispObject:wv->help];
+	[[EmacsWeakLispObject alloc] initWithLispObject:gc_handle_value (wv->help)];
       item.representedObject = weakLispObject;
       MRC_RELEASE (weakLispObject);
 
