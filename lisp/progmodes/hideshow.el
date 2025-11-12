@@ -27,7 +27,7 @@
 
 ;; * Commands provided
 ;;
-;; This file provides Hideshow Minor Mode.  When active, nine commands
+;; This file provides the Hideshow minor mode.  When active, nine commands
 ;; are available, implementing block hiding and showing.  They (and their
 ;; keybindings) are:
 ;;
@@ -683,8 +683,8 @@ Skip \"internal\" overlays if `hs-allow-nesting' is non-nil."
   (hs--refresh-indicators from to))
 
 (defun hs-hideable-region-p (&optional beg end)
-  "Return t if region in BEG and END can be hidden.
-If BEG and END are not specified, it will try to check at the current
+  "Return t if region between BEG and END can be hidden.
+If BEG and END are not specified, try to check the current
 block at point."
   ;; Check if BEG and END are not in the same line number,
   ;; since using `count-lines' is slow.
@@ -1395,7 +1395,8 @@ Key bindings:
       (progn
         (unless (and comment-start comment-end)
           (setq hs-minor-mode nil)
-          (user-error "%S doesn't support Hideshow Minor Mode" major-mode))
+          (user-error "%S doesn't support the Hideshow minor mode"
+                      major-mode))
 
         ;; Set the variables
         (hs-grok-mode-type)
