@@ -380,6 +380,7 @@ Intended to be used as the value of `vc-filter-command-function'."
 ;;;###autoload
 (defun vc-do-command (destination okstatus command file-or-list &rest flags)
   "Execute an inferior command, notifying user and checking for errors.
+
 DESTINATION specifies what to do with COMMAND's output.  It can be a
 buffer or the name of a buffer to insert output there, t to mean the
 current buffer, or nil to discard output.
@@ -390,17 +391,19 @@ STDERR-FILE may only be nil which means to discard standard error
 output or t which means to mix it with standard output.
 If the destination for standard output is a buffer that is not the
 current buffer, set up the buffer properly and erase it.
-The command is considered successful if its exit status does not exceed
-OKSTATUS (if OKSTATUS is nil, that means to ignore error status, if it
-is `async', that means not to wait for termination of the subprocess; if
-it is t it means to ignore all execution errors).
+
+OKSTATUS `async' means not to wait for termination of the subprocess and
+return the process object.  Otherwise, OKSTATUS determines when to
+signal an error instead of returning a numeric exit status or signal
+description string.  OKSTATUS an integer means to signal an error if the
+command's exit status exceeds that value or the command is killed by a
+signal, nil means to signal an error only if the command is killed by a
+signal, and t means never to signal an error.
+
 FILE-OR-LIST is the name of a working file; it may be a list of
 files or be nil (to execute commands that don't expect a file
 name or set of files).  If an optional list of FLAGS is present,
-that is inserted into the command line before the filename.
-
-Return the return value of the inferior command in the synchronous case,
-and the process object in the asynchronous case."
+that is inserted into the command line before the filename."
   ;; STDERR-FILE is limited to nil or t, instead of also supporting
   ;; putting stderr output into a buffer or file, because of how we
   ;; support both synchronous and asynchronous execution.
@@ -472,7 +475,7 @@ and the process object in the asynchronous case."
                       (make-process :name command
                                     :buffer (and stdout (current-buffer))
                                     :command (cons command squeezed)
-                                    :connection-type nil
+                                    :connection-type 'pipe
                                     :filter #'vc-process-filter
                                     :sentinel #'ignore
                                     :stderr stderr-buf
@@ -541,9 +544,26 @@ of a buffer, which is created.
 ROOT should be the directory in which the command should be run.
 The process object is returned.
 Display the buffer in some window, but don't select it."
-  (let ((dir default-directory)
-	(inhibit-read-only t)
-        proc)
+  (letrec ((dir default-directory)
+           (start-time) (proc)
+           (finished-fun
+            (lambda (proc _msg)
+              (cond ((not (buffer-live-p buffer))
+                     (remove-function (process-sentinel proc)
+                                      finished-fun))
+                    ((not (eq (process-status proc) 'run))
+                     (remove-function (process-sentinel proc)
+                                      finished-fun)
+                     (with-current-buffer buffer
+                       (save-excursion
+                         (goto-char (process-mark proc))
+                         (let ((inhibit-read-only t))
+                           (insert
+                            (format "Finished in %f seconds\n"
+                                    (time-to-seconds
+                                     (time-since start-time))))
+                           (set-marker (process-mark proc)
+                                       (point))))))))))
     (setq buffer (get-buffer-create buffer))
     (if (get-buffer-process buffer)
 	(error "Another VC action on %s is running" root))
@@ -552,6 +572,7 @@ Display the buffer in some window, but don't select it."
       (let* (;; Run in the original working directory.
              (default-directory dir)
              (orig-fun vc-filter-command-function)
+             (inhibit-read-only t)
              (vc-filter-command-function
               (lambda (&rest args)
                 (cl-destructuring-bind (&whole args cmd _ flags)
@@ -576,7 +597,9 @@ Display the buffer in some window, but don't select it."
                         (insert flag))))
                   (insert "'...\n")
                   args))))
-	(setq proc (apply #'vc-do-command t 'async command nil args))))
+	(setq start-time (current-time)
+              proc (apply #'vc-do-command t 'async command nil args))))
+    (add-function :after (process-sentinel proc) finished-fun)
     (vc--display-async-command-buffer buffer)
     proc))
 
