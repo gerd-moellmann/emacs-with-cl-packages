@@ -1294,6 +1294,13 @@ The prompts 'opstring' and 'active-opstring' can now either be strings
 or functions.  This is useful when your prompts can benefit from dynamic
 content.
 
+---
+*** New Ibuffer-dedicated faces.
+New faces 'ibuffer-marked', 'ibuffer-deletion', 'ibuffer-title', and
+'ibuffer-filter-group-name'.  By default they inherit from the
+general-purpose faces Ibuffer previously used, to preserve previous
+behavior.
+
 ** ElDoc
 
 ---
@@ -2003,7 +2010,7 @@ to the original text.  If the selected range extends a hunk, the
 command attempts to look up and copy the text in between the hunks.
 
 +++
-*** New command 'diff-revert-and-kill-hunk' bound to 'C-c M-r'.
+*** New command 'diff-revert-and-kill-hunk' bound to 'u' and 'C-c M-u'.
 This command reverts the hunk at point (i.e., applies the reverse of the
 hunk), and then removes the hunk from the diffs.
 This is useful to undo or revert changes, committed and uncommitted, when
@@ -2261,6 +2268,11 @@ string instead of preprending it and 'tmm-mid-prompt' to said entry.
 
 ** Foldout
 
+*** Improved behavior of 'foldout-exit-fold' with negative prefix argument.
+When 'foldout-exit-fold' is called with a negative argument (so that the
+exited fold remains visible), the position of point and window view are
+preserved.
+
 ---
 *** New command 'foldout-widen-to-current-fold'.
 This command widens the view to the current fold level when in a fold,
@@ -2358,11 +2370,12 @@ the contents of those files.
 
 +++
 *** New commands to cherry-pick and revert revisions.
-The commands 'vc-revision-cherry-pick' and 'vc-revision-revert' let you
-copy revisions between branches, and revert revisions.
+The commands 'vc-cherry-pick', 'vc-revert-or-delete-revision',
+'vc-revert-revision' and 'vc-delete-revision' let you copy revisions
+between branches, revert and delete revisions.
 From Log View buffers, you can use 'C' to cherry-pick the revision at
-point or all marked revisions, and 'R' to revert the revision at point
-or all marked revisions.
+point or all marked revisions, and 'R' to undo the revision at point or
+all marked revisions.
 
 *** New command 'log-edit-done-strip-cvs-lines'.
 This command strips all lines beginning with "CVS:" from the buffer.

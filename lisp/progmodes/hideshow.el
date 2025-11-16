@@ -146,7 +146,9 @@
 ;;                                              (overlay-end ov)))
 ;;                         'face 'font-lock-type-face)))))
 
-;; * Adding support for a major mode
+;; * Extending hideshow
+
+;; ** Adding support for a major mode
 ;;
 ;; Normally, hideshow tries to determine appropriate values for block
 ;; and comment definitions by examining the major mode settings.  If the
@@ -170,7 +172,7 @@
 ;; cases, `hs-forward-sexp-function' specifies another function to use
 ;; instead.
 
-;; ** Tree-sitter support
+;; *** Tree-sitter support
 ;;
 ;; All the treesit based modes already have support for hidding/showing
 ;; using the treesit thing `list' (see `treesit-major-mode-setup').
@@ -180,6 +182,26 @@
 ;; `hs-treesit-things' to override this, but ensure you have the proper
 ;; values in `hs-adjust-block-end-function' and `hs-adjust-block-beginning-function' to
 ;; properly hide the code block.
+
+;; ** Migrating from `hs-special-modes-alist'
+;;
+;; Starting with Emacs 31, `hs-special-modes-alist' has been deprecated.
+;; Instead, modes should use the buffer-local variables that replace
+;; each of the options in `hs-special-modes-alist'.  The following table
+;; shows the old elements of `hs-special-modes-alist' and their
+;; replacement buffer-local variables:
+;;
+;;   Instead of this                Use this
+;;   -----------------------------------------------------------------------
+;;   START                         `hs-block-start-regexp'
+;;   (START . MDATA)               `hs-block-start-regexp' and `hs-block-start-mdata-select'
+;;   END                           `hs-block-end-regexp'
+;;   COMMENT-START                 `hs-c-start-regexp'
+;;   FORWARD-SEXP-FUNC             `hs-forward-sexp-function'
+;;   ADJUST-BEG-FUNC               `hs-adjust-block-beginning-function'
+;;   FIND-BLOCK-BEGINNING-FUNC     `hs-find-block-beginning-function'
+;;   FIND-NEXT-BLOCK-FUNC          `hs-find-next-block-function'
+;;   LOOKING-AT-BLOCK-START-P-FUNC `hs-looking-at-block-start-predicate')
 
 ;; * Bugs
 ;;
@@ -710,17 +732,15 @@ to call with the newly initialized overlay."
         (io (if (eq 'block hs-isearch-open)
                 ;; backward compatibility -- `block'<=>`code'
                 'code
-              hs-isearch-open))
-        (map (make-sparse-keymap)))
+              hs-isearch-open)))
     (overlay-put ov 'invisible 'hs)
-    (define-key map (kbd "<mouse-1>") #'hs-show-block)
     (overlay-put ov 'display
                  (propertize
                   (hs--get-ellipsis b e)
                   'mouse-face
                   'highlight
                   'help-echo "mouse-1: show hidden lines"
-                  'keymap map))
+                  'keymap '(keymap (mouse-1 . hs-toggle-hiding))))
     (overlay-put ov 'hs kind)
     (overlay-put ov 'hs-b-offset b-offset)
     (overlay-put ov 'hs-e-offset e-offset)
@@ -798,7 +818,8 @@ point."
              "+" 'display
              `((margin left-margin)
                ,(or (plist-get (icon-elements face-or-icon) 'image)
-                    (icon-string face-or-icon)))
+                    (propertize (icon-string face-or-icon)
+                                'keymap hs-indicators-map)))
              'face face-or-icon
              'keymap hs-indicators-map))
            ;; EOL string
@@ -818,26 +839,31 @@ point."
   (goto-char beg)
   (remove-overlays beg end 'hs-indicator t)
 
-  (while (funcall hs-find-next-block-function hs-block-start-regexp end nil)
-    (when-let* ((b-beg (match-beginning 0))
-                (_ (save-excursion
-                     (goto-char b-beg)
-                     (funcall hs-looking-at-block-start-predicate)))
-                ;; `catch' is used here if the search fails due
-                ;; unbalanced parentheses or any other unknown error
-                ;; caused in `hs-forward-sexp'.
-                (b-end (catch 'hs-indicator-error
-                         (save-excursion
+  (while (not (>= (point) end))
+    (save-excursion
+      (let (exit)
+        (while (and (not exit)
+                    (funcall hs-find-next-block-function hs-block-start-regexp (pos-eol) nil))
+          (when-let* ((b-beg (match-beginning 0))
+                      (_ (save-excursion
                            (goto-char b-beg)
-                           (condition-case _
-                               (funcall hs-forward-sexp-function 1)
-                             (scan-error (throw 'hs-indicator-error nil)))
-                           (point))))
-                ;; Check if block is longer than 1 line.
-                (_ (hs-hideable-region-p b-beg b-end)))
-      ;; Only 1 indicator per line
-      (when (hs--make-indicators-overlays b-beg)
-        (forward-line))))
+                           (funcall hs-looking-at-block-start-predicate)))
+                      ;; `catch' is used here if the search fails due
+                      ;; unbalanced parentheses or any other unknown error
+                      ;; caused in `hs-forward-sexp'.
+                      (b-end (catch 'hs-indicator-error
+                               (save-excursion
+                                 (goto-char b-beg)
+                                 (condition-case _
+                                     (funcall hs-forward-sexp-function 1)
+                                   (scan-error (throw 'hs-indicator-error nil)))
+                                 (point))))
+                      ;; Check if block is longer than 1 line.
+                      (_ (hs-hideable-region-p b-beg b-end)))
+            (hs--make-indicators-overlays b-beg)
+            (setq exit t)))))
+    ;; Only 1 indicator per line
+    (forward-line))
   `(jit-lock-bounds ,beg . ,end))
 
 (defun hs--refresh-indicators (from to)
@@ -1147,18 +1173,13 @@ Return point, or nil if original point was not in a block."
   "Return non-nil if point is in an already-hidden block, otherwise nil."
   (save-excursion
     (let ((c-reg (funcall hs-inside-comment-predicate)))
-      (if (and c-reg (nth 0 c-reg))
-          ;; point is inside a comment, and that comment is hideable
-          (goto-char (nth 0 c-reg))
-        (when (not c-reg)
-          (end-of-line)
-          (when (not (hs-find-block-beginning-match))
-            ;; We should also consider ourselves "in" a hidden block when
-            ;; point is right at the edge after a hidden block (bug#52092).
-            (beginning-of-line)
-            (hs-find-block-beginning-match)))))
-    (end-of-line)
-    (eq 'hs (get-char-property (point) 'invisible))))
+      (when (and c-reg (nth 0 c-reg))
+        ;; point is inside a comment, and that comment is hideable
+        (goto-char (nth 0 c-reg))))
+    ;; Search for a hidden block at EOL ...
+    (or (eq 'hs (get-char-property (line-end-position) 'invisible))
+        ;; ... or behind the current cursor position
+        (eq 'hs (get-char-property (1- (point)) 'invisible)))))
 
 ;; This function is not used anymore (Bug#700).
 (defun hs-c-like-adjust-block-beginning (initial)
@@ -1240,8 +1261,7 @@ Upon completion, point is repositioned and the normal hook
 `hs-hide-hook' is run.  See documentation for `run-hooks'."
   (interactive "P")
   (hs-life-goes-on
-   (let ((c-reg (funcall hs-inside-comment-predicate))
-         (pos (point)))
+   (let ((c-reg (funcall hs-inside-comment-predicate)))
      (cond
       ((and c-reg (or (null (nth 0 c-reg))
                       (not (hs-hideable-region-p (car c-reg) (nth 1 c-reg)))))
@@ -1249,25 +1269,26 @@ Upon completion, point is repositioned and the normal hook
 
       (c-reg (hs-hide-block-at-point end c-reg))
 
-      ((or (and (eq hs-hide-block-behavior 'after-bol)
-                (setq pos (point))
-                (goto-char (line-beginning-position))
-                (catch 'hs--exit-hide
-                  (while (and (funcall hs-find-next-block-function
-                                       hs-block-start-regexp
-                                       (line-end-position) nil)
-                              (save-excursion
-                                (goto-char (match-beginning 0))
-                                (if (hs-hideable-region-p)
-                                    (throw 'hs--exit-hide t)
-                                  t)))))
-                (goto-char (match-beginning 0)))
-           (and (goto-char pos)
-                (funcall hs-looking-at-block-start-predicate)))
-       (hs-hide-block-at-point end))
+      ((save-excursion
+         (and (eq hs-hide-block-behavior 'after-bol)
+              (goto-char (line-beginning-position))
+              (let (exit)
+                (while (and (not exit)
+                            (funcall hs-find-next-block-function
+                                     hs-block-start-regexp
+                                     (line-end-position) nil)
+                            (save-excursion
+                              (goto-char (match-beginning 0))
+                              (if (hs-hideable-region-p)
+                                  (setq exit t)
+                                t))))
+                exit)
+              (goto-char (match-beginning 0))
+              (hs-hide-block-at-point end))))
 
-      ((and (goto-char (line-beginning-position))
-            (funcall hs-find-block-beginning-function))
+      ((or (funcall hs-looking-at-block-start-predicate)
+           (and (goto-char (line-beginning-position))
+                (funcall hs-find-block-beginning-function)))
        (hs-hide-block-at-point end)))
 
      (run-hooks 'hs-hide-hook))))
