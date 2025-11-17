@@ -7649,6 +7649,7 @@ static CGContextRef saved_focus_view_context;
 static bool saved_focus_view_modified_p;
 #if DRAWING_USE_GCD
 static dispatch_queue_t global_focus_drawing_queue;
+static const void * kDrawingQueueKey = &kDrawingQueueKey;
 #endif
 
 static void
@@ -7670,8 +7671,12 @@ set_global_focus_view_frame (struct frame *f)
   if (mac_drawing_use_gcd)
     {
       if (global_focus_drawing_queue == NULL)
-	global_focus_drawing_queue =
-	  dispatch_queue_create ("org.gnu.Emacs.drawing", NULL);
+        {
+          global_focus_drawing_queue =
+            dispatch_queue_create ("org.gnu.Emacs.drawing", NULL);
+          dispatch_queue_set_specific(global_focus_drawing_queue, kDrawingQueueKey,
+                                      (void *)kDrawingQueueKey, NULL);
+        }
     }
   else
     {
@@ -7690,8 +7695,10 @@ static void
 mac_draw_queue_sync (void)
 {
 #if DRAWING_USE_GCD
-  if (global_focus_drawing_queue)
-    dispatch_sync (global_focus_drawing_queue, ^{});
+  if (global_focus_drawing_queue &&
+      /* Avoid deadlock if already on the drawing queue */
+      !dispatch_get_specific(kDrawingQueueKey))
+      dispatch_sync (global_focus_drawing_queue, ^{});
 #endif
 }
 
