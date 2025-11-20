@@ -167,8 +167,7 @@ slow_eq (Lisp_Object x, Lisp_Object y)
 }
 
 DEFUN ("eq", Feq, Seq, 2, 2, 0,
-       doc: /* Return t if the two args are the same Lisp object.  */
-       attributes: const)
+       doc: /* Return t if the two args are the same Lisp object.  */)
   (Lisp_Object obj1, Lisp_Object obj2)
 {
   if (EQ (obj1, obj2))
@@ -379,7 +378,7 @@ Ignore `symbols-with-pos-enabled'.  */
 
 DEFUN ("symbolp", Fsymbolp, Ssymbolp, 1, 1, 0,
        doc: /* Return t if OBJECT is a symbol.  */
-       attributes: const)
+       attributes: pure)
   (Lisp_Object object)
 {
   if (SYMBOLP (object))
@@ -553,7 +552,7 @@ DEFUN ("interpreted-function-p", Finterpreted_function_p,
 
 DEFUN ("module-function-p", Fmodule_function_p, Smodule_function_p, 1, 1, NULL,
        doc: /* Return t if OBJECT is a function loaded from a dynamic module.  */
-       attributes: const)
+       attributes: pure)
   (Lisp_Object object)
 {
   return MODULE_FUNCTIONP (object) ? Qt : Qnil;
@@ -571,7 +570,7 @@ DEFUN ("char-or-string-p", Fchar_or_string_p, Schar_or_string_p, 1, 1, 0,
 
 DEFUN ("integerp", Fintegerp, Sintegerp, 1, 1, 0,
        doc: /* Return t if OBJECT is an integer.  */
-       attributes: const)
+       attributes: pure)
   (Lisp_Object object)
 {
   if (INTEGERP (object))
@@ -600,7 +599,7 @@ DEFUN ("natnump", Fnatnump, Snatnump, 1, 1, 0,
 
 DEFUN ("numberp", Fnumberp, Snumberp, 1, 1, 0,
        doc: /* Return t if OBJECT is a number (floating point or integer).  */
-       attributes: const)
+       attributes: pure)
   (Lisp_Object object)
 {
   if (NUMBERP (object))
