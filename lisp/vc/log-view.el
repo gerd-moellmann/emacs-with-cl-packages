@@ -115,7 +115,10 @@
 (autoload 'vc-find-revision "vc")
 (autoload 'vc-diff-internal "vc")
 (autoload 'vc--pick-or-revert "vc")
+(autoload 'vc--remove-revisions-from-end "vc")
 (autoload 'vc--prompt-other-working-tree "vc")
+(autoload 'vc-exec-after "vc-dispatcher")
+(eval-when-compile (require 'vc-dispatcher))
 
 (defvar cvs-minor-wrap-function)
 (defvar cvs-force-command)
@@ -142,7 +145,9 @@
   "TAB" #'log-view-msg-next
   "<backtab>" #'log-view-msg-prev
   "C" #'log-view-cherry-pick
-  "R" #'log-view-revert-or-delete-revisions)
+  "R" #'log-view-revert-or-delete-revisions
+  "x" #'log-view-uncommit-revisions-from-end
+  "X" #'log-view-delete-revisions-from-end)
 
 (easy-menu-define log-view-mode-menu log-view-mode-map
   "Log-View Display Menu."
@@ -273,6 +278,8 @@ The match group number 1 should match the revision number itself.")
   (setq-local cvs-minor-wrap-function #'log-view-minor-wrap)
   (setq-local project-find-matching-buffer-function
               #'project-change-to-matching-directory)
+  (add-hook 'revert-buffer-restore-functions #'log-view--restore-marks
+            nil t)
   (hack-dir-local-variables-non-file-buffer))
 
 ;;;;
@@ -467,6 +474,20 @@ See `log-view-mark-entry'."
 	  (push (overlay-get ov 'log-view-marked) marked-list)
 	  (setq pos (overlay-end ov))))
       marked-list)))
+
+(defun log-view--restore-marks ()
+  "Return a function to restore log entry marks after `revert-buffer'.
+Added to `revert-buffer-restore-functions' by Log View mode."
+  (let ((table (make-hash-table :test #'equal)))
+    (dolist (mark (log-view-get-marked))
+      (puthash mark t table))
+    (lambda ()
+      (vc-run-delayed
+        (log-view--mark-unmark (lambda ()
+                                 (if (gethash (log-view-current-tag) table)
+                                     (log-view--mark-entry)
+                                   (log-view-msg-next 1)))
+                               nil (point-min) (point-max))))))
 
 (defun log-view-toggle-entry-display ()
   "If possible, expand the current Log View entry.
@@ -827,6 +848,36 @@ See also `vc-revert-or-delete-revision'."
                       'allow-empty)
                      t current-prefix-arg))
   (log-view--pick-or-revert directory nil t interactive delete))
+
+(defun log-view-uncommit-revisions-from-end ()
+  "Uncommit revisions newer than the revision at point.
+The revision at point must be on the current branch.  The newer
+revisions are deleted from the revision history but the changes made by
+those revisions to files in the working tree are not undone.
+
+To delete revisions from the revision history and also undo the changes
+in the working tree, see `log-edit-delete-revisions-from-end'."
+  (interactive)
+  (vc--remove-revisions-from-end (log-view-current-tag)
+                                 nil t log-view-vc-backend)
+  (revert-buffer))
+
+(defun log-view-delete-revisions-from-end (&optional discard)
+  "Delete revisions newer than the revision at point.
+The revision at point must be on the current branch.  The newer
+revisions are deleted from the revision history and the changes made by
+those revisions to files in the working tree are undone.
+If the are uncommitted changes, prompts to discard them.
+With a prefix argument (when called from Lisp, with optional argument
+DISCARD non-nil), discard any uncommitted changes without prompting.
+
+To delete revisions from the revision history without undoing the
+changes in the working tree, see `log-edit-uncommit-revisions-from-end'."
+  (interactive "P")
+  (vc--remove-revisions-from-end (log-view-current-tag)
+                                 (if discard 'discard t)
+                                 t log-view-vc-backend)
+  (revert-buffer))
 
 ;; These are left unbound by default.  A user who doesn't like the DWIM
 ;; behavior of `log-view-revert-or-delete-revisions' can unbind that and

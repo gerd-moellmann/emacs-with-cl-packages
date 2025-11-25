@@ -2393,6 +2393,13 @@ From Log View buffers, you can use 'C' to cherry-pick the revision at
 point or all marked revisions, and 'R' to undo the revision at point or
 all marked revisions.
 
++++
+*** New commands to rewind branches.
+In Log View mode, 'x' deletes revisions newer than the revision at point
+from the history of the current branch, though without undoing the
+changes made by those revisions to the working tree.  'X' is similar
+except that it does remove the changes from the working tree.
+
 *** New command 'log-edit-done-strip-cvs-lines'.
 This command strips all lines beginning with "CVS:" from the buffer.
 It is intended to be added to the 'log-edit-done-hook' so that
@@ -3566,10 +3573,10 @@ automatically toggling between them.
 
 ---
 *** 'toolkit-theme-set-functions' called when the toolkit theme is set for Emacs.
-When the theme is set on PGTK or MS-Windows builds,
+When the theme is set on PGTK, Android, or MS-Windows systems,
 'toolkit-theme-set-functions' is called.  The result is stored in the
 variable 'toolkit-theme' as either symbol 'dark' or 'light', but may be
-expanded to future toolkit-specific symbols in the future.
+extended to encompass other toolkit-specific symbols in the future.
 
 
 * Changes in Emacs 31.1 on Non-Free Operating Systems
