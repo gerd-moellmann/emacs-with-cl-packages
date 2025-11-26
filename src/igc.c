@@ -103,7 +103,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # ifndef HASH_Lisp_Finalizer_7DACDD23C5
 #  error "struct Lisp_Finalizer changed"
 # endif
-# ifndef HASH_Lisp_Bignum_8732048B98
+# ifndef HASH_Lisp_Bignum_B9D07E8637
 #  error "struct Lisp_Bignum changed"
 # endif
 # ifndef HASH_Lisp_Float_4F10F019A4
@@ -3745,11 +3745,13 @@ igc_alloc_hash_table_user_test (void)
   return ut;
 }
 
+#ifndef FLAT_BIGNUMS
 static void
 finalize_bignum (struct Lisp_Bignum *n)
 {
   mpz_clear (n->value);
 }
+#endif
 
 static void
 finalize_font (struct font *font)
@@ -3859,9 +3861,11 @@ finalize_vector (mps_addr_t v)
   /* Please use exhaustive switches, just to do me a favor :-).  */
   switch (pseudo_vector_type (v))
     {
+#ifndef FLAT_BIGNUMS
     case PVEC_BIGNUM:
       finalize_bignum (v);
       break;
+#endif
 
     case PVEC_FONT:
       finalize_font (v);
@@ -3947,6 +3951,9 @@ finalize_vector (mps_addr_t v)
     case PVEC_TERMINAL:
     case PVEC_MARKER:
     case PVEC_MODULE_GLOBAL_REFERENCE:
+#ifdef FLAT_BIGNUMS
+    case PVEC_BIGNUM:
+#endif
       igc_assert (!"finalization not implemented");
       break;
 
@@ -4007,7 +4014,9 @@ maybe_finalize (mps_addr_t ref, enum pvec_type tag)
     }
   switch (tag)
     {
+#ifndef FLAT_BIGNUMS
     case PVEC_BIGNUM:
+#endif
     case PVEC_FONT:
     case PVEC_THREAD:
     case PVEC_MUTEX:
@@ -4057,6 +4066,9 @@ maybe_finalize (mps_addr_t ref, enum pvec_type tag)
     case PVEC_PACKAGE:
 #endif
     case PVEC_MODULE_GLOBAL_REFERENCE:
+#ifdef FLAT_BIGNUMS
+    case PVEC_BIGNUM:
+#endif
       break;
     }
 }
