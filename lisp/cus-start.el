@@ -844,10 +844,13 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
                (const :tag "Default" nil)
                (const :tag "Silent" ignore)
                function))
-             ;; treesit.c
-             (treesit-extra-load-path
-              treesit (repeat (directory :format "%v")))
-	     ;; undo.c
+             ;; treesit.c FIXME: Commented out because it causes a
+             ;; max-lisp-eval-depth overflow when native and byte
+             ;; compiling in cl-packages. Increasing m-l-e-d to 5000
+             ;; makes it work. Don't feel like debugging this ATM.
+             ;; (treesit-extra-load-path
+             ;; treesit (repeat (directory :format "%v")))
+	     ;;undo.c
 	     (undo-limit undo integer "27.1")
 	     (undo-strong-limit undo integer "27.1")
 	     (undo-outer-limit undo
