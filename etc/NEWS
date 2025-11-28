@@ -454,6 +454,11 @@ either resize the frame and change the fullscreen status accordingly or
 keep the frame size unchanged.  The value t means to first reset the
 fullscreen status and then resize the frame.
 
+*** New commands 'split-frame' and 'merge-frames'.
+'split-frame' moves a specified number of windows from an existing frame
+to a newly-created frame.  'merge-frames' merges all windows from two
+frames into one of these frames and deletes the other one.
+
 ---
 *** Frames can now be renamed to "F<number>" on text terminals.
 Unlike with other frame names, an attempt to rename to "F<number>" throws
@@ -918,6 +923,11 @@ packages.
 It controls the automatic installation of tree-sitter grammar libraries
 needed for tree-sitter based modes, if these grammar libraries are not
 available when such modes are turned on.
+
+*** 'treesit-extra-load-path' now is a customizable user option.
+The first directory in the list is used as the default directory
+to install the language grammar when 'treesit-auto-install-grammar'
+is 'ask' or 'ask-dir'.
 
 *** 'treesit-language-source-alist' supports keywords.
 The language and URL are mandatory, but remaining data can use keywords:

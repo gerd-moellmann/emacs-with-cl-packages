@@ -3585,10 +3585,10 @@ discarding bits.  */)
   CHECK_INTEGER (value);
   CHECK_INTEGER (count);
 
-  if (BASE_EQ (value, make_fixnum (0)))
-    return value;
   if (! FIXNUMP (count))
     {
+      if (BASE_EQ (value, make_fixnum (0)))
+	return value;
       if (mpz_sgn (*xbignum_val (count)) < 0)
 	{
 	  EMACS_INT v = (FIXNUMP (value) ? XFIXNUM (value)
@@ -3616,8 +3616,9 @@ discarding bits.  */)
   else if (FIXNUMP (value))
     {
       EMACS_INT v = XFIXNUM (value);
-      if (stdc_leading_zeros ((EMACS_UINT)(v < 0 ? ~v : v)) - c
-	  >= EMACS_INT_WIDTH - FIXNUM_BITS + 1)
+      EMACS_UINT uv = v < 0 ? ~v : v;
+      EMACS_INT lz = stdc_leading_zeros (uv);
+      if (EMACS_INT_WIDTH - FIXNUM_BITS < lz - c)
 	return make_fixnum (v << c);
     }
 
