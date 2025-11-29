@@ -4365,22 +4365,32 @@ igc_break (void)
 }
 
 void
-igc_collect (void)
+igc_collect (bool incremental)
 {
   struct igc *gc = global_igc;
   if (gc->park_count == 0)
     {
-      mps_res_t res = mps_arena_collect (gc->arena);
-      IGC_CHECK_RES (res);
-      mps_arena_release (gc->arena);
+      if (!incremental)
+	{
+	  mps_res_t res = mps_arena_collect (gc->arena);
+	  IGC_CHECK_RES (res);
+	  mps_arena_release (gc->arena);
+	}
+      else
+	{
+	  mps_res_t res = mps_arena_start_collect (gc->arena);
+	  IGC_CHECK_RES (res);
+	}
     }
 }
 
-DEFUN ("igc--collect", Figc__collect, Sigc__collect, 0, 0, 0,
-       doc: /* Force an immediate arena garbage collection.  */)
-  (void)
+DEFUN ("igc--collect", Figc__collect, Sigc__collect, 0, 1, 0,
+       doc: /* Start a full garbage collection.
+If incremental is nil, collect the arena immediately.
+Otherwise, start a full collection but return quickly.  */)
+  (Lisp_Object incremental)
 {
-  igc_collect ();
+  igc_collect (!NILP (incremental));
   return Qnil;
 }
 
@@ -5121,6 +5131,21 @@ read_gens (size_t *ngens, mps_gen_param_s parms[*ngens])
   emacs_abort ();
 }
 
+static bool
+read_arena_size (size_t *size)
+{
+  const char *env = getenv ("EMACS_IGC_ARENA_SIZE");
+  if (env == NULL)
+    return false;
+  char *end;
+  *size = strtoull (env, &end, 10);
+  bool ok = *end == '\0';
+  if (!ok)
+    fprintf (stderr, "Failed to parse EMACS_IGC_ARENA_SIZE: %s\n",
+	     env);
+  return ok;
+}
+
 static void
 make_arena (struct igc *gc)
 {
@@ -5128,6 +5153,9 @@ make_arena (struct igc *gc)
   MPS_ARGS_BEGIN (args)
   {
     MPS_ARGS_ADD (args, MPS_KEY_PAUSE_TIME, 0.01);
+    size_t size;
+    if (read_arena_size (&size))
+      MPS_ARGS_ADD (args, MPS_KEY_ARENA_SIZE, size);
     res = mps_arena_create_k (&gc->arena, mps_arena_class_vm (), args);
   }
   MPS_ARGS_END (args);
