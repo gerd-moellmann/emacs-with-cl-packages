@@ -4110,7 +4110,8 @@ process_one_message (struct igc *gc)
 	{
 	  mps_clock_t clock = mps_message_clock (gc->arena, msg);
 	  const char *why = mps_message_gc_start_why (gc->arena, msg);
-	  message ("[%lu] GC start: %s", (unsigned long) clock, why);
+	  double secs = (double) clock / mps_clocks_per_sec ();
+	  message ("[%f] GC start: %s", secs, why);
 	}
     }
   else if (type == mps_message_type_gc ())
@@ -4123,11 +4124,10 @@ process_one_message (struct igc *gc)
 	  size_t not_condemned
 	    = mps_message_gc_not_condemned_size (gc->arena, msg);
 	  mps_clock_t clock = mps_message_clock (gc->arena, msg);
-	  message ("[%lu] GC: condemned: %lu live: %lu "
-		   "not_condemned: %lu",
-		   (unsigned long) clock, (unsigned long) condemned,
-		   (unsigned long) live,
-		   (unsigned long) not_condemned);
+	  double secs = (double) clock / mps_clocks_per_sec ();
+	  message ("[%f] GC: condemned: %" pD "u live: %" pD "u "
+		   "not_condemned: %" pD "u",
+		   secs, condemned, live, not_condemned);
 	}
     }
   else
@@ -4386,8 +4386,13 @@ igc_collect (bool incremental)
 
 DEFUN ("igc--collect", Figc__collect, Sigc__collect, 0, 1, 0,
        doc: /* Start a full garbage collection.
-If incremental is nil, collect the arena immediately.
-Otherwise, start a full collection but return quickly.  */)
+This triggers garbage collection of the entire memory used
+for Lisp objects, recycling any unreachable objects whose
+memory can be freed and attempting to reduce the size of
+the memory used for objects.
+If INCREMENTAL is nil, perfrom garbage collection immediately.
+Otherwise, request the start of a full incremental collection cycle,
+and return.  */)
   (Lisp_Object incremental)
 {
   igc_collect (!NILP (incremental));
@@ -5081,6 +5086,15 @@ For internal use only. */)
   return Qnil;
 }
 
+static bool
+parse_error (const char *key)
+{
+  fprintf (stderr, "Failed to parse %s: %s\n", key, getenv (key));
+  fflush (stderr);
+  emacs_abort ();
+  return false;
+}
+
 /* Read GC generation settings from environment variable
    EMACS_IGC_GENS. Value must be a string consisting of pairs SIZE
    MORTALITY, where SIZE Is the size of the generation in KB, and
@@ -5096,7 +5110,8 @@ For internal use only. */)
 static bool
 read_gens (size_t *ngens, mps_gen_param_s parms[*ngens])
 {
-  const char *env = getenv ("EMACS_IGC_GENS");
+  const char *key = "EMACS_IGC_GENS";
+  const char *env = getenv (key);
   if (env == NULL)
     return false;
   const char *end = env + strlen (env);
@@ -5119,30 +5134,27 @@ read_gens (size_t *ngens, mps_gen_param_s parms[*ngens])
 	  *ngens = i + 1;
 	}
       else
-	goto parse_error;
+	return parse_error (key);
     }
 
   if (*ngens > 0 && env == end)
     return true;
 
- parse_error:
-  fprintf (stderr, "Failed to parse EMACS_IGC_GENS: %s\n",
-	   getenv ("EMACS_IGC_GENS"));
-  emacs_abort ();
+  return parse_error (key);
 }
 
 static bool
 read_arena_size (size_t *size)
 {
-  const char *env = getenv ("EMACS_IGC_ARENA_SIZE");
+  const char *key = "EMACS_IGC_ARENA_SIZE";
+  const char *env = getenv (key);
   if (env == NULL)
     return false;
   char *end;
   *size = strtoull (env, &end, 10);
   bool ok = *end == '\0';
   if (!ok)
-    fprintf (stderr, "Failed to parse EMACS_IGC_ARENA_SIZE: %s\n",
-	     env);
+    return parse_error (key);
   return ok;
 }
 
