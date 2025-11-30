@@ -62,6 +62,9 @@ A _self-contained_ app by default will go into `/Applications/Emacs.app`.
 CFLAGS="-O2 -mcpu=native" ./configure --with-native-compilation --with-tree-sitter --enable-mac-app=yes --enable-mac-self-contained
 ```
 
+Optionally, you can add `-DFD_SETSIZE=10000 -D_DARWIN_UNLIMITED_SELECT` to `CFLAGS` to increase the file descriptor limit, to help with packages that open many connections (like LSP).
+Note that this may degrade performance in some cases.
+
 You can specify another build directory for the self-contained app using `--enable-mac-app=/path/to/dir`.
 
 >[!NOTE]
