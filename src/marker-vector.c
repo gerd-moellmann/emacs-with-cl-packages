@@ -19,17 +19,19 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 /* A marker vector is used to hold the markers of a buffer.  The vector
    is a normal Lisp vector that consists of a header and a number of
    entries for each marker.  A Lisp vector is used because the vector
-   references markers "weakly", and that's what easy for igc.
+   references markers "weakly", and using a Lisp vector makes that
+   easier for igc.
+
+   The slots of the Lisp vector look like this:
 
    +------+-----------+---------+---------+--------------+
    | FREE | MAX_ENTRY | entry 0 | entry 1 | ...          |
    +------+-----------+---------+---------+--------------+
    |<----- header --->|
 
-   Entries consist of 2 vector slots MARKER and CHARPOS. MARKER holds a
-   marker, if the entry is in use.  CHARPOS is not yet used.  (The idea is
-   to move the positions from Lisp_Marker here, which speeds up
-   adjusting positions when the text changes.)
+   Entries consist of 2 vector slots MARKER and CHARPOS. MARKER holds
+   a marker, if the entry is in use.  CHARPOS is the character position
+   of MARKER.
 
    FREE is the array index of the start of the next free entry in the
    marker vector.  Free entries form a singly-linked list using the
