@@ -164,9 +164,10 @@ void igc_on_alloc_main_thread_specpdl (void);
 void igc_on_alloc_main_thread_bc (void);
 void igc_on_staticpros_complete (void);
 void igc_collect (bool incremental);
-struct igc_root_list *igc_root_create_ambig (void *start, void *end, const char *debug_name);
 void igc_root_create_exact (Lisp_Object *start, Lisp_Object *end);
 struct igc_root_list *igc_root_create_exact_ptr (void *var_addr);
+struct igc_root_list *igc_root_create_ambig (void *start, void *end,
+					     const char *debug_name);
 void *igc_root_create_n (Lisp_Object start[], size_t n);
 void igc_destroy_root_with_start (void *start);
 size_t igc_header_size (void);
@@ -202,6 +203,10 @@ void w32_remove_non_lisp_thread (void *);
 
 extern void igc_assert_not_an_mps_object (void *ptr);
 # define eassert_not_mps() eassert (false)
+
+ptrdiff_t igc_pin (void *obj);
+void igc_unpin (void *obj, ptrdiff_t idx);
+
 #else
 # define igc_break() (void) 0
 # define eassert_not_mps() (void) 0

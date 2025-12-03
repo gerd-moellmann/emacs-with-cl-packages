@@ -26,25 +26,25 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "lisp.h"
 
 /* Shared .eln objects contain printed representations of Lisp vectors
-   representing constant Lisp objects used in native-compiled
-   code. There are two of these vectors: one for top-level code, which
-   is called "ephemeral", and one for other code.
+   representing constant Lisp objects used in native-compiled code.
+   There are two of these vectors, one for top-level code, which is
+   called "ephemeral", and one for other code.
 
    When an .eln is loaded, the Lisp reader is used to construct Lisp
    vectors from these printed representations (which are C strings in
-   the text segment). This Lisp vector is then saved to protect the
+   the text segment).  This Lisp vector is then saved to protect the
    constant objects from GC, and its contents are additionally copied to
    vectors in the data segment of the .eln to avoid an additional
    indirection when accessing them.
 
-   With igc, the vectors in the data segment are made exact roots, and
-   there are quite a lot of them. With my init file, this add up to
-   around 1.5 MB. To avoid these roots, an alternative can be used:
+   With igc, the vectors in the data segment were once made exact roots,
+   and there are quite a lot of them, easily 1.5 MB.  To avoid these
+   roots, an alternative is used, which works better:
 
    Compile the shared object to contain a pointer to the contents member
    of the Lisp vectors that has been read, instead of copying the
-   vector's contents to the data segment. Access to constants then
-   requires an additional indirection, but the GC latency is less. It's
+   vector's contents to the data segment.  Access to constants then
+   requires an additional indirection, but the GC latency is less.  It's
    something like the difference between
 
    static Lisp_Object constants[42];
@@ -57,7 +57,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
    The advantage of the first method is slightly faster native code
    (maybe), the advantage of the second method is (definitely) less
-   latency of incremental GC. With MPS, we use the second method. */
+   latency of incremental GC.  */
 
 #ifdef HAVE_MPS
 #define USE_POINTER_TO_CONSTANTS 1

@@ -46,6 +46,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # include "zlib.h"
 
 
+
 
 /********************************/
 /* Dynamic loading of libgccjit */
@@ -479,11 +480,7 @@ load_gccjit_if_necessary (bool mandatory)
 /* The name of a global emitted to the text segment that contains the
    ABI version that was used to generate the file.  This is checked
    against the current ABI version when a file is loaded.  */
-#ifdef USE_POINTER_TO_CONSTANTS
-#define ABI_VERSION_SYM "ABI_" STR (ABI_VERSION) "_POINTERS"
-#else
-#define ABI_VERSION_SYM "ABI_" STR (ABI_VERSION)
-#endif
+#define ABI_VERSION_SYM STR (ABI_ ## ABI_VERSION)
 
 /* Length of the hashes used for eln file naming.  */
 #define HASH_LENGTH 8
@@ -811,7 +808,7 @@ hash_native_abi (void)
 
   Vcomp_abi_hash =
     comp_hash_string (
-      concat3 (build_string (ABI_VERSION_SYM),
+      concat3 (build_string (STR (ABI_VERSION)),
 	       concat3 (Vemacs_version, Vsystem_configuration,
 			Vsystem_configuration_options),
 	       Fmapconcat (intern_c_string ("comp--subr-signature"),
@@ -2719,8 +2716,8 @@ emit_static_object (const char *name, Lisp_Object obj)
   const char *p = SSDATA (str);
 
 # if defined(LIBGCCJIT_HAVE_gcc_jit_global_set_initializer)
-  /* FIXME/elnroot; What is this if-condition for? This is the name of
-     function and should always be true. */
+  /* FIXME; What is this if-condition for? This is the name of
+     function and should always be true.  */
   if (gcc_jit_global_set_initializer)
     {
       ptrdiff_t str_size = len + 1;
@@ -2744,8 +2741,8 @@ emit_static_object (const char *name, Lisp_Object obj)
     }
 #endif
 
-  /* FIXME/elnroot; Is the following still needed? The above case
-     seems to always be taken nowadays. */
+  /* FIXME; Is the following still needed? The above case
+     seems to always be taken nowadays.  */
 
   gcc_jit_type *a_type =
     gcc_jit_context_new_array_type (comp.ctxt,
@@ -2884,28 +2881,28 @@ emit_static_object (const char *name, Lisp_Object obj)
   gcc_jit_block_end_with_return (block, NULL, res);
 }
 
-# pragma GCC diagnostic pop
+#pragma GCC diagnostic pop
 
 /* Emit code/global variables for a constants vector.
 
    CONTAINER is a comp-data-container Lisp struct from comp.el that
    holds the data for which to generate code.
 
-   TEXT_SYMBOL is the name of a symbol in the text segment which will
-   be used for the printed representation of the Lisp objects in
-   CONTAINER. It corresponds to a "char TEXT_SYMBOL[N]" in the text
-   segment. When an eln is loaded, this is read using the Lisp reader
-   to produce a vector of Lisp objects.
+   TEXT_SYMBOL is the name of a symbol in the text segment which will be
+   used for the printed representation of the Lisp objects in CONTAINER.
+   It corresponds to a "char TEXT_SYMBOL[N]" in the text segment.  When
+   an eln is loaded, this is read using the Lisp reader to produce a
+   vector of Lisp objects.
 
    CODE__SYMBOL is the name of a symbol in the data segment that native
-   code uses to access constant Lisp objects. There are two cases:
+   code uses to access constant Lisp objects.  There are two cases:
 
-   If USE_POINTER_TO_CONSTANTS, this is a "Lisp_Object
-   *CODE_SYMBOL[1]". The array member is set to the contents of the Lisp
-   vector read from TEXT_SYMBOL.
+   If USE_POINTER_TO_CONSTANTS, this is a "Lisp_Object *CODE_SYMBOL[1]".
+   The array member is set to the contents of the Lisp vector read from
+   TEXT_SYMBOL.
 
    If not USE_POINTER_TO_CONSTANTS, this is a "Lisp_Object
-   CODE_SYMBOL[N]". When the eln is loaded, Lisp objects read from
+   CODE_SYMBOL[N]".  When the eln is loaded, Lisp objects read from
    TEXT_SYMBOL are copied to this vector.  */
 
 static reloc_array_t
