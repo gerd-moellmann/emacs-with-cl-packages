@@ -927,7 +927,7 @@ available when such modes are turned on.
 *** 'treesit-extra-load-path' now is a customizable user option.
 The first directory in the list is used as the default directory
 to install the language grammar when 'treesit-auto-install-grammar'
-is 'ask' or 'ask-dir'.
+is 'ask', 'ask-dir' or 'always'.
 
 *** 'treesit-language-source-alist' supports keywords.
 The language and URL are mandatory, but remaining data can use keywords:
@@ -1091,6 +1091,16 @@ either the first or second argument, so it works with both tree-sitter
 convention (regexp arg second) and Emacs convention (regexp arg first).
 
 ** Hideshow
+
++++
+*** New command 'hs-cycle'.
+This command cycles the visibility state of the current block between
+hide the parent block, hide the nested blocks only and show all the
+blocks.
+
++++
+*** New command 'hs-toggle-all'.
+This command hide or show all the blocks in the current buffer.
 
 +++
 *** New user option 'hs-display-lines-hidden'.
@@ -1574,6 +1584,20 @@ behavior included additional information about the originating message.
 The new variable 'message-header-use-obsolete-in-reply-to', nil by
 default, can be set to a non-nil value to restore the previous behavior.
 
+** Message
+
++++
+*** 'message-subject-re-regexp' default value is now derived from 'mail-re-regexps'.
+'mail-re-regexps' is a new user option that is easier to customize than
+'message-subject-re-regexp'.  'message-subject-re-regexp' is still
+honored if it was already set.
+
++++
+*** 'message-strip-subject-re' now matches case-insensitively.
+
+---
+*** 'message-change-subject' inserts current subject into "future history".
+
 +++
 *** Hashcash support has been removed.
 It is believed to no longer be useful as a method to fight spam.  The
@@ -1724,6 +1748,11 @@ This contains the list of regular expressions used to match "Re:" and
 international variants of it when modifying the Subject field in
 replies.
 
+** mairix
+
+---
+*** 'mairix-search' now keeps its own minibuffer history.
+
 ** Imap
 
 ---
@@ -1757,17 +1786,6 @@ suspicious email addresses is determined by the function
 'textsec-suspicious-p', which see.)  This is controlled by the new user
 option 'rmail-detect-suspicious-headers', whose default value is
 non-nil; customize to nil to disable the check.
-
-** Message
-
-+++
-*** 'message-subject-re-regexp' default value is now derived from 'mail-re-regexps'.
-'mail-re-regexps' is a new user option that is easier to customize than
-'message-subject-re-regexp'.  'message-subject-re-regexp' is still
-honored if it was already set.
-
-+++
-*** 'message-strip-subject-re' now matches case-insensitively.
 
 ** Sendmail
 
@@ -2525,6 +2543,11 @@ bindings:
 - 'C-x v I D' is bound to 'vc-root-diff-incoming'
 - 'C-x v O L' is bound to 'vc-log-outgoing'
 - 'C-x v O D' is bound to 'vc-root-diff-outgoing'.
+
++++
+*** New display of outgoing revisions count in VC-Dir.
+If there are outgoing revisions, VC-Dir now includes a count of how many
+in its headers, to remind you to push them.
 
 +++
 *** New user option 'vc-async-checkin' to enable async checkin operations.
