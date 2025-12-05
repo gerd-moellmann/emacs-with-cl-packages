@@ -180,12 +180,7 @@ void *igc_alloc_dump (size_t nbytes);
 bool igc_busy_p (void);
 Lisp_Object igc_discard_killed_buffers (Lisp_Object list);
 
-#  define eassert_not_mps() eassert (false)
-
-#  ifdef HAVE_MACGUI
-void igc_init_mac_early (void);
-void igc_init_mac_late (void);
-#  endif
+# define eassert_not_mps() eassert (false)
 
 # define eassert_not_mps() eassert (false)
 #ifdef HAVE_NTGUI
@@ -199,17 +194,19 @@ typedef union
 
 void * w32_add_non_lisp_thread (void *);
 void w32_remove_non_lisp_thread (void *);
-#endif
+#  endif
+
+# ifdef HAVE_MACGUI
+void igc_init_mac_early (void);
+void igc_init_mac_late (void);
+# endif
 
 extern void igc_assert_not_an_mps_object (void *ptr);
 # define eassert_not_mps() eassert (false)
 
-ptrdiff_t igc_pin (void *obj);
-void igc_unpin (void *obj, ptrdiff_t idx);
-
 #else
 # define igc_break() (void) 0
 # define eassert_not_mps() (void) 0
-#endif 	/* HAVE_MPS */
+# endif /* HAVE_MPS */
 
 #endif	/* EMACS_IGC_H */
