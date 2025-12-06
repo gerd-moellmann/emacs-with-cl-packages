@@ -142,6 +142,8 @@ This metadata is an alist.  Currently understood keys are:
    Works like `display-sort-function'.
 - `eager-display': non-nil to request eager display of the
   completion candidates.
+- `eager-update': non-nil to request updating the display of completion
+  candidates as the user types.
 The metadata of a completion table should be constant between two boundaries."
   (let ((metadata (if (functionp table)
                       (funcall table string pred 'metadata))))
@@ -1280,6 +1282,7 @@ an association list that can specify properties such as:
 - `annotation-function': function to add annotations in *Completions*.
 - `affixation-function': function to prepend/append a prefix/suffix.
 - `eager-display': non-nil to show *Completions* eagerly.
+- `eager-update': non-nil to update *Completions* eagerly.
 
 Categories are symbols such as `buffer' and `file', used when
 completing buffer and file names, respectively.
@@ -1302,6 +1305,7 @@ possible values are the same as in `completions-sort'.
 - `annotation-function': function to add annotations in *Completions*.
 - `affixation-function': function to prepend/append a prefix/suffix.
 - `eager-display': non-nil to show *Completions* eagerly.
+- `eager-update': non-nil to update *Completions* as the user types.
 See more description of metadata in `completion-metadata'.
 
 Categories are symbols such as `buffer' and `file', used when
@@ -1353,6 +1357,10 @@ overrides the default specified in `completion-category-defaults'."
            (cons :tag "Eager display"
                  (const :tag "Select one value from the menu."
                         eager-display)
+                 boolean)
+           (cons :tag "Eager update"
+                 (const :tag "Select one value from the menu."
+                        eager-update)
                  boolean))))
 
 (defun completion--category-override (category tag)
