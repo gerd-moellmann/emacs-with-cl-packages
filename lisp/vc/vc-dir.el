@@ -1004,9 +1004,11 @@ that share the same state."
   (vc-dir-at-event e (vc-dir-mark-unmark 'vc-dir-toggle-mark-file)))
 
 (defun vc-dir-clean-files ()
-  "Delete the marked files, or the current file if no marks.
-The files will not be marked as deleted in the version control
-system; see `vc-dir-delete-file'."
+  "Delete marked files from repository, or the current file if no marks.
+This command cleans unregistered files from the repository.
+(To delete files that are registered, use `vc-dir-delete-file' instead.)
+It is therefore an error to use this command to delete files that are
+tracked by a VCS."
   (interactive)
   (let* ((files (or (vc-dir-marked-files)
                     (list (vc-dir-current-file))))
@@ -1016,8 +1018,8 @@ system; see `vc-dir-delete-file'."
                                  'unregistered)))
                       files)))
     (when tracked
-      (user-error (ngettext "Trying to clean tracked file: %s"
-                            "Trying to clean tracked files: %s"
+      (user-error (ngettext "Cannot clean tracked file: %s"
+                            "Cannot clean tracked files: %s"
                             (length tracked))
                   (mapconcat #'file-name-nondirectory tracked ", ")))
     (map-y-or-n-p "Delete %s? " #'delete-file files)
@@ -1337,6 +1339,17 @@ the *vc-dir* buffer.
   :doc "Local keymap for viewing outgoing revisions."
   "<down-mouse-1>" #'vc-log-outgoing)
 
+(defcustom vc-dir-show-outgoing-count t
+  "Whether to display the number of unpushed revisions in VC-Dir.
+For some combinations of VC backends and remotes, determining how many
+outgoing revisions there are is slow, because the backend must fetch
+from the remote, and your connection to the remote is slow.  Customize
+this variable to nil to disable calculating the outgoing count and
+therefore also disable the fetching."
+  :type 'boolean
+  :group 'vc
+  :version "31.1")
+
 (defun vc-dir-headers (backend dir)
   "Display the headers in the *VC-Dir* buffer.
 It calls the `dir-extra-headers' backend method to display backend
@@ -1349,7 +1362,8 @@ specific headers."
                'face 'vc-dir-header-value)
    (vc-call-backend backend 'dir-extra-headers dir)
    "\n"
-   (and-let* ((count (ignore-errors (vc--count-outgoing backend)))
+   (and-let* (vc-dir-show-outgoing-count
+              (count (ignore-errors (vc--count-outgoing backend)))
               (_ (plusp count)))
      (concat (propertize "Outgoing   : "
                          'face 'vc-dir-header)
