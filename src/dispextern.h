@@ -3576,7 +3576,9 @@ int move_it_to (struct it *, ptrdiff_t, int, int, int, int);
 void pixel_to_glyph_coords (struct frame *, int, int, int *, int *,
                             NativeRectangle *, bool);
 void remember_mouse_glyph (struct frame *, int, int, NativeRectangle *);
-
+struct glyph *
+x_y_to_hpos_vpos (struct window *w, int x, int y, int *hpos, int *vpos,
+		  int *dx, int *dy, int *area);
 void mark_window_display_accurate (Lisp_Object, bool);
 void redisplay_preserve_echo_area (int);
 void init_iterator (struct it *, struct window *, ptrdiff_t,
