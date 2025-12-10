@@ -5312,7 +5312,7 @@ x_extension_initialize (struct x_display_info *dpyinfo)
 
 #ifdef HAVE_XINPUT2
 
-# ifdef HAVE_X_TOOLKIT
+# if defined USE_X_TOOLKIT || !(defined USE_GTK && defined HAVE_GTK3)
 bool
 xi_frame_selected_for (struct frame *f, unsigned long event)
 {
