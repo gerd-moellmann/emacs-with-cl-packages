@@ -3671,6 +3671,8 @@ extern void tty_draw_row_with_mouse_face (struct window *, struct glyph_row *,
 					  int, int, enum draw_glyphs_face);
 extern void display_tty_menu_item (const char *, int, int, int, int, bool);
 #endif
+extern struct glyph *x_y_to_hpos_vpos (struct window *, int, int, int *, int *,
+                                       int *, int *, int *);
 /* Flags passed to try_window.  */
 #define TRY_WINDOW_CHECK_MARGINS	(1 << 0)
 #define TRY_WINDOW_IGNORE_FONTS_CHANGE	(1 << 1)

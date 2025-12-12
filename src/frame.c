@@ -5824,7 +5824,7 @@ gui_set_scroll_bar_height (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 }
 
 #if (defined HAVE_PGTK || defined HAVE_NTGUI \
-     || defined HAVE_HAIKU || defined HAVE_NS)
+     || defined HAVE_HAIKU || defined HAVE_NS || defined HAVE_MACGUI)
 void
 gui_set_alpha (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 {
