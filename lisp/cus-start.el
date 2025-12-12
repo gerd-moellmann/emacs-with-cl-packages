@@ -173,6 +173,13 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 	      "24.1")
              (delete-auto-save-files auto-save boolean)
              (kill-buffer-delete-auto-save-files auto-save boolean "28.1")
+             (abbrev-mode abbrev boolean nil
+                          ;; Not `custom-set-minor-mode' because it is a
+                          ;; buffer-local minor mode.  Customizing it to
+                          ;; non-nil means enabling the mode in all
+                          ;; buffers which don't locally disable it.
+                          :initialize custom-initialize-default
+                          :set custom-set-default)
 	     ;; callint.c
 	     (mark-even-if-inactive editing-basics boolean)
 	     ;; callproc.c
@@ -347,6 +354,12 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
                             ;; :initialize custom-initialize-default
 			    :set custom-set-minor-mode)
 	     (frame-resize-pixelwise frames boolean "24.4")
+	     (alter-fullscreen-frames frames
+	                              (choice
+					    (const :tag "Forward request to window manager" nil)
+					    (const :tag "Reset fullscreen status first" t)
+					    (const :tag "Inhibit altering fullscreen frames" inhibit))
+				      "31.1")
 	     (frame-inhibit-implied-resize frames
 					   (choice
 					    (const :tag "Never" nil)
@@ -831,6 +844,9 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
                (const :tag "Default" nil)
                (const :tag "Silent" ignore)
                function))
+             ;; treesit.c
+             (treesit-extra-load-path
+              treesit (repeat (directory :format "%v")))
 	     ;; undo.c
 	     (undo-limit undo integer "27.1")
 	     (undo-strong-limit undo integer "27.1")
@@ -1157,6 +1173,9 @@ since it could result in memory overflow and make Emacs crash."
 		       (fboundp 'new-fontset))
                       ((string-match "xwidget-" (symbol-name symbol))
                        (boundp 'xwidget-internal))
+                      ((string-match "treesit-" (symbol-name symbol))
+                       ;; Any function from treesit.c will do.
+                       (fboundp 'treesit-language-available-p))
 		      (t t))))
     (if (not (boundp symbol))
 	;; If variables are removed from C code, give an error here!

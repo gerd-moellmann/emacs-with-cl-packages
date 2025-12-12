@@ -3988,7 +3988,7 @@ x_dnd_get_wm_state_and_proto (struct x_display_info *dpyinfo,
    it as a request for XdndSelection.  Note that you must use
    the X data types instead of the MIME types in this case.
    (e.g. XA_STRING instead of text/plain).  */
-void
+static void
 x_dnd_do_unsupported_drop (struct x_display_info *dpyinfo,
 			   Lisp_Object frame, Lisp_Object value,
 			   Lisp_Object targets, Window target_window,
@@ -5308,6 +5308,7 @@ x_extension_initialize (struct x_display_info *dpyinfo)
 
 #ifdef HAVE_XINPUT2
 
+# if defined USE_X_TOOLKIT || !(defined USE_GTK && defined HAVE_GTK3)
 bool
 xi_frame_selected_for (struct frame *f, unsigned long event)
 {
@@ -5328,6 +5329,7 @@ xi_frame_selected_for (struct frame *f, unsigned long event)
 
   return false;
 }
+# endif
 
 /* Convert XI2 button state IN to a standard X button modifier
    mask, and place it in OUT.  */
@@ -7067,22 +7069,15 @@ x_sync_get_monotonic_time (struct x_display_info *dpyinfo,
   return ckd_sub (&t, timestamp, dpyinfo->server_time_offset) ? 0 : t;
 }
 
-# ifndef CLOCK_MONOTONIC
-#  define CLOCK_MONOTONIC CLOCK_REALTIME
-# endif
-
 /* Return the current monotonic time in the same format as a
    high-resolution server timestamp, or 0 if not available.  */
 
 static uint_fast64_t
 x_sync_current_monotonic_time (void)
 {
-  struct timespec time;
+  struct timespec time = monotonic_coarse_timespec ();
   uint_fast64_t t;
-  return (((clock_gettime (CLOCK_MONOTONIC, &time) != 0
-	    && (CLOCK_MONOTONIC == CLOCK_REALTIME
-		|| clock_gettime (CLOCK_REALTIME, &time) != 0))
-	   || ckd_mul (&t, time.tv_sec, 1000000)
+  return ((ckd_mul (&t, time.tv_sec, 1000000)
 	   || ckd_add (&t, t, time.tv_nsec / 1000))
 	  ? 0 : t);
 }

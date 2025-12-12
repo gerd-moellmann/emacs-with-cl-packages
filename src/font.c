@@ -2497,6 +2497,8 @@ font_match_p (Lisp_Object spec, Lisp_Object font)
 	      val2 = XCDR (val2);
 	      if (CONSP (val2))
 		{
+		  if (! FONT_OBJECT_P (font))
+		    return 0;
 		  /* All characters in the list must be supported.  */
 		  for (; CONSP (val2); val2 = XCDR (val2))
 		    {
@@ -2509,6 +2511,8 @@ font_match_p (Lisp_Object spec, Lisp_Object font)
 		}
 	      else if (VECTORP (val2))
 		{
+		  if (! FONT_OBJECT_P (font))
+		    return 0;
 		  /* At most one character in the vector must be supported.  */
 		  for (i = 0; i < ASIZE (val2); i++)
 		    {
@@ -4395,12 +4399,15 @@ See also `font-get' for KEYs that have special meanings.  */)
 }
 
 DEFUN ("list-fonts", Flist_fonts, Slist_fonts, 1, 4, 0,
-       doc: /* List available fonts matching FONT-SPEC on the current frame.
-Optional 2nd argument FRAME specifies the target frame.
+       doc: /* List available fonts matching FONT-SPEC on FRAME.
+If FRAME is nil or omitted, it defaults to the selected frame,
 Optional 3rd argument NUM, if non-nil, limits the number of returned fonts.
 Optional 4th argument PREFER, if non-nil, is a font-spec to
 control the order of the returned list.  Fonts are sorted by
-how close they are to PREFER.  */)
+how close they are to PREFER.
+
+The return value is a list of font-entity objects describing available
+fonts which match FONT-SPEC.  */)
   (Lisp_Object font_spec, Lisp_Object frame, Lisp_Object num, Lisp_Object prefer)
 {
   struct frame *f = decode_live_frame (frame);

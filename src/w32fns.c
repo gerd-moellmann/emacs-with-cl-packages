@@ -180,11 +180,6 @@ struct MONITOR_INFO_EX
     char    szDevice[CCHDEVICENAME];
 };
 
-/* Reportedly, MSVC does not have this in its headers.  */
-#if defined (_MSC_VER) && _WIN32_WINNT < 0x0500
-DECLARE_HANDLE(HMONITOR);
-#endif
-
 typedef BOOL (WINAPI * TrackMouseEvent_Proc)
   (IN OUT LPTRACKMOUSEEVENT lpEventTrack);
 typedef LONG (WINAPI * ImmGetCompositionString_Proc)
@@ -2440,6 +2435,8 @@ w32_applytheme (HWND hwnd)
 				    &w32_darkmode, sizeof (w32_darkmode));
 	}
     }
+  WPARAM dark_mode_p = w32_darkmode ? 1 : 0;
+  PostThreadMessage (dwMainThreadId, WM_EMACS_SET_TOOLKIT_THEME, dark_mode_p, 0);
 }
 
 static HWND
@@ -3645,6 +3642,7 @@ w32_name_of_message (UINT msg)
       M (WM_CHAR),
       M (WM_EMACS_DRAGOVER),
       M (WM_EMACS_DROP),
+      M (WM_EMACS_SET_TOOLKIT_THEME),
 #undef M
       { 0, 0 }
   };
@@ -10337,8 +10335,8 @@ typedef struct MY_NOTIFYICONDATAW {
 #endif
 
 
-#define EMACS_TRAY_NOTIFICATION_ID  42	/* arbitrary */
-#define EMACS_NOTIFICATION_MSG      (WM_APP + 1)
+#define EMACS_TRAY_NOTIFICATION_ID_INIT  42	/* arbitrary */
+#define EMACS_NOTIFICATION_MSG           (WM_APP + 1)
 
 enum NI_Severity {
   Ni_None,
@@ -10403,14 +10401,16 @@ utf8_mbslen_lim (const char *str, int lim)
   return mblen;
 }
 
+static unsigned short last_tray_notification_id;
+
 /* Low-level subroutine to show tray notifications.  All strings are
    supposed to be unibyte UTF-8 encoded by the caller.  */
-static EMACS_INT
+static int
 add_tray_notification (struct frame *f, const char *icon, const char *tip,
 		       enum NI_Severity severity, unsigned timeout,
 		       const char *title, const char *msg)
 {
-  EMACS_INT retval = EMACS_TRAY_NOTIFICATION_ID;
+  int retval = -1;
 
   if (FRAME_W32_P (f))
     {
@@ -10437,7 +10437,12 @@ add_tray_notification (struct frame *f, const char *icon, const char *tip,
       else
 	nidw.cbSize = MYNOTIFYICONDATAW_V1_SIZE;		/* < W2K */
       nidw.hWnd = FRAME_W32_WINDOW (f);
-      nidw.uID = EMACS_TRAY_NOTIFICATION_ID;
+      if (!last_tray_notification_id)
+	last_tray_notification_id = EMACS_TRAY_NOTIFICATION_ID_INIT;
+      else
+	last_tray_notification_id++;
+      retval = last_tray_notification_id;
+      nidw.uID = last_tray_notification_id;
       nidw.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP | NIF_INFO;
       nidw.uCallbackMessage = EMACS_NOTIFICATION_MSG;
       if (!*icon)
@@ -10660,16 +10665,19 @@ Note that versions of Windows before W2K support only `:icon' and `:tip'.
 You can pass the other parameters, but they will be ignored on
 those old systems.
 
-There can be at most one active notification at any given time.  An
-active notification must be removed by calling `w32-notification-close'
-before a new one can be shown.
+There can be at most one active notification at any given time per each
+Emacs frame.  An active notification must be removed by calling the
+function `w32-notification-close', with the same frame selected as the
+one which was selected when the notification was created, before a new
+one can be shown for the same frame.  The caller must track which
+notification was created from which frame, using the returned ID value.
 
 usage: (w32-notification-notify &rest PARAMS)  */)
   (ptrdiff_t nargs, Lisp_Object *args)
 {
   struct frame *f = SELECTED_FRAME ();
   Lisp_Object arg_plist, lres;
-  EMACS_INT retval;
+  int retval;
   char *icon, *tip, *title, *msg;
   enum NI_Severity severity;
   unsigned timeout = 0;
@@ -10732,7 +10740,9 @@ usage: (w32-notification-notify &rest PARAMS)  */)
 DEFUN ("w32-notification-close",
        Fw32_notification_close, Sw32_notification_close,
        1, 1, 0,
-       doc: /* Remove the MS-Windows tray notification specified by its ID.  */)
+       doc: /* Remove the MS-Windows tray notification specified by its ID.
+The frame which was selected when the notification was created must
+be selected when removing the notification.  */)
   (Lisp_Object id)
 {
   struct frame *f = SELECTED_FRAME ();
@@ -10971,6 +10981,31 @@ DEFUN ("w32-set-wallpaper", Fw32_set_wallpaper, Sw32_set_wallpaper, 1, 1, 0,
 
   return Qnil;
 }
+
+/* Return time in milliseconds since the last input event.  */
+typedef BOOL (WINAPI *GetLastInputInfo_Proc) (PLASTINPUTINFO);
+static GetLastInputInfo_Proc get_last_input_info_fn = NULL;
+
+DEFUN ("w32-system-idle-time", Fw32_system_idle_time, Sw32_system_idle_time,
+       0, 0, 0,
+       doc: /* Return the time in milliseconds since last system-wide input event.
+
+Return -1 if the required system API is not available or fails.  */)
+  (void)
+{
+  LASTINPUTINFO info;
+  info.cbSize = sizeof info;
+
+  if (get_last_input_info_fn && get_last_input_info_fn (&info))
+    {
+      DWORD time_since_last_input = GetTickCount () - info.dwTime;
+      if (time_since_last_input > EMACS_INT_MAX)
+	return Vmost_positive_fixnum;
+      return make_fixnum (time_since_last_input);
+    }
+  return make_fixnum (-1);
+}
+
 #endif
 
 /***********************************************************************
@@ -11455,6 +11490,7 @@ keys when IME input is received.  */);
 #ifdef WINDOWSNT
   defsubr (&Ssystem_move_file_to_trash);
   defsubr (&Sw32_set_wallpaper);
+  defsubr (&Sw32_system_idle_time);
 #endif
 
   DEFSYM (Qnot_useful, "not-useful");
@@ -11752,6 +11788,8 @@ globals_of_w32fns (void)
 #ifndef CYGWIN
   system_parameters_info_w_fn = (SystemParametersInfoW_Proc)
     get_proc_addr (user32_lib, "SystemParametersInfoW");
+  get_last_input_info_fn = (GetLastInputInfo_Proc)
+    get_proc_addr (user32_lib, "GetLastInputInfo");
 #endif
   RegisterTouchWindow_fn
     = (RegisterTouchWindow_proc) get_proc_addr (user32_lib,

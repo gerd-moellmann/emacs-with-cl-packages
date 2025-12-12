@@ -493,7 +493,7 @@ there (in decreasing order of priority)."
 	   (setq parms (append initial-frame-alist window-system-frame-alist
 			       default-frame-alist parms nil))
 	   ;; Don't enable tab-bar in daemon's initial frame.
-	   (when (and (daemonp) (not (frame-parameter nil 'client)))
+	   (when (and (daemonp) (eq (selected-frame) terminal-frame))
 	     (setq parms (delq (assq 'tab-bar-lines parms) parms)))
 	   parms))
 	(if (null initial-window-system) ;; MS-DOS does this differently in pc-win.el
@@ -1116,6 +1116,34 @@ current buffer even if it is hidden."
 
     (normal-erase-is-backspace-setup-frame frame)
 
+    (when (window-system frame)
+      ;; On a window-system frame apply buffer-local values for the
+      ;; fringes, scroll bars and margins of root and minibuffer window
+      ;; of the new frame.  The 'frame-creation-function' above could
+      ;; not do that since the frame did not exist yet at the time the
+      ;; buffers for these windows were set (Bug#79606).
+      (let* ((root (frame-root-window frame))
+	     (buffer (window-buffer root)))
+	(with-current-buffer buffer
+	  (set-window-fringes
+	   root left-fringe-width right-fringe-width fringes-outside-margins)
+	  (set-window-scroll-bars
+	   root scroll-bar-width vertical-scroll-bar
+	   scroll-bar-height horizontal-scroll-bar)
+	  (set-window-margins
+	   root left-margin-width right-margin-width)))
+      (let* ((mini (minibuffer-window frame))
+	     (buffer (window-buffer mini)))
+	(when (eq (window-frame mini) frame)
+	  (with-current-buffer buffer
+	    (set-window-fringes
+	     mini left-fringe-width right-fringe-width fringes-outside-margins)
+	    (set-window-scroll-bars
+	     mini scroll-bar-width vertical-scroll-bar
+	     scroll-bar-height horizontal-scroll-bar)
+	    (set-window-margins
+	     mini left-margin-width right-margin-width)))))
+
     ;; We can run `window-configuration-change-hook' for this frame now.
     (frame-after-make-frame frame t)
     (run-hook-with-args 'after-make-frame-functions frame)
@@ -1499,6 +1527,12 @@ the `background-mode' terminal parameter."
 ;;                         :foreground (face-attribute 'default :background)
 ;;                         :background (face-attribute 'default :foreground))
 ;;     (frame-set-background-mode (selected-frame))))
+
+(defvar toolkit-theme-set-functions nil
+  "Abnormal hook run when the system theme is applied to Emacs.
+Functions on this hook are called with the theme name as a symbol:
+`light' or `dark'.  By the time the hook is called, `toolkit-theme' will
+already be set to one of these values as well.")
 
 
 ;;;; Frame configurations
@@ -2883,7 +2917,10 @@ deleting them."
         (if iconify (iconify-frame this) (delete-frame this))))
     ;; In a second round consider all remaining frames.
     (dolist (this frames)
-      (unless (or (eq this frame)
+      ;; We did not recalculate FRAMES so make sure THIS is still a live
+      ;; frame since otherwise 'frame-terminal' will throw an error.
+      (unless (or (not (frame-live-p this))
+                  (eq this frame)
 		  (eq this minibuffer-frame)
 		  (not (eq (frame-terminal this) terminal))
                   ;; When FRAME is a child frame, delete its siblings

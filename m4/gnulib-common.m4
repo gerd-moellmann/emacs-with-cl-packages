@@ -1,5 +1,5 @@
 # gnulib-common.m4
-# serial 113
+# serial 114
 dnl Copyright (C) 2007-2025 Free Software Foundation, Inc.
 dnl This file is free software; the Free Software Foundation
 dnl gives unlimited permission to copy and/or distribute it,
@@ -168,7 +168,7 @@ AC_DEFUN([gl_COMMON_BODY], [
       ======================================================================
       This gives a syntax error
         - in C mode with gcc
-          <https://gcc.gnu.org/bugzilla/show_bug.cgi?id=108796>, and
+          <https://gcc.gnu.org/PR108796>, and
         - in C++ mode with clang++ version < 16, and
         - in C++ mode, inside extern "C" {}, still in newer clang++ versions
           <https://github.com/llvm/llvm-project/issues/101990>.
@@ -451,7 +451,7 @@ AC_DEFUN([gl_COMMON_BODY], [
    yet.  */
 #ifndef _GL_ATTRIBUTE_DEALLOC_FREE
 # if defined __cplusplus && defined __GNUC__ && !defined __clang__
-/* Work around GCC bug <https://gcc.gnu.org/bugzilla/show_bug.cgi?id=108231> */
+/* Work around GCC bug <https://gcc.gnu.org/PR108231> */
 #  define _GL_ATTRIBUTE_DEALLOC_FREE \
      _GL_ATTRIBUTE_DEALLOC ((void (*) (void *)) free, 1)
 # else
@@ -768,7 +768,7 @@ AC_DEFUN([gl_COMMON_BODY], [
    addressed by its arguments is the same and is updated in time for
    the rest of the program.
    This attribute is safe for a function that is effectless and idempotent; see
-   ISO C 23 § 6.7.12.7 for a definition of these terms.
+   ISO C 23 § 6.7.13.8 for a definition of these terms.
    (This attribute is looser than _GL_ATTRIBUTE_UNSEQUENCED because
    the function need not be stateless and idempotent.  It is looser
    than _GL_ATTRIBUTE_PURE because the function need not return
@@ -776,7 +776,7 @@ AC_DEFUN([gl_COMMON_BODY], [
    See also <https://www.open-std.org/jtc1/sc22/wg14/www/docs/n2956.htm> and
    <https://stackoverflow.com/questions/76847905/>.
    ATTENTION! Efforts are underway to change the meaning of this attribute.
-   See <https://www.open-std.org/jtc1/sc22/wg14/www/docs/n3424.htm>.  */
+   See <https://www.open-std.org/jtc1/sc22/wg14/www/docs/n3494.htm>.  */
 /* Applies to: functions, pointer to functions, function types.  */
 #ifndef _GL_ATTRIBUTE_REPRODUCIBLE
 /* This may be revisited when gcc and clang support [[reproducible]] or possibly
@@ -820,7 +820,7 @@ AC_DEFUN([gl_COMMON_BODY], [
    calls to the function with the same arguments, so long as the state
    addressed by its arguments is the same.
    This attribute is safe for a function that is effectless, idempotent,
-   stateless, and independent; see ISO C 23 § 6.7.12.7 for a definition of
+   stateless, and independent; see ISO C 23 § 6.7.13.8 for a definition of
    these terms.
    (This attribute is stricter than _GL_ATTRIBUTE_REPRODUCIBLE because
    the function must be stateless and independent.  It is looser than
@@ -829,7 +829,7 @@ AC_DEFUN([gl_COMMON_BODY], [
    See also <https://www.open-std.org/jtc1/sc22/wg14/www/docs/n2956.htm> and
    <https://stackoverflow.com/questions/76847905/>.
    ATTENTION! Efforts are underway to change the meaning of this attribute.
-   See <https://www.open-std.org/jtc1/sc22/wg14/www/docs/n3424.htm>.  */
+   See <https://www.open-std.org/jtc1/sc22/wg14/www/docs/n3494.htm>.  */
 /* Applies to: functions, pointer to functions, function types.  */
 #ifndef _GL_ATTRIBUTE_UNSEQUENCED
 /* This may be revisited when gcc and clang support [[unsequenced]] or possibly
@@ -1406,7 +1406,7 @@ AC_DEFUN([gl_CC_GNULIB_WARNINGS],
     dnl -Wno-type-limits                      >= 4.3          >= 3.9
     dnl -Wno-undef                            >= 3            >= 3.9
     dnl -Wno-unsuffixed-float-constants       >= 4.5
-    dnl -Wno-unused-const-variable            >= 4.4          >= 3.9
+    dnl -Wno-unused-const-variable            >= 6.1          >= 3.9
     dnl -Wno-unused-function                  >= 3            >= 3.9
     dnl -Wno-unused-parameter                 >= 3            >= 3.9
     dnl
@@ -1436,7 +1436,7 @@ AC_DEFUN([gl_CC_GNULIB_WARNINGS],
       -Wno-sign-conversion
       -Wno-type-limits
       #endif
-      #if (__GNUC__ + (__GNUC_MINOR__ >= 4) > 4 && !defined __clang__) || (__clang_major__ + (__clang_minor__ >= 9) > 3)
+      #if (__GNUC__ + (__GNUC_MINOR__ >= 1) > 6 && !defined __clang__) || (__clang_major__ + (__clang_minor__ >= 9) > 3)
       -Wno-unused-const-variable
       #endif
       #if (__GNUC__ + (__GNUC_MINOR__ >= 5) > 4 && !defined __clang__)

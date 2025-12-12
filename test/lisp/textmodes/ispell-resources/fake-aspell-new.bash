@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Presumably it is okay to use GNU Bash, because it is one of the most
+# popular shells, and even if it is not available, the calling side
+# inside Emacs knows how to handle errors gracefully.
+
 #exec aspell "$@"
 
 #rm -rf ~/lwf_mock-aspell.log
@@ -8,14 +12,13 @@
 
 #printf 'args="%s"\n' "$*" >> /tmp/lwf_mock-aspell.log || { printf "lwf:ERROR\n" ; exit 3 ; }
 
-# coproc aspell { aspell "$@" ; }
-
 if [[ "$HOME" == '' ]] ; then
-    echo "HOME is unset. Aspell usually fails in such a case\n" 1>2
+    printf "HOME is unset. Aspell usually fails in such a case\n" 1>&2
     exit 3
 fi
 
-vv=
+dictionary=UNSET
+repl=UNSET
 
 show_vv()
 {
@@ -69,6 +72,9 @@ imitate_pipe()
 
 imitate_interactive()
 {
+    : "This function is not used at the moment, but it might become
+     useful eventually, if Emacs starts supporting calling the backend
+     using the human interface, not just the pipe interface."
     exit 6
     while true ; do
 	read a
@@ -91,11 +97,24 @@ while :; do
             exit
             ;;
         -a)       # imitate REPL
-	    imitate_pipe
-	    exit
+	    repl=pipe
             ;;
+	-d)
+	    if [ "$2" ]; then
+                dictionary=$2
+		if [[ "$dictionary" == "2110001888290146229" ]] ; then exit 3 ; fi
+                shift
+            else
+                printf 'ERROR: "-d" requires an argument.' 1>&2
+		exit 1
+            fi
+	    ;;
+	-d*)
+	    dictionary=${1#-d}
+	    if [[ "$dictionary" == "2110001888290146229" ]] ; then exit 3 ; fi
+	    ;;
 	-?*)
-            printf 'WARN: Unknown option (ignored): %s\n' "$1" >&2
+	    :
 	    ;;
         *)
             break
@@ -103,6 +122,11 @@ while :; do
     shift
 done
 
-printf 'Usage: aspell [options] <command>\n'
+if [[ "$repl" == "pipe" ]] ; then
+    imitate_pipe
+else
+    printf 'Usage: aspell [options] <command>\n'
+    exit 4
+fi
 
 #printf 'this place should be unreachable\n' >> /tmp/lwf_mock-aspell.log

@@ -80,7 +80,7 @@
 
 ;;; Install treesitter language parsers
 (defvar php-ts-mode--language-source-alist
-  '((php "https://github.com/tree-sitter/tree-sitter-php"
+  `((php "https://github.com/tree-sitter/tree-sitter-php"
 	 :commit ,(if (and (treesit-available-p)
                            (< (treesit-library-abi-version) 15))
                       "f7cf7348737d8cff1b13407a0bfedce02ee7b046"
@@ -888,31 +888,29 @@ characters of the current line."
   "Return t if the operator '|>' is defined, nil otherwise."
   (treesit-query-valid-p 'php '("|>")))
 
-(defvar php-ts-mode--keywords
-  (when (treesit-available-p)
-    (append
-     '("abstract" "and" "array" "as" "break" "case" "catch"
-       "class" "clone" "const" "continue" "declare" "default" "do" "echo"
-       "else" "elseif" "enddeclare" "endfor" "endforeach" "endif"
-       "endswitch" "endwhile" "enum" "exit" "extends" "final" "finally" "fn"
-       "for" "foreach" "function" "global" "goto" "if" "implements"
-       "include" "include_once" "instanceof" "insteadof" "interface"
-       "list" "match" "namespace" "new" "null" "or" "print" "private"
-       "protected" "public" "readonly" "require" "require_once" "return"
-       "static" "switch" "throw" "trait" "try" "unset" "use" "while" "xor"
-       "yield")
-     (if (php-ts-mode--test-yield-from-p) '("yield from") '("from"))))
-  "PHP keywords for tree-sitter font-locking.")
+(defun php-ts-mode--keywords ()
+  "PHP keywords for tree-sitter font-locking."
+  (append
+   '("abstract" "and" "array" "as" "break" "case" "catch"
+     "class" "clone" "const" "continue" "declare" "default" "do" "echo"
+     "else" "elseif" "enddeclare" "endfor" "endforeach" "endif"
+     "endswitch" "endwhile" "enum" "exit" "extends" "final" "finally" "fn"
+     "for" "foreach" "function" "global" "goto" "if" "implements"
+     "include" "include_once" "instanceof" "insteadof" "interface"
+     "list" "match" "namespace" "new" "null" "or" "print" "private"
+     "protected" "public" "readonly" "require" "require_once" "return"
+     "static" "switch" "throw" "trait" "try" "unset" "use" "while" "xor"
+     "yield")
+   (if (php-ts-mode--test-yield-from-p) '("yield from") '("from"))))
 
-(defvar php-ts-mode--operators
-  (when (treesit-available-p)
-    (append
-     '("--" "**=" "*=" "/=" "%=" "+=" "-=" ".=" "<<=" ">>=" "&=" "^="
-       "|=" "??"  "??=" "||" "&&" "|" "^" "&" "==" "!=" "<>" "===" "!=="
-       "<" ">" "<=" ">=" "<=>" "<<" ">>" "+" "-" "." "*" "**" "/" "%"
-       "->" "?->" "...")
-     (when (php-ts-mode--test-pipe-p) '("|>"))))
-  "PHP operators for tree-sitter font-locking.")
+(defun php-ts-mode--operators ()
+  "PHP operators for tree-sitter font-locking."
+  (append
+   '("--" "**=" "*=" "/=" "%=" "+=" "-=" ".=" "<<=" ">>=" "&=" "^="
+     "|=" "??"  "??=" "||" "&&" "|" "^" "&" "==" "!=" "<>" "===" "!=="
+     "<" ">" "<=" ">=" "<=>" "<<" ">>" "+" "-" "." "*" "**" "/" "%"
+     "->" "?->" "...")
+   (when (php-ts-mode--test-pipe-p) '("|>"))))
 
 (defconst php-ts-mode--predefined-constant
   '(;; predefined constant
@@ -958,13 +956,13 @@ characters of the current line."
   "Value for `prettify-symbols-alist' in `php-ts-mode'.")
 
 (defun php-ts-mode--font-lock-settings ()
-  "Tree-sitter font-lock settings."
+  "Return tree-sitter font-lock settings for `php-ts-mode'."
   (treesit-font-lock-rules
 
    :language 'php
    :feature 'keyword
    :override t
-   `([,@php-ts-mode--keywords] @font-lock-keyword-face
+   `([,@(php-ts-mode--keywords)] @font-lock-keyword-face
      ,@(when (php-ts-mode--test-visibility-modifier-operation-p)
 	 '((visibility_modifier (operation) @font-lock-builtin-face)))
      (var_modifier) @font-lock-builtin-face)
@@ -1003,7 +1001,7 @@ characters of the current line."
    :language 'php
    :feature 'operator
    `((error_suppression_expression "@" @font-lock-keyword-face)
-     [,@php-ts-mode--operators] @font-lock-operator-face)
+     [,@(php-ts-mode--operators)] @font-lock-operator-face)
 
    :language 'php
    :feature 'variable-name
@@ -1167,7 +1165,9 @@ characters of the current line."
 
 ;;; Font-lock helpers
 
-(defconst php-ts-mode--custom-html-font-lock-settings
+(defun php-ts-mode--custom-html-font-lock-settings ()
+  "Tree-sitter Font-lock settings for HTML when embedded in PHP.
+Like `mhtml-ts-mode--font-lock-settings' but adapted for `php-ts-mode'."
   (treesit-replace-font-lock-feature-settings
    (treesit-font-lock-rules
     :language 'html
@@ -1176,9 +1176,7 @@ characters of the current line."
     '((comment) @font-lock-comment-face
       ;; handle shebang path and others type of comment
       (document (text) @font-lock-comment-face)))
-   mhtml-ts-mode--treesit-font-lock-settings)
-  "Tree-sitter Font-lock settings for HTML when embedded in PHP.
-Like `mhtml-ts-mode--font-lock-settings' but adapted for `php-ts-mode'.")
+   (mhtml-ts-mode--treesit-font-lock-settings)))
 
 (defvar php-ts-mode--phpdoc-font-lock-settings
   (treesit-font-lock-rules
@@ -1199,7 +1197,7 @@ Like `mhtml-ts-mode--font-lock-settings' but adapted for `php-ts-mode'.")
    :language 'phpdoc
    :feature 'attribute
    :override t
-   `((tag_name) @font-lock-constant-face
+   `((tag_name) @font-lock-doc-markup-face
      (uri) @font-lock-doc-markup-face
      (tag
       [(version) (email_address)] @font-lock-doc-markup-face)
@@ -1676,7 +1674,7 @@ If FORCE is t setup comment for PHP.  Depends on
     (setq-local treesit-font-lock-settings
 		(append
 		 (php-ts-mode--font-lock-settings)
-		 php-ts-mode--custom-html-font-lock-settings
+		 (php-ts-mode--custom-html-font-lock-settings)
 		 php-ts-mode--phpdoc-font-lock-settings))
 
     (setq-local treesit-font-lock-feature-list php-ts-mode--feature-list)
@@ -1980,7 +1978,7 @@ is t or contains the mode name."
     (fundamental-mode)))
 
 ;;;###autoload
-(when (treesit-available-p)
+(when (boundp 'treesit-major-mode-remap-alist)
   (add-to-list
    'auto-mode-alist '("\\.\\(?:php[s345]?\\|phtml\\)\\'" . php-ts-mode-maybe))
   (add-to-list
@@ -1991,7 +1989,6 @@ is t or contains the mode name."
    'interpreter-mode-alist
    (cons "php\\(?:-?[34578]\\(?:\\.[0-9]+\\)*\\)?" 'php-ts-mode-maybe))
   ;; To be able to toggle between an external package and core ts-mode:
-  (defvar treesit-major-mode-remap-alist)
   (add-to-list 'treesit-major-mode-remap-alist
                '(php-mode . php-ts-mode)))
 

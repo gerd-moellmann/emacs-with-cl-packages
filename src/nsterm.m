@@ -1637,6 +1637,7 @@ ns_free_frame_resources (struct frame *f)
 
   [[view window] close];
   [view removeFromSuperview];
+  [view release];
 
   xfree (f->output_data.ns);
   f->output_data.ns = NULL;
@@ -6844,6 +6845,14 @@ ns_create_font_panel_buttons (id target, SEL select, SEL cancel_action)
 
   if (fs_state == FULLSCREEN_BOTH)
     [nonfs_window release];
+
+#if defined (NS_IMPL_COCOA) && MAC_OS_X_VERSION_MIN_REQUIRED >= 101400
+  /* Release layer and menu */
+  EmacsLayer *layer = (EmacsLayer *)[self layer];
+  [layer release];
+#endif
+
+  [[self menu] release];
   [super dealloc];
 }
 
@@ -9554,6 +9563,14 @@ ns_in_echo_area (void)
       if ([self respondsToSelector:@selector(setTabbingMode:)])
         [self setTabbingMode:NSWindowTabbingModeDisallowed];
 #endif
+      /* Always show the toolbar below the window title.  This is needed
+	 on Mac OS 11+ where the toolbar style is decided by the system
+	 (which is unpredictable) and the newfangled "compact" toolbar
+	 may be chosen (which is undesirable).  */
+#if defined (NS_IMPL_COCOA) && MAC_OS_X_VERSION_MAX_ALLOWED >= 110000
+      if ([self respondsToSelector:@selector(setToolbarStyle:)])
+	[self setToolbarStyle: NSWindowToolbarStyleExpanded];
+#endif
     }
 
   return self;
@@ -9599,8 +9616,9 @@ ns_in_echo_area (void)
   NSTRACE ("[EmacsWindow dealloc]");
 
   /* We need to release the toolbar ourselves.  */
-  [self setToolbar: nil];
   [[self toolbar] release];
+  [self setToolbar: nil];
+
 
   /* Also the last button press event .  */
   if (last_drag_event)

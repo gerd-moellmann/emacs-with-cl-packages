@@ -591,7 +591,8 @@
   "Tree-sitter font-lock feature list.")
 
 (defvar elixir-ts--thing-settings
-  `((sexp (not (or (and named
+  `((defun ,(rx bos "call" eos))
+    (sexp (not (or (and named
                         ,(rx bos (or "source" "keywords" "comment")
                              eos))
                    (and anonymous
@@ -798,7 +799,8 @@ Return nil if NODE is not a defun node or doesn't have a name."
                 treesit-sexp-thing 'sexp
                 ;; But still use 'list' for `down-list' and `up-list'
                 treesit-sexp-thing-down-list 'list
-                treesit-sexp-thing-up-list 'list)))
+                treesit-sexp-thing-up-list 'list
+                hs-treesit-things '(or defun sexp))))
 
 (derived-mode-add-parents 'elixir-ts-mode '(elixir-mode))
 
@@ -815,13 +817,12 @@ is t or contains the mode name."
     (fundamental-mode)))
 
 ;;;###autoload
-(when (treesit-available-p)
+(when (boundp 'treesit-major-mode-remap-alist)
   (add-to-list 'auto-mode-alist '("\\.elixir\\'" . elixir-ts-mode-maybe))
   (add-to-list 'auto-mode-alist '("\\.ex\\'" . elixir-ts-mode-maybe))
   (add-to-list 'auto-mode-alist '("\\.exs\\'" . elixir-ts-mode-maybe))
   (add-to-list 'auto-mode-alist '("mix\\.lock" . elixir-ts-mode-maybe))
   ;; To be able to toggle between an external package and core ts-mode:
-  (defvar treesit-major-mode-remap-alist)
   (add-to-list 'treesit-major-mode-remap-alist
                '(elixir-mode . elixir-ts-mode)))
 

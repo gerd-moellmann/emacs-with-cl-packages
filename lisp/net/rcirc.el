@@ -3103,7 +3103,11 @@ indicated by RESPONSE)."
                       (#x1f 'underline)
                       (#x1e '(:strike-through t))
                       (#x11 'rcirc-monospace-text)))
-    (goto-char (1+ (match-beginning 0)))))
+    (goto-char (match-beginning 0))
+    (forward-char)
+    (unless (eq (char-before (match-end 2)) ?\C-o)
+      (delete-region (match-beginning 2) (match-end 2)))
+    (delete-region (match-beginning 1) (match-end 1))))
 
 (defconst rcirc-color-codes
   ;; Taken from https://modern.ircdocs.horse/formatting.html
@@ -3144,8 +3148,8 @@ indicated by RESPONSE)."
                   ((<= 0 bg (1- (length rcirc-color-codes)))))
         (setq background (aref rcirc-color-codes bg)))
       (rcirc-add-face (match-beginning 0) (match-end 0)
-                      `(face (,@(and foreground (list :foreground foreground))
-                              ,@(and background (list :background background))))))))
+                      (append (and foreground (list :foreground foreground))
+                              (and background (list :background background)))))))
 
 (defun rcirc-remove-markup-codes (_sender _response)
   "Remove ASCII control codes used to designate markup."
