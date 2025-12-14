@@ -18,8 +18,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 
 // clang-format on
 
-#define IGC_PARK_IN_BATCH_MODE 1
-
 /* For an introduction, see the files README-IGC and admin/igc.org.  */
 
 #include <config.h>
@@ -4510,11 +4508,6 @@ alloc_multi (ptrdiff_t count, mps_addr_t ret[count],
     }
 }
 
-#ifdef IGC_PARK_IN_BATCH_MODE
-static size_t batch_allocated_bytes = 0;
-static const size_t batch_allocation_threshold = 1024 * 1024 * 1024;
-#endif
-
 /* Allocate an object of client size SIZE and of type TYPE from
    allocation point AP.  Value is a pointer to the new object.  */
 
@@ -4541,10 +4534,12 @@ alloc_impl (size_t size, enum igc_obj_type type, mps_ap_t ap)
 #ifdef IGC_PARK_IN_BATCH_MODE
       if (noninteractive)
 	{
-	  batch_allocated_bytes += size;
-	  if (batch_allocated_bytes > batch_allocation_threshold)
+	  static size_t allocated = 0;
+	  static const size_t limit = 1024 * 1024 * 1024;
+	  allocated += size;
+	  if (allocated > limit)
 	    {
-	      batch_allocated_bytes = 0;
+	      allocated = 0;
 	      arena_release (global_igc);
 	      igc_collect (false);
 	      arena_park (global_igc);
