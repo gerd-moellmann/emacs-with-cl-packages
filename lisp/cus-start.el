@@ -1146,6 +1146,9 @@ since it could result in memory overflow and make Emacs crash."
 		   (fboundp 'x-selection-exists-p))
 		  ((string-search "fringe" sym-name)
 		   (boundp 'fringe-bitmaps))
+                  ;; imagemagic-types is a function defined in C that
+                  ;; is also defined if HAVE_MACGUI, even if imagemagic
+                  ;; is not otherwise used. Don't check in that case.
 		  ((string-prefix-p "imagemagick" sym-name)
                    (and (not (featurep 'mac))
 		        (fboundp 'imagemagick-types)))
