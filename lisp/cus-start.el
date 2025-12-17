@@ -1147,7 +1147,8 @@ since it could result in memory overflow and make Emacs crash."
 		  ((string-search "fringe" sym-name)
 		   (boundp 'fringe-bitmaps))
 		  ((string-prefix-p "imagemagick" sym-name)
-		   (fboundp 'imagemagick-types))
+                   (and (not (featurep 'mac))
+		        (fboundp 'imagemagick-types)))
 		  ((eq symbol 'font-use-system-font)
 		   (featurep 'system-font-setting))
 		  ;; Conditioned on x-create-frame, because that's
