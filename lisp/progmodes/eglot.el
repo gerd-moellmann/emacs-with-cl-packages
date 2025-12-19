@@ -2355,7 +2355,9 @@ diagnostics, used for incremental updates.")
   (when revert-buffer-preserve-modes
     (eglot--signal-textDocument/didOpen)
     (when eglot-semantic-tokens-mode
-      (eglot-semantic-tokens-mode))))
+      (trace-values "OH YEAH!?")
+      (eglot-semantic-tokens-mode))
+    ))
 
 (defun eglot--maybe-activate-editing-mode ()
   "Maybe activate `eglot--managed-mode'.
@@ -4320,82 +4322,99 @@ at point.  With prefix argument, prompt for ACTION-KIND."
 (defvar eglot-watch-files-outside-project-root t
   "If non-nil, allow watching files outside project root")
 
-(defun eglot--watch-glob (server id pat kind &optional base-path)
-  "Set up file watching for files matching PAT under BASEPATH.
-PAT is a glob pattern, KIND is a bitmask of change types,
-BASEPATH is the directory to watch (nil means entire project).
-Returns success status for SERVER and registration ID."
-  (let* ((project (eglot--project server))
-         (dirs (delete-dups
-                (mapcar #'file-name-directory
-                        (project-files project (and base-path
-                                                    (list base-path))))))
-         (success nil)
-         (compiled (eglot--glob-compile pat t t)))
-    (cl-labels
-        ((handle-event (event)
-           (pcase-let* ((`(,desc ,action ,file ,file1) event)
-                        (action-type (cl-case action
-                                       (created 1) (changed 2) (deleted 3)))
-                        (action-bit (when action-type
-                                      (ash 1 (1- action-type)))))
-             (cond
-              ((and (memq action '(created changed deleted))
-                    (> (logand kind action-bit) 0)
-                    (funcall compiled
-                             (if base-path
-                                 (file-relative-name file base-path)
-                               file)))
-               (jsonrpc-notify
-                server :workspace/didChangeWatchedFiles
-                `(:changes ,(vector `(:uri ,(eglot-path-to-uri file)
-                                           :type ,action-type))))
-               (when (and (eq action 'created)
-                          (file-directory-p file))
-                 (add-watch file)))
-              ((eq action 'renamed)
-               (handle-event `(,desc deleted ,file))
-               (handle-event `(,desc created ,file1))))))
-         (add-watch (dir)
-           (when (file-readable-p dir)
-             (push (file-notify-add-watch dir '(change) #'handle-event)
-                   (gethash id (eglot--file-watches server))))))
+(cl-defun eglot--watch-globs (server id globs dir in-root
+                                     &aux (project (eglot--project server))
+                                     success)
+  "Set up file watching for relative file names matching GLOBS under DIR.
+GLOBS is a list of (COMPILED-GLOB . KIND) pairs, where COMPILED-GLOB is
+a compiled glob predicate and KIND is a bitmask of change types.  DIR is
+the directory to watch (nil means entire project).  IN-ROOT says if DIR
+happens to be inside or maching the project root."
+  (cl-labels
+      ((subdirs-using-project ()
+         (delete-dups
+          (mapcar #'file-name-directory
+                  (project-files project (and dir (list dir))))))
+       (subdirs-using-find ()
+         (with-temp-buffer
+           (call-process find-program nil t nil dir "-type" "d" "-print0")
+           (cl-loop initially (goto-char (point-min))
+                    for start = (point) while (search-forward "\0" nil t)
+                    collect (expand-file-name
+                             (buffer-substring-no-properties start (1- (point)))
+                             dir))))
+       (handle-event (event)
+         (pcase-let* ((`(,desc ,action ,file ,file1) event)
+                      (action-type (cl-case action
+                                     (created 1) (changed 2) (deleted 3)))
+                      (action-bit (when action-type
+                                    (ash 1 (1- action-type))))
+                      (candidate (if dir (file-relative-name file dir) file)))
+           (cond
+            ((and (memq action '(created changed deleted))
+                  (cl-loop for (compiled . kind) in globs
+                           thereis (and (> (logand kind action-bit) 0)
+                                        (funcall compiled candidate))))
+             (jsonrpc-notify
+              server :workspace/didChangeWatchedFiles
+              `(:changes ,(vector `(:uri ,(eglot-path-to-uri file)
+                                         :type ,action-type))))
+             (when (and (eq action 'created)
+                        (file-directory-p file))
+               (add-watch file)))
+            ((eq action 'renamed)
+             (handle-event `(,desc deleted ,file))
+             (handle-event `(,desc created ,file1))))))
+       (add-watch (subdir)
+         (when (file-readable-p subdir)
+           (push (file-notify-add-watch subdir '(change) #'handle-event)
+                 (gethash id (eglot--file-watches server))))))
+    (let ((subdirs (if (or (null dir) in-root)
+                       (subdirs-using-project)
+                     (condition-case _ (subdirs-using-find)
+                       (error (subdirs-using-project))))))
       (unwind-protect
-          (dolist (d dirs)
-            (add-watch d)
-            (setq success t))
+          (cl-loop for sd in subdirs do (add-watch sd) finally (setq success t))
         (unless success
-          (eglot-unregister-capability server 'workspace/didChangeWatchedFiles id))))
-    success))
+          (eglot-unregister-capability server 'workspace/didChangeWatchedFiles id))))))
 
 (cl-defmethod eglot-register-capability
   (server (method (eql workspace/didChangeWatchedFiles)) id &key watchers
           &aux (root (project-root (eglot--project server))))
   "Handle dynamic registration of workspace/didChangeWatchedFiles."
   (eglot-unregister-capability server method id)
-  (mapc
-   (eglot--lambda ((FileSystemWatcher) ((:globPattern pat)) kind)
-     (pcase-let*
-         ((`(,pat ,base-uri)
-           (if (consp pat)
-               (list (plist-get pat :pattern)
-                     (plist-get pat :baseUri))
-             (list pat nil)))
-          (base-path
-           (when base-uri
-             (if (stringp base-uri)
-                 (eglot-uri-to-path base-uri)
-               (eglot-uri-to-path (plist-get base-uri :uri))))))
-       (when (or eglot-watch-files-outside-project-root
-                 (null base-path)
-                 (file-in-directory-p base-path root))
-         (eglot--watch-glob server id pat
-                            ;; the default "7" means bitwise OR of
-                            ;; WatchKind.Create (1), WatchKind.Change
-                            ;; (2), WatchKind.Delete (4)
-                            (or kind 7)
-                            base-path))))
-   watchers))
+  (let ((groups (make-hash-table :test 'equal)))
+    ;; Parse, compile, and group by base-path
+    (mapc
+     (eglot--lambda ((FileSystemWatcher) ((:globPattern pat)) kind)
+       (pcase-let*
+           ((`(,pat ,base-uri)
+             (if (consp pat)
+                 (list (plist-get pat :pattern)
+                       (plist-get pat :baseUri))
+               (list pat nil)))
+            (base-path
+             (when base-uri
+               (if (stringp base-uri)
+                   (eglot-uri-to-path base-uri)
+                 (eglot-uri-to-path (plist-get base-uri :uri)))))
+            (in-root (or (null base-path)
+                         (file-in-directory-p base-path root))))
+         (when (or eglot-watch-files-outside-project-root
+                   (null base-path)
+                   in-root)
+           (push (cons (eglot--glob-compile pat t t)
+                       ;; the default "7" means bitwise OR of
+                       ;; WatchKind.Create (1), WatchKind.Change
+                       ;; (2), WatchKind.Delete (4)
+                       (or kind 7))
+                 (gethash (cons base-path in-root) groups)))))
+     watchers)
+    ;; For each group, set up watches
+    (maphash
+     (lambda (base-path globs)
+       (eglot--watch-globs server id globs (car base-path) (cdr base-path)))
+     groups)))
 
 (cl-defmethod eglot-unregister-capability
   (server (_method (eql workspace/didChangeWatchedFiles)) id)
@@ -4661,7 +4680,7 @@ If NOERROR, return predicate, else erroring function."
 ;;; Semantic tokens
 (defmacro eglot--semtok-define-things ()
   (cl-flet ((def-it (name def)
-              `(defface ,(intern (format "eglot-semantic-%s-face" name))
+              `(defface ,(intern (format "eglot-semantic-%s" name))
                  '((t (:inherit ,def)))
                  ,(format "Face for painting a `%s' LSP semantic token" name)
                  :group 'eglot-semantic-fontification)))
@@ -4699,10 +4718,10 @@ If NOERROR, return predicate, else erroring function."
               when (cl-plusp (logand (cdr tok) (ash 1 j)))
                 collect m into names
                 and when (member m eglot-semantic-token-modifiers)
-                  collect (intern (format "eglot-semantic-%s-face" m)) into faces
+                  collect (intern (format "eglot-semantic-%s" m)) into faces
               finally
               (when (member tname eglot-semantic-token-types)
-                (push (intern (format "eglot-semantic-%s-face" tname)) faces))
+                (push (intern (format "eglot-semantic-%s" tname)) faces))
               (cl-return (cons (cons tname names) faces))))
            semtok-cache)
         probe))))

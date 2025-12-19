@@ -1533,7 +1533,26 @@ This user option controls the width of the type column on the bookmark
 menu 'bookmark-bmenu-list'.  The default value is 8 which is backwards
 compatible.
 
+---
+*** New hook 'bookmark-after-load-file-hook'.
+This hook is run by 'bookmark-load' after loading a bookmark file.  This
+hook can be used, for example, to reconcile 'bookmark-alist' against
+bookmark state that you, or a package that you use, maintains.
+
 ** Recentf
+
+---
+*** You can now regularly auto-save recently opened files.
+Customize user option 'recentf-autosave-interval' to the number of
+seconds between auto saving recently opened files.  For example,
+customize this variable to 300 to save recently opened files every 5
+minutes.  From Lisp, use 'setopt' not 'setq'.
+
+If 'recentf-autosave-interval' is nil, auto saving is disabled; this is
+the default.
+
+This user option is in sympathy with save-place, and savehist autosave
+timers.
 
 ---
 *** New user option 'recentf-show-messages'.
@@ -1554,18 +1573,16 @@ option is nil.
 ---
 *** You can now regularly auto-save places.
 Customize user option 'save-place-autosave-interval' to the number of
-seconds between auto saving places.  For example, to save places every 5
-minutes:
-
-    M-x customize-option RET save-place-autosave-interval RET 300
-
-Or in Elisp:
-
-    (setopt save-place-autosave-interval (* 60 5))
+seconds between auto saving places.  For example, customize this
+variable to 300 to save places every 5 minutes.  From Lisp, use 'setopt'
+not 'setq'.
 
 If 'save-place-autosave-interval' is nil, auto saving is disabled; this
-is the default.  As before, saved places are scheduled to be saved at
-Emacs exit.
+is the default.
+
+This user option is in sympathy with recentf, and savehist autosave
+timers.
+
 
 ** Savehist
 
@@ -2484,6 +2501,13 @@ Previously, Emacs would simply refuse to make any changes.
 You can customize 'vc-dir-allow-mass-mark-changes' to restore the old
 behavior or dispense with the prompting.
 
++++
+*** 'C-x v x' and VC Directory's 'd' command can now delete unregistered files.
+Previously, these commands could only delete registered files.
+To restore the old, more limited behavior for VC Directory, you can do
+
+    (keymap-set vc-dir-mode-map "d" #'vc-dir-clean-files)
+
 ---
 *** New VC Directory bindings 'z d' and 'D' to delete Git stashes.
 These correspond to the existing 'z p' to pop a stash and 'P' to pop the
@@ -2624,6 +2648,16 @@ You can get back the old behavior with something like this:
       (keymap-set log-view-mode-map "m" #'log-view-toggle-mark-entry))
 
 In addition, a new command 'U' removes all marks.
+
++++
+*** New commands 'M-RET', 'M-p' and 'M-n' in Log View mode.
+'M-RET' expands the current entry, if relevant, and displays its diff in
+another window.  'M-p' and 'M-n' move to the previous and next entries,
+respectively, expand them if relevant, and display their diffs.
+
+You can use these three commands together to more easily view all the
+log entries and diffs of a series of revisions: use 'M-RET' on the first
+revision, then either 'M-n' or 'M-p' repeatedly to view the others.
 
 +++
 *** New command 'w' in Log View mode.

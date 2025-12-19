@@ -685,7 +685,8 @@ See `project-vc-extra-root-markers' for the marker value format.")
            (backend (cadr project)))
        (when backend
          (require (intern (concat "vc-" (downcase (symbol-name backend))))))
-       (if (file-in-directory-p dir (nth 2 project))
+       (if (and backend
+                (file-in-directory-p dir (nth 2 project)))
            (condition-case nil
                (project--vc-list-files dir backend ignores)
              (vc-not-supported
@@ -707,6 +708,10 @@ See `project-vc-extra-root-markers' for the marker value format.")
 
 (defun vc-git-project-list-files (dir extra-ignores)
   (defvar vc-git-use-literal-pathspecs)
+  (or
+   (not extra-ignores)
+   (version<= "2.13" (vc-git--program-version))
+   (signal 'vc-not-supported "Need newer Git to use negative pathspec like we do"))
   (let* ((default-directory (expand-file-name (file-name-as-directory dir)))
          (args '("-z" "-c" "--exclude-standard"))
          (vc-git-use-literal-pathspecs nil)
