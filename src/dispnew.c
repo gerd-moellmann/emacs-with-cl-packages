@@ -3650,13 +3650,41 @@ neutralize_wide_char (struct frame *root, struct glyph_row *row, int x)
     }
 }
 
-/* Produce glyphs for box character BOX in ROW.  X is the position in
-   ROW where to start producing glyphs.  N is the number of glyphs to
-   produce.  CHILD is the frame to use for the face of the glyphs.  */
+/* Fill *G with the code and face for box character BOX on frame F
+   Value is true if a standard display table entry for BOX exists.  */
+
+static bool
+box_from_display_table (struct frame *f, enum box box, GLYPH *g)
+{
+  if (DISP_TABLE_P (Vstandard_display_table))
+    {
+      struct Lisp_Char_Table *dp = XCHAR_TABLE (Vstandard_display_table);
+      Lisp_Object gc = dp->extras[box];
+      if (GLYPH_CODE_P (gc))
+	{
+	  SET_GLYPH_FROM_GLYPH_CODE (*g, gc);
+	  int lface_id = GLYPH_FACE (*g);
+	  int face_id;
+	  /* If the display-table entry specifies a face, merge that
+	     with the default face because that is what all other such
+	     places do.  The window being used here when merging faces
+	     in this case basically only stands for its frame.  */
+	  if (lface_id > 0)
+	    face_id = merge_faces (XWINDOW (f->root_window), Qt,
+				   lface_id, DEFAULT_FACE_ID);
+	  else
+	    face_id = lookup_basic_face (NULL, f, BORDER_FACE_ID);
+	  SET_GLYPH_FACE (*g, face_id);
+	  return true;
+	}
+    }
+  return false;
+}
+
+/* Fill *G with the default code and face for box BOX on frame F.  */
 
 static void
-produce_box_glyphs (enum box box, struct glyph_row *row, int x, int n,
-		    struct frame *child)
+box_default (struct frame *f, enum box box, GLYPH *g)
 {
   int dflt;
   switch (box)
@@ -3669,7 +3697,7 @@ produce_box_glyphs (enum box box, struct glyph_row *row, int x, int n,
       break;
     case BOX_DOWN_RIGHT:
     case BOX_DOWN_LEFT:
-    case BOX_UP_RIGHT:
+	case BOX_UP_RIGHT:
     case BOX_UP_LEFT:
       dflt = '+';
       break;
@@ -3682,22 +3710,30 @@ produce_box_glyphs (enum box box, struct glyph_row *row, int x, int n,
       emacs_abort ();
     }
 
-  /* FIXME/tty: some face for the border.  */
-  int face_id = BORDER_FACE_ID;
+  int face_id = lookup_basic_face (NULL, f, BORDER_FACE_ID);
+  SET_GLYPH (*g, dflt, face_id);
+}
+
+/* Return the glyph for displaying BOX on frame F.  */
+
+static GLYPH
+box_glyph (struct frame *f, enum box box)
+{
   GLYPH g;
-  SET_GLYPH (g, dflt, face_id);
+  if (!box_from_display_table (f, box, &g))
+    box_default (f, box, &g);
+  return g;
+}
 
-  if (DISP_TABLE_P (Vstandard_display_table))
-    {
-      struct Lisp_Char_Table *dp = XCHAR_TABLE (Vstandard_display_table);
-      Lisp_Object gc = dp->extras[box];
-      if (GLYPH_CODE_P (gc))
-	{
-	  SET_GLYPH_FROM_GLYPH_CODE (g, gc);
-	  /* Sorry, but I really don't care if the glyph has a face :-).  */
-	}
-    }
+/* Produce glyphs for box character BOX in ROW.  X is the position in
+   ROW where to start producing glyphs.  N is the number of glyphs to
+   produce.  CHILD is the frame to use for the face of the glyphs.  */
 
+static void
+produce_box_glyphs (enum box box, struct glyph_row *row, int x, int n,
+		    struct frame *child)
+{
+  GLYPH g = box_glyph (child, box);;
   struct glyph *glyph = row->glyphs[0] + x;
   for (int i = 0; i < n; ++i, ++glyph)
     {
