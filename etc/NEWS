@@ -465,6 +465,13 @@ either resize the frame and change the fullscreen status accordingly or
 keep the frame size unchanged.  The value t means to first reset the
 fullscreen status and then resize the frame.
 
+*** New commands to set frame size and position in one compound step.
+'set-frame-size-and-position' sets the new size and position of a frame
+in one compound step.  Both, size and position, can be specified as with
+the corresponding frame parameters 'width', 'height', 'left' and 'top'.
+'set-frame-size-and-position-pixelwise' is similar but has a more
+restricted set of values for specifying size and position.
+
 *** New commands 'split-frame' and 'merge-frames'.
 'split-frame' moves a specified number of windows from an existing frame
 to a newly-created frame.  'merge-frames' merges all windows from two
@@ -846,6 +853,12 @@ The default value is t, which retains the old behavior.
 This variable has no effect when Transient Mark mode is off.
 
 ---
+** You can now use 'M-s t' to swap FROM and TO during 'query-replace'.
+Likewise during 'query-replace-regexp'.  The original binding of 'M-s'
+('next-matching-history-element') is now available on 'M-s M-s' or 'M-s
+s' for query replace minibuffer input.
+
+---
 ** New commands for filling text using semantic linefeeds.
 The new command 'fill-paragraph-semlf' fills a paragraph of text using
 "semantic linefeeds", whereby a newline is inserted after every
@@ -1168,6 +1181,11 @@ Instead of customizing Hideshow for a mode by setting the elements of
 FORWARD-SEXP-FUNC, etc., major mode authors should set the corresponding
 buffer-local variables 'hs-block-start-regexp', 'hs-c-start-regexp',
 'hs-forward-sexp-function', etc.
+
++++
+*** 'hs-hide-level' and 'hs-cycle' can now hide comments too.
+This is controlled by 'hs-hide-comments-when-hiding-all'.
+
 
 ** C-ts mode
 
@@ -3273,6 +3291,21 @@ This library provides functions to throttle or debounce Emacs Lisp
 functions.  This is useful for corralling overeager code that is slow
 and blocks Emacs, or does not provide ways to limit how often it runs.
 
++++
+** New mode 'system-taskbar-mode'.
+This is a global minor mode and companion functions that integrate Emacs
+with system GUI taskbars (also called docks or launchers or something
+similar) to display a taskbar icon "badge" overlay, a progress bar
+report overlay, alert the user that an Emacs session needs attention,
+often by flashing or bouncing the Emacs application icon.  Supported
+capable systems are GNU/Linux via D-Bus, macOS/GNUstep 10.5+, MS-Windows
+7+.
+
+On GNU/Linux systems, shell extensions or similar helpers such as
+"dash-to-dock" may be required.  See
+<https://extensions.gnome.org/extension/307/dash-to-dock/> and
+<https://wiki.ubuntu.com/Unity/LauncherAPI>.
+
 
 * Incompatible Lisp Changes in Emacs 31.1
 
@@ -3382,6 +3415,12 @@ separator, are also supported.
 
 ---
 ** The obsolete variable 'load-convert-to-unibyte' has been removed.
+
+---
+** The experimental variable 'binary-as-unsigned' has been removed.
+Instead of (let ((binary-as-unsigned t)) (format "%x" N)) you can use
+(format "%x" (logand N MASK)) where MASK is for the desired word size,
+e.g., #x3fffffffffffffff for typical Emacs fixnums.
 
 +++
 ** The 'exec-path' variable now uses same default PATH as other programs.
@@ -3736,6 +3775,17 @@ When the theme is set on PGTK, Android, or MS-Windows systems,
 'toolkit-theme-set-functions' is called.  The result is stored in the
 variable 'toolkit-theme' as either symbol 'dark' or 'light', but may be
 extended to encompass other toolkit-specific symbols in the future.
+
++++
+** Progress reporter callbacks.
+'make-progress-reporter' now accepts optional arguments UPDATE-CALLBACK,
+called on progress steps, and DONE-CALLBACK, called when the progress
+reporter is done.  See the 'make-progress-reporter' docstring for a full
+specification of these new optional arguments.
+
+** Add binary format specifications '%b' and '%B'.
+These produce the binary representation of a number.
+'%#b' and '%#B' prefix the bits with '0b' and '0B', respectively.
 
 
 * Changes in Emacs 31.1 on Non-Free Operating Systems
