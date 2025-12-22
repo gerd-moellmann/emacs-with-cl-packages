@@ -3663,18 +3663,9 @@ box_from_display_table (struct frame *f, enum box box, GLYPH *g)
       if (GLYPH_CODE_P (gc))
 	{
 	  SET_GLYPH_FROM_GLYPH_CODE (*g, gc);
-	  int lface_id = GLYPH_FACE (*g);
-	  int face_id;
-	  /* If the display-table entry specifies a face, merge that
-	     with the default face because that is what all other such
-	     places do.  The window being used here when merging faces
-	     in this case basically only stands for its frame.  */
-	  if (lface_id > 0)
-	    face_id = merge_faces (XWINDOW (f->root_window), Qt,
-				   lface_id, DEFAULT_FACE_ID);
-	  else
-	    face_id = lookup_basic_face (NULL, f, BORDER_FACE_ID);
-	  SET_GLYPH_FACE (*g, face_id);
+	  spec_glyph_lookup_face (XWINDOW (f->root_window), g);
+	  if (GLYPH_FACE (*g) == 0)
+	    SET_GLYPH_FACE (*g, BORDER_FACE_ID);
 	  return true;
 	}
     }
