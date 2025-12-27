@@ -732,7 +732,7 @@ compilation and evaluation time conflicts."
 
 (defgroup csharp-ts-mode-faces nil
   "Font faces."
-  :group 'cshap)
+  :group 'csharp)
 
 (defface csharp-ts-mode-attribute-face
   '((t . (:inherit font-lock-property-use-face)))
@@ -885,7 +885,7 @@ compilation and evaluation time conflicts."
            '((this_expression) @font-lock-keyword-face)
          '("this" @font-lock-keyword-face))
 
-     ;; avoid fontifying indentifiers with a keyword-values as identifiers.
+     ;; Avoid fontifying identifiers with a keyword-values as identifiers.
      ((identifier) @font-lock-keyword-face
       (:match ,(concat "\\`" (regexp-opt csharp-ts-mode--keywords t) "\\'") @font-lock-keyword-face)))
 
@@ -1028,10 +1028,9 @@ compilation and evaluation time conflicts."
        (conditional_expression)])
 
      (catch_declaration
-      ((identifier) @font-lock-type-face))
+      type: (identifier) @font-lock-type-face)
      (catch_declaration
-      ((identifier) @font-lock-type-face
-       (identifier) @font-lock-variable-name-face))
+      name: (identifier) @font-lock-variable-name-face)
 
      (variable_declaration (identifier) @font-lock-type-face)
      (variable_declaration (qualified_name

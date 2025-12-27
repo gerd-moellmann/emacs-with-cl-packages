@@ -8609,7 +8609,8 @@ even beep.)"
         ;; like display or overlay strings, intangible text, etc.:
         ;; otherwise, we don't want to kill a character that's
         ;; unrelated to the place where the visual line wraps.
-        (and (= (cdr (nth 6 (posn-at-point))) orig-vlnum)
+        (and (numberp (cdr (nth 6 (posn-at-point))))
+             (= (cdr (nth 6 (posn-at-point))) orig-vlnum)
              ;; Make sure we delete the character where the line wraps
              ;; under visual-line-mode, be it whitespace or a
              ;; character whose category set permits wrapping at it.
@@ -9032,7 +9033,7 @@ A negative ARG means to kill forwards.
 Unix-words differ from Emacs words in that they are always delimited by
 whitespace, regardless of the buffer's syntax table.
 Thus, this command emulates C-w at the Unix terminal or shell.
-See also this command's nakesake in Info node
+See also this command's namesake in Info node
 `(readline)Commands For Killing'."
   (interactive "^p")
   (let ((start (point)))

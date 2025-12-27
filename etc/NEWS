@@ -306,7 +306,7 @@ to extend the boundaries of the active region by dragging the mouse pointer.
 ---
 *** 'context-menu-mode' now includes a "Send to..." menu item.
 The menu item enables sending current file(s) or region text to external
-(non-Emacs) applications or services.  See send-to.el for customisations.
+(non-Emacs) applications or services.  See send-to.el for customizations.
 
 ---
 *** The mouse now drags lines in character increments again.
@@ -315,7 +315,7 @@ dividing side-by-side windows now by default happens in increments of
 the corresponding frame's character size again.  This is the behavior
 described in the manual and was the default behavior before
 'window-resize-pixelwise' was added for Emacs 24.1.  To drag in pixel
-increments as with Emcas 24 through Emacs 30 you now have to set
+increments as with Emacs 24 through Emacs 30 you now have to set
 'window-resize-pixelwise' to t.
 
 ** Windows
@@ -465,6 +465,13 @@ either resize the frame and change the fullscreen status accordingly or
 keep the frame size unchanged.  The value t means to first reset the
 fullscreen status and then resize the frame.
 
+*** New commands to set frame size and position in one compound step.
+'set-frame-size-and-position' sets the new size and position of a frame
+in one compound step.  Both, size and position, can be specified as with
+the corresponding frame parameters 'width', 'height', 'left' and 'top'.
+'set-frame-size-and-position-pixelwise' is similar but has a more
+restricted set of values for specifying size and position.
+
 *** New commands 'split-frame' and 'merge-frames'.
 'split-frame' moves a specified number of windows from an existing frame
 to a newly-created frame.  'merge-frames' merges all windows from two
@@ -497,6 +504,11 @@ current-buffer's mode line.  The default is to show the mode line of
 every buffer.
 
 ** Tab Bars and Tab Lines
+
+---
+*** New command 'merge-tabs'.
+'merge-tabs' merges all windows from two tabs into one of these tabs
+and closes the other tab.
 
 ---
 *** New abnormal hook 'tab-bar-auto-width-functions'.
@@ -1351,6 +1363,12 @@ The default value is t, which retains the old behavior.
 This variable has no effect when Transient Mark mode is off.
 
 ---
+** You can now use 'M-s t' to swap FROM and TO during 'query-replace'.
+Likewise during 'query-replace-regexp'.  The original binding of 'M-s'
+('next-matching-history-element') is now available on 'M-s M-s' or 'M-s
+s' for query replace minibuffer input.
+
+---
 ** New commands for filling text using semantic linefeeds.
 The new command 'fill-paragraph-semlf' fills a paragraph of text using
 "semantic linefeeds", whereby a newline is inserted after every
@@ -1673,6 +1691,11 @@ Instead of customizing Hideshow for a mode by setting the elements of
 FORWARD-SEXP-FUNC, etc., major mode authors should set the corresponding
 buffer-local variables 'hs-block-start-regexp', 'hs-c-start-regexp',
 'hs-forward-sexp-function', etc.
+
++++
+*** 'hs-hide-level' and 'hs-cycle' can now hide comments too.
+This is controlled by 'hs-hide-comments-when-hiding-all'.
+
 
 ** C-ts mode
 
@@ -2021,7 +2044,7 @@ If 'page-delimiters' is set in 'whitespace-style', or the new minor mode
 'whitespace-page-delimiters-mode' is on, the page delimiter characters
 ('^L') are displayed as a pretty horizontal line that spans the entire
 width of the window.  The new 'whitespace-page-delimiter' face can be
-used to customize the appearence.
+used to customize the appearance.
 
 ** Bookmark
 
@@ -2038,7 +2061,26 @@ This user option controls the width of the type column on the bookmark
 menu 'bookmark-bmenu-list'.  The default value is 8 which is backwards
 compatible.
 
+---
+*** New hook 'bookmark-after-load-file-hook'.
+This hook is run by 'bookmark-load' after loading a bookmark file.  This
+hook can be used, for example, to reconcile 'bookmark-alist' against
+bookmark state that you, or a package that you use, maintains.
+
 ** Recentf
+
+---
+*** You can now regularly auto-save recently opened files.
+Customize user option 'recentf-autosave-interval' to the number of
+seconds between auto saving recently opened files.  For example,
+customize this variable to 300 to save recently opened files every 5
+minutes.  From Lisp, use 'setopt' not 'setq'.
+
+If 'recentf-autosave-interval' is nil, auto saving is disabled; this is
+the default.
+
+This user option is in sympathy with save-place, and savehist autosave
+timers.
 
 ---
 *** New user option 'recentf-show-messages'.
@@ -2059,18 +2101,16 @@ option is nil.
 ---
 *** You can now regularly auto-save places.
 Customize user option 'save-place-autosave-interval' to the number of
-seconds between auto saving places.  For example, to save places every 5
-minutes:
-
-    M-x customize-option RET save-place-autosave-interval RET 300
-
-Or in Elisp:
-
-    (setopt save-place-autosave-interval (* 60 5))
+seconds between auto saving places.  For example, customize this
+variable to 300 to save places every 5 minutes.  From Lisp, use 'setopt'
+not 'setq'.
 
 If 'save-place-autosave-interval' is nil, auto saving is disabled; this
-is the default.  As before, saved places are scheduled to be saved at
-Emacs exit.
+is the default.
+
+This user option is in sympathy with recentf, and savehist autosave
+timers.
+
 
 ** Savehist
 
@@ -2838,7 +2878,7 @@ The hardcoded '^' shortcut gets you back to the previous menu.
 ---
 *** New user option 'tmm-shortcut-inside-entry'.
 When non-nil, highlight the character shortcut in the menu entry's
-string instead of preprending it and 'tmm-mid-prompt' to said entry.
+string instead of prepending it and 'tmm-mid-prompt' to said entry.
 
 ** Foldout
 
@@ -2989,6 +3029,13 @@ Previously, Emacs would simply refuse to make any changes.
 You can customize 'vc-dir-allow-mass-mark-changes' to restore the old
 behavior or dispense with the prompting.
 
++++
+*** 'C-x v x' and VC Directory's 'd' command can now delete unregistered files.
+Previously, these commands could only delete registered files.
+To restore the old, more limited behavior for VC Directory, you can do
+
+    (keymap-set vc-dir-mode-map "d" #'vc-dir-clean-files)
+
 ---
 *** New VC Directory bindings 'z d' and 'D' to delete Git stashes.
 These correspond to the existing 'z p' to pop a stash and 'P' to pop the
@@ -3129,6 +3176,16 @@ You can get back the old behavior with something like this:
       (keymap-set log-view-mode-map "m" #'log-view-toggle-mark-entry))
 
 In addition, a new command 'U' removes all marks.
+
++++
+*** New commands 'M-RET', 'M-p' and 'M-n' in Log View mode.
+'M-RET' expands the current entry, if relevant, and displays its diff in
+another window.  'M-p' and 'M-n' move to the previous and next entries,
+respectively, expand them if relevant, and display their diffs.
+
+You can use these three commands together to more easily view all the
+log entries and diffs of a series of revisions: use 'M-RET' on the first
+revision, then either 'M-n' or 'M-p' repeatedly to view the others.
 
 +++
 *** New command 'w' in Log View mode.
@@ -3275,7 +3332,7 @@ used to write notes.
 ---
 *** New handler that appends remember data in directory.
 The 'remember-append-in-data-directory' handler appends remember data in
-a file, that file being choosen by the user through the minibuffer.
+a file, that file being chosen by the user through the minibuffer.
 
 ---
 *** New prefix map for remember commands.
@@ -3668,6 +3725,48 @@ it will begrudgingly use the scratch buffer.
 Customize the variable 'abbrev-mode' to non-nil to enable Abbrev mode by
 default in all buffers.
 
+** Antlr mode
+
+*** Variable 'antlr-tool-version' is no user option anymore.
+If becomes buffer-local and has the symbol 'antlr-v2', 'antlr-v3' or
+'antlr-v4' as value.  The value determines which of the tool-version
+dependent customization options are used.  For example, the command
+'antlr-run-tool' uses the option 'antlr-v3-tool-command' (with default
+value "java org.antlr.Tool") when 'antlr-tool-version' has the value
+'antlr-v3'.
+
+*** Command 'antlr-mode' now also works on ANTLR v3 or v4 grammars.
+If the variable 'antlr-tool-version' is not set locally, e.g. by the
+file’s local variables specs, the command sets its local value to
+'antlr-v2' if a keyword "class" or "header" appears at the beginning of
+the source, or to 'antlr-v3' otherwise.
+
+*** New command 'antlr-v4-mode' is a derived mode of 'antlr-mode'.
+It sets 'antlr-tool-version' to value 'antlr-v4', and is automatically
+used for files with extension "g4".
+
+*** The variable 'antlr-language' is now used more generally.
+The variable has a symbol as value which determines which of the
+language-dependent customization options are used.  These options
+influence font-locking and indentation commands.  Its value is usually
+set according to the grammar option "language", see the default values
+of 'antlr-v2-language-list', 'antlr-v3-language-list' and
+'antlr-v4-language-list'.  This mode now supports C, Delphi, JavaScript,
+ObjC, Python and Ruby, additional to Java and Cpp.
+
+*** New user option 'antlr-run-tool-on-buffer-file'.
+Command 'antlr-run-tool' now usually runs on the file for the current
+buffer.  Customize this user option to have value ' nil' to get the
+previous behavior back.
+
+** Hi Lock
+
+---
+*** Use active region for default values in more functions.
+If an active region exists, the commands 'hi-lock-line-face-buffer' and
+'hi-lock-face-phrase-buffer' now use its contents as their default
+value.  Previously, only 'hi-lock-face-buffer' supported this.
+
 
 * New Modes and Packages in Emacs 31.1
 
@@ -3701,6 +3800,21 @@ The 'lua-mode' package from NonGNU ELPA is now included in Emacs.
 This library provides functions to throttle or debounce Emacs Lisp
 functions.  This is useful for corralling overeager code that is slow
 and blocks Emacs, or does not provide ways to limit how often it runs.
+
++++
+** New mode 'system-taskbar-mode'.
+This is a global minor mode and companion functions that integrate Emacs
+with system GUI taskbars (also called docks or launchers or something
+similar) to display a taskbar icon "badge" overlay, a progress bar
+report overlay, alert the user that an Emacs session needs attention,
+often by flashing or bouncing the Emacs application icon.  Supported
+capable systems are GNU/Linux via D-Bus, macOS/GNUstep 10.5+, MS-Windows
+7+.
+
+On GNU/Linux systems, shell extensions or similar helpers such as
+"dash-to-dock" may be required.  See
+<https://extensions.gnome.org/extension/307/dash-to-dock/> and
+<https://wiki.ubuntu.com/Unity/LauncherAPI>.
 
 
 * Incompatible Lisp Changes in Emacs 31.1
@@ -3812,6 +3926,12 @@ separator, are also supported.
 ---
 ** The obsolete variable 'load-convert-to-unibyte' has been removed.
 
+---
+** The experimental variable 'binary-as-unsigned' has been removed.
+Instead of (let ((binary-as-unsigned t)) (format "%x" N)) you can use
+(format "%x" (logand N MASK)) where MASK is for the desired word size,
+e.g., #x3fffffffffffffff for typical Emacs fixnums.
+
 +++
 ** The 'exec-path' variable now uses same default PATH as other programs.
 That is, if the PATH environment variable is unset or empty, 'exec-path'
@@ -3823,7 +3943,7 @@ on GNU/Linux systems.
 The display optimization where the combination 'TAB' characters +
 'BACKSPACE' is used to move to a position on a TTY frame is now disabled
 by default and controlled by this variable; it can be set to non-nil
-to keep the old behavior.  This change is to accomodate screen
+to keep the old behavior.  This change is to accommodate screen
 readers.
 
 ---
@@ -3932,6 +4052,12 @@ satisfy a given predicate.
 ** The 'defvar-local' macro second argument is now optional.
 This means that you can now call it with just one argument, like
 'defvar', to declare a variable both special, and buffer-local.
+
+---
+** The rx atom 'any' is obsolete and will cause warning when used.
+When used as an atom, 'any' is an old alias for 'not-newline' but is
+often mistakenly used where 'anychar' was intended.  Note that the
+construct '(any ...)' is unrelated and not obsolete.
 
 ** ERT
 
@@ -4159,6 +4285,17 @@ When the theme is set on PGTK, Android, or MS-Windows systems,
 'toolkit-theme-set-functions' is called.  The result is stored in the
 variable 'toolkit-theme' as either symbol 'dark' or 'light', but may be
 extended to encompass other toolkit-specific symbols in the future.
+
++++
+** Progress reporter callbacks.
+'make-progress-reporter' now accepts optional arguments UPDATE-CALLBACK,
+called on progress steps, and DONE-CALLBACK, called when the progress
+reporter is done.  See the 'make-progress-reporter' docstring for a full
+specification of these new optional arguments.
+
+** Add binary format specifications '%b' and '%B'.
+These produce the binary representation of a number.
+'%#b' and '%#B' prefix the bits with '0b' and '0B', respectively.
 
 
 * Changes in Emacs 31.1 on Non-Free Operating Systems

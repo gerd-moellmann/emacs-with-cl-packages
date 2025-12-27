@@ -299,7 +299,7 @@ Good example of file name that needs this: \"test[56].xx\".")
          ;; with other backend's `vc-*-registered' functions which are
          ;; quieter in the case that the VCS isn't installed.  So check
          ;; up here that git(1) is available.  See also bug#18481.
-         (executable-find vc-git-program)
+         (executable-find vc-git-program t)
          (with-temp-buffer
            (let* (process-file-side-effects
                   ;; Do not use the `file-name-directory' here: git-ls-files
@@ -718,12 +718,17 @@ or an empty string if none."
 
 (defun vc-git-dir-status-goto-stage (git-state)
   ;; TODO: Look into reimplementing this using `git status --porcelain=v2'.
-  (let ((files (vc-git-dir-status-state->files git-state)))
+  (let ((files (vc-git-dir-status-state->files git-state))
+        (allowed-exit 1))
     (erase-buffer)
     (pcase (vc-git-dir-status-state->stage git-state)
       ('update-index
        (if files
-           (vc-git-command (current-buffer) 'async files "add" "--refresh" "--")
+           (progn (vc-git-command (current-buffer) 'async files
+                                  "add" "--refresh" "--")
+                  ;; git-add exits 128 if some of FILES are untracked;
+                  ;; we can ignore that (bug#79999).
+                  (setq allowed-exit 128))
          (vc-git-command (current-buffer) 'async nil
                          "update-index" "--refresh")))
       ('ls-files-added
@@ -749,7 +754,7 @@ or an empty string if none."
       ('diff-index
        (vc-git-command (current-buffer) 'async files
                        "diff-index" "--relative" "-z" "-M" "HEAD" "--")))
-    (vc-run-delayed-success 1
+    (vc-run-delayed-success allowed-exit
       (vc-git-after-dir-status-stage git-state))))
 
 (defun vc-git-dir-status-files (_dir files update-function)
@@ -1886,7 +1891,7 @@ This requires git 1.8.4 or later, for the \"-L\" option of \"git log\"."
   ;; but since Git is one of the two backends that support this operation
   ;; so far, it's hard to tell; hg doesn't need this.
   (with-temp-buffer
-    (vc-call-backend 'git 'diff (list file) "HEAD" nil (current-buffer))
+    (vc-call-backend 'Git 'diff (list file) "HEAD" nil (current-buffer))
     (goto-char (point-min))
     (let ((last-offset 0)
           (from-offset nil)

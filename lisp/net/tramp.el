@@ -785,7 +785,7 @@ The regexp should match at end of buffer."
 	 "Place your finger on the reader again"
 	 "Swipe your finger again"
 	 "Swipe was too short, try again"
-	 "Your finger was not centred, try swiping your finger again"
+	 "Your finger was not centered, try swiping your finger again"
 	 "Remove your finger, and try swiping your finger again")
       (* nonl) (* (any "\r\n")))
   "Regexp matching fingerprint prompts.
@@ -2545,7 +2545,7 @@ Must be handled by the callers."
       res)))
 
 (defun tramp-add-external-operation (operation function backend)
-  "Add FUNTION to Tramp BACKEND as handler for OPERATION.
+  "Add FUNCTION to Tramp BACKEND as handler for OPERATION.
 OPERATION must not be one of the magic operations listed in Info
 node `(elisp) Magic File Names'.  FUNCTION must have the same argument
 list as OPERATION.  BACKEND, a symbol, must be one of the Tramp backend
@@ -2922,7 +2922,9 @@ not in completion mode."
   ;; check, whether DIRECTORY is "/method:" or "/[method/".
   (let ((dir (or directory default-directory "/")))
     (cond
-     ((file-name-absolute-p filename) filename)
+     ((file-name-absolute-p filename)
+      ;; FILENAME could be like "~/".  We must expand this.
+      (tramp-run-real-handler #'expand-file-name (list filename directory)))
      ((and (eq tramp-syntax 'simplified)
            (string-match-p (rx (regexp tramp-postfix-host-regexp) eos) dir))
       (concat dir filename))
@@ -3821,8 +3823,8 @@ BODY is the backend specific code."
 
 (defmacro tramp-skeleton-make-process (args null-command stderr-file &rest body)
   "Skeleton for `tramp-*-handle-make-process'.
-NULL-COMMAND indicates a possible empty command.  STDERR-FILE means,
-that a stederr file is supported.  BODY is the backend specific code."
+NULL-COMMAND indicates a possible empty command.  STDERR-FILE means
+that a stderr file is supported.  BODY is the backend specific code."
   (declare (indent 3) (debug t))
   `(when ,args
      (with-parsed-tramp-file-name (expand-file-name default-directory) nil
@@ -3978,7 +3980,7 @@ BODY is the backend specific code."
 	  ((null (cadr ,destination))
 	   (setq stderr (tramp-get-remote-null-device v)))
 	  ((eq (cadr ,destination) tramp-cache-undefined)
-	   ;; stderr is not impelmemted.
+	   ;; stderr is not implemented.
 	   (tramp-warning v "%s" "STDERR not supported"))))
 	;; t
 	(,destination

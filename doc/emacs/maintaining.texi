@@ -573,7 +573,7 @@ after popping up the @file{*vc-log*} buffer to allow you to type a
 suitable commit log message.
 
 Once you type @kbd{C-x v v}, the fileset or patches cannot be changed
-without first cancelling the commit by typing @kbd{C-c C-k} in the
+without first canceling the commit by typing @kbd{C-c C-k} in the
 @file{*vc-log*} buffer.  For example, if you change which files are
 marked in the @file{*vc-dir*} buffer after Emacs has already popped up
 the @file{*vc-log*} buffer, the old fileset will remain in effect for
@@ -1256,6 +1256,26 @@ In a compact-style log buffer (e.g., the one created by @kbd{C-x v L}),
 toggle between showing and hiding the full log entry for the revision at
 point (@code{log-view-toggle-entry-display}).
 
+@item M-@key{RET}
+Show the full log entry like @kbd{RET} does, if relevant, and also
+display the diff like @kbd{D} does, but without selecting the window
+showing the diff (@code{log-view-display-entry-and-diff}).  Never hides
+the full log entry text if it is already shown.
+
+@item M-p
+Like @kbd{p} followed by @kbd{M-@key{RET}}: move to the previous entry,
+display it in full if relevant, and display its diff
+(@code{log-view-msg-and-diff-prev}).  A numeric prefix argument is a
+repeat count for the movement part; at most one entry is displayed in
+full.
+
+@item M-n
+Like @kbd{n} followed by @kbd{M-@key{RET}}: move to the previous entry,
+display it in full if relevant, and display its diff
+(@code{log-view-msg-and-diff-next}).  A numeric prefix argument is a
+repeat count for the movement part; at most one entry is displayed in
+full.
+
 @item m
 Mark the entry at point (@code{log-view-mark-entry}).
 
@@ -1687,9 +1707,8 @@ Branches}.
 
 @item d
 Delete the marked files, or the current file if no marks
-(@code{vc-dir-clean-delete)}.  The files will not be marked as
-deleted in the version control system, so this function is mostly
-useful for unregistered files.
+(@code{vc-dir-delete-file)}.  If the files are registered, they will be
+marked as deleted in the version control system.
 @end table
 
 @cindex stashes in version control

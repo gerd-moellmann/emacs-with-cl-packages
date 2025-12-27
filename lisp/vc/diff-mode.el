@@ -1916,6 +1916,7 @@ Only works for unified diffs."
                           (eq (char-after) ?\n)
                           (> before 0) (> after 0))
                      (decf before) (decf after) t)
+                    ((looking-at "\\\\ ") t) ; See `(diffutils)Incomplete Lines'.
                     ((and (zerop before) (zerop after)) nil)
                     ((or (< before 0) (< after 0))
                      (error (if (or (zerop before) (zerop after))
@@ -3104,7 +3105,7 @@ fixed, visit it in a buffer."
 (defun diff--font-lock-prettify (limit)
   (when diff-font-lock-prettify
     ;; FIXME: `window-fringes` uselessly allocates 4 cons cells,
-    ;; but the previous use of `frame-paramter' ended up internally
+    ;; but the previous use of `frame-parameter' ended up internally
     ;; calling `frame-parameters' making it even worse!
     (when (> (car (window-fringes)) 0)
       (save-excursion

@@ -46,7 +46,7 @@
 ;; Silence byte-compiler
 (defvar message-auto-save-directory)
 
-(defvar package-vc-tests-preserve-artefacts nil
+(defvar package-vc-tests-preserve-artifacts nil
   "When non-nil preserve temporary files and buffers produced by tests.
 Each test produces a new temporary directory for each package under
 test.  This leads to creation of [length of `package-vc-tests-packages']
@@ -140,7 +140,7 @@ the package.  Otherwise each entry is in a form of PKG."
 ;; TODO: add test for deleting packages, with asserting
 ;; `package-vc-selected-packages'
 
-;; TODO: clarify `package-vc-install-all' behaviour with regards to
+;; TODO: clarify `package-vc-install-all' behavior with regards to
 ;; packages installed with `package-vc' but not stored in
 ;; `package-vc-selected-packages' i.e., packages from ELPAs
 
@@ -412,7 +412,7 @@ names."
          ;; - keyring is saved in test directory
          (package-gnupghome-dir (expand-file-name "gnupg"
                                                   package-user-dir))
-         ;; - `package' has been initialised, and there are no
+         ;; - `package' has been initialized, and there are no
          ;;   `package-archives' defined
          (package-archives (unless package--initialized
                              (let (package-archives)
@@ -440,7 +440,7 @@ names."
                  '(package-vc-tests-install-from-elpa
                    package-vc-tests-checkout-from-elpa-install-from-checkout))
            collect name))
-         ;; - make test packages recognisable by `package' and
+         ;; - make test packages recognizable by `package' and
          ;;   `package-vc' internals:
          (package-archive-contents
           (mapcar
@@ -472,7 +472,7 @@ names."
                          package-vc-tests-elpa-packages))))
          (package-vc--archive-data-alist
           '((test-elpa :version 1 :default-vc Git)))
-         ;; - `vc-guess-backend-url' is recognising bundles as `Git'
+         ;; - `vc-guess-backend-url' is recognizing bundles as `Git'
          ;;   repositories:
          (vc-clone-heuristic-alist
           `((,(rx "test-package-" (1+ digit) ".bundle" eos)
@@ -496,7 +496,7 @@ names."
 Unbind package defined symbols, and remove package defined features and
 entries from `load-path',`load-history', and `Info-directory-list'.
 Delete temporary directories and buffers produced by tests, except for
-when PKG matches `package-vc-tests-preserve-artefacts'."
+when PKG matches `package-vc-tests-preserve-artifacts'."
   (let ((pattern (rx string-start (literal package-vc-tests-dir))))
     (dolist (entry load-history)
       (when-let* ((file (car-safe entry))
@@ -534,9 +534,9 @@ when PKG matches `package-vc-tests-preserve-artefacts'."
                           (package-vc-tests-log-buffer-name pkg
                                                             type)))
                        '(doc make)))))
-    (if (or (memq package-vc-tests-preserve-artefacts `(t ,pkg))
-            (and (listp package-vc-tests-preserve-artefacts)
-                 (memq pkg package-vc-tests-preserve-artefacts)))
+    (if (or (memq package-vc-tests-preserve-artifacts `(t ,pkg))
+            (and (listp package-vc-tests-preserve-artifacts)
+                 (memq pkg package-vc-tests-preserve-artifacts)))
         (let ((buffers
                (mapconcat (lambda (buffer)
                             (with-current-buffer buffer
@@ -666,7 +666,8 @@ Return nil on timeout or the value of last form in BODY."
   "For each package under test define a test with NAME.
 Use function `package-vc-tests-packages' to obtain packages under test.
 Execute BODY as a test body with a package under test installed.  Bind
-car of ARGS (a symbol) to name of the package."
+car of ARGS (a symbol) to name of the package.  When plist cdr ARGS
+contains key `:tags' use its value as tests tags."
   (declare (debug (&define [&name "test@" symbolp]
 			   sexp
 			   def-body))
@@ -676,7 +677,8 @@ car of ARGS (a symbol) to name of the package."
   (unless (symbolp (car-safe args))
     (error "`package-vc' tests first argument has to be a symbol"))
   (let ((file (or (macroexp-file-name) buffer-file-name))
-        (tests '()) (fn (gensym)))
+        (tests '()) (fn (gensym))
+        (tags (plist-get (cdr-safe args) :tags)))
     (dolist (pkg (package-vc-tests-packages))
       (let ((name (intern (format "package-vc-tests-%s/%s" name pkg))))
         (push
@@ -684,7 +686,7 @@ car of ARGS (a symbol) to name of the package."
              ',name
              (make-ert-test
               :name ',name
-              :tags '(package-vc)
+              :tags (cons 'package-vc ',tags)
               :file-name ,file
               :body
               (lambda ()
@@ -741,7 +743,7 @@ car of ARGS (a symbol) to name of the package."
                   pkg :main-compiled))))
     (should (< main-compiled-pos install-end))))
 
-(package-vc-test-deftest upgrade (pkg)
+(package-vc-test-deftest upgrade (pkg :tags (:expensive-test))
   (let ((head (package-vc-tests-package-head pkg)))
     (package-vc-tests-reset-head^ pkg)
     (push (list (package-vc-tests-load-history-marker
@@ -824,7 +826,7 @@ car of ARGS (a symbol) to name of the package."
   (package-vc-tests-assert-elc pkg)
   (package-vc-tests-assert-package-alist pkg '(0 2)))
 
-(package-vc-test-deftest upgrade-all (pkg)
+(package-vc-test-deftest upgrade-all (pkg :tags (:expensive-test))
   (let ((head (package-vc-tests-package-head pkg)))
     (package-vc-tests-reset-head^ pkg)
     (push (list (package-vc-tests-load-history-marker
@@ -863,7 +865,7 @@ car of ARGS (a symbol) to name of the package."
   (package-vc-tests-assert-elc pkg)
   (package-vc-tests-assert-package-alist pkg '(0 2)))
 
-(package-vc-test-deftest upgrade-all-after-require (pkg)
+(package-vc-test-deftest upgrade-all-after-require (pkg :tags (:expensive-test))
   (should (require pkg))
   (let ((head (package-vc-tests-package-head pkg)))
     (package-vc-tests-reset-head^ pkg)
@@ -907,7 +909,7 @@ car of ARGS (a symbol) to name of the package."
   (package-vc-tests-assert-elc pkg)
   (package-vc-tests-assert-package-alist pkg '(0 2)))
 
-(package-vc-test-deftest rebuild (pkg)
+(package-vc-test-deftest rebuild (pkg :tags (:expensive-test))
   (package-vc-tests-reset-head^ pkg)
   (let ((head (package-vc-tests-package-head pkg)))
     (package-vc-rebuild
@@ -948,7 +950,7 @@ car of ARGS (a symbol) to name of the package."
   (package-vc-tests-assert-elc pkg)
   (package-vc-tests-assert-package-alist pkg '(0 1)))
 
-(package-vc-test-deftest prepare-patch (pkg)
+(package-vc-test-deftest prepare-patch (pkg :tags (:expensive-test))
   ;; Ensure `vc-prepare-patch' respects subject from function argument
   (let ((message-auto-save-directory package-vc-tests-dir)
         (vc-prepare-patches-separately nil))
@@ -977,7 +979,7 @@ car of ARGS (a symbol) to name of the package."
           (set-buffer-modified-p nil))
         (kill-buffer message-buffer)))))
 
-(package-vc-test-deftest log-incoming (pkg)
+(package-vc-test-deftest log-incoming (pkg :tags (:expensive-test))
   (package-vc-tests-reset-head^ pkg)
   (should
    (package-vc-tests-package-vc-async-wait
@@ -989,7 +991,7 @@ car of ARGS (a symbol) to name of the package."
                       (substring
                        (cadr package-vc-tests-repository)
                        0 7))
-                     (one-or-more any)
+                     (one-or-more anychar)
                      "Second commit"
                      line-end)))
     (should (bufferp incoming-buffer))
@@ -1002,7 +1004,7 @@ car of ARGS (a symbol) to name of the package."
     (let (kill-buffer-query-functions)
       (kill-buffer incoming-buffer))))
 
-(package-vc-test-deftest pkg-spec-doc-make-shell-command (pkg)
+(package-vc-test-deftest pkg-spec-make-shell-command (pkg)
   ;; Only `package-vc-install' runs make and shell command
   (skip-unless (memq (caddr (alist-get pkg package-vc-tests-packages))
                      '(package-vc-tests-install-from-elpa
@@ -1016,7 +1018,15 @@ car of ARGS (a symbol) to name of the package."
     (should (file-exists-p
              (expand-file-name
               (format "%s.cmd-build" pkg)
-              checkout-dir))))
+              checkout-dir)))))
+
+(package-vc-test-deftest pkg-spec-info-manual (pkg :tags (:expensive-test))
+  ;; Only `package-vc-install' builds info manuals, but only when
+  ;; executable install-info is available.
+  (skip-unless (and (executable-find "install-info")
+                    (memq (caddr (alist-get pkg package-vc-tests-packages))
+                          '(package-vc-tests-install-from-elpa
+                            package-vc-tests-install-from-spec))))
   (should-not (package-vc-tests-log-buffer-exists 'doc pkg))
   (should (cl-member-if
            (lambda (dir)
