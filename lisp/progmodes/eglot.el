@@ -3936,19 +3936,27 @@ for which LSP on-type-formatting should be requested."
        :success-fn
        (lambda (highlights)
          (mapc #'delete-overlay eglot--highlights)
-         (setq eglot--highlights
-               (eglot--when-buffer-window buf
-                 (mapcar
-                  (eglot--lambda ((DocumentHighlight) range)
-                    (pcase-let ((`(,beg . ,end)
-                                 (eglot-range-region range)))
-                      (let ((ov (make-overlay beg end)))
-                        (overlay-put ov 'face 'eglot-highlight-symbol-face)
-                        (overlay-put ov 'eglot--overlay t)
-                        (overlay-put ov 'modification-hooks
-                                     `(,(lambda (o &rest _) (delete-overlay o))))
-                        ov)))
-                  highlights))))
+         (setq eglot--highlights nil)
+         (eglot--when-buffer-window buf
+           ;; Don't highlight occurrences that aren't
+           ;; visible. (bug#80072).
+           (let* ((w (car (get-buffer-window-list)))
+                  (ws (window-start w)) (we (window-end w))
+                  (ls (1- (line-number-at-pos ws t)))
+                  (le (1- (line-number-at-pos we t))))
+             (mapc
+              (eglot--lambda ((DocumentHighlight) range)
+                (when-let* ((l (cl-getf (cl-getf range :start) :line))
+                            (_ (and (>= l ls) (<= l le))))
+                  (pcase-let ((`(,beg . ,end)
+                               (eglot-range-region range)))
+                    (let ((ov (make-overlay beg end)))
+                      (overlay-put ov 'face 'eglot-highlight-symbol-face)
+                      (overlay-put ov 'eglot--overlay t)
+                      (overlay-put ov 'modification-hooks
+                                   `(,(lambda (o &rest _) (delete-overlay o))))
+                      (push ov eglot--highlights)))))
+              highlights))))
        :hint :textDocument/documentHighlight)
       nil)))
 
@@ -4337,7 +4345,7 @@ at point.  With prefix argument, prompt for ACTION-KIND."
 GLOBS is a list of (COMPILED-GLOB . KIND) pairs, where COMPILED-GLOB is
 a compiled glob predicate and KIND is a bitmask of change types.  DIR is
 the directory to watch (nil means entire project).  IN-ROOT says if DIR
-happens to be inside or maching the project root."
+happens to be inside or matching the project root."
   (cl-labels
       ((subdirs-using-project ()
          (delete-dups
@@ -4803,8 +4811,8 @@ See `eglot--semtok-request' implementation for details.")
                 ;;               eglot--docver docver (c :orig-docver) (c :req-docver))
                 ;; This skip is different from the one below.  Comparing
                 ;; the lexical `docver' to the original request's
-                ;; `:orig-docver' allows skipping the outdated reponse
-                ;; of a dispatched request that has been overriden by
+                ;; `:orig-docver' allows skipping the outdated response
+                ;; of a dispatched request that has been overridden by
                 ;; another (perhaps not dispatched yet) request.
                 (when (eq docver (c :orig-docver))
                   (setf (c :docver) (c :req-docver)
