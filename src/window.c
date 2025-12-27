@@ -5388,6 +5388,17 @@ of WINDOW's frame unchanged and return nil.  */)
     return Qnil;
 }
 
+static void
+restore_marker (Lisp_Object marker, Lisp_Object from_marker,
+		Lisp_Object buffer)
+{
+  struct Lisp_Marker *from = XMARKER (from_marker);
+  ptrdiff_t  pos = from->buffer ? marker_vector_charpos (from)
+    : marker_vector_last_charpos (from);
+  set_marker_restricted (marker, make_fixnum (pos), buffer);
+
+}
+
 DEFUN ("split-window-internal", Fsplit_window_internal, Ssplit_window_internal, 4, 5, 0,
        doc: /* Split window OLD.
 Second argument PIXEL-SIZE specifies the number of pixels of the
@@ -5672,13 +5683,9 @@ set correctly.  See the code of `split-window' for how this is done.  */)
     {
       /* Get dead window back its old buffer and markers.  */
       wset_buffer (n, n->old_buffer);
-      set_marker_restricted
-	(n->start, make_fixnum (marker_vector_charpos (XMARKER (n->start))), n->contents);
-      set_marker_restricted
-	(n->pointm, make_fixnum (marker_vector_charpos (XMARKER (n->pointm))), n->contents);
-      set_marker_restricted
-	(n->old_pointm, make_fixnum (marker_vector_charpos (XMARKER (n->old_pointm))),
-	 n->contents);
+      restore_marker (n->start, n->start, n->contents);
+      restore_marker (n->pointm, n->pointm, n->contents);
+      restore_marker (n->old_pointm, n->old_pointm, n->contents);
 
       Vwindow_list = Qnil;
       /* Remove window from the table of dead windows.  */
