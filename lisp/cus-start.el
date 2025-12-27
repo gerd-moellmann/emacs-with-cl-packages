@@ -1120,7 +1120,7 @@ since it could result in memory overflow and make Emacs crash."
 		  ((string-prefix-p "w32-" sym-name)
                    (eq system-type 'windows-nt))
                   ((string-prefix-p "mac-" sym-name)
-                   (boundp 'mac-carbon-version-string)
+                   (boundp 'mac-carbon-version-string))
 		  ((string-prefix-p "ns-" sym-name)
 		   (featurep 'ns))
                   ((string-prefix-p "haiku-" sym-name)
