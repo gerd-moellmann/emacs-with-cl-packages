@@ -404,7 +404,7 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 					    (const :tag "only shift-selection or mouse-drag" only)
 					    (const :tag "off" nil))
 				    "24.1")
-	     ;; mac.c
+             ;; mac.c
 	     (mac-system-move-file-to-trash-use-finder mac boolean "23.4")
 	     ;; macselect.c
 	     (mac-dnd-known-types mac (repeat string) "25.2")
@@ -1120,7 +1120,7 @@ since it could result in memory overflow and make Emacs crash."
 		  ((string-prefix-p "w32-" sym-name)
                    (eq system-type 'windows-nt))
                   ((string-prefix-p "mac-" sym-name)
-                   (boundp 'mac-carbon-version-string)
+                   (boundp 'mac-carbon-version-string))
 		  ((string-prefix-p "ns-" sym-name)
 		   (featurep 'ns))
                   ((string-prefix-p "haiku-" sym-name)
@@ -1147,7 +1147,7 @@ since it could result in memory overflow and make Emacs crash."
 		  ((string-search "fringe" sym-name)
 		   (boundp 'fringe-bitmaps))
 		  ((string-prefix-p "imagemagick" sym-name)
-		   (fboundp 'imagemagick-types))
+		   (fboundp 'imagemagick-render-type))
 		  ((eq symbol 'font-use-system-font)
 		   (featurep 'system-font-setting))
 		  ;; Conditioned on x-create-frame, because that's
