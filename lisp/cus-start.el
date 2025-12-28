@@ -404,7 +404,7 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 					    (const :tag "only shift-selection or mouse-drag" only)
 					    (const :tag "off" nil))
 				    "24.1")
-	     ;; mac.c
+             ;; mac.c
 	     (mac-system-move-file-to-trash-use-finder mac boolean "23.4")
 	     ;; macselect.c
 	     (mac-dnd-known-types mac (repeat string) "25.2")
@@ -1150,8 +1150,7 @@ since it could result in memory overflow and make Emacs crash."
                   ;; is also defined if HAVE_MACGUI, even if imagemagic
                   ;; is not otherwise used. Don't check in that case.
 		  ((string-prefix-p "imagemagick" sym-name)
-                   (and (not (featurep 'mac))
-		        (fboundp 'imagemagick-types)))
+		   (fboundp 'imagemagick-render-type))
 		  ((eq symbol 'font-use-system-font)
 		   (featurep 'system-font-setting))
 		  ;; Conditioned on x-create-frame, because that's
