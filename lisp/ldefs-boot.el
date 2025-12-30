@@ -8155,7 +8155,11 @@ The glyphs being changed by this function are `vertical-border',
 `box-vertical',`box-horizontal', `box-down-right', `box-down-left',
 `box-up-right', `box-up-left',`box-double-vertical',
 `box-double-horizontal', `box-double-down-right',
-`box-double-down-left', `box-double-up-right', `box-double-up-left'," t)
+`box-double-down-left', `box-double-up-right', `box-double-up-left'.
+
+To customize the glyphs, use `make-glyph-code' to create a glyph from a
+character code and a face, and then use `set-display-table-slot' to
+assign the glyph to a slot." t)
 (autoload 'standard-display-8bit "disp-table" "\
 Display characters representing raw bytes in the range L to H literally.
 
@@ -10193,12 +10197,12 @@ This function recursively analyzes Lisp forms (HEAD . TAIL), usually
 starting with a top-level form, by inspecting HEAD at each level:
 
 - If HEAD is a symbol with a non-nil `elisp-scope-analyzer' symbol
-  property, then the value of that property specifies a bespoke analzyer
+  property, then the value of that property specifies a bespoke analyzer
   function, AF, that is called as (AF HEAD . TAIL) to analyze the form.
   See more details about writing analyzer functions below.
 
 - If HEAD satisfies `functionp', which means it is a function in the
-  running Emacs session, analzye the form as a function call.
+  running Emacs session, analyze the form as a function call.
 
 - If HEAD is a safe macro (see `elisp-scope-safe-macro-p'), expand it
   and analyze the resulting form.
@@ -16888,33 +16892,37 @@ Populate MENU with a menu item to highlight symbol at CLICK.
 (autoload 'hide-ifdef-mode "hideif" "\
 Toggle features to hide/show #ifdef blocks (Hide-Ifdef mode).
 
-Hide-Ifdef mode is a buffer-local minor mode for use with C and
+\\<hide-ifdef-mode-map>Hide-Ifdef mode is a buffer-local minor mode for use with C and
 C-like major modes.  When enabled, code within #ifdef constructs
 that the C preprocessor would eliminate may be hidden from view.
+
+Use \\[hide-ifdefs] to hide ifdefs and \\[hide-ifdefs] to show them.
+Use  \\[hif-show-all] to show all ifdefs.
+
 Several variables affect how the hiding is done:
 
 `hide-ifdef-env'
         An association list of defined and undefined symbols for the
-        current project.  Initially, the global value of `hide-ifdef-env'
-        is used.  This variable was a buffer-local variable, which limits
-        hideif to parse only one C/C++ file at a time.  We've extended
-        hideif to support parsing a C/C++ project containing multiple C/C++
-        source files opened simultaneously in different buffers.  Therefore
-        `hide-ifdef-env' can no longer be buffer local but must be global.
+        current project.  Use \\[hide-ifdef-define] and \\[hide-ifdef-undef] to update the value of
+        this list with defined or undefined symbols.
+        We've extended hideif to support parsing a C/C++ project
+        containing multiple C/C++ source files opened simultaneously in
+        different buffers.  Therefore `hide-ifdef-env' can no longer be
+        buffer local but must be global.
+
+`hide-ifdef-initially'
+        Customize this to a non-nil value to cause ifdefs be hidden as
+        soon as `hide-ifdef-mode' is turned on.
+
+`hide-ifdef-lines'
+        Customize to non-nil to hide the #if, #ifdef, #ifndef, #else,
+        and #endif lines when hiding ifdefs.
 
 `hide-ifdef-define-alist'
         An association list of defined symbol lists.
         Use `hide-ifdef-set-define-alist' to save the current `hide-ifdef-env'
         and `hide-ifdef-use-define-alist' to set the current `hide-ifdef-env'
         from one of the lists in `hide-ifdef-define-alist'.
-
-`hide-ifdef-lines'
-        Set to non-nil to not show #if, #ifdef, #ifndef, #else, and
-        #endif lines when hiding.
-
-`hide-ifdef-initially'
-        Indicates whether `hide-ifdefs' should be called when Hide-Ifdef mode
-        is activated.
 
 `hide-ifdef-read-only'
         Set to non-nil if you want to make buffers read only while hiding.
@@ -31144,7 +31152,7 @@ either customize it (see the info node `Easy Customization')
 or call the function `global-so-long-mode'.")
 (custom-autoload 'global-so-long-mode "so-long" nil)
 (autoload 'global-so-long-mode "so-long" "\
-Toggle automated performance mitigations for files with long lines.
+Toggle automated performance mitigation for files with long lines.
 
 Many Emacs modes struggle with buffers which contain excessively long lines,
 and may consequently cause unacceptable performance issues.
@@ -32552,6 +32560,37 @@ and `sc-post-hook' is run after the guts of this function.")
 ;;; Generated autoloads from cedet/semantic/symref.el
 
 (register-definition-prefixes "semantic/symref" '("semantic-symref-"))
+
+
+;;; Generated autoloads from system-taskbar.el
+
+(defvar system-taskbar-mode nil "\
+Non-nil if System-Taskbar mode is enabled.
+See the `system-taskbar-mode' command
+for a description of this minor mode.
+Setting this variable directly does not take effect;
+either customize it (see the info node `Easy Customization')
+or call the function `system-taskbar-mode'.")
+(custom-autoload 'system-taskbar-mode "system-taskbar" nil)
+(autoload 'system-taskbar-mode "system-taskbar" "\
+System GUI taskbar icon badge, progress report, alerting.
+
+This is a global minor mode.  If called interactively, toggle the
+`System-Taskbar mode' mode.  If the prefix argument is positive, enable
+the mode, and if it is zero or negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is `toggle'.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the mode
+if ARG is a negative number.
+
+To check whether the minor mode is enabled in the current buffer,
+evaluate `(default-value \\='system-taskbar-mode)'.
+
+The mode's hook is called both when the mode is enabled and when it is
+disabled.
+
+(fn &optional ARG)" t)
+(register-definition-prefixes "system-taskbar" '("system-taskbar-"))
 
 
 ;;; Generated autoloads from t-mouse.el
@@ -35233,7 +35272,7 @@ The value can be either a list of ts-modes to enable,
 or t to enable all ts-modes.  The value nil (the default)
 means not to enable any tree-sitter based modes.
 
-Enabling a tree-stter based mode means that visiting files in the
+Enabling a tree-sitter based mode means that visiting files in the
 corresponding programming language will automatically turn on that
 mode, instead of any non-tree-sitter based modes for the same
 language.")
@@ -36924,8 +36963,8 @@ When called interactively with a prefix argument, prompt for
 UPSTREAM-LOCATION.  In some version control systems, UPSTREAM-LOCATION
 can be a remote branch name.
 
-This command is like to `vc-fileset-diff-outgoing' except that it
-includes uncommitted changes.
+This command is like to `vc-diff-outgoing' except that it includes
+uncommitted changes.
 
 (fn &optional UPSTREAM-LOCATION FILESET)" t)
 (autoload 'vc-version-ediff "vc" "\
@@ -37063,7 +37102,8 @@ Show in another window the VC change history of the current fileset.
 If WORKING-REVISION is non-nil, it should be a revision ID; position
 point in the change history buffer at that revision.
 If LIMIT is non-nil, it should be a number specifying the maximum
-number of revisions to show; the default is `vc-log-show-limit'.
+number of revisions to show; the default for interactive calls is
+`vc-log-show-limit'.
 
 When called interactively with a prefix argument, prompt for
 WORKING-REVISION and LIMIT.
@@ -37086,9 +37126,20 @@ the command prompts for the id of a REVISION, and shows that revision
 with its diffs (if the underlying VCS backend supports that).
 
 (fn &optional LIMIT REVISION)" t)
-(autoload 'vc-print-branch-log "vc" "\
-Show the change log for BRANCH in another window.
-The command prompts for the branch whose change log to show.
+(autoload 'vc-print-fileset-branch-log "vc" "\
+Show log of VC changes on BRANCH, limited to the current fileset.
+When called interactively, prompts for BRANCH.
+In addition to logging branches, for VCS for which it makes sense you
+can specify a revision ID instead of a branch name to produce a log
+starting at that revision.  Tags and remote references also work.
+
+(fn BRANCH)" t)
+(autoload 'vc-print-root-branch-log "vc" "\
+Show root log of VC changes on BRANCH in another window.
+When called interactively, prompts for BRANCH.
+In addition to logging branches, for VCS for which it makes sense you
+can specify a revision ID instead of a branch name to produce a log
+starting at that revision.  Tags and remote references also work.
 
 (fn BRANCH)" t)
 (autoload 'vc-log-incoming "vc" "\
@@ -38374,7 +38425,7 @@ Convert Vietnamese characters of the current buffer to `VIQR' mnemonics." t)
 
 
 (fn FROM TO)")
-(register-definition-prefixes "viet-util" '("viet-viqr-alist" "viqr-regexp"))
+(register-definition-prefixes "viet-util" '("viet-viqr-alist" "viqr-"))
 
 
 ;;; Generated autoloads from view.el
@@ -39619,7 +39670,7 @@ it is relative to the top edge (for positive ARG) or the bottom edge
 If no window is at the desired location, an error is signaled
 unless `windmove-create-window' is non-nil and a new window is created.
 
-If `windmove-allow-repeated-command-override' is true and this commnad
+If `windmove-allow-repeated-command-override' is true and this command
 stopped because it wouldn't move into a window marked with
 `no-other-window', repeating the command will move into that window.
 
@@ -39633,7 +39684,7 @@ negative ARG) of the current window.
 If no window is at the desired location, an error is signaled
 unless `windmove-create-window' is non-nil and a new window is created.
 
-If `windmove-allow-repeated-command-override' is true and this commnad
+If `windmove-allow-repeated-command-override' is true and this command
 stopped because it wouldn't move into a window marked with
 `no-other-window', repeating the command will move into that window.
 
@@ -39647,7 +39698,7 @@ bottom edge (for negative ARG) of the current window.
 If no window is at the desired location, an error is signaled
 unless `windmove-create-window' is non-nil and a new window is created.
 
-If `windmove-allow-repeated-command-override' is true and this commnad
+If `windmove-allow-repeated-command-override' is true and this command
 stopped because it wouldn't move into a window marked with
 `no-other-window', repeating the command will move into that window.
 
@@ -39661,7 +39712,7 @@ it is relative to the left edge (for positive ARG) or the right edge
 If no window is at the desired location, an error is signaled
 unless `windmove-create-window' is non-nil and a new window is created.
 
-If `windmove-allow-repeated-command-override' is true and this commnad
+If `windmove-allow-repeated-command-override' is true and this command
 stopped because it wouldn't move into a window marked with
 `no-other-window', repeating the command will move into that window.
 

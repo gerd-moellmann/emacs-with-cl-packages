@@ -3169,8 +3169,8 @@ When called interactively with a prefix argument, prompt for
 UPSTREAM-LOCATION.  In some version control systems, UPSTREAM-LOCATION
 can be a remote branch name.
 
-This command is like to `vc-fileset-diff-outgoing' except that it
-includes uncommitted changes."
+This command is like to `vc-diff-outgoing' except that it includes
+uncommitted changes."
   (interactive (list (vc--maybe-read-upstream-location) nil))
   (let* ((fileset (or fileset (vc-deduce-fileset t)))
          (backend (car fileset))
@@ -3932,13 +3932,20 @@ Each function runs in the log output buffer without args.")
    (lambda (_ignore-auto _noconfirm)
      (vc-incoming-outgoing-internal backend upstream-location buffer-name type))))
 
+(defun vc--read-limit ()
+  "Read a LIMIT argument for a VC log command."
+  (string-to-number
+   (read-from-minibuffer "Limit display (0 for unlimited): "
+                         (format "%s" vc-log-show-limit))))
+
 ;;;###autoload
 (defun vc-print-log (&optional working-revision limit)
   "Show in another window the VC change history of the current fileset.
 If WORKING-REVISION is non-nil, it should be a revision ID; position
 point in the change history buffer at that revision.
 If LIMIT is non-nil, it should be a number specifying the maximum
-number of revisions to show; the default is `vc-log-show-limit'.
+number of revisions to show; the default for interactive calls is
+`vc-log-show-limit'.
 
 When called interactively with a prefix argument, prompt for
 WORKING-REVISION and LIMIT.
@@ -3951,23 +3958,39 @@ shown log style is available via `vc-log-short-style'."
   (interactive
    (cond
     (current-prefix-arg
-     (let ((rev (read-from-minibuffer "Leave point at revision (default: last revision): " nil
-				      nil nil nil))
-	   (lim (string-to-number
-		 (read-from-minibuffer
-		  "Limit display (unlimited: 0): "
-		  (format "%s" vc-log-show-limit)
-		  nil nil nil))))
-       (when (string= rev "") (setq rev nil))
-       (when (<= lim 0) (setq lim nil))
-       (list rev lim)))
+     (let ((rev (read-from-minibuffer (format-prompt "Leave point at revision"
+                                                     "last revision")))
+	   (lim (vc--read-limit)))
+       (list (and (not (string-empty-p rev)) rev) (and (plusp lim) lim))))
     (t
-     (list nil (when (> vc-log-show-limit 0) vc-log-show-limit)))))
-  (let* ((vc-fileset (vc-deduce-fileset t))
-	 (backend (car vc-fileset))
-	 (files (cadr vc-fileset))
-	 (working-revision (or working-revision vc-buffer-revision)))
-    (vc-print-log-internal backend files working-revision nil limit)))
+     (list nil (and (plusp vc-log-show-limit) vc-log-show-limit)))))
+  (let ((fileset (vc-deduce-fileset t))
+	(working-revision (or working-revision vc-buffer-revision)))
+    (vc-print-log-internal (car fileset) (cadr fileset)
+                           working-revision nil limit)))
+
+;;;###autoload
+(defun vc-print-change-log ()
+  "Show in another window the VC change history of the current fileset.
+With a \\[universal-argument] prefix argument, prompt for a branch \
+or revision to log
+instead of the working revision, and a number specifying the maximum
+number of revisions to show; the default is `vc-log-show-limit'.
+You can also use a numeric prefix argument to specify this.
+
+This is like `vc-print-log' but with an alternative prefix argument that
+some users might prefer for interactive usage."
+  (declare (interactive-only vc-print-log))
+  (interactive)
+  (if current-prefix-arg
+      (let ((branch
+             (vc--read-branch-to-log t))
+            (vc-log-show-limit
+             (if (equal current-prefix-arg '(4))
+                 (vc--read-limit)
+               (prefix-numeric-value current-prefix-arg))))
+        (vc-print-fileset-branch-log branch))
+    (vc-print-log)))
 
 ;;;###autoload
 (defun vc-print-root-log (&optional limit revision)
@@ -3989,11 +4012,7 @@ with its diffs (if the underlying VCS backend supports that)."
     ((numberp current-prefix-arg)
      (list current-prefix-arg))
     (current-prefix-arg
-     (let ((lim (string-to-number
-		 (read-from-minibuffer
-		  "Limit display (unlimited: 0): "
-		  (format "%s" vc-log-show-limit)
-		  nil nil nil))))
+     (let ((lim (vc--read-limit)))
        (list (and (plusp lim) lim))))
     (t
      (list (and (plusp vc-log-show-limit) vc-log-show-limit)))))
@@ -4007,21 +4026,75 @@ with its diffs (if the underlying VCS backend supports that)."
       (setq vc-parent-buffer-name nil))))
 
 ;;;###autoload
-(defun vc-print-branch-log (branch)
-  "Show the change log for BRANCH in another window.
-The command prompts for the branch whose change log to show."
-  (interactive
-   (let* ((backend (vc-responsible-backend default-directory))
-          (rootdir (vc-call-backend backend 'root default-directory)))
-     (list
-      (vc-read-revision "Branch to log: " (list rootdir) backend))))
-  (when (equal branch "")
-    (error "No branch specified"))
-  (let* ((backend (vc-responsible-backend default-directory))
-         (rootdir (vc-call-backend backend 'root default-directory)))
-    (vc-print-log-internal backend
-                           (list rootdir) branch t
-                           (when (> vc-log-show-limit 0) vc-log-show-limit))))
+(defun vc-print-root-change-log ()
+  "Show in another window the VC change history of the whole tree.
+With a \\[universal-argument] prefix argument, prompt for a branch \
+or revision to log
+instead of the working revision, and a number specifying the maximum
+number of revisions to show; the default is `vc-log-show-limit'.
+You can also use a numeric prefix argument to specify this.
+
+This is like `vc-root-print-log' but with an alternative prefix argument
+that some users might prefer for interactive usage."
+  (declare (interactive-only vc-print-root-log))
+  (interactive)
+  (if current-prefix-arg
+      (let ((branch
+             (vc--read-branch-to-log))
+            (vc-log-show-limit
+             (if (equal current-prefix-arg '(4))
+                 (vc--read-limit)
+               (prefix-numeric-value current-prefix-arg))))
+        (vc-print-root-branch-log branch))
+    (vc-print-root-log)))
+
+(defun vc--read-branch-to-log (&optional fileset)
+  "Read the name of a branch to log.
+FILESET, if non-nil, means to pass the current VC fileset to
+`vc-read-revision'."
+  (let ((branch (vc-read-revision "Branch to log: "
+                                  (and fileset
+                                       (cadr (vc-deduce-fileset t))))))
+    (when (string-empty-p branch)
+      (user-error "No branch specified"))
+    branch))
+
+;;;###autoload
+(defun vc-print-fileset-branch-log (branch)
+  "Show log of VC changes on BRANCH, limited to the current fileset.
+When called interactively, prompts for BRANCH.
+In addition to logging branches, for VCS for which it makes sense you
+can specify a revision ID instead of a branch name to produce a log
+starting at that revision.  Tags and remote references also work."
+  ;; Currently the prefix argument is conserved.  Possibly it could be
+  ;; used to prompt for a LIMIT argument like \\`C-x v l' has.  Though
+  ;; now we have "Show 2X entries" and "Show unlimited entries" that
+  ;; might be a waste of the prefix argument to this command.  --spwhitton
+  (interactive (list (vc--read-branch-to-log t)))
+  (let ((fileset (vc-deduce-fileset t)))
+    (vc-print-log-internal (car fileset) (cadr fileset) branch t
+                           (and (plusp vc-log-show-limit)
+                                vc-log-show-limit))))
+
+;;;###autoload
+(defun vc-print-root-branch-log (branch)
+  "Show root log of VC changes on BRANCH in another window.
+When called interactively, prompts for BRANCH.
+In addition to logging branches, for VCS for which it makes sense you
+can specify a revision ID instead of a branch name to produce a log
+starting at that revision.  Tags and remote references also work."
+  ;; Prefix argument conserved; see previous command.  --spwhitton
+  (interactive (list (vc--read-branch-to-log)))
+  (vc--with-backend-in-rootdir "VC branch log"
+    (vc-print-log-internal backend (list rootdir) branch t
+                           (and (plusp vc-log-show-limit)
+                                vc-log-show-limit))))
+;; We plan to reuse the name `vc-print-branch-log' for the
+;; fileset-specific command in Emacs 32.1.  --spwhitton
+(define-obsolete-function-alias
+  'vc-print-branch-log
+  #'vc-print-root-branch-log
+  "31.1")
 
 ;; FIXME: Consider renaming to `vc-upstream-location-history'.
 (defvar vc-remote-location-history nil

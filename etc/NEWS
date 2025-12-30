@@ -1119,6 +1119,10 @@ convention.  Also, the ':match?' predicate can now take the regexp as
 either the first or second argument, so it works with both tree-sitter
 convention (regexp arg second) and Emacs convention (regexp arg first).
 
++++
+** Track-changes
+*** New variable 'track-changes-undo-only' to distinguish undo changes.
+
 ** Hideshow
 
 +++
@@ -1976,6 +1980,10 @@ for docstrings where symbols 'nil' and 't' are in quotes.
 In most cases, having it enabled leads to a large amount of false
 positives.
 
+*** New file-local variable 'lisp-indent-local-overrides'
+This variable can be used to locally override the indent specification
+of symbols.
+
 ** IELM
 
 ---
@@ -2420,6 +2428,25 @@ appearance of the list can be customized with the new faces
 ** VC
 
 +++
+*** Printing root branch logs has moved to 'C-x v b L'.
+Previously the command to print the root log for a branch was bound to
+'C-x v b l'.  It has now been renamed from 'vc-print-branch-log' to
+'vc-print-root-branch-log', and bound to 'C-x v b L'.  This is more
+consistent with the rest of the 'C-x v' keymap, and makes room for a new
+fileset-specific branch log command.
+
+To undo this change you can use
+
+    (keymap-global-set "C-x v b l" #'vc-print-root-branch-log)
+    (with-eval-after-load 'vc-dir
+      (keymap-set vc-dir-mode-map "b l" #'vc-print-root-branch-log))
+
++++
+*** New command 'C-x v b l' ('vc-print-fileset-branch-log').
+This command prints the log of VC changes to the current fileset on
+another branch.
+
++++
 *** New commands to handle repositories with multiple working trees.
 Some VCS support more than one working tree with the same backing
 revisions store, such as with Git's 'worktree' subcommand and
@@ -2594,7 +2621,7 @@ current VC fileset.
 
 +++
 *** New commands to report diffs of outstanding changes.
-'C-x v B =' ('vc-diff-outgoing-base') and 'C-x v B D'
+'C-x v o =' ('vc-diff-outgoing-base') and 'C-x v o D'
 ('vc-root-diff-outgoing-base') report diffs of changes since the merge
 base with the remote branch, including uncommitted changes.
 They are useful to view all outstanding (unmerged, unpushed) changes on
@@ -2688,6 +2715,19 @@ The new command 'log-view-copy-revision-as-kill', bound to 'w' in Log
 View mode, copies to the kill ring the ID of the revision at point in
 the log entry.  If there are marked revisions, it copies the IDs of
 those, instead.
+
+---
+*** New commands 'vc-print-change-log' and 'vc-print-root-change-log'.
+These are just like 'vc-print-log' and 'vc-print-root-log' except that
+they have a different prefix argument that some users may prefer.
+With a prefix argument, these commands prompt for a branch, tag or other
+reference to a revision to log, and a maximum number of revisions to
+print.  If you find this prefix argument more useful, or more mnemonic,
+than the prefix arguments that 'vc-print-log' and 'vc-print-root-log'
+already have, consider replacing the default global bindings, like this:
+
+    (keymap-global-set "C-x v l" #'vc-print-change-log)
+    (keymap-global-set "C-x v L" #'vc-print-root-change-log)
 
 ---
 *** New command alias 'vc-restore' for 'vc-revert'.
