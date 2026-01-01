@@ -181,6 +181,12 @@
 ;;   the following functions might be needed: `dir-extra-headers',
 ;;   `dir-printer', and `extra-dir-menu'.
 ;;
+;;   NOTE: project.el includes a similar method `project-list-files'
+;;   that has slightly different return value and performance tradeoffs.
+;;   If you want to use it in your code and it suits your needs better
+;;   than `dir-status-files', consider contacting the development list
+;;   about changes or having it promoted to the core VC.
+;;
 ;; - dir-extra-headers (dir)
 ;;
 ;;   Return a string that will be added to the *vc-dir* buffer header.
@@ -630,10 +636,13 @@
 ;;
 ;; - ignore-completion-table (directory)
 ;;
-;;   Return the completion table for files ignored by the current
+;;   Return the list of patterns for files ignored by the current
 ;;   version control system, e.g., the entries in `.gitignore' and
 ;;   `.bzrignore'.  The default behavior is to read the contents of
 ;;   the file returned by the `find-ignore-file' function.
+;;
+;;   NOTE: The return value should be a list of strings, not a general
+;;   completion table value, despite what the name implies.
 ;;
 ;; - find-ignore-file (file)
 ;;
@@ -4102,8 +4111,9 @@ starting at that revision.  Tags and remote references also work."
 
 (defun vc--maybe-read-upstream-location ()
   (and current-prefix-arg
-       (read-string "Upstream location/branch (empty for default): " nil
-                    'vc-remote-location-history)))
+       (let ((res (read-string "Upstream location/branch (empty for default): "
+                               nil 'vc-remote-location-history)))
+         (and (not (string-empty-p res)) res))))
 
 (defun vc--incoming-revision (backend &optional upstream-location refresh)
   ;; Some backends don't support REFRESH and so always behave as though
