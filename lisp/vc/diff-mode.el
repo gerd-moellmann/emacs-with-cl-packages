@@ -1,6 +1,6 @@
 ;;; diff-mode.el --- a mode for viewing/editing context diffs -*- lexical-binding: t -*-
 
-;; Copyright (C) 1998-2025 Free Software Foundation, Inc.
+;; Copyright (C) 1998-2026 Free Software Foundation, Inc.
 
 ;; Author: Stefan Monnier <monnier@iro.umontreal.ca>
 ;; Keywords: convenience patch diff vc
@@ -2814,6 +2814,8 @@ Call FUN with two args (BEG and END) for each hunk."
 
 (defun diff--overlay-auto-delete (ol _after _beg _end &optional _len)
   (delete-overlay ol))
+
+(define-obsolete-function-alias 'diff-undo #'undo-ignore-read-only "31.1")
 
 ;;;###autoload
 (defcustom diff-add-log-use-relative-names nil

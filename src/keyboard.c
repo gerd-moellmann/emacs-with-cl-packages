@@ -1,6 +1,6 @@
 /* Keyboard and mouse input; editor command loop.
 
-Copyright (C) 1985-1989, 1993-1997, 1999-2025 Free Software Foundation,
+Copyright (C) 1985-1989, 1993-1997, 1999-2026 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
@@ -13511,6 +13511,8 @@ is_ignored_event (union buffered_input_event *event)
       break;
     case TOOLKIT_THEME_CHANGED_EVENT:
       ignore_event = Qtoolkit_theme_changed;
+      break;
+    default:
       break;
     }
 

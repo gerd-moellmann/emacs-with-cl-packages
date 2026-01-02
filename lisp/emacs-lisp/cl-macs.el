@@ -1,7 +1,7 @@
 ;;;   -*- lexical-binding: t; symbol-packages: t -*-
 ;;; cl-macs.el --- Common Lisp macros
 
-;; Copyright (C) 1993, 2001-2025 Free Software Foundation, Inc.
+;; Copyright (C) 1993, 2001-2026 Free Software Foundation, Inc.
 
 ;; Author: Dave Gillespie <daveg@synaptics.com>
 ;; Old-Version: 2.02

@@ -1,6 +1,6 @@
 ;;; vc.el --- drive a version-control system from within Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1992-1998, 2000-2025 Free Software Foundation, Inc.
+;; Copyright (C) 1992-1998, 2000-2026 Free Software Foundation, Inc.
 
 ;; Author: FSF (see below for full credits)
 ;; Maintainer: emacs-devel@gnu.org
@@ -182,10 +182,11 @@
 ;;   `dir-printer', and `extra-dir-menu'.
 ;;
 ;;   NOTE: project.el includes a similar method `project-list-files'
-;;   that has slightly different return value and performance tradeoffs.
-;;   If you want to use it in your code and it suits your needs better
-;;   than `dir-status-files', consider contacting the development list
-;;   about changes or having it promoted to the core VC.
+;;   that has a slightly different return value and performance
+;;   trade-offs.  If you want to use it in your code and it suits your
+;;   needs better than `dir-status-files', consider contacting the
+;;   development list about changes or having it promoted to the core
+;;   VC.  See also `vc-dir-status-files'.
 ;;
 ;; - dir-extra-headers (dir)
 ;;

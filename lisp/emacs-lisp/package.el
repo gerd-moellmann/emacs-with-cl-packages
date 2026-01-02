@@ -1,6 +1,6 @@
 ;;; package.el --- Simple package system for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2007-2025 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2026 Free Software Foundation, Inc.
 
 ;; Author: Tom Tromey <tromey@redhat.com>
 ;;         Daniel Hackney <dan@haxney.org>
@@ -2280,15 +2280,15 @@ had been enabled."
                     nil t))
            nil)))
   (cl-check-type pkg (or symbol package-desc))
-  (when (or (and package-install-upgrade-built-in
-                 (package--active-built-in-p pkg))
-            (package-installed-p pkg))
-    (user-error "Package is already installed"))
   (package--archives-initialize)
   (add-hook 'post-command-hook #'package-menu--post-refresh)
   (let ((name (if (package-desc-p pkg)
                   (package-desc-name pkg)
                 pkg)))
+    (when (or (and package-install-upgrade-built-in
+                   (package--active-built-in-p pkg))
+              (package-installed-p pkg))
+      (user-error "`%s' is already installed" name))
     (unless (or dont-select (package--user-selected-p name))
       (package--save-selected-packages
        (cons name package-selected-packages)))
@@ -2304,8 +2304,8 @@ had been enabled."
         (progn
           (package-download-transaction transaction)
           (package--quickstart-maybe-refresh)
-          (message  "Package `%s' installed." name))
-      (message "`%s' is already installed" name))))
+          (message  "Package `%s' installed." name)))))
+
 
 (declare-function package-vc-upgrade "package-vc" (pkg))
 
