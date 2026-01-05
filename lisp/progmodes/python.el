@@ -3694,13 +3694,18 @@ def __PYTHON_EL_eval(source, filename):
 (defconst python-shell-eval-file-setup-code
   "\
 def __PYTHON_EL_eval_file(filename, tempname, delete):
-    import codecs, os, re
+    import os, re, sys
+    if sys.version_info.major < 3:
+        import codecs
+        _open = codecs.open
+    else:
+        _open = open
     pattern = r'^[ \t\f]*#.*?coding[:=][ \t]*([-_.a-zA-Z0-9]+)'
-    with codecs.open(tempname or filename, encoding='latin-1') as file:
+    with _open(tempname or filename, encoding='latin-1') as file:
         match = re.match(pattern, file.readline())
         match = match or re.match(pattern, file.readline())
         encoding = match.group(1) if match else 'utf-8'
-    with codecs.open(tempname or filename, encoding=encoding) as file:
+    with _open(tempname or filename, encoding=encoding) as file:
         source = file.read().encode(encoding)
     if delete and tempname:
         os.remove(tempname)
@@ -4837,12 +4842,17 @@ With argument MSG show activation/deactivation message."
 (defun python-shell-completion-get-completions (process input)
   "Get completions of INPUT using PROCESS."
   (with-current-buffer (process-buffer process)
-    (python--parse-json-array
-     (python-shell-send-string-no-output
-      (format "%s\nprint(__PYTHON_EL_get_completions(%s))"
-              python-shell-completion-setup-code
-              (python-shell--encode-string input))
-      process))))
+    (let ((completions
+           (python-shell-send-string-no-output
+            (format "%s\nprint(__PYTHON_EL_get_completions(%s))"
+                    python-shell-completion-setup-code
+                    (python-shell--encode-string input))
+            process)))
+      (condition-case nil
+          (python--parse-json-array completions)
+        (json-parse-error
+         (python--parse-json-array
+          (car (last (split-string completions "[\n\r]+" t)))))))))
 
 (defun python-shell--get-multiline-input ()
   "Return lines at a multi-line input in Python shell."

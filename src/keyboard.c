@@ -12624,7 +12624,7 @@ set_waiting_for_input (struct timespec *time_to_clear)
 {
   input_available_clear_time = time_to_clear;
 
-  /* Tell handle_interrupt to throw back to read_char,  */
+  /* Tell handle_interrupt to throw back to read_char.  */
   waiting_for_input = true;
 
   /* If handle_interrupt was called before and buffered a C-g,
@@ -13032,7 +13032,8 @@ See also `current-input-mode'.  */)
     error ("QUIT must be an ASCII character");
 
 #ifndef DOS_NT
-  /* this causes startup screen to be restored and messes with the mouse */
+  /* This causes startup screen to be restored and messes with the
+     mouse.  */
   reset_sys_modes (tty);
 #endif
 

@@ -89,7 +89,8 @@ capabilities, and only when that terminal understands bracketed paste."
           "WezTerm"
           ;; "XTerm"   ;Disabled because OSC52 support is opt-in only.
           "iTerm2"     ;OSC52 support has opt-in/out UI on first usage
-          "kitty")
+          "kitty"
+          "foot")
       word-end)
   "Regexp for terminals that automatically enable `xterm-mouse-mode' at startup.
 This will get matched against the terminal's XTVERSION string.
@@ -746,20 +747,22 @@ Return the pasted text as a string."
   (let ((str (xterm--read-string ?\e ?\\)))
     (when (string-match
            "rgb:\\([a-f0-9]+\\)/\\([a-f0-9]+\\)/\\([a-f0-9]+\\)" str)
-      (let ((recompute-faces
-             (xterm-maybe-set-dark-background-mode
-              (string-to-number (match-string 1 str) 16)
-              (string-to-number (match-string 2 str) 16)
-              (string-to-number (match-string 3 str) 16))))
+      (set-terminal-parameter
+       nil 'xterm--background-color
+       (list (string-to-number (match-string 1 str) 16)
+             (string-to-number (match-string 2 str) 16)
+             (string-to-number (match-string 3 str) 16))))))
 
-        ;; Recompute faces here in case the background mode was
-        ;; set to dark.  We used to call
-        ;; `tty-set-up-initial-frame-faces' only once, but that
-        ;; caused the light background faces to be computed
-        ;; incorrectly.  See:
-        ;; https://lists.gnu.org/r/emacs-devel/2010-01/msg00439.html
-        (when recompute-faces
-          (tty-set-up-initial-frame-faces))))))
+(defun xterm--report-foreground-handler ()
+  ;; The reply is similar to in `xterm--report-background-handler'.
+  (let ((str (xterm--read-string ?\e ?\\)))
+    (when (string-match
+           "rgb:\\([a-f0-9]+\\)/\\([a-f0-9]+\\)/\\([a-f0-9]+\\)" str)
+      (set-terminal-parameter
+       nil 'xterm--foreground-color
+       (list (string-to-number (match-string 1 str) 16)
+             (string-to-number (match-string 2 str) 16)
+             (string-to-number (match-string 3 str) 16))))))
 
 (defun xterm--version-handler ()
   ;; The reply should be: \e [ > NUMBER1 ; NUMBER2 ; NUMBER3 c
@@ -784,7 +787,9 @@ Return the pasted text as a string."
           ;; Gnome terminal 3.38.0 reports 65;6200;1.
           (when (> version 4000)
             (xterm--query "\e]11;?\e\\"
-                          '(("\e]11;" .  xterm--report-background-handler))))
+                          '(("\e]11;" . xterm--report-background-handler)))
+            (xterm--query "\e]10;?\e\\"
+                          '(("\e]10;" . xterm--report-foreground-handler))))
           (setq version 200))
         (when (equal (match-string 1 str) "83")
           ;; `screen' (which returns 83;40003;0) seems to also lack support for
@@ -798,7 +803,9 @@ Return the pasted text as a string."
         ;; versions do too...)
         (when (>= version 242)
           (xterm--query "\e]11;?\e\\"
-                        '(("\e]11;" .  xterm--report-background-handler))))
+                        '(("\e]11;" . xterm--report-background-handler)))
+          (xterm--query "\e]10;?\e\\"
+                        '(("\e]10;" . xterm--report-foreground-handler))))
 
         ;; If version is 216 (the version when modifyOtherKeys was
         ;; introduced) or higher, initialize the
@@ -815,6 +822,16 @@ Return the pasted text as a string."
           ;; explicitly requests it.
           ;;(xterm--init-activate-get-selection)
           (xterm--init-activate-set-selection))))))
+
+(defun xterm--primary-da-handler ()
+  ;; The reply should be: \e [ ? NUMBER1 ; ... ; NUMBER_N c
+  (let ((str (xterm--read-string ?c)))
+    (when (member "52" (split-string str ";" t))
+      ;; Many modern terminals include 52 in their primary DA response,
+      ;; to indicate support for *writing* to the OS clipboard. The
+      ;; specification does not guarantee the clipboard can be read. See
+      ;; https://github.com/contour-terminal/vt-extensions/blob/master/clipboard-extension.md
+      (xterm--init-activate-set-selection))))
 
 (defvar xterm-query-timeout 2
   "Seconds to wait for an answer from the terminal.
@@ -942,18 +959,24 @@ We run the first FUNCTION whose STRING matches the input events."
   (tty-set-up-initial-frame-faces)
 
   (if (eq xterm-extra-capabilities 'check)
-      ;; Try to find out the type of terminal by sending a "Secondary
-      ;; Device Attributes (DA)" query.
-      (xterm--query "\e[>0c"
-                    ;; Some terminals (like macOS's Terminal.app) respond to
-                    ;; this query as if it were a "Primary Device Attributes"
-                    ;; query instead, so we should handle that too.
-                    '(("\e[?" . xterm--version-handler)
-                      ("\e[>" . xterm--version-handler)))
+      (progn
+        ;; Try to find out the type of terminal by sending a "Secondary
+        ;; Device Attributes (DA)" query.
+        (xterm--query "\e[>0c"
+                      ;; Some terminals (like macOS's Terminal.app) respond to
+                      ;; this query as if it were a "Primary Device Attributes"
+                      ;; query instead, so we should handle that too.
+                      '(("\e[?" . xterm--version-handler)
+                        ("\e[>" . xterm--version-handler)))
+        ;; Check primary DA for OSC-52 support
+        (xterm--query "\e[c"
+                      '(("\e[?" . xterm--primary-da-handler))))
 
     (when (memq 'reportBackground xterm-extra-capabilities)
       (xterm--query "\e]11;?\e\\"
-                    '(("\e]11;" .  xterm--report-background-handler))))
+                    '(("\e]11;" . xterm--report-background-handler)))
+      (xterm--query "\e]10;?\e\\"
+                    '(("\e]10;" . xterm--report-foreground-handler))))
 
     (when (memq 'modifyOtherKeys xterm-extra-capabilities)
       (xterm--init-modify-other-keys))
@@ -965,6 +988,27 @@ We run the first FUNCTION whose STRING matches the input events."
 
   (when xterm-set-window-title
     (xterm--init-frame-title))
+
+  (let ((bg-color (terminal-parameter nil 'xterm--background-color))
+        (fg-color (terminal-parameter nil 'xterm--foreground-color)))
+    (when bg-color
+      (let ((recompute-faces
+             (apply #'xterm--set-background-mode bg-color)))
+
+        ;; Recompute faces here in case the background mode was
+        ;; set to dark.  We used to call
+        ;; `tty-set-up-initial-frame-faces' only once, but that
+        ;; caused the light background faces to be computed
+        ;; incorrectly.  See:
+        ;; https://lists.gnu.org/r/emacs-devel/2010-01/msg00439.html
+        (when recompute-faces
+          (tty-set-up-initial-frame-faces))))
+    (when (or bg-color fg-color)
+      (add-hook 'after-make-frame-functions 'xterm--maybe-update-default-face)
+      ;; Manually update, after-make-frame-functions was already called
+      ;; for initial frame.
+      (xterm--maybe-update-default-face (selected-frame))))
+
   (when (and (not xterm-mouse-mode-called)
              ;; Only automatically enable xterm mouse on terminals
              ;; confirmed to still support all critical editing
@@ -1229,12 +1273,32 @@ versions of xterm."
     ;; right colors, so clear them.
     (clear-face-cache)))
 
-(defun xterm-maybe-set-dark-background-mode (redc greenc bluec)
+(defun xterm--set-background-mode (redc greenc bluec)
   ;; Use the heuristic in `frame-set-background-mode' to decide if a
   ;; frame is dark.
-  (when (< (+ redc greenc bluec) (* .6 (+ 65535 65535 65535)))
-    (set-terminal-parameter nil 'background-mode 'dark)
-    t))
+  (set-terminal-parameter
+   nil 'background-mode
+   (if (< (+ redc greenc bluec) (* .6 (+ 65535 65535 65535)))
+       'dark
+     'light)))
+
+(defun xterm--maybe-update-default-face (frame)
+  (let ((bg-color (terminal-parameter (frame-terminal frame)
+                                      'xterm--background-color))
+        (fg-color (terminal-parameter (frame-terminal frame)
+                                      'xterm--foreground-color))
+        (default-bg (face-attribute 'default :background frame))
+        (default-fg (face-attribute 'default :foreground frame)))
+    (when (and bg-color (string-equal default-bg "unspecified-bg"))
+      (let ((r (car bg-color))
+            (g (cadr bg-color))
+            (b (caddr bg-color)))
+        (set-face-background 'default (format "#%04x%04x%04x" r g b) frame)))
+    (when (and fg-color (string-equal default-fg "unspecified-fg"))
+      (let ((r (car fg-color))
+            (g (cadr fg-color))
+            (b (caddr fg-color)))
+        (set-face-foreground 'default (format "#%04x%04x%04x" r g b) frame)))))
 
 (provide 'xterm)                        ;Backward compatibility.
 (provide 'term/xterm)
