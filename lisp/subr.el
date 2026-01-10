@@ -4603,7 +4603,6 @@ It also runs the string through `yank-transform-functions'."
 	 (param (or (nth 1 handler) string))
 	 (opoint (point))
 	 (inhibit-read-only inhibit-read-only)
-         (inhibit-modification-hooks inhibit-modification-hooks)
 	 end)
 
     ;; FIXME: This throws away any yank-undo-function set by previous calls
@@ -4614,10 +4613,9 @@ It also runs the string through `yank-transform-functions'."
       (insert param))
     (setq end (point))
 
-    ;; Prevent read-only properties from interfering with the following
-    ;; text property changes, and inhibit further modification hook
-    ;; calls.
-    (setq inhibit-read-only t inhibit-modification-hooks t)
+    ;; Prevent read-only properties from interfering with the
+    ;; following text property changes.
+    (setq inhibit-read-only t)
 
     (unless (nth 2 handler) ; NOEXCLUDE
       (remove-yank-excluded-properties opoint end))
