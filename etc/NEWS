@@ -684,6 +684,11 @@ project, during completion.  That makes some items shorter.
 The category defaults are the same as for 'buffer' but any user
 customizations would need to be re-added.
 
+** Help
+
++++
+*** New keybinding 'C-h u' for 'apropos-user-option'.
+
 ** IDLWAVE has been moved to GNU ELPA.
 The version bundled with Emacs is out-of-date, and is now marked as
 obsolete.  Use 'M-x list-packages' to install the 'idlwave' package from
@@ -766,6 +771,15 @@ on the terminal from which 'emacsclient' was invoked.
 Emacs previously discarded arguments to emacsclient of zero length, such
 as in 'emacsclient --eval "(length (pop server-eval-args-left))" ""'.
 These are no longer discarded.
+
++++
+** New user option 'xterm-update-cursor' to update cursor display on TTYs.
+When enabled, Emacs sends Xterm escape sequences on Xterm-compatible
+terminals to update the cursor's appearacse.  Emacs can update the
+cursor's shape and color.  For example, if you use a purple bar cursor
+on graphical displays then when this option is enabled Emacs will use a
+purple bar cursor on compatible terminals as well.  See the Info node
+"(emacs) Cursor Display" for more information.
 
 
 * Editing Changes in Emacs 31.1
@@ -1227,7 +1241,7 @@ buffer-local variables 'hs-block-start-regexp', 'hs-c-start-regexp',
 'hs-forward-sexp-function', etc.
 
 +++
-*** 'hs-hide-level' and 'hs-cycle' can now hide comments too.
+*** 'hs-hide-level' can now hide comments too.
 This is controlled by 'hs-hide-comments-when-hiding-all'.
 
 ** C-ts mode
@@ -2804,6 +2818,11 @@ When called from Lisp, it now only accepts a symbol.
 When invoking the command in a Dired buffer with marked files,
 the command will only copy those files.
 
+---
+*** 'package-isolate' can now also install packages.
+If a package is missing, 'package-isolate' will fetch the missing
+tarballs and prepare them to be activated in the sub-process.
+
 +++
 *** package-x.el is now obsolete.
 
@@ -2826,6 +2845,14 @@ packages.
 
 ---
 *** Uninstalling a package now removes its directory from 'load-path'.
+
++++
+*** Packages can be reviewed before installation or upgrade.
+The user option 'package-review-policy' can configure which packages
+the user should be allowed to review before any processing takes place.
+The package review can include reading the downloaded source code,
+presenting a diff between the downloaded code and a previous
+installation or displaying a changelog.
 
 ** Rcirc
 
@@ -3342,7 +3369,6 @@ value.  Previously, only 'hi-lock-face-buffer' supported this.
 ** Shadowfile
 
 *** 'shadow-info-buffer' and 'shadow-todo-buffer' use ephemeral buffer names now.
-This excludes the buffers from save buffer predicates.
 
 
 * New Modes and Packages in Emacs 31.1
