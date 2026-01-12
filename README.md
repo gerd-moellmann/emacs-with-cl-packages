@@ -49,6 +49,26 @@ If you'd like to build with tree-sitter support, native-compilation, and RSVG (a
 brew install tree-sitter libgccjit librsvg
 ```
 
+#### Tree Sitter in Emacs 30
+
+If you'd like to build Emacs 30 (build on [this branch](https://github.com/jdtsmith/emacs-mac/tree/emacs-mac-30_1_exp)) with tree-sitter support, you'll need to install `tree-sitter-0.25`, for example:
+
+```bash
+brew install tree-sitter@0.25
+```
+
+And tell configure script where it's location is via `CFLAGS` and `LDDFLAGS` as per instructions in Caveats, for example:
+
+```bash
+CFLAGS="-I/opt/homebrew/opt/tree-sitter@0.25/include ..." LDDFLAGS="-L/opt/homebrew/opt/tree-sitter@0.25/lib" ./configure --with-tree-sitter ...
+```
+
+Note: use `CFLAGS` instead of `CPPFLAGS`. You can consult Caveats with:
+
+```bash
+brew info tree-sitter@0.25
+```
+
 ### Configure
 
 You can configure the app either as self-contained (all resources live within the app), or non-self-contained (the default).  A self-contained app is recommended.  The recommended configuration options are given below; see the file `README-mac` for others.
