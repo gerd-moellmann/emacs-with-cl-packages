@@ -2586,7 +2586,7 @@ mac_with_suppressed_transparent_titlebar( NSWindow* window, BOOL assumeTranspare
   if (!FRAME_TOOLTIP_P (f))
     {
       if (!self.shouldBeTitled)
-	windowStyle = NSWindowStyleMaskBorderless;
+	windowStyle = (NSWindowStyleMaskBorderless | NSWindowStyleMaskResizable);
       else
 	windowStyle = (NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
 		       | NSWindowStyleMaskMiniaturizable
