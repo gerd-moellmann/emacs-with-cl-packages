@@ -48,23 +48,29 @@
 (defface tab-bar-tab
   '((default
       :inherit tab-bar)
-    (((class color) (min-colors 88))
+    (((class color) (min-colors 88) (background light))
      :box (:line-width 1 :style released-button))
+    (((class color) (min-colors 88) (background dark))
+     :box (:line-width 1 :style released-button)
+     :background "grey40"
+     :foreground "white")
     (t
      :inverse-video nil))
   "Tab bar face for selected tab."
-  :version "27.1"
+  :version "31.1"
   :group 'tab-bar-faces)
 
 (defface tab-bar-tab-inactive
   '((default
       :inherit tab-bar-tab)
-    (((class color) (min-colors 88))
+    (((class color) (min-colors 88) (background light))
      :background "grey75")
+    (((class color) (min-colors 88) (background dark))
+     :background "grey20")
     (t
      :inverse-video t))
   "Tab bar face for non-selected tab."
-  :version "27.1"
+  :version "31.1"
   :group 'tab-bar-faces)
 
 (defface tab-bar-tab-group-current
@@ -86,10 +92,14 @@
   :group 'tab-bar-faces)
 
 (defface tab-bar-tab-highlight
-  '((((class color) (min-colors 88))
+  '((((class color) (min-colors 88) (background light))
      :box (:line-width 1 :style released-button)
      :background "grey85"
      :foreground "black")
+    (((class color) (min-colors 88) (background dark))
+     :box (:line-width 1 :style released-button)
+     :background "grey40"
+     :foreground "white")
     (t :inverse-video nil))
   "Tab bar face for highlighting."
   :version "31.1"
