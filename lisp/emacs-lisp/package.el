@@ -2033,10 +2033,6 @@ had been enabled."
            nil
            'interactive)))
   (cl-check-type pkg (or symbol package-desc))
-  (when (or (and package-install-upgrade-built-in
-                 (package--active-built-in-p pkg))
-            (package-installed-p pkg))
-    (user-error "Package is already installed"))
   (package--archives-initialize)
   (add-hook 'post-command-hook #'package-menu--post-refresh)
   (let ((name (if (package-desc-p pkg)
@@ -4523,6 +4519,8 @@ The list is displayed in a buffer named `*Packages*'."
 
 
 ;;;; Quickstart: precompute activation actions for faster start up.
+
+(defvar Info-directory-list)
 
 ;; Activating packages via `package-initialize' is costly: for N installed
 ;; packages, it needs to read all N <pkg>-pkg.el files first to decide

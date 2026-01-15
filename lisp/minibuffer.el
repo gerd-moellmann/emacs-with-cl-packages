@@ -3183,11 +3183,7 @@ Also respects the obsolete wrapper hook `completion-in-region-functions'.
     (setq-local minibuffer-completion-auto-choose nil)
     (add-hook 'post-command-hook #'completion-in-region--postch)
     (let* ((keymap completion-in-region-mode-map)
-           (keymap (if minibuffer-visible-completions
-                       (make-composed-keymap
-                        (list minibuffer-visible-completions-map
-                              keymap))
-                     keymap)))
+           (keymap (minibuffer-visible-completions--maybe-compose-map keymap)))
       (push `(completion-in-region-mode . ,keymap)
             minor-mode-overriding-map-alist))))
 
@@ -3452,15 +3448,25 @@ the mode hook of this mode."
     (setq-local minibuffer-completion-auto-choose nil)))
 
 (defcustom minibuffer-visible-completions nil
-  "Whether candidates shown in *Completions* can be navigated from minibuffer.
+  "Whether to enable navigation of candidates in *Completions* from minibuffer.
 When non-nil, if the *Completions* buffer is displayed in a window,
-you can use the arrow keys in the minibuffer to move the cursor in
+you can use the arrow keys in the minibuffer to move point in
 the window showing the *Completions* buffer.  Typing `RET' selects
 the highlighted completion candidate.
 If the *Completions* buffer is not displayed on the screen, or this
 variable is nil, the arrow keys move point in the minibuffer as usual,
-and `RET' accepts the input typed into the minibuffer."
-  :type 'boolean
+and `RET' accepts the input typed into the minibuffer.
+If the value is t, both up/down and right/left arrow keys move point
+in *Completions*; if the value is \\+`up-down', only up/down arrow
+keys move point in *Completions*, while left/right arrows move point
+in the minibuffer window."
+  :type '(choice (const :tag
+                        "Disable completions navigation with arrow keys" nil)
+                 (const :tag
+                        "Enable completions navigation with arrow keys" t)
+                 (const :tag
+                        "Enable completions navigation with up/down arrows"
+                        up-down))
   :version "30.1")
 
 (defvar minibuffer-visible-completions--always-bind nil
@@ -3505,6 +3511,20 @@ displaying the *Completions* buffer exists."
   "<up>"    (minibuffer-visible-completions--bind #'minibuffer-previous-line-completion)
   "<down>"  (minibuffer-visible-completions--bind #'minibuffer-next-line-completion)
   "C-g"     (minibuffer-visible-completions--bind #'minibuffer-hide-completions))
+
+(defvar-keymap minibuffer-visible-completions-up-down-map
+  :doc "Local keymap for minibuffer input with visible completions, only for up/down."
+  "<up>"    (minibuffer-visible-completions--bind #'minibuffer-previous-completion)
+  "<down>"  (minibuffer-visible-completions--bind #'minibuffer-next-completion))
+
+(defun minibuffer-visible-completions--maybe-compose-map (map)
+  (cond
+   ((eq minibuffer-visible-completions 'up-down)
+    (make-composed-keymap (list minibuffer-visible-completions-up-down-map map)))
+   ((eq minibuffer-visible-completions t)
+    (make-composed-keymap (list minibuffer-visible-completions-map map)))
+   (t map)))
+
 
 ;;; Completion tables.
 
@@ -5160,11 +5180,7 @@ See `completing-read' for the meaning of the arguments."
                     ;; in minibuffer-local-filename-completion-map can
                     ;; override bindings in base-keymap.
                     base-keymap)))
-         (keymap (if minibuffer-visible-completions
-                     (make-composed-keymap
-                      (list minibuffer-visible-completions-map
-                            keymap))
-                   keymap))
+         (keymap (minibuffer-visible-completions--maybe-compose-map keymap))
          (buffer (current-buffer))
          (c-i-c completion-ignore-case)
          (result
