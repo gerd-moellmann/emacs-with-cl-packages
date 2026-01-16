@@ -51,7 +51,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "coding.h"
 #include "termhooks.h"
 #include "font.h"
-#include "pdumper.h"
 #include "igc.h"
 
 #ifdef HAVE_SYS_STAT_H
@@ -308,8 +307,7 @@ image_pix_context_get_pixel (Emacs_Pix_Context image, int x, int y)
 }
 
 static Emacs_Pix_Container
-image_pix_container_create_from_bitmap_data (struct frame *f,
-					     char *data, unsigned int width,
+image_pix_container_create_from_bitmap_data (char *data, unsigned int width,
 					     unsigned int height,
 					     unsigned long fg,
 					     unsigned long bg)
@@ -1719,7 +1717,8 @@ struct image_keyword
   /* True means key must be present.  */
   bool mandatory_p;
 
-  /* Used to recognize duplicate keywords in a property list.  */
+  /* True means key is present.
+     Also used to recognize duplicate keywords in a property list.  */
   bool count;
 
   /* The value that was found.  */
@@ -4267,7 +4266,7 @@ x_destroy_x_image (XImage *ximg)
 static Picture
 x_create_xrender_picture (struct frame *f, Emacs_Pixmap pixmap, int depth)
 {
-  Picture p;
+  Picture p = None;
   Display *display = FRAME_X_DISPLAY (f);
 
   if (FRAME_DISPLAY_INFO (f)->xrender_supported_p)
@@ -4302,15 +4301,7 @@ x_create_xrender_picture (struct frame *f, Emacs_Pixmap pixmap, int depth)
           p = XRenderCreatePicture (display, pixmap, format, attr_mask, &attr);
         }
       else
-        {
-          image_error ("Specified image bit depth is not supported by XRender");
-          return 0;
-        }
-    }
-  else
-    {
-      /* XRender not supported on this display.  */
-      return 0;
+	image_error ("Specified image bit depth is not supported by XRender");
     }
 
   return p;
@@ -6001,7 +5992,7 @@ enum xbm_token
 
 
 /* Return true if OBJECT is a valid XBM-type image specification.
-   A valid specification is a list starting with the symbol `image'
+   A valid specification is a list starting with the symbol `image'.
    The rest of the list is a property list which must contain an
    entry `:type xbm'.
 
@@ -6024,8 +6015,8 @@ enum xbm_token
 
    Both the file and data forms may contain the additional entries
    `:background COLOR' and `:foreground COLOR'.  If not present,
-   foreground and background of the frame on which the image is
-   displayed is used.  */
+   the foreground and background of the frame on which the image is
+   displayed are used.  */
 
 static bool
 xbm_image_p (Lisp_Object object)
@@ -6043,18 +6034,14 @@ xbm_image_p (Lisp_Object object)
       if (kw[XBM_DATA].count)
 	return 0;
     }
-  else if (kw[XBM_DATA].count && xbm_file_p (kw[XBM_DATA].value))
-    {
-      /* In-memory XBM file.  */
-      if (kw[XBM_FILE].count)
-	return 0;
-    }
-  else
+  else if (! (kw[XBM_DATA].count && xbm_file_p (kw[XBM_DATA].value)))
+    /* Not an in-memory XBM file.  */
     {
       Lisp_Object data;
       int width, height, stride;
 
-      /* Entries for `:width', `:height' and `:data' must be present.  */
+      /* Entries for `:data-width', `:data-height', and `:data' must be
+	 present.  */
       if (!kw[XBM_DATA_WIDTH].count
 	  || !kw[XBM_DATA_HEIGHT].count
 	  || !kw[XBM_DATA].count)
@@ -6338,7 +6325,7 @@ Create_Pixmap_From_Bitmap_Data (struct frame *f, struct image *img, char *data,
   fg = lookup_rgb_color (f, fgbg[0].red, fgbg[0].green, fgbg[0].blue);
   bg = lookup_rgb_color (f, fgbg[1].red, fgbg[1].green, fgbg[1].blue);
   img->pixmap
-    = image_pix_container_create_from_bitmap_data (f, data, img->width,
+    = image_pix_container_create_from_bitmap_data (data, img->width,
 						   img->height, fg, bg);
 #elif defined HAVE_X_WINDOWS
   img->pixmap
@@ -6371,7 +6358,7 @@ Create_Pixmap_From_Bitmap_Data (struct frame *f, struct image *img, char *data,
     convert_mono_to_color_image (f, img, fg, bg);
 #elif defined HAVE_MACGUI
   img->pixmap =
-    image_pix_container_create_from_bitmap_data (f, data, img->width,
+    image_pix_container_create_from_bitmap_data (data, img->width,
 						 img->height, fg, bg);
 #elif defined HAVE_NS
   img->pixmap = ns_image_from_XBM (data, img->width, img->height, fg, bg);
@@ -8921,7 +8908,7 @@ image_build_heuristic_mask (struct frame *f, struct image *img,
 		       PBM (mono, gray, color)
  ***********************************************************************/
 
-/* Indices of image specification fields in gs_format, below.  */
+/* Indices of image specification fields in pbm_format, below.  */
 
 enum pbm_keyword_index
 {
@@ -9349,7 +9336,7 @@ enum native_image_keyword_index
 
 /* Vector of image_keyword structures describing the format
    of valid user-defined image specifications.  */
-static const struct image_keyword native_image_format[] =
+static const struct image_keyword native_image_format[NATIVE_IMAGE_LAST] =
 {
   {":type",		IMAGE_SYMBOL_VALUE,			1},
   {":data",		IMAGE_STRING_VALUE,			0},
@@ -9372,8 +9359,8 @@ native_image_p (Lisp_Object object)
   struct image_keyword fmt[NATIVE_IMAGE_LAST];
   memcpy (fmt, native_image_format, sizeof fmt);
 
-  if (!parse_image_spec (object, fmt, 10, Qnative_image))
-    return 0;
+  if (!parse_image_spec (object, fmt, NATIVE_IMAGE_LAST, Qnative_image))
+    return false;
 
   /* Must specify either the :data or :file keyword.  */
   return fmt[NATIVE_IMAGE_FILE].count + fmt[NATIVE_IMAGE_DATA].count == 1;
@@ -10083,7 +10070,7 @@ png_load (struct frame *f, struct image *img)
 
 #if defined (HAVE_JPEG)
 
-/* Indices of image specification fields in gs_format, below.  */
+/* Indices of image specification fields in jpeg_format, below.  */
 
 enum jpeg_keyword_index
 {
@@ -14597,7 +14584,7 @@ initialize_image_type (struct image_type const *type)
   Lisp_Object tested = Fassq (typesym, Vlibrary_cache);
   /* If we failed to load the library before, don't try again.  */
   if (CONSP (tested))
-    return !NILP (XCDR (tested)) ? true : false;
+    return !NILP (XCDR (tested));
 
   bool (*init) (void) = type->init;
   if (init)
@@ -14668,8 +14655,8 @@ static struct image_type native_image_type =
     image_clear_image };
 #endif
 
-/* Look up image type TYPE, and return a pointer to its image_type
-   structure.  Return 0 if TYPE is not a known image type.  */
+/* Look up image TYPE, and return a pointer to its image_type structure.
+   Return a null pointer if TYPE is not a known image type.  */
 
 static struct image_type const *
 lookup_image_type (Lisp_Object type)
