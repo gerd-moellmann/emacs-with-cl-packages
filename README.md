@@ -51,23 +51,25 @@ brew install tree-sitter libgccjit librsvg
 
 #### Tree Sitter in Emacs 30
 
-If you'd like to build Emacs 30 (build on [this branch](https://github.com/jdtsmith/emacs-mac/tree/emacs-mac-30_1_exp)) with tree-sitter support, you'll need to install `tree-sitter-0.25`, for example:
+If you'd like to build Emacs 30 (build on [this branch](https://github.com/jdtsmith/emacs-mac/tree/emacs-mac-30_1_exp)) with tree-sitter support, you'll need to install the older version `tree-sitter-0.25` to maintain compatibility.  For example:
 
 ```bash
 brew install tree-sitter@0.25
 ```
 
-And tell configure script where it's location is via `CFLAGS` and `LDDFLAGS` as per instructions in Caveats, for example:
+With this version in place, inform configure of its location using `CFLAGS` and `LDDFLAGS`, for example:
 
 ```bash
 CFLAGS="-I/opt/homebrew/opt/tree-sitter@0.25/include ..." LDDFLAGS="-L/opt/homebrew/opt/tree-sitter@0.25/lib" ./configure --with-tree-sitter ...
 ```
 
-Note: use `CFLAGS` instead of `CPPFLAGS`. You can consult Caveats with:
+Note: use `CFLAGS` instead of `CPPFLAGS`. You can consult some Caveats with:
 
 ```bash
 brew info tree-sitter@0.25
 ```
+
+This is not required for Emacs 31, as it supports the latest tree-sitter ABI.
 
 ### Configure
 
