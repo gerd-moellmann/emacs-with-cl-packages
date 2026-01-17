@@ -2561,7 +2561,7 @@ static void mac_move_frame_window_structure_1 (struct frame *, int, int);
   if (!FRAME_TOOLTIP_P (f))
     {
       if (!self.shouldBeTitled)
-	windowStyle = NSWindowStyleMaskBorderless;
+	windowStyle = (NSWindowStyleMaskBorderless | NSWindowStyleMaskResizable);
       else
 	windowStyle = (NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
 		       | NSWindowStyleMaskMiniaturizable
