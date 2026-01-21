@@ -14853,7 +14853,6 @@ non-numeric, there is no explicit limit on the size of images.  */);
   if (image_can_use_native_api (Qwebp))
     add_image_type (Qwebp);
 #endif /* NS_IMPL_GNUSTEP && !HAVE_WEBP */
-#endif
 
 #if defined (HAVE_IMAGEMAGICK) || defined (HAVE_MACGUI)
   DEFSYM (Qimagemagick, "imagemagick");
@@ -14903,7 +14902,6 @@ non-numeric, there is no explicit limit on the size of images.  */);
   if (image_can_use_native_api (Qheic))
     add_image_type (Qheic);
 #endif /* NS_IMPL_GNUSTEP */
-#endif
 
 #if HAVE_NATIVE_IMAGE_API
   DEFSYM (Qnative_image, "native-image");
