@@ -683,8 +683,8 @@ SYMBOL) will review packages whose names match SYMBOL.  If you prefix
 the list with a symbol `not', the rules are inverted."
   :type
   (let ((choice '(choice :tag "Review specific packages or archives"
-                         (cons (const archive) (string :tag "Archive name"))
-                         (cons (const package) (symbol :tag "Package name")))))
+                         (cons :tag "Archive name" (const archive) string)
+                         (cons :tag "Package name" (const package) symbol))))
     `(choice
       (const :tag "Review all packages" t)
       (repeat :tag "Review these specific packages and archives" ,choice)
@@ -710,13 +710,14 @@ case you are concerned about moving files between file systems."
 
 (defcustom package-review-diff-command
   (cons diff-command
-        '("-u"                          ;unified patch formatting
-          "-N"                          ;treat absent files as empty
-          "-x" "'*.elc'"                ;ignore byte compiled files
-          "-x" "'*-autoloads.el'"       ;ignore the autoloads file
-          "-x" "'*-pkg.el'"             ;ignore the package description
-          "-x" "'*.info'"               ;ignore compiled Info files
-          ))
+        (mapcar #'shell-quote-argument
+                '("-u"                  ;unified patch formatting
+                  "-N"                  ;treat absent files as empty
+                  "-x" "*.elc"          ;ignore byte compiled files
+                  "-x" "*-autoloads.el" ;ignore the autoloads file
+                  "-x" "*-pkg.el"       ;ignore the package description
+                  "-x" "*.info"         ;ignore compiled Info files
+                  )))
   "Configuration of how `package-review' should generate a Diff.
 The structure of the value must be (COMMAND . OPTIONS), where
 `diff-command' is rebound to be COMMAND and OPTIONS are command-line
@@ -756,11 +757,7 @@ been downloaded.  OLD-DESC is either a `package-desc' object of the
 previous installation or nil, if there was no prior installation.  If the
 review fails, the function throws a symbol `review-failed' with PKG-DESC
 attached."
-  (let ((news (let* ((pkg-dir (package-desc-dir pkg-desc))
-                     (file (expand-file-name "news" pkg-dir)))
-                (and (file-regular-p file)
-                     (file-readable-p file)
-                     file)))
+  (let ((news (package-find-news-file pkg-desc))
         (enable-recursive-minibuffers t)
         (diff-command (car package-review-diff-command)))
     (while (pcase-exhaustive
@@ -793,11 +790,16 @@ attached."
                 ;; prepare mail buffer
                 (let ((tmp-buf (current-buffer)))
                   (compose-mail (with-demoted-errors "Failed to find maintainers: %S"
-                                  (package-maintainers pkg-desc)))
+                                  (package-maintainers pkg-desc))
+                                (concat "Emacs Package Review: "
+                                        (package-desc-full-name pkg-desc)))
                   (pcase mail-user-agent
                     ('sendmail-user-agent (mail-text))
                     (_ (message-goto-body)))
-                  (insert-buffer-substring tmp-buf)))
+                  (let ((start (point)))
+                    (save-excursion
+                      (insert-buffer-substring tmp-buf)
+                      (comment-region start (point))))))
               t)
              (?c
               (view-file news)
@@ -2321,7 +2323,7 @@ compiled, and remove the DIR from `load-path'."
       (delete-file (directory-file-name dir))
     (delete-directory dir t)))
 
-
+;;;###autoload
 (defun package-delete (pkg-desc &optional force nosave)
   "Delete package PKG-DESC.
 
@@ -2635,6 +2637,17 @@ The description is read from the installed package files."
                           'help-echo "Read this file's commentary"
                           :type 'package--finder-xref))))
 
+(defun package-find-news-file (pkg-desc)
+  "Return the file name of a news file of PKG-DESC.
+If no such file exists, the function returns nil."
+  (and-let* ((pkg-dir (package-desc-dir pkg-desc))
+             (_ (not (eq pkg-dir 'builtin)))
+             (default-directory pkg-dir))
+    (catch 'success
+      (dolist (file '("NEWS-elpa" "news") nil) ;TODO: add user option?
+        (when (and (file-readable-p file) (file-regular-p file))
+          (throw 'success (expand-file-name file)))))))
+
 (defun describe-package-1 (pkg)
   "Insert the package description for PKG.
 Helper function for `describe-package'."
@@ -2664,12 +2677,7 @@ Helper function for `describe-package'."
          (maintainers (or (cdr (assoc :maintainer extras))
                           (cdr (assoc :maintainers extras))))
          (authors (cdr (assoc :authors extras)))
-         (news (and-let* (pkg-dir
-                          ((not built-in))
-                          (file (expand-file-name "news" pkg-dir))
-                          ((file-regular-p file))
-                          ((file-readable-p file)))
-                 file)))
+         (news (and desc (package-find-news-file desc))))
     (when (string= status "avail-obso")
       (setq status "available obsolete"))
     (when incompatible-reason
@@ -4673,21 +4681,23 @@ form (PKG-NAME PKG-DESC).  If not specified, it will default to
         (cadr (assoc (completing-read "Package: " alist nil t)
                      alist #'string=)))))
 
+;;;###autoload
 (defun package-browse-url (desc &optional secondary)
   "Open the website of the package under point in a browser.
 `browse-url' is used to determine the browser to be used.  If
 SECONDARY (interactively, the prefix), use the secondary browser.
 DESC must be a `package-desc' object."
   (interactive (list (package--query-desc)
-                     current-prefix-arg)
-               package-menu-mode)
+                     current-prefix-arg))
   (unless desc
     (user-error "No package here"))
   (let ((url (cdr (assoc :url (package-desc-extras desc)))))
     (unless url
       (user-error "No website for %s" (package-desc-name desc)))
-    (if secondary
-        (funcall browse-url-secondary-browser-function url)
+    (let ((browse-url-browser-function
+           (if secondary
+               browse-url-secondary-browser-function
+             browse-url-browser-function)))
       (browse-url url))))
 
 (declare-function ietf-drums-parse-address "ietf-drums"
@@ -4726,8 +4736,7 @@ will be signaled in that case."
 (defun package-report-bug (desc)
   "Prepare a message to send to the maintainers of a package.
 DESC must be a `package-desc' object."
-  (interactive (list (package--query-desc package-alist))
-               package-menu-mode)
+  (interactive (list (package--query-desc package-alist)))
   (let ((maint (package-maintainers desc))
         (name (symbol-name (package-desc-name desc)))
         (pkgdir (package-desc-dir desc))

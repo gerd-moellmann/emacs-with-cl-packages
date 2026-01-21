@@ -2765,10 +2765,10 @@ evicted.  */)
   return Qnil;
 }
 
-static size_t
+static intptr_t
 image_size_in_bytes (struct image *img)
 {
-  size_t size = 0;
+  intptr_t size = 0;
 
 #if defined USE_CAIRO || defined HAVE_MACGUI
   Emacs_Pixmap pm = img->pixmap;
@@ -2813,14 +2813,14 @@ image_size_in_bytes (struct image *img)
   return size;
 }
 
-static size_t
+static intptr_t
 image_frame_cache_size (struct frame *f)
 {
   struct image_cache *c = FRAME_IMAGE_CACHE (f);
   if (!c)
     return 0;
 
-  size_t total = 0;
+  intptr_t total = 0;
   for (ptrdiff_t i = 0; i < c->used; ++i)
     {
       struct image *img = c->images[i];
@@ -4030,7 +4030,7 @@ struct anim_cache
      We don't actually know how much memory the different libraries
      actually use here (since these cache structures are opaque), so
      this is mostly just the size of the original image file.  */
-  int byte_size;
+  intmax_t byte_size;
   struct timespec update_time;
   struct anim_cache *next;
 };
@@ -11332,7 +11332,7 @@ gif_load (struct frame *f, struct image *img)
   struct anim_cache* cache = NULL;
   /* Which sub-image are we to display?  */
   Lisp_Object image_number = image_spec_value (img->spec, QCindex, NULL);
-  int byte_size = 0;
+  intmax_t byte_size = 0;
 
   idx = FIXNUMP (image_number) ? XFIXNAT (image_number) : 0;
 
@@ -14539,7 +14539,7 @@ DEFUN ("image-cache-size", Fimage_cache_size, Simage_cache_size, 0, 0, 0,
   (void)
 {
   Lisp_Object tail, frame;
-  size_t total = 0;
+  intmax_t total = 0;
 
   FOR_EACH_FRAME (tail, frame)
     if (FRAME_WINDOW_P (XFRAME (frame)))
@@ -14846,6 +14846,13 @@ non-numeric, there is no explicit limit on the size of images.  */);
   if (image_can_use_native_api (Qwebp))
 #endif
   add_image_type (Qwebp);
+#else
+
+  /* On GNUstep, WEBP support is provided via ImageMagick only if
+     gnustep-gui is built with --enable-imagemagick.  */
+  if (image_can_use_native_api (Qwebp))
+    add_image_type (Qwebp);
+#endif /* NS_IMPL_GNUSTEP && !HAVE_WEBP */
 #endif
 
 #if defined (HAVE_IMAGEMAGICK) || defined (HAVE_MACGUI)
@@ -14873,11 +14880,13 @@ non-numeric, there is no explicit limit on the size of images.  */);
   DEFSYM (Qgobject, "gobject");
 #endif /* HAVE_NTGUI  */
 #elif defined HAVE_NATIVE_IMAGE_API			\
-  && ((defined HAVE_NS && defined NS_IMPL_COCOA)	\
-      || defined HAVE_HAIKU)
+  && (defined HAVE_NS || defined HAVE_HAIKU)
   DEFSYM (Qsvg, "svg");
 
-  /* On Haiku, the SVG translator may not be installed.  */
+  /* On Haiku, the SVG translator may not be installed.  On GNUstep, SVG
+     support is provided by ImageMagick so not guaranteed.  Furthermore,
+     some distros (e.g., Debian) ship ImageMagick's SVG module in a
+     separate binary package which may not be installed.  */
   if (image_can_use_native_api (Qsvg))
     add_image_type (Qsvg);
 #endif
@@ -14888,6 +14897,12 @@ non-numeric, there is no explicit limit on the size of images.  */);
   if (image_can_use_native_api (Qheic))
 #endif
   add_image_type (Qheic);
+#else
+
+  /* HEIC support in gnustep-gui is provided by ImageMagick.  */
+  if (image_can_use_native_api (Qheic))
+    add_image_type (Qheic);
+#endif /* NS_IMPL_GNUSTEP */
 #endif
 
 #if HAVE_NATIVE_IMAGE_API
