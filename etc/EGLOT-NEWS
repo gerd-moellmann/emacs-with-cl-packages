@@ -18,6 +18,44 @@ to look up issue github#1234, go to
 https://github.com/joaotavora/eglot/issues/1234.
 
 
+* Changes to upcoming Eglot
+
+** File watch limits to prevent resource exhaustion (github#1568)
+
+The new variable 'eglot-max-file-watches' limits the number of file
+watches that can be created.  Some language servers request watching
+for a very large number of directories (e.g. Python virtualenvs), which
+can exhaust system resources and cause slow startup.
+
+** Support for complex workspace edits (create/rename/delete files)
+
+Eglot now advertises support for file resource operations in workspace
+edits and can handle create, rename, and delete file operations.  The
+confirmation UI has been reworked to handle mixed operation types.
+
+The 'eglot-confirm-server-edits' defcustom has been overhauled and now
+also accepts file operation kinds as keys in the alist form, providing
+more fine-grained control over what confirmation mechanism to use.
+
+** 'eglot-advertise-cancellation' now defaults to t
+
+The variable 'eglot-advertise-cancellation' now defaults to t, which
+means Eglot will send '$/cancelRequest' notifications to servers when it
+thinks responses to inflight requests are no longer useful.  The current
+2026 LSP landscape (especially gopls and ocamllsp) suggests this is
+beneficial and helps servers avoid costly useless work.
+
+** Imenu setup is more predictable (github#1569)
+
+Eglot now sets 'imenu-create-index-function' using ':override' advice,
+making the integration cleaner and more predictable.
+
+** Fixed textDocument/prepareRename support (github#1554)
+
+Eglot now properly checks server capabilities before sending
+prepareRename requests.
+
+
 * Changes in Eglot 1.21 (11/1/2026)
 
 This is a bugfix release with small fixes for semantic tokens and Emacs

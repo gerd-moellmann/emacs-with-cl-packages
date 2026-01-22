@@ -1329,6 +1329,12 @@ available.
 Now method chaining is indented by 8 spaces rather than 4, and this
 option controls how much is indented for method chaining.
 
+** JSON-ts mode
+
+*** New command 'json-ts-jq-path-at-point'.
+This command copies the path of the JSON element at point to the
+kill-ring, formatted for use with the 'jq' utility.
+
 ** PHP-ts mode
 
 ---
@@ -1379,6 +1385,13 @@ associated to a remote PHP file, show the remote PHP ini files.
 *** New user option 'rust-ts-mode-fontify-number-suffix-as-type'.
 Rust number literals may have an optional type suffix.  When this option
 is non-nil, this suffix is fontified using 'font-lock-type-face'.
+
+** YAML-ts mode
+
+---
+*** New user option 'yaml-ts-mode-yamllint-options'.
+Additional options for 'yamllint' the command used for Flymake's YAML
+support.
 
 ** EIEIO
 
