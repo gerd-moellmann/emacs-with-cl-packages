@@ -2699,10 +2699,10 @@ from `browse-url-elinks-wrapper'.
 (fn URL &optional NEW-WINDOW)" t)
 (autoload 'browse-url-button-open "browse-url" "\
 Follow the link under point using `browse-url'.
-If EXTERNAL (the prefix if used interactively), open with the
-external browser instead of the default one.
+If SECONDARY (the prefix if used interactively), open with the
+secondary browser instead of the default one.
 
-(fn &optional EXTERNAL MOUSE-EVENT)" t)
+(fn &optional SECONDARY MOUSE-EVENT)" t)
 (autoload 'browse-url-button-open-url "browse-url" "\
 Open URL using `browse-url'.
 If `current-prefix-arg' is non-nil, use
@@ -5271,8 +5271,6 @@ evaluate the variable `compilation-shell-minor-mode'.
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
 
-\\{compilation-shell-minor-mode-map}
-
 (fn &optional ARG)" t)
 (autoload 'compilation-minor-mode "compile" "\
 Toggle Compilation minor mode.
@@ -5294,8 +5292,6 @@ evaluate the variable `compilation-minor-mode'.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
-
-\\{compilation-minor-mode-map}
 
 (fn &optional ARG)" t)
 (autoload 'compilation-next-error-function "compile" "\
@@ -13703,8 +13699,6 @@ evaluate the variable `flymake-mode'.
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
 
-\\{flymake-mode-map}
-
 (fn &optional ARG)" t)
 (autoload 'flymake-mode-on "flymake" "\
 Turn Flymake mode on.")
@@ -18066,7 +18060,11 @@ See `inferior-emacs-lisp-mode' for details.
 ;;; Generated autoloads from emacs-lisp/igc.el
 
 (autoload 'igc-collect "igc" "\
-Perform a full GC." t)
+Perform a full GC.
+This triggers an immediate garbage collection of the entire memory
+used for Lisp objects, recycling any unreachable objects whose
+memory can be freed and attempting to reduce the size of
+the memory used for objects." t)
 (autoload 'igc-stats "igc" "\
 Display memory statistics from `igc-info'.
 You can display two snapshots A and B containing the info from `igc-info'
@@ -24827,6 +24825,21 @@ If optional argument NOCONFIRM is non-nil, or when invoked with a prefix
 argument, don't ask for confirmation to install packages.
 
 (fn &optional NOCONFIRM)" t)
+(autoload 'package-delete "package" "\
+Delete package PKG-DESC.
+
+Argument PKG-DESC is the full description of the package, for example as
+obtained by `package-get-descriptor'.  Interactively, prompt the user
+for the package name and version.
+
+When package is used elsewhere as dependency of another package,
+refuse deleting it and return an error.
+If prefix argument FORCE is non-nil, package will be deleted even
+if it is used elsewhere.
+If NOSAVE is non-nil, the package is not removed from
+`package-selected-packages'.
+
+(fn PKG-DESC &optional FORCE NOSAVE)" t)
 (autoload 'package-reinstall "package" "\
 Reinstall package PKG.
 PKG should be either a symbol, the package name, or a `package-desc'
@@ -24871,11 +24884,18 @@ short description.
 (defcustom package-quickstart-file (locate-user-emacs-file "package-quickstart.el") "\
 Location of the file used to speed up activation of packages at startup." :type 'file :group 'applications :initialize #'custom-initialize-delay :version "27.1")
 (custom-autoload 'package-quickstart-file "package" t)
+(autoload 'package-browse-url "package" "\
+Open the website of the package under point in a browser.
+`browse-url' is used to determine the browser to be used.  If
+SECONDARY (interactively, the prefix), use the secondary browser.
+DESC must be a `package-desc' object.
+
+(fn DESC &optional SECONDARY)" t)
 (autoload 'package-report-bug "package" "\
 Prepare a message to send to the maintainers of a package.
 DESC must be a `package-desc' object.
 
-(fn DESC)" '(package-menu-mode))
+(fn DESC)" t)
 (register-definition-prefixes "package" '("bad-signature" "define-package" "describe-package-1" "package-"))
 
 
@@ -25907,6 +25927,10 @@ Note that this function doesn't work if DELTA is larger than
 the height of the current window.
 
 (fn DELTA)")
+(autoload 'pixel-scroll-interpolate-down "pixel-scroll" "\
+Interpolate a scroll downwards by one page." t)
+(autoload 'pixel-scroll-interpolate-up "pixel-scroll" "\
+Interpolate a scroll upwards by one page." t)
 (defvar pixel-scroll-precision-mode nil "\
 Non-nil if Pixel-Scroll-Precision mode is enabled.
 See the `pixel-scroll-precision-mode' command
@@ -25959,7 +25983,7 @@ PACKAGE, or the current package if PACKAGE is not specified.
 Return what RESULT-FORM evaluates to, if specified, and the loop ends
 normally, or else if an explcit return occurs the value it transfers.
 
-(fn (VAR &optional (package \\='*package*) result-form) &body BODY)" nil 'macro)
+(fn (VAR &optional (PACKAGE \\='*package*) RESULT-FORM) &body BODY)" nil t)
 (autoload 'do-external-symbols "pkg" "\
 Loop over external symbols in a package.
 
@@ -25969,7 +25993,7 @@ PACKAGE, or the current package if PACKAGE is not specified.
 Return what RESULT-FORM evaluates to, if specified, and the loop ends
 normally, or else if an explcit return occurs the value it transfers.
 
-(fn (VAR &optional (package \\='*package*) result-form) &body BODY)" nil 'macro)
+(fn (VAR &optional (PACKAGE \\='*package*) RESULT-FORM) &body BODY)" nil t)
 (autoload 'do-all-symbols "pkg" "\
 Loop over all symbols in all registered packages.
 
@@ -25979,7 +26003,7 @@ PACKAGE, or the current package if PACKAGE is not specified.
 Return what RESULT-FORM evaluates to, if specified, and the loop ends
 normally, or else if an explcit return occurs the value it transfers.
 
-(fn (VAR &optional result-form) &body BODY)" nil 'macro)
+(fn (VAR &optional RESULT-FORM) &body BODY)" nil t)
 (autoload 'internal-symbols "pkg" "\
 
 
@@ -25991,7 +26015,7 @@ normally, or else if an explcit return occurs the value it transfers.
 (autoload 'without-package-locks "pkg" "\
 
 
-(fn &body BODY)" nil 'macro)
+(fn &body BODY)" nil t)
 (autoload 'pkg--with-package-locks "pkg" "\
 
 
@@ -25999,11 +26023,11 @@ normally, or else if an explcit return occurs the value it transfers.
 (autoload 'with-unlocked-packages "pkg" "\
 
 
-(fn (&REST packages) &rest BODY)" nil 'macro)
+(fn (&rest PACKAGES) &rest BODY)" nil t)
 (autoload 'with-locked-packages "pkg" "\
 
 
-(fn (&REST packages) &rest BODY)" nil 'macro)
+(fn (&rest PACKAGES) &rest BODY)" nil t)
 (autoload 'make-package "pkg" "\
 Create and return a new package with name NAME.
 
@@ -26116,7 +26140,7 @@ Otherwise, PACKAGE must be a package name, and that name
 is lookup up in the package registry and the result is
 returned if found.
 
-Value is nil if no package with the given name is found.
+Value is nil if no package with the given name is found. 
 
 (fn PACKAGE)")
 (autoload 'delete-package "pkg" "\
@@ -26214,7 +26238,6 @@ Defines a new package called PACKAGE.  Each of OPTIONS should be one of the
    All options except :SIZE and :DOCUMENTATION can be used multiple times.
 
 (fn PACKAGE &rest OPTIONS)" nil t)
-(function-put 'defpackage 'lisp-indent-function 'defun)
 (autoload 'pkg--%in-package "pkg" "\
 
 
@@ -28127,8 +28150,6 @@ evaluate the variable `rectangle-mark-mode'.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
-
-\\{rectangle-mark-mode-map}
 
 (fn &optional ARG)" t)
 (register-definition-prefixes "rect" '("apply-on-rectangle" "clear-rectangle-line" "delete-" "extract-rectangle-" "killed-rectangle" "ope" "rectangle-" "spaces-string" "string-rectangle-"))
@@ -37735,7 +37756,7 @@ step during initialization." t)
 
 ;;; Generated autoloads from progmodes/verilog-mode.el
 
-(push '(verilog-mode 2025 11 8 248496848) package--builtin-versions)
+(push '(verilog-mode 2026 1 18 88738971) package--builtin-versions)
 (autoload 'verilog-mode "verilog-mode" "\
 Major mode for editing Verilog code.
 \\<verilog-mode-map>
@@ -40056,6 +40077,14 @@ list.  Delete FRAME2 if the merge completed successfully and return
 FRAME1.
 
 (fn &optional FRAME1 FRAME2 VERTICAL)" t)
+(autoload 'window-get-split-combination "window-x" "\
+Return window combination suitable for `split-frame'.
+
+WINDOW is the main window in which the combination should be derived.
+ARG is the argument passed to `split-frame'.  Return a
+combination of windows `split-frame' is considered to split off.
+
+(fn WINDOW ARG)")
 (autoload 'split-frame "window-x" "\
 Split windows of specified FRAME into two separate frames.
 FRAME must be a live frame and defaults to the selected frame.  ARG
@@ -40502,7 +40531,7 @@ Enable `yaml-ts-mode' when its grammar is available.
 Also propose to install the grammar when `treesit-enabled-modes'
 is t or contains the mode name.")
 (when (boundp 'treesit-major-mode-remap-alist) (add-to-list 'auto-mode-alist '("\\.ya?ml\\'" . yaml-ts-mode-maybe)) (add-to-list 'treesit-major-mode-remap-alist '(yaml-mode . yaml-ts-mode)))
-(register-definition-prefixes "yaml-ts-mode" '("yaml-ts-mode--"))
+(register-definition-prefixes "yaml-ts-mode" '("yaml-ts-mode-"))
 
 
 ;;; Generated autoloads from yank-media.el
