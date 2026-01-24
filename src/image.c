@@ -6355,7 +6355,7 @@ Create_Pixmap_From_Bitmap_Data (struct frame *f, struct image *img, char *data,
     convert_mono_to_color_image (f, img, fg, bg);
 #elif defined HAVE_MACGUI
   img->pixmap =
-    image_pix_container_create_from_bitmap_data (f, data, img->width,
+    image_pix_container_create_from_bitmap_data (data, img->width,
 						 img->height, fg, bg);
 #elif defined HAVE_NS
   img->pixmap = ns_image_from_XBM (data, img->width, img->height, fg, bg);
@@ -14835,7 +14835,7 @@ non-numeric, there is no explicit limit on the size of images.  */);
 
 #if defined (HAVE_WEBP)						\
   || (defined (HAVE_NATIVE_IMAGE_API)				\
-      && (defined (HAVE_NS) || defined (HAVE_HAIKU)
+      && (defined (HAVE_NS) || defined (HAVE_HAIKU)             \
           || defined (HAVE_MACGUI)))
   DEFSYM (Qwebp, "webp");
   DEFSYM (Qwebpdemux, "webpdemux");
