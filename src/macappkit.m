@@ -2630,7 +2630,7 @@ mac_with_suppressed_transparent_titlebar( NSWindow* window, BOOL assumeTranspare
   if (!FRAME_TOOLTIP_P (f))
     {
       if (!self.shouldBeTitled)
-	windowStyle = NSWindowStyleMaskBorderless;
+	windowStyle = (NSWindowStyleMaskBorderless | NSWindowStyleMaskResizable);
       else
 	windowStyle = (NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
 		       | NSWindowStyleMaskMiniaturizable
@@ -7772,9 +7772,9 @@ set_global_focus_view_frame (struct frame *f)
 	  saved_focus_view_modified_p = global_focus_view_modified_p;
 	}
       global_focus_view_frame = f;
-      FRAME_CG_CONTEXT (f) = [[NSGraphicsContext currentContext] CGContext];
       global_focus_view_modified_p = false;
     }
+  FRAME_CG_CONTEXT (f) = [[NSGraphicsContext currentContext] CGContext];
 #if DRAWING_USE_GCD
   if (mac_drawing_use_gcd)
     {

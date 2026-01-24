@@ -14838,21 +14838,22 @@ non-numeric, there is no explicit limit on the size of images.  */);
 
 #if defined (HAVE_WEBP)						\
   || (defined (HAVE_NATIVE_IMAGE_API)				\
-      && ((defined (HAVE_NS) && defined (NS_IMPL_COCOA))	\
-	  || defined (HAVE_HAIKU) || defined (HAVE_MACGUI)))
+      && (defined (HAVE_NS) || defined (HAVE_HAIKU)             \
+          || defined (HAVE_MACGUI)))
   DEFSYM (Qwebp, "webp");
   DEFSYM (Qwebpdemux, "webpdemux");
-#if !defined (HAVE_WEBP) && defined (HAVE_MACGUI) && defined (HAVE_NATIVE_IMAGE_API)
-  if (image_can_use_native_api (Qwebp))
-#endif
+#if !defined (NS_IMPL_GNUSTEP) || defined (HAVE_WEBP)
   add_image_type (Qwebp);
 #else
 
   /* On GNUstep, WEBP support is provided via ImageMagick only if
      gnustep-gui is built with --enable-imagemagick.  */
+#if !defined (HAVE_MACGUI) || defined (HAVE_NATIVE_IMAGE_API)
   if (image_can_use_native_api (Qwebp))
+#endif
     add_image_type (Qwebp);
 #endif /* NS_IMPL_GNUSTEP && !HAVE_WEBP */
+#endif
 
 #if defined (HAVE_IMAGEMAGICK) || defined (HAVE_MACGUI)
   DEFSYM (Qimagemagick, "imagemagick");
@@ -14892,16 +14893,17 @@ non-numeric, there is no explicit limit on the size of images.  */);
 
 #if defined HAVE_MACGUI || defined HAVE_NS
   DEFSYM (Qheic, "heic");
-#if defined HAVE_MACGUI && defined HAVE_NATIVE_IMAGE_API
-  if (image_can_use_native_api (Qheic))
-#endif
+#ifdef NS_IMPL_COCOA
   add_image_type (Qheic);
 #else
 
   /* HEIC support in gnustep-gui is provided by ImageMagick.  */
+#if !defined(HAVE_MACGUI) || defined HAVE_NATIVE_IMAGE_API
   if (image_can_use_native_api (Qheic))
+#endif
     add_image_type (Qheic);
 #endif /* NS_IMPL_GNUSTEP */
+#endif
 
 #if HAVE_NATIVE_IMAGE_API
   DEFSYM (Qnative_image, "native-image");
