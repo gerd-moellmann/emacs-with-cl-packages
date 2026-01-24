@@ -1,6 +1,6 @@
 ;;; icomplete.el --- minibuffer completion incremental feedback -*- lexical-binding: t -*-
 
-;; Copyright (C) 1992-2025 Free Software Foundation, Inc.
+;; Copyright (C) 1992-2026 Free Software Foundation, Inc.
 
 ;; Author: Ken Manheimer <ken dot manheimer at gmail...>
 ;; Created: Mar 1993 Ken Manheimer, klm@nist.gov - first release to usenet
@@ -1025,7 +1025,9 @@ away from the bottom.  Counts wrapped lines as real lines."
      collect (concat prefix
                      (make-string (max 0 (- max-prefix-len (length prefix))) ? )
                      (completion-lazy-hilit comp)
-                     (make-string (max 0 (- max-comp-len (length comp))) ? )
+                     (and suffix
+                          (make-string (max 0 (- max-comp-len (length comp)))
+                                       ? ))
                      suffix)
      into lines-aux
      finally (setq lines lines-aux

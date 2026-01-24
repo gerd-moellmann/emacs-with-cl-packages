@@ -1,4 +1,4 @@
-/* Copyright (C) 2018-2025 Free Software Foundation, Inc.
+/* Copyright (C) 2018-2026 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -5648,11 +5648,25 @@ pdumper_set_emacs_execdir (char *emacs_executable)
 	 && !IS_DIRECTORY_SEP (p[-1]))
     --p;
   eassert (p > emacs_executable);
-  emacs_execdir = xpalloc (emacs_execdir, &execdir_size,
-			   p - emacs_executable + 1 - execdir_size, -1, 1);
-  memcpy (emacs_execdir, emacs_executable, p - emacs_executable);
-  execdir_len = p - emacs_executable;
-  emacs_execdir[execdir_len] = '\0';
+
+#if HAVE_NS && !NS_SELF_CONTAINED
+  if (strcmp (p, "Emacs") == 0)
+    {
+      /* This is the Emacs executable from the non-self-contained app
+	 bundle which can be anywhere on the system.  Fortunately, the
+	 location of the Lisp resources is known.  */
+      emacs_execdir = (char *) BINDIR;
+      execdir_len = strlen (BINDIR);
+    }
+  else
+#endif
+    {
+      emacs_execdir = xpalloc (emacs_execdir, &execdir_size,
+			       p - emacs_executable + 1 - execdir_size, -1, 1);
+      memcpy (emacs_execdir, emacs_executable, p - emacs_executable);
+      execdir_len = p - emacs_executable;
+      emacs_execdir[execdir_len] = '\0';
+    }
 }
 #endif
 

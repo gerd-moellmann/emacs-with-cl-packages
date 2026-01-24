@@ -1,6 +1,6 @@
 ;;; pcase-tests.el --- Test suite for pcase macro.  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2012-2025 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2026 Free Software Foundation, Inc.
 
 ;; This file is part of GNU Emacs.
 
@@ -80,6 +80,7 @@
 (ert-deftest pcase-tests-quote-optimization ()
   ;; FIXME: We could/should also test that we get a corresponding
   ;; "shadowed branch" warning.
+  (require 'byte-opt) ;; FIXME: Needed for pcase to see that `consp' is `pure'.
   (should-not (pcase-tests-grep
                'FOO (macroexpand '(pcase EXP
                                     (`(,_ . ,_) (BAR))

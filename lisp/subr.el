@@ -1,6 +1,6 @@
 ;;; subr.el --- basic lisp subroutines for Emacs  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1985-2025 Free Software Foundation, Inc.
+;; Copyright (C) 1985-2026 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: internal
@@ -4836,8 +4836,6 @@ It also runs the string through `yank-transform-functions'."
 		       (get-text-property 0 'yank-handler string)))
 	 (param (or (nth 1 handler) string))
 	 (opoint (point))
-	 (inhibit-read-only inhibit-read-only)
-         (inhibit-modification-hooks inhibit-modification-hooks)
 	 end)
 
     ;; FIXME: This throws away any yank-undo-function set by previous calls
@@ -4848,18 +4846,14 @@ It also runs the string through `yank-transform-functions'."
       (insert param))
     (setq end (point))
 
-    ;; Prevent read-only properties from interfering with the following
-    ;; text property changes, and inhibit further modification hook
-    ;; calls.
-    (setq inhibit-read-only t inhibit-modification-hooks t)
+    (with-silent-modifications
+      (unless (nth 2 handler)           ; NOEXCLUDE
+        (remove-yank-excluded-properties opoint end))
 
-    (unless (nth 2 handler) ; NOEXCLUDE
-      (remove-yank-excluded-properties opoint end))
-
-    ;; If last inserted char has properties, mark them as rear-nonsticky.
-    (if (and (> end opoint)
-	     (text-properties-at (1- end)))
-	(put-text-property (1- end) end 'rear-nonsticky t))
+      ;; If last inserted char has properties, mark them as rear-nonsticky.
+      (if (and (> end opoint)
+	       (text-properties-at (1- end)))
+	  (put-text-property (1- end) end 'rear-nonsticky t)))
 
     (if (eq yank-undo-function t)		   ; not set by FUNCTION
 	(setq yank-undo-function (nth 3 handler))) ; UNDO
@@ -5869,11 +5863,7 @@ A regexp matching strings of whitespace.  May be locale-dependent
 Warning: binding this to a different value and using it as default is
 likely to have undesired semantics.")
 
-;; The specification says that if both SEPARATORS and OMIT-NULLS are
-;; defaulted, OMIT-NULLS should be treated as t.  Simplifying the logical
-;; expression leads to the equivalent implementation that if SEPARATORS
-;; is defaulted, OMIT-NULLS is treated as t.
-(defun split-string (string &optional separators omit-nulls trim)
+(defun split-string (string &optional separators omit-empty trim)
   "Split STRING into substrings bounded by matches for SEPARATORS.
 
 The beginning and end of STRING, and each match for SEPARATORS, are
@@ -5884,16 +5874,17 @@ which is returned.
 If SEPARATORS is non-nil, it should be a regular expression matching text
 that separates, but is not part of, the substrings.  If omitted or nil,
 it defaults to `split-string-default-separators', whose value is
-normally \"[ \\f\\t\\n\\r\\v]+\", and OMIT-NULLS is then forced to t.
+normally \"[ \\f\\t\\n\\r\\v]+\", and OMIT-EMPTY is then forced to t.
+SEPARATORS should never be a regexp that matches the empty string.
 
-If OMIT-NULLS is t, zero-length substrings are omitted from the list (so
+If OMIT-EMPTY is t, zero-length substrings are omitted from the list (so
 that for the default value of SEPARATORS leading and trailing whitespace
 are effectively trimmed).  If nil, all zero-length substrings are retained,
 which correctly parses CSV format, for example.
 
 If TRIM is non-nil, it should be a regular expression to match
 text to trim from the beginning and end of each substring.  If trimming
-makes the substring empty, it is treated as null.
+makes the substring empty and OMIT-EMPTY is t, it is dropped from the result.
 
 Note that the effect of `(split-string STRING)' is the same as
 `(split-string STRING split-string-default-separators t)'.  In the rare
@@ -5902,62 +5893,66 @@ whitespace, use `(split-string STRING split-string-default-separators)'.
 
 Modifies the match data; use `save-match-data' if necessary."
   (declare (important-return-value t))
-  (let* ((keep-nulls (not (if separators omit-nulls t)))
-	 (rexp (or separators split-string-default-separators))
-	 (start 0)
-	 this-start this-end
-	 notfirst
-         match-beg
-	 (list nil)
-         (strlen (length string))
-	 (push-one
-	  ;; Push the substring in range THIS-START to THIS-END
-	  ;; onto LIST, trimming it and perhaps discarding it.
-	  (lambda ()
-	    (when trim
-	      ;; Discard the trim from start of this substring.
-	      (let ((tem (string-match trim string this-start)))
-		(and (eq tem this-start)
-                     (<= (match-end 0) this-end)
-		     (setq this-start (match-end 0)))))
-
-	    (when (or keep-nulls (< this-start this-end))
-	      (let ((this (substring string this-start this-end)))
-
-		;; Discard the trim from end of this substring.
-		(when trim
-		  (let ((tem (string-match (concat trim "\\'") this 0)))
-		    (and tem (< tem (length this))
-			 (setq this (substring this 0 tem)))))
-
-		;; Trimming could make it empty; check again.
-		(when (or keep-nulls (plusp (length this)))
-		  (push this list)))))))
-
-    (while (and (string-match rexp string
-			      (if (and notfirst
-				       (= start match-beg) ; empty match
-				       (< start strlen))
-				  (1+ start) start))
-		(< start strlen))
-      (setq notfirst t
-            match-beg (match-beginning 0))
-      ;; If the separator is right at the beginning, produce an empty
-      ;; substring in the result list.
-      (if (= start match-beg)
-          (setq this-start (match-end 0)
-                this-end this-start)
-        ;; Otherwise produce a substring from start to the separator.
-        (setq this-start start this-end match-beg))
-      (setq start (match-end 0))
-
-      (funcall push-one))
-
-    ;; Handle the substring at the end of STRING.
-    (setq this-start start this-end strlen)
-    (funcall push-one)
-
-    (nreverse list)))
+  (let* ((keep-empty (and separators (not omit-empty)))
+	 (len (length string))
+         (trim-left-re (and trim (concat "\\`\\(?:" trim "\\)")))
+         (trim-right-re (and trim (concat "\\(?:" trim "\\)\\'")))
+         (sep-re (or separators split-string-default-separators))
+         (acc nil)
+         (next 0)
+         (start 0))
+    (while
+        ;; TODO: The semantics for empty matches are just a copy of
+        ;; the original code and make no sense at all. It's just a
+        ;; consequence of the original implementation, no thought behind it.
+        ;; We should probably error on empty matches, except when
+        ;; sep is "" (which is in use by some code) but in that case
+        ;; we could provide a faster implementation.
+        (let ((sep (string-match sep-re string next)))
+          (and sep
+               (let ((sep-end (match-end 0)))
+                 (when (or keep-empty (< start sep))
+                   ;; TODO: Ideally we'd be able to trim in the
+                   ;; original string and only make a substring after
+                   ;; doing so, but there is no way to bound a regexp
+                   ;; search before a certain offset, nor to anchor it
+                   ;; at the search boundaries.
+                   (let ((item (substring string start sep)))
+                     (if trim
+                         (let* ((item-beg
+                                 (if (string-match trim-left-re item 0)
+                                     (match-end 0)
+                                   0))
+                                (item-len (length item))
+                                (item-end
+                                 (or (string-match-p trim-right-re
+                                                     item item-beg)
+                                     item-len)))
+                           (when (or (> item-beg 0) (< item-end item-len))
+                             (setq item (substring item item-beg item-end)))
+                           (when (or keep-empty (< item-beg item-end))
+                             (push item acc)))
+                       (push item acc))))
+                 ;; This ensures progress in case the match was empty.
+                 (setq next (max (1+ next) sep-end))
+                 (setq start sep-end)
+                 (< start len)))))
+    ;; field after last separator, if any
+    (let ((item (if (= start 0)
+                    string    ; optimisation when there is no separator
+                  (substring string start))))
+      (when trim
+        (let* ((item-beg (if (string-match trim-left-re item 0)
+                             (match-end 0)
+                           0))
+               (item-len (length item))
+               (item-end (or (string-match-p trim-right-re item item-beg)
+                             item-len)))
+          (when (or (> item-beg 0) (< item-end item-len))
+            (setq item (substring item item-beg item-end)))))
+      (when (or keep-empty (not (equal item "")))
+        (push item acc)))
+    (nreverse acc)))
 
 (defalias 'string-split #'split-string)
 
@@ -7012,7 +7007,8 @@ nothing."
     (progress-reporter-do-update reporter value suffix)))
 
 (defun make-progress-reporter (message &optional min-value max-value
-				       current-value min-change min-time)
+				       current-value min-change min-time
+                                       context)
   "Return progress reporter object for use with `progress-reporter-update'.
 
 MESSAGE is shown in the echo area, with a status indicator
@@ -7039,13 +7035,18 @@ and/or MAX-VALUE are nil.
 Optional MIN-TIME specifies the minimum interval time between
 echo area updates (default is 0.2 seconds.)  If the OS is not
 capable of measuring fractions of seconds, this parameter is
-effectively rounded up."
+effectively rounded up.
+
+Optional CONTEXT can be nil or `async'.  It is consulted by back ends before
+showing progress updates.  For example, when CONTEXT is `async',
+the echo area progress reports may be muted if the echo area is busy."
   (when (string-match "[[:alnum:]]\\'" message)
     (setq message (concat message "...")))
   (unless min-time
     (setq min-time 0.2))
   (let ((reporter
 	 (cons (or min-value 0)
+	       ;; FIXME: Use defstruct.
 	       (vector (if (>= min-time 0.02)
 			   (float-time) nil)
 		       min-value
@@ -7054,7 +7055,9 @@ effectively rounded up."
 		       (if min-change (max (min min-change 50) 1) 1)
                        min-time
                        ;; SUFFIX
-                       nil))))
+                       nil
+                       ;;
+                       context))))
     ;; Force a call to `message' now.
     (progress-reporter-update reporter (or current-value min-value))
     reporter))
@@ -7064,6 +7067,10 @@ effectively rounded up."
 (defun progress-reporter-text (reporter)
   "Return REPORTER's text."
   (aref (cdr reporter) 3))
+
+(defun progress-reporter-context (reporter)
+  "Return REPORTER's context."
+  (aref (cdr reporter) 7))
 
 (defun progress-reporter-force-update (reporter &optional value new-message suffix)
   "Report progress of an operation in the echo area unconditionally.
@@ -7083,20 +7090,26 @@ NEW-MESSAGE, if non-nil, sets a new message for the reporter."
 (defun progress-reporter-echo-area (reporter state)
   "Progress reporter echo area update function.
 REPORTER and STATE are the same as in
-`progress-reporter-update-functions'."
+`progress-reporter-update-functions'.
+
+Do not emit a message if the reporter context is `async' and the echo
+area is busy with something else."
   (let ((text (progress-reporter-text reporter)))
-    (pcase state
-      ((pred floatp)
-       (if (plusp state)
-           (message "%s%d%%" text (* state 100.0))
-         (message "%s" text)))
-      ((pred integerp)
-       (let ((message-log-max nil)
-             (pulse-char (aref progress-reporter--pulse-characters
-                               state)))
-         (message "%s %s" text pulse-char)))
-      ('done
-       (message "%sdone" text)))))
+    (unless (and (eq (progress-reporter-context reporter) 'async)
+                 (current-message)
+                 (not (string-prefix-p text (current-message))))
+      (pcase state
+        ((pred floatp)
+         (if (plusp state)
+             (message "%s%d%%" text (* state 100.0))
+           (message "%s" text)))
+        ((pred integerp)
+         (let ((message-log-max nil)
+               (pulse-char (aref progress-reporter--pulse-characters
+                                 state)))
+           (message "%s %s" text pulse-char)))
+        ('done
+         (message "%sdone" text))))))
 
 (defun progress-reporter-do-update (reporter value &optional suffix)
   (let* ((parameters      (cdr reporter))
@@ -7608,7 +7621,18 @@ REGEXP defaults to  \"[ \\t\\n\\r]+\"."
 
 TRIM-LEFT and TRIM-RIGHT default to \"[ \\t\\n\\r]+\"."
   (declare (important-return-value t))
-  (string-trim-left (string-trim-right string trim-right) trim-left))
+  (let* ((beg (and (string-match (if trim-left
+                                     (concat "\\`\\(?:" trim-left "\\)")
+                                   "\\`[ \t\n\r]+")
+                                 string)
+                   (match-end 0)))
+         (end (string-match-p (if trim-right
+                                  (concat "\\(?:" trim-right "\\)\\'")
+                                "[ \t\n\r]+\\'")
+                              string beg)))
+    (if (or beg end)
+        (substring string beg end)
+      string)))
 
 (let ((missing (make-symbol "missing")))
   (defsubst hash-table-contains-p (key table)
@@ -7748,14 +7772,14 @@ is inserted before adjusting the number of empty lines."
      ((< (- (point) start) lines)
       (insert (make-string (- lines (- (point) start)) ?\n))))))
 
-(defun string-lines (string &optional omit-nulls keep-newlines)
+(defun string-lines (string &optional omit-empty keep-newlines)
   "Split STRING into a list of lines.
-If OMIT-NULLS, empty lines will be removed from the results.
+If OMIT-EMPTY, empty lines will be removed from the results.
 If KEEP-NEWLINES, don't strip trailing newlines from the result
 lines."
   (declare (side-effect-free t))
   (if (equal string "")
-      (if omit-nulls
+      (if omit-empty
           nil
         (list ""))
     (let ((lines nil)
@@ -7764,13 +7788,13 @@ lines."
         (let ((newline (string-search "\n" string start)))
           (if newline
               (progn
-                (when (or (not omit-nulls)
+                (when (or (not omit-empty)
                           (not (= start newline)))
                   (let ((line (substring string start
                                          (if keep-newlines
                                              (1+ newline)
                                            newline))))
-                    (when (not (and keep-newlines omit-nulls
+                    (when (not (and keep-newlines omit-empty
                                     (equal line "\n")))
                       (push line lines))))
                 (setq start (1+ newline)))

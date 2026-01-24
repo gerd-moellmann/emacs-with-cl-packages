@@ -1,6 +1,6 @@
 ;;; subr-tests.el --- Tests for subr.el  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2015-2025 Free Software Foundation, Inc.
+;; Copyright (C) 2015-2026 Free Software Foundation, Inc.
 
 ;; Author: Oleh Krehel <ohwoeowho@gmail.com>,
 ;;         Nicolas Petton <nicolas@petton.fr>
@@ -1539,7 +1539,105 @@ final or penultimate step during initialization."))
     (should (equal (split-string text seps t trim)
                    '("lexical-binding: t;")))
     (should (equal (split-string text "[ \t\n\r-]*-\\*-[ \t\n\r-]*")
-                   '("" "lexical-binding: t;" "")))))
+                   '("" "lexical-binding: t;" ""))))
+
+  ;; splitting the empty string
+  (should (equal (split-string "" ",") '("")))
+  (should (equal (split-string "" "," t) '()))
+  (should (equal (split-string "," ",") '("" "")))
+  (should (equal (split-string "," "," t) '()))
+  (should (equal (split-string ",," ",") '("" "" "")))
+  (should (equal (split-string ",," "," t) '()))
+  (should (equal (split-string ",," ",+") '("" "")))
+  (should (equal (split-string ",," ",+" t) '()))
+
+  ;; simple
+  (should (equal (split-string "A" ",") '("A")))
+  (should (equal (split-string "A," ",") '("A" "")))
+  (should (equal (split-string "A," "," t) '("A")))
+  (should (equal (split-string "A,B" ",") '("A" "B")))
+
+  (should (equal (split-string ",A,B,,CD" ",") '("" "A" "B" "" "CD")))
+  (should (equal (split-string ",A,B,,CD" "," t) '("A" "B" "CD")))
+  (should (equal (split-string ",A,B,,CD" ",+") '("" "A" "B" "CD")))
+  (should (equal (split-string ",A,B,,CD" ",+" t) '("A" "B" "CD")))
+
+  ;; TRIM
+  (should (equal (split-string "---,---A---,---B---,---,---C---D---"
+                               ",+" nil "-")
+                 '("-" "--A--" "--B--" "-" "--C---D--")))
+  (should (equal (split-string "---,---A---,---B---,---,---C---D---"
+                               ",+" nil "-+")
+                 '("" "A" "B" "" "C---D")))
+  (should (equal (split-string "---,---A---,---B---,---,---C---D---"
+                               ",+" t "-+")
+                 '("A" "B" "C---D")))
+  (should (equal (split-string "---,---A---,---B---,---,---C---D---,"
+                               ",+" nil "-")
+                 '("-" "--A--" "--B--" "-" "--C---D--" "")))
+  (should (equal (split-string "---,---A---,---B---,---,---C---D---,"
+                               ",+" nil "-+")
+                 '("" "A" "B" "" "C---D" "")))
+  (should (equal (split-string "---,---A---,---B---,---,---C---D---,"
+                               ",+" t "-+")
+                 '("A" "B" "C---D")))
+
+  ;; default SEPARATORS forces OMIT-EMPTY to `t'
+  (should (equal (split-string " \nAB\tCDE\f\r\fF  \f\v")
+                 '("AB" "CDE" "F")))
+
+  ;; complex TRIM
+  (should (equal (split-string "A--,--B,//C,D//,E//F,G--H,//I--//J--,//--//--"
+                               "," nil "--\\|//")
+                 '("A" "B" "C" "D" "E//F" "G--H" "I--//J" "--//")))
+
+  ;; TRIM that also matches part of SEPARATORS
+  (should (equal (split-string "-/-A-B-/-C--/--D--" "-/-" nil nil)
+                 '("" "A-B" "C-" "-D--")))
+  (should (equal (split-string "-/-A-B-/-C--/--D--" "-/-" nil "-")
+                 '("" "A-B" "C" "D-")))
+  (should (equal (split-string "-/-A-B-/-C--/--D--" "-/-" nil "-+")
+                 '("" "A-B" "C" "D")))
+
+  ;; When SEPARATORS is the empty string, split on characters and add
+  ;; empty strings first and last because that's how the original
+  ;; implementation worked.  Some code actually uses this on purpose (!) so
+  ;; we probably need to retain that behaviour for a while.
+  (should (equal (split-string "ABC" "")
+                 '("" "A" "B" "C" "")))
+  (should (equal (split-string "ABC" "" t)
+                 '("A" "B" "C")))
+  )
+
+(ert-deftest subr-string-trim-left ()
+  (should (equal (string-trim-left "") ""))
+  (should (equal (string-trim-left " \t\n\r") ""))
+  (should (equal (string-trim-left " \t\n\ra") "a"))
+  (should (equal (string-trim-left "a \t\n\r") "a \t\n\r"))
+  (should (equal (string-trim-left "" "") ""))
+  (should (equal (string-trim-left "a" "") "a"))
+  (should (equal (string-trim-left "aa" "a*") ""))
+  (should (equal (string-trim-left "ba" "a*") "ba"))
+  (should (equal (string-trim-left "aa" "a*?") "aa"))
+  (should (equal (string-trim-left "aa" "a+?") "a")))
+
+(ert-deftest subr-string-trim-right ()
+  (should (equal (string-trim-right "") ""))
+  (should (equal (string-trim-right " \t\n\r") ""))
+  (should (equal (string-trim-right " \t\n\ra") " \t\n\ra"))
+  (should (equal (string-trim-right "a \t\n\r") "a"))
+  (should (equal (string-trim-right "" "") ""))
+  (should (equal (string-trim-right "a" "") "a"))
+  (should (equal (string-trim-right "aa" "a*") ""))
+  (should (equal (string-trim-right "ab" "a*") "ab"))
+  (should (equal (string-trim-right "aa" "a*?") "")))
+
+(ert-deftest subr-string-trim ()
+  (should (equal (string-trim " \t\r abc\t\n \t") "abc"))
+  (should (equal (string-trim "::abc;;" nil nil) "::abc;;"))
+  (should (equal (string-trim "::abc;;" nil ";+") "::abc"))
+  (should (equal (string-trim "::abc;;" ":+" nil) "abc;;"))
+  (should (equal (string-trim "::abc;;" ":+" ";+") "abc")))
 
 (defun subr--identity (x) x)
 

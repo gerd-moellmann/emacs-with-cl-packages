@@ -1,6 +1,6 @@
 ;;; csharp-mode.el --- Support for editing C#  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2022-2025 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2026 Free Software Foundation, Inc.
 
 ;; Author     : Theodor Thornhill <theo@thornhill.no>
 ;;              Jostein Kjønigsen <jostein@kjonigsen.net>
@@ -717,7 +717,11 @@ compilation and evaluation time conflicts."
      ((parent-is "arrow_function") parent-bol csharp-ts-mode-indent-offset)
      ((parent-is "parenthesized_expression") parent-bol csharp-ts-mode-indent-offset)
      ((parent-is "using_statement") parent-bol 0)
-     ((parent-is "lambda_expression") parent-bol 0))))
+     ((parent-is "lambda_expression") parent-bol 0)
+     ((parent-is "try_statement") parent-bol 0)
+     ((parent-is "catch_filter_clause") parent-bol 0)
+     ((parent-is "preproc_if") parent-bol 0)
+     ((parent-is "preproc_region") parent-bol 0))))
 
 (defvar csharp-ts-mode--keywords
   '("using" "namespace" "class" "if" "else" "throw" "new" "for"

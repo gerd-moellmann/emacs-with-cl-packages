@@ -1,6 +1,6 @@
 /* Window creation, deletion and examination for GNU Emacs.
    Does not include redisplay.
-   Copyright (C) 1985-1987, 1993-1998, 2000-2025 Free Software
+   Copyright (C) 1985-1987, 1993-1998, 2000-2026 Free Software
    Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -8646,6 +8646,67 @@ WINDOW must be a live window and defaults to the selected one.  */)
   return decode_live_window (window)->cursor_type;
 }
 
+DEFUN ("window-cursor-info", Fwindow_cursor_info, Swindow_cursor_info,
+       0, 1, 0,
+       doc: /* Return information about the cursor of WINDOW.
+WINDOW must be a live window and defaults to the selected one.
+
+The returned value is a vector of 6 elements:
+  [TYPE X Y WIDTH HEIGHT ASCENT]
+where
+  TYPE is the symbol representing the type of the cursor.  See
+    `cursor-type' for the meaning of the value.
+  X and Y are pixel coordinates of the cursor's top-left corner, relative
+    to the top-left corner of WINDOW's text area.
+  WIDTH and HEIGHT are the pixel dimensions of the cursor.
+  ASCENT is the number of pixels the cursor extends above the baseline.
+
+If the cursor is not currently displayed for WINDOW, return nil.
+
+Note that any element except the first one in the returned vector may be
+-1 if the actual value is currently unavailable.  */)
+  (Lisp_Object window)
+{
+  struct window *w = decode_live_window (window);
+
+  if (!w->phys_cursor_on_p)
+    return Qnil;
+
+  /* Default values for TTY frames.  */
+  int phys_cursor_width = 1, phys_cursor_height = 1, phys_cursor_ascent = 1;
+
+#ifdef HAVE_WINDOW_SYSTEM
+  struct frame *f = XFRAME (WINDOW_FRAME (w));
+  struct glyph *phys_cursor_glyph = get_phys_cursor_glyph (w);
+
+  if (FRAME_WINDOW_P (f))
+    {
+      phys_cursor_width = w->phys_cursor_width;
+      phys_cursor_height = w->phys_cursor_height;
+      phys_cursor_ascent = w->phys_cursor_ascent;
+    }
+
+  /* If on a stretch glyph, and `x-stretch-cursor' is nil, use the
+     canonical character width instead, except for (H)BAR cursors.
+     This mimics what the various *term.c backends do in their
+     *_draw_stretch_glyph methods.  */
+  if (phys_cursor_glyph
+      && phys_cursor_glyph->type == STRETCH_GLYPH
+      && !(w->phys_cursor_type == BAR_CURSOR
+	  || w->phys_cursor_type == HBAR_CURSOR)
+      && !x_stretch_cursor_p)
+    phys_cursor_width = min (FRAME_COLUMN_WIDTH (f), phys_cursor_width);
+#endif
+
+  return CALLN (Fvector,
+                w->cursor_type,
+                make_fixnum (w->phys_cursor.x),
+                make_fixnum (w->phys_cursor.y),
+                make_fixnum (phys_cursor_width),
+                make_fixnum (phys_cursor_height),
+                make_fixnum (phys_cursor_ascent));
+}
+
 
 /***********************************************************************
 			    Scroll bars
@@ -9617,5 +9678,6 @@ name to `'ignore'.  */);
   defsubr (&Sset_window_parameter);
   defsubr (&Swindow_discard_buffer);
   defsubr (&Swindow_cursor_type);
+  defsubr (&Swindow_cursor_info);
   defsubr (&Sset_window_cursor_type);
 }

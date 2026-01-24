@@ -1,6 +1,6 @@
 /* Functions for the NeXT/Open/GNUstep and macOS window system.
 
-Copyright (C) 1989, 1992-1994, 2005-2006, 2008-2025 Free Software
+Copyright (C) 1989, 1992-1994, 2005-2006, 2008-2026 Free Software
 Foundation, Inc.
 
 This file is part of GNU Emacs.
@@ -1261,6 +1261,8 @@ DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame,
       f = make_frame (1);
 
   XSETFRAME (frame, f);
+
+  frame_set_id_from_params (f, parms);
 
   f->terminal = dpyinfo->terminal;
 
@@ -3479,16 +3481,17 @@ frame_geometry (Lisp_Object frame, Lisp_Object attribute)
 		     || EQ (fullscreen_symbol, Qfullscreen));
   int border = fullscreen ? 0 : f->border_width;
   int title_height = fullscreen ? 0 : FRAME_NS_TITLEBAR_HEIGHT (f);
+  int tool_bar_height = FRAME_TOOLBAR_HEIGHT (f);
   int native_width = FRAME_PIXEL_WIDTH (f);
   int native_height = FRAME_PIXEL_HEIGHT (f);
   int outer_width = native_width + 2 * border;
-  int outer_height = native_height + 2 * border + title_height;
+  int outer_height
+    = native_height + 2 * border + title_height + tool_bar_height;
   int native_left = f->left_pos + border;
   int native_top = f->top_pos + border + title_height;
   int native_right = f->left_pos + outer_width - border;
   int native_bottom = f->top_pos + outer_height - border;
   int internal_border_width = FRAME_INTERNAL_BORDER_WIDTH (f);
-  int tool_bar_height = FRAME_TOOLBAR_HEIGHT (f);
   int tool_bar_width = (tool_bar_height
 			? outer_width - 2 * internal_border_width
 			: 0);

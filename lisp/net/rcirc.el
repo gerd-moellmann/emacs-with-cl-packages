@@ -1,6 +1,6 @@
 ;;; rcirc.el --- default, simple IRC client          -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2005-2025 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2026 Free Software Foundation, Inc.
 
 ;; Author: Ryan Yeske <rcyeske@gmail.com>
 ;; Maintainers: Ryan Yeske <rcyeske@gmail.com>,
@@ -1338,20 +1338,10 @@ The list is updated automatically by `defun-rcirc-command'.")
   (interactive "zCoding system for incoming messages: ")
   (setq-local rcirc-decode-coding-system coding-system))
 
-(define-obsolete-function-alias
-  'rcirc-set-decode-coding-system
-  'set-rcirc-decode-coding-system
-  "28.1")
-
 (defun rcirc-set-encode-coding-system (coding-system)
   "Set the encode CODING-SYSTEM used in this channel."
   (interactive "zCoding system for outgoing messages: ")
   (setq-local rcirc-encode-coding-system coding-system))
-
-(define-obsolete-function-alias
-  'rcirc-set-encode-coding-system
-  'set-rcirc-encode-coding-system
-  "28.1")
 
 (defun rcirc-format (pre &optional replace)
   "Insert markup formatting PRE.

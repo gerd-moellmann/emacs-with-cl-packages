@@ -1,6 +1,6 @@
 /* Graphical user interface functions for the Microsoft Windows API.
 
-Copyright (C) 1989, 1992-2025 Free Software Foundation, Inc.
+Copyright (C) 1989, 1992-2026 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -6314,6 +6314,8 @@ DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame,
     f = make_frame (true);
 
   XSETFRAME (frame, f);
+
+  frame_set_id_from_params (f, parameters);
 
   parent_frame = gui_display_get_arg (dpyinfo, parameters, Qparent_frame,
                                       NULL, NULL,

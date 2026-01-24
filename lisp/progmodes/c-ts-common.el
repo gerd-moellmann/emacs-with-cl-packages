@@ -1,6 +1,6 @@
 ;;; c-ts-common.el --- Utilities for C like Languages  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2023-2025 Free Software Foundation, Inc.
+;; Copyright (C) 2023-2026 Free Software Foundation, Inc.
 
 ;; Maintainer : 付禹安 (Yuan Fu) <casouri@gmail.com>
 ;; Package    : emacs
@@ -254,7 +254,7 @@ This function should be called at BOL.  Used by
    ;; Prefix: same.
    ((looking-at (rx (* (syntax whitespace))
                     "//"
-                    (* "/")
+                    (* (or "/" "!")) ; Support //! style comments in Rust.
                     (* (syntax whitespace))))
     (match-string 0))
    ;; (3)

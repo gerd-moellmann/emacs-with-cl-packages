@@ -1,6 +1,6 @@
 ;; wid-edit.el --- Functions for creating and using widgets -*- lexical-binding:t -*-
 ;;
-;; Copyright (C) 1996-1997, 1999-2025 Free Software Foundation, Inc.
+;; Copyright (C) 1996-1997, 1999-2026 Free Software Foundation, Inc.
 ;;
 ;; Author: Per Abrahamsen <abraham@dina.kvl.dk>
 ;; Maintainer: emacs-devel@gnu.org
@@ -4362,7 +4362,10 @@ is inline."
   "Non-nil if VALUE is a defined color or a RGB hex string."
   (and (stringp value)
        (or (color-defined-p value)
-           (string-match-p "^#\\(?:[[:xdigit:]]\\{3\\}\\)\\{1,4\\}$" value))))
+           (string-match-p "^#\\(?:[[:xdigit:]]\\{3\\}\\)\\{1,4\\}$" value)
+           ;; TTYs also allow unspecified-fg / unspecified-bg as color
+           ;; values even though they are technically not colors.
+           (string-match-p "^unspecified-\\(?:fg\\|bg\\)$" value))))
 
 (defun widget-color-validate (widget)
   "Check that WIDGET's value is a valid color."

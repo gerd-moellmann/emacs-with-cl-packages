@@ -1,6 +1,6 @@
 ;;; loaddefs-gen.el --- generate loaddefs.el files  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2022-2025 Free Software Foundation, Inc.
+;; Copyright (C) 2022-2026 Free Software Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
 ;; Keywords: maint
@@ -228,7 +228,11 @@ expand)' among their `declare' forms."
                     (member file loaddefs--load-error-files))
           (let ((load-path (cons (file-name-directory file) load-path)))
             (message "loaddefs-gen: loading file %s (for %s)" file car)
-            (condition-case e (load file)
+            (condition-case e
+                ;; Don't load the `.elc' file, in case the file wraps
+                ;; the macro-definition in `eval-when-compile' (bug#80180).
+                (let ((load-suffixes '(".el")))
+                  (load file))
               (error
                (push file loaddefs--load-error-files) ; do not attempt again
                (warn "loaddefs-gen: load error\n\t%s" e)))))

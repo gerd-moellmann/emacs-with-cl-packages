@@ -1,6 +1,6 @@
 ;;; frame.el --- multi-frame management independent of window systems  -*- lexical-binding:t -*-
 
-;; Copyright (C) 1993-1994, 1996-1997, 2000-2025 Free Software
+;; Copyright (C) 1993-1994, 1996-1997, 2000-2026 Free Software
 ;; Foundation, Inc.
 
 ;; Maintainer: emacs-devel@gnu.org
@@ -951,23 +951,24 @@ and lines for the clone.
 
 FRAME defaults to the selected frame.  The frame is created on the
 same terminal as FRAME.  If the terminal is a text-only terminal then
-also select the new frame."
+also select the new frame.
+
+A cloned frame is assigned a new frame ID.  See `frame-id'."
   (interactive (list (selected-frame) current-prefix-arg))
   (let* ((frame (or frame (selected-frame)))
          (windows (unless no-windows
                     (window-state-get (frame-root-window frame))))
-         (default-frame-alist
-          (seq-remove (lambda (elem)
-                        (memq (car elem) frame-internal-parameters))
-                      (frame-parameters frame)))
+         (parameters
+          (append `((cloned-from . ,frame))
+                  (frame--purify-parameters (frame-parameters frame))))
          new-frame)
     (when (and frame-resize-pixelwise
                (display-graphic-p frame))
       (push (cons 'width (cons 'text-pixels (frame-text-width frame)))
-            default-frame-alist)
+            parameters)
       (push (cons 'height (cons 'text-pixels (frame-text-height frame)))
-            default-frame-alist))
-    (setq new-frame (make-frame))
+            parameters))
+    (setq new-frame (make-frame parameters))
     (when windows
       (window-state-put windows (frame-root-window new-frame) 'safe))
     (unless (display-graphic-p frame)
@@ -993,6 +994,24 @@ frame, unless you add them to the hook in your early-init file.")
   "Parameters `make-frame' copies from the selected to the new frame.")
 
 (defvar x-display-name)
+
+(defun frame--purify-parameters (parameters)
+  "Return PARAMETERS without internals and ignoring unset parameters.
+Use this helper function so that `make-frame' does not override any
+parameters.
+
+In the return value, assign nil to each parameter in
+`default-frame-alist', `window-system-default-frame-alist',
+`frame-inherited-parameters', which is not in PARAMETERS, and remove all
+parameters in `frame-internal-parameters' from PARAMETERS."
+  (dolist (p (append default-frame-alist
+                     window-system-default-frame-alist
+                     frame-inherited-parameters))
+    (unless (assq (car p) parameters)
+      (push (cons (car p) nil) parameters)))
+  (seq-remove (lambda (elem)
+                (memq (car elem) frame-internal-parameters))
+              parameters))
 
 (defun make-frame (&optional parameters)
   "Return a newly created frame displaying the current buffer.
@@ -1093,6 +1112,12 @@ current buffer even if it is hidden."
       (setq params (cons '(minibuffer)
                          (delq (assq 'minibuffer params) params))))
 
+    ;; Let the `frame-creation-function' apparatus assign a new frame id
+    ;; for a new or cloned frame.  For an undeleted frame, send the old
+    ;; id via a frame parameter.
+    (when-let* ((id (cdr (assq 'undeleted params))))
+      (push (cons 'frame-id id) params))
+
     ;; Now make the frame.
     (run-hooks 'before-make-frame-hook)
 
@@ -1124,7 +1149,7 @@ current buffer even if it is hidden."
       ;; buffers for these windows were set (Bug#79606).
       (let* ((root (frame-root-window frame))
 	     (buffer (window-buffer root)))
-	(with-current-buffer buffer
+        (with-current-buffer buffer
 	  (set-window-fringes
 	   root left-fringe-width right-fringe-width fringes-outside-margins)
 	  (set-window-scroll-bars
@@ -1134,7 +1159,7 @@ current buffer even if it is hidden."
 	   root left-margin-width right-margin-width)))
       (let* ((mini (minibuffer-window frame))
 	     (buffer (window-buffer mini)))
-	(when (eq (window-frame mini) frame)
+        (when (eq (window-frame mini) frame)
 	  (with-current-buffer buffer
 	    (set-window-fringes
 	     mini left-fringe-width right-fringe-width fringes-outside-margins)
@@ -1612,10 +1637,15 @@ resize and move FRAME."
           (if parent
               (frame-native-height parent)
             (nth 3 geometry)))
-         (parent-or-workarea
+         (workarea (cdr (assq 'workarea monitor-attributes)))
+         (parent-or-workarea-width
           (if parent
-              `(0 0 ,parent-or-display-width ,parent-or-display-height)
-            (cdr (assq 'workarea monitor-attributes))))
+              parent-or-display-width
+            (nth 2 workarea)))
+         (parent-or-workarea-height
+          (if parent
+              parent-or-display-height
+            (nth 3 workarea)))
          (outer-edges (frame-edges frame 'outer-edges))
          (outer-left (nth 0 outer-edges))
          (outer-top (nth 1 outer-edges))
@@ -1646,8 +1676,7 @@ resize and move FRAME."
       (setq text-width (cdr width)))
      ((and (floatp width) (> width 0.0) (<= width 1.0))
       (setq text-width
-            (- (round (* width (- (nth 2 parent-or-workarea)
-                               (nth 0 parent-or-workarea))))
+            (- (round (* width parent-or-workarea-width))
                outer-minus-text-width)))
      (width
       (user-error "Invalid width specification")))
@@ -1660,10 +1689,9 @@ resize and move FRAME."
       (setq text-height (cdr height)))
      ((and (floatp height) (> height 0.0) (<= height 1.0))
       (setq text-height
-            (- (round (* height (- (nth 3 parent-or-workarea)
-                                   (nth 1 parent-or-workarea))))
+            (- (round (* height parent-or-workarea-height))
                outer-minus-text-height)))
-     (width
+     (height
       (user-error "Invalid height specification")))
 
     (cond
@@ -1682,9 +1710,8 @@ resize and move FRAME."
        (t
         (user-error "Invalid position specification"))))
      ((floatp left)
-      (setq left
-            (round (* left (- (nth 2 parent-or-workarea)
-                              (nth 0 parent-or-workarea))))))
+      (setq left (+ (round (* left parent-or-workarea-width))
+                    (if parent 0 (nth 0 workarea)))))
      (t (setq left outer-left)))
 
     (when negative
@@ -1713,9 +1740,8 @@ resize and move FRAME."
        (t
         (user-error "Invalid position specification"))))
      ((floatp top)
-      (setq top
-            (round (* top (- (nth 3 parent-or-workarea)
-                             (nth 1 parent-or-workarea))))))
+      (setq top (+ (round (* left parent-or-workarea-height))
+                   (if parent 0 (nth 1 workarea)))))
      (t (setq top outer-top)))
 
     (when negative
@@ -3146,7 +3172,8 @@ Only the 16 most recently deleted frames are saved."
                    ;; to restore a graphical frame.
                    (and (eq (car elem) 'display) (not (display-graphic-p)))))
              (frame-parameters frame))
-            (window-state-get (frame-root-window frame)))
+            (window-state-get (frame-root-window frame))
+            (frame-id frame))
            undelete-frame--deleted-frames))
     (if (> (length undelete-frame--deleted-frames) 16)
         (setq undelete-frame--deleted-frames
@@ -3169,7 +3196,9 @@ Without a prefix argument, undelete the most recently deleted
 frame.
 With a numerical prefix argument ARG between 1 and 16, where 1 is
 most recently deleted frame, undelete the ARGth deleted frame.
-When called from Lisp, returns the new frame."
+When called from Lisp, returns the new frame.
+
+An undeleted frame retains its original frame ID.  See `frame-id'."
   (interactive "P")
   (if (not undelete-frame-mode)
       (user-error "Undelete-Frame mode is disabled")
@@ -3190,8 +3219,11 @@ When called from Lisp, returns the new frame."
                  (if graphic "graphic" "non-graphic"))
               (setq undelete-frame--deleted-frames
                     (delq frame-data undelete-frame--deleted-frames))
-              (let* ((default-frame-alist (nth 1 frame-data))
-                     (frame (make-frame)))
+              (let* ((parameters
+                      ;; `undeleted' signals to `make-frame' to reuse its id.
+                      (append `((undeleted . ,(nth 3 frame-data)))
+                              (frame--purify-parameters (nth 1 frame-data))))
+                     (frame (make-frame parameters)))
                 (window-state-put (nth 2 frame-data) (frame-root-window frame) 'safe)
                 (select-frame-set-input-focus frame)
                 frame))))))))

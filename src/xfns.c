@@ -1,6 +1,6 @@
 /* Functions for the X Window System.
 
-Copyright (C) 1989, 1992-2025 Free Software Foundation, Inc.
+Copyright (C) 1989, 1992-2026 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -5019,6 +5019,8 @@ This function is an internal primitive--use `make-frame' instead.  */)
   store_frame_param (f, Qoverride_redirect, override_redirect ? Qt : Qnil);
 
   XSETFRAME (frame, f);
+
+  frame_set_id_from_params (f, parms);
 
   f->terminal = dpyinfo->terminal;
 

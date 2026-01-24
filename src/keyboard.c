@@ -1,6 +1,6 @@
 /* Keyboard and mouse input; editor command loop.
 
-Copyright (C) 1985-1989, 1993-1997, 1999-2025 Free Software Foundation,
+Copyright (C) 1985-1989, 1993-1997, 1999-2026 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
@@ -12574,7 +12574,7 @@ set_waiting_for_input (struct timespec *time_to_clear)
 {
   input_available_clear_time = time_to_clear;
 
-  /* Tell handle_interrupt to throw back to read_char,  */
+  /* Tell handle_interrupt to throw back to read_char.  */
   waiting_for_input = true;
 
   /* If handle_interrupt was called before and buffered a C-g,
@@ -12982,7 +12982,8 @@ See also `current-input-mode'.  */)
     error ("QUIT must be an ASCII character");
 
 #ifndef DOS_NT
-  /* this causes startup screen to be restored and messes with the mouse */
+  /* This causes startup screen to be restored and messes with the
+     mouse.  */
   reset_sys_modes (tty);
 #endif
 
@@ -13374,7 +13375,8 @@ init_while_no_input_ignore_events (void)
   Lisp_Object events = list (Qselect_window, Qhelp_echo, Qmove_frame,
 			     Qiconify_frame, Qmake_frame_visible,
 			     Qfocus_in, Qfocus_out, Qconfig_changed_event,
-			     Qselection_request);
+			     Qselection_request, Qmonitors_changed,
+			     Qtoolkit_theme_changed);
 
 #ifdef HAVE_DBUS
   events = Fcons (Qdbus_event, events);
@@ -13393,24 +13395,49 @@ init_while_no_input_ignore_events (void)
 static bool
 is_ignored_event (union buffered_input_event *event)
 {
-  Lisp_Object ignore_event;
+  Lisp_Object ignore_event = Qnil;
 
   switch (event->kind)
     {
-    case FOCUS_IN_EVENT: ignore_event = Qfocus_in; break;
-    case FOCUS_OUT_EVENT: ignore_event = Qfocus_out; break;
-    case HELP_EVENT: ignore_event = Qhelp_echo; break;
-    case ICONIFY_EVENT: ignore_event = Qiconify_frame; break;
-    case DEICONIFY_EVENT: ignore_event = Qmake_frame_visible; break;
-    case SELECTION_REQUEST_EVENT: ignore_event = Qselection_request; break;
+    case FOCUS_IN_EVENT:
+      ignore_event = Qfocus_in;
+      break;
+    case FOCUS_OUT_EVENT:
+      ignore_event = Qfocus_out;
+      break;
+    case HELP_EVENT:
+      ignore_event = Qhelp_echo;
+      break;
+    case ICONIFY_EVENT:
+      ignore_event = Qiconify_frame;
+      break;
+    case DEICONIFY_EVENT:
+      ignore_event = Qmake_frame_visible;
+      break;
+    case SELECTION_REQUEST_EVENT:
+      ignore_event = Qselection_request;
+      break;
 #ifdef USE_FILE_NOTIFY
-    case FILE_NOTIFY_EVENT: ignore_event = Qfile_notify; break;
+    case FILE_NOTIFY_EVENT:
+      ignore_event = Qfile_notify;
+      break;
 #endif
 #ifdef HAVE_DBUS
-    case DBUS_EVENT: ignore_event = Qdbus_event; break;
+    case DBUS_EVENT:
+      ignore_event = Qdbus_event;
+      break;
 #endif
-    case SLEEP_EVENT: ignore_event = Qsleep_event; break;
-    default: ignore_event = Qnil; break;
+    case SLEEP_EVENT:
+      ignore_event = Qsleep_event;
+      break;
+    case MONITORS_CHANGED_EVENT:
+      ignore_event = Qmonitors_changed;
+      break;
+    case TOOLKIT_THEME_CHANGED_EVENT:
+      ignore_event = Qtoolkit_theme_changed;
+      break;
+    default:
+      break;
     }
 
   return !NILP (Fmemq (ignore_event, Vwhile_no_input_ignore_events));
@@ -13520,6 +13547,8 @@ syms_of_keyboard (void)
 
   DEFSYM (Qtouch_end, "touch-end");
   DEFSYM (Qsleep_event, "sleep-event");
+  DEFSYM (Qmonitors_changed, "monitors-changed");
+  DEFSYM (Qtoolkit_theme_changed, "toolkit-theme-changed");
 
   /* Menu and tool bar item parts.  */
   DEFSYM (QCenable, ":enable");

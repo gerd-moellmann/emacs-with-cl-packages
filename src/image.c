@@ -1,6 +1,6 @@
 /* Functions for image support on window system.
 
-Copyright (C) 1989-2025 Free Software Foundation, Inc.
+Copyright (C) 1989-2026 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 
@@ -51,7 +51,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "coding.h"
 #include "termhooks.h"
 #include "font.h"
-#include "pdumper.h"
 
 #ifdef HAVE_SYS_STAT_H
 #include <sys/stat.h>
@@ -307,8 +306,7 @@ image_pix_context_get_pixel (Emacs_Pix_Context image, int x, int y)
 }
 
 static Emacs_Pix_Container
-image_pix_container_create_from_bitmap_data (struct frame *f,
-					     char *data, unsigned int width,
+image_pix_container_create_from_bitmap_data (char *data, unsigned int width,
 					     unsigned int height,
 					     unsigned long fg,
 					     unsigned long bg)
@@ -1718,7 +1716,8 @@ struct image_keyword
   /* True means key must be present.  */
   bool mandatory_p;
 
-  /* Used to recognize duplicate keywords in a property list.  */
+  /* True means key is present.
+     Also used to recognize duplicate keywords in a property list.  */
   bool count;
 
   /* The value that was found.  */
@@ -2749,10 +2748,10 @@ evicted.  */)
   return Qnil;
 }
 
-static size_t
+static intptr_t
 image_size_in_bytes (struct image *img)
 {
-  size_t size = 0;
+  intptr_t size = 0;
 
 #if defined USE_CAIRO || defined HAVE_MACGUI
   Emacs_Pixmap pm = img->pixmap;
@@ -2797,14 +2796,14 @@ image_size_in_bytes (struct image *img)
   return size;
 }
 
-static size_t
+static intptr_t
 image_frame_cache_size (struct frame *f)
 {
   struct image_cache *c = FRAME_IMAGE_CACHE (f);
   if (!c)
     return 0;
 
-  size_t total = 0;
+  intptr_t total = 0;
   for (ptrdiff_t i = 0; i < c->used; ++i)
     {
       struct image *img = c->images[i];
@@ -4012,7 +4011,7 @@ struct anim_cache
      We don't actually know how much memory the different libraries
      actually use here (since these cache structures are opaque), so
      this is mostly just the size of the original image file.  */
-  int byte_size;
+  intmax_t byte_size;
   struct timespec update_time;
   struct anim_cache *next;
 };
@@ -4247,7 +4246,7 @@ x_destroy_x_image (XImage *ximg)
 static Picture
 x_create_xrender_picture (struct frame *f, Emacs_Pixmap pixmap, int depth)
 {
-  Picture p;
+  Picture p = None;
   Display *display = FRAME_X_DISPLAY (f);
 
   if (FRAME_DISPLAY_INFO (f)->xrender_supported_p)
@@ -4282,15 +4281,7 @@ x_create_xrender_picture (struct frame *f, Emacs_Pixmap pixmap, int depth)
           p = XRenderCreatePicture (display, pixmap, format, attr_mask, &attr);
         }
       else
-        {
-          image_error ("Specified image bit depth is not supported by XRender");
-          return 0;
-        }
-    }
-  else
-    {
-      /* XRender not supported on this display.  */
-      return 0;
+	image_error ("Specified image bit depth is not supported by XRender");
     }
 
   return p;
@@ -5998,7 +5989,7 @@ enum xbm_token
 
 
 /* Return true if OBJECT is a valid XBM-type image specification.
-   A valid specification is a list starting with the symbol `image'
+   A valid specification is a list starting with the symbol `image'.
    The rest of the list is a property list which must contain an
    entry `:type xbm'.
 
@@ -6021,8 +6012,8 @@ enum xbm_token
 
    Both the file and data forms may contain the additional entries
    `:background COLOR' and `:foreground COLOR'.  If not present,
-   foreground and background of the frame on which the image is
-   displayed is used.  */
+   the foreground and background of the frame on which the image is
+   displayed are used.  */
 
 static bool
 xbm_image_p (Lisp_Object object)
@@ -6040,18 +6031,14 @@ xbm_image_p (Lisp_Object object)
       if (kw[XBM_DATA].count)
 	return 0;
     }
-  else if (kw[XBM_DATA].count && xbm_file_p (kw[XBM_DATA].value))
-    {
-      /* In-memory XBM file.  */
-      if (kw[XBM_FILE].count)
-	return 0;
-    }
-  else
+  else if (! (kw[XBM_DATA].count && xbm_file_p (kw[XBM_DATA].value)))
+    /* Not an in-memory XBM file.  */
     {
       Lisp_Object data;
       int width, height, stride;
 
-      /* Entries for `:width', `:height' and `:data' must be present.  */
+      /* Entries for `:data-width', `:data-height', and `:data' must be
+	 present.  */
       if (!kw[XBM_DATA_WIDTH].count
 	  || !kw[XBM_DATA_HEIGHT].count
 	  || !kw[XBM_DATA].count)
@@ -6335,7 +6322,7 @@ Create_Pixmap_From_Bitmap_Data (struct frame *f, struct image *img, char *data,
   fg = lookup_rgb_color (f, fgbg[0].red, fgbg[0].green, fgbg[0].blue);
   bg = lookup_rgb_color (f, fgbg[1].red, fgbg[1].green, fgbg[1].blue);
   img->pixmap
-    = image_pix_container_create_from_bitmap_data (f, data, img->width,
+    = image_pix_container_create_from_bitmap_data (data, img->width,
 						   img->height, fg, bg);
 #elif defined HAVE_X_WINDOWS
   img->pixmap
@@ -8918,7 +8905,7 @@ image_build_heuristic_mask (struct frame *f, struct image *img,
 		       PBM (mono, gray, color)
  ***********************************************************************/
 
-/* Indices of image specification fields in gs_format, below.  */
+/* Indices of image specification fields in pbm_format, below.  */
 
 enum pbm_keyword_index
 {
@@ -9346,7 +9333,7 @@ enum native_image_keyword_index
 
 /* Vector of image_keyword structures describing the format
    of valid user-defined image specifications.  */
-static const struct image_keyword native_image_format[] =
+static const struct image_keyword native_image_format[NATIVE_IMAGE_LAST] =
 {
   {":type",		IMAGE_SYMBOL_VALUE,			1},
   {":data",		IMAGE_STRING_VALUE,			0},
@@ -9369,8 +9356,8 @@ native_image_p (Lisp_Object object)
   struct image_keyword fmt[NATIVE_IMAGE_LAST];
   memcpy (fmt, native_image_format, sizeof fmt);
 
-  if (!parse_image_spec (object, fmt, 10, Qnative_image))
-    return 0;
+  if (!parse_image_spec (object, fmt, NATIVE_IMAGE_LAST, Qnative_image))
+    return false;
 
   /* Must specify either the :data or :file keyword.  */
   return fmt[NATIVE_IMAGE_FILE].count + fmt[NATIVE_IMAGE_DATA].count == 1;
@@ -10080,7 +10067,7 @@ png_load (struct frame *f, struct image *img)
 
 #if defined (HAVE_JPEG)
 
-/* Indices of image specification fields in gs_format, below.  */
+/* Indices of image specification fields in jpeg_format, below.  */
 
 enum jpeg_keyword_index
 {
@@ -11342,7 +11329,7 @@ gif_load (struct frame *f, struct image *img)
   struct anim_cache* cache = NULL;
   /* Which sub-image are we to display?  */
   Lisp_Object image_number = image_spec_value (img->spec, QCindex, NULL);
-  int byte_size = 0;
+  intmax_t byte_size = 0;
 
   idx = FIXNUMP (image_number) ? XFIXNAT (image_number) : 0;
 
@@ -14549,7 +14536,7 @@ DEFUN ("image-cache-size", Fimage_cache_size, Simage_cache_size, 0, 0, 0,
   (void)
 {
   Lisp_Object tail, frame;
-  size_t total = 0;
+  intmax_t total = 0;
 
   FOR_EACH_FRAME (tail, frame)
     if (FRAME_WINDOW_P (XFRAME (frame)))
@@ -14594,7 +14581,7 @@ initialize_image_type (struct image_type const *type)
   Lisp_Object tested = Fassq (typesym, Vlibrary_cache);
   /* If we failed to load the library before, don't try again.  */
   if (CONSP (tested))
-    return !NILP (XCDR (tested)) ? true : false;
+    return !NILP (XCDR (tested));
 
   bool (*init) (void) = type->init;
   if (init)
@@ -14665,8 +14652,8 @@ static struct image_type native_image_type =
     image_clear_image };
 #endif
 
-/* Look up image type TYPE, and return a pointer to its image_type
-   structure.  Return 0 if TYPE is not a known image type.  */
+/* Look up image TYPE, and return a pointer to its image_type structure.
+   Return a null pointer if TYPE is not a known image type.  */
 
 static struct image_type const *
 lookup_image_type (Lisp_Object type)
@@ -14848,14 +14835,21 @@ non-numeric, there is no explicit limit on the size of images.  */);
 
 #if defined (HAVE_WEBP)						\
   || (defined (HAVE_NATIVE_IMAGE_API)				\
-      && ((defined (HAVE_NS) && defined (NS_IMPL_COCOA))	\
-	  || defined (HAVE_HAIKU) || defined (HAVE_MACGUI)))
+      && (defined (HAVE_NS) || defined (HAVE_HAIKU)
+          || defined (HAVE_MACGUI)))
   DEFSYM (Qwebp, "webp");
   DEFSYM (Qwebpdemux, "webpdemux");
-#if !defined (HAVE_WEBP) && defined (HAVE_MACGUI) && defined (HAVE_NATIVE_IMAGE_API)
+#if !defined (NS_IMPL_GNUSTEP) || defined (HAVE_WEBP)
+  add_image_type (Qwebp);
+#else
+
+  /* On GNUstep, WEBP support is provided via ImageMagick only if
+     gnustep-gui is built with --enable-imagemagick.  */
+#if !defined (HAVE_MACGUI) || defined (HAVE_NATIVE_IMAGE_API)
   if (image_can_use_native_api (Qwebp))
 #endif
-  add_image_type (Qwebp);
+    add_image_type (Qwebp);
+#endif /* NS_IMPL_GNUSTEP && !HAVE_WEBP */
 #endif
 
 #if defined (HAVE_IMAGEMAGICK) || defined (HAVE_MACGUI)
@@ -14883,21 +14877,29 @@ non-numeric, there is no explicit limit on the size of images.  */);
   DEFSYM (Qgobject, "gobject");
 #endif /* HAVE_NTGUI  */
 #elif defined HAVE_NATIVE_IMAGE_API			\
-  && ((defined HAVE_NS && defined NS_IMPL_COCOA)	\
-      || defined HAVE_HAIKU)
+  && (defined HAVE_NS || defined HAVE_HAIKU)
   DEFSYM (Qsvg, "svg");
 
-  /* On Haiku, the SVG translator may not be installed.  */
+  /* On Haiku, the SVG translator may not be installed.  On GNUstep, SVG
+     support is provided by ImageMagick so not guaranteed.  Furthermore,
+     some distros (e.g., Debian) ship ImageMagick's SVG module in a
+     separate binary package which may not be installed.  */
   if (image_can_use_native_api (Qsvg))
     add_image_type (Qsvg);
 #endif
 
 #if defined HAVE_MACGUI || defined HAVE_NS
   DEFSYM (Qheic, "heic");
-#if defined HAVE_MACGUI && defined HAVE_NATIVE_IMAGE_API
+#ifdef NS_IMPL_COCOA
+  add_image_type (Qheic);
+#else
+
+  /* HEIC support in gnustep-gui is provided by ImageMagick.  */
+#if !defined(HAVE_MACGUI) || defined HAVE_NATIVE_IMAGE_API
   if (image_can_use_native_api (Qheic))
 #endif
-  add_image_type (Qheic);
+    add_image_type (Qheic);
+#endif /* NS_IMPL_GNUSTEP */
 #endif
 
 #if HAVE_NATIVE_IMAGE_API

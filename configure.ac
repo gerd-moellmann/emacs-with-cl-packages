@@ -4,7 +4,7 @@ dnl	autoconf
 dnl in the directory containing this script.
 dnl If you changed any AC_DEFINES, also run autoheader.
 dnl
-dnl Copyright (C) 1994-1996, 1999-2025 Free Software Foundation, Inc.
+dnl Copyright (C) 1994-1996, 1999-2026 Free Software Foundation, Inc.
 dnl
 dnl  This file is part of GNU Emacs.
 dnl
@@ -1817,6 +1817,7 @@ AS_IF([test $gl_gcc_warnings = no],
   nw="$nw -Wsync-nand"              # irrelevant here, and provokes ObjC warning
   nw="$nw -Wunsafe-loop-optimizations" # OK to suppress unsafe optimizations
   nw="$nw -Wbad-function-cast"      # These casts are no worse than others.
+  nw="$nw -Wzero-as-null-pointer-constant" # Emacs is not yet C2y-safe.
 
   # Emacs doesn't care about shadowing; see
   # <https://lists.gnu.org/r/emacs-diffs/2011-11/msg00265.html>.
@@ -2923,6 +2924,11 @@ Mac OS X 12.x or later.
      AC_DEFINE([HAVE_NATIVE_IMAGE_API], [1],
        [Define to use native OS APIs for images.])
      NATIVE_IMAGE_API="yes (ns)"
+  fi
+
+  if test "${NS_IMPL_GNUSTEP}" = yes; then
+    AC_CHECK_DECLS([NSImageNameCaution], [], [],
+                   [[#import <AppKit/NSImage.h>]])
   fi
 fi
 
@@ -7239,7 +7245,7 @@ fi
 
 version=$PACKAGE_VERSION
 
-copyright="Copyright (C) 2025 Free Software Foundation, Inc."
+copyright="Copyright (C) 2026 Free Software Foundation, Inc."
 AC_DEFINE_UNQUOTED([COPYRIGHT], ["$copyright"],
   [Short copyright string for this version of Emacs.])
 AC_SUBST([copyright])
@@ -7296,6 +7302,9 @@ AC_SUBST([ns_appresdir])
 AC_SUBST([ns_appsrc])
 AC_SUBST([GNU_OBJC_CFLAGS])
 AC_SUBST([OTHER_FILES])
+
+AS_IF([test $prefix = "NONE"], [_prefix=/usr/local], [_prefix=$prefix])
+AC_DEFINE_UNQUOTED([BINDIR], ["${_prefix}/bin/"], [Executables directory.])
 
 if test -n "${term_header}"; then
     AC_DEFINE_UNQUOTED([TERM_HEADER], ["${term_header}"],
@@ -7673,7 +7682,7 @@ AC_SUBST([WINDOW_SYSTEM_OBJ])
 
 AH_TOP([/* GNU Emacs site configuration template file.
 
-Copyright (C) 1988-2025 Free Software Foundation, Inc.
+Copyright (C) 1988-2026 Free Software Foundation, Inc.
 
 This file is part of GNU Emacs.
 

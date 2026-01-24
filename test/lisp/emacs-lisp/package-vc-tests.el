@@ -1,6 +1,6 @@
 ;;; package-vc-tests.el --- Tests for package-vc -*- lexical-binding:t -*-
 
-;; Copyright (C) 2025 Free Software Foundation, Inc.
+;; Copyright (C) 2025-2026 Free Software Foundation, Inc.
 
 ;; Author: Przemsyław Kryger <pkryger@gmail.com>
 ;; Maintainer: Philip Kaludercic <philipk@posteo.net>
@@ -984,7 +984,7 @@ contains key `:tags' use its value as tests tags."
   (should
    (package-vc-tests-package-vc-async-wait
        5 1 '("log" "--decorate")
-     (package-vc-log-incoming (package-vc-tests-package-desc pkg t))
+     (package-vc-root-log-incoming (package-vc-tests-package-desc pkg t))
      t))
   (let ((incoming-buffer (get-buffer "*vc-incoming*"))
         (pattern (rx (literal

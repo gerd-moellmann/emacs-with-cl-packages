@@ -1,6 +1,6 @@
 /* Lisp parsing and input streams.
 
-Copyright (C) 1985-1989, 1993-1995, 1997-2025 Free Software Foundation,
+Copyright (C) 1985-1989, 1993-1995, 1997-2026 Free Software Foundation,
 Inc.
 
 This file is part of GNU Emacs.
@@ -2381,7 +2381,7 @@ variable and any
   -*- lexical-binding: t -*-
 settings in the buffer; if there is no such setting, and the
 buffer-local value of the variable is nil, the buffer will be
-evaluated with the value of `lexical binding' equal to its
+evaluated with the value of `lexical-binding' equal to its
 top-level default value, as returned by `default-toplevel-value'.
 
 This function preserves the position of point.  */)
