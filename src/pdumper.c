@@ -2865,7 +2865,7 @@ dump_weak_hash_table (struct dump_context *ctx, Lisp_Object object)
 static dump_off
 dump_buffer (struct dump_context *ctx, const struct buffer *in_buffer)
 {
-#if CHECK_STRUCTS && !defined HASH_buffer_text_43E82F3212
+#if CHECK_STRUCTS && !defined HASH_buffer_418DFE6359
 # error "buffer changed. See CHECK_STRUCTS comment in config.h."
 #endif
   struct buffer munged_buffer = *in_buffer;
