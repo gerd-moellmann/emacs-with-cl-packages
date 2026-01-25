@@ -2180,7 +2180,7 @@ dump_interval_tree (struct dump_context *ctx,
 static dump_off
 dump_string (struct dump_context *ctx, const struct Lisp_String *string)
 {
-#if CHECK_STRUCTS && !defined (HASH_Lisp_String_39D7E563BF)
+#if CHECK_STRUCTS && !defined (HASH_Lisp_String_D08B4A1DD1)
 # error "Lisp_String changed. See CHECK_STRUCTS comment in config.h."
 #endif
   /* If we have text properties, write them _after_ the string so that
@@ -2865,7 +2865,7 @@ dump_weak_hash_table (struct dump_context *ctx, Lisp_Object object)
 static dump_off
 dump_buffer (struct dump_context *ctx, const struct buffer *in_buffer)
 {
-#if CHECK_STRUCTS && !defined HASH_buffer_418DFE6359
+#if CHECK_STRUCTS && !defined HASH_buffer_46DA92A241
 # error "buffer changed. See CHECK_STRUCTS comment in config.h."
 #endif
   struct buffer munged_buffer = *in_buffer;

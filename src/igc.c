@@ -145,7 +145,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # ifndef HASH_glyph_matrix_559A8DDA89
 #  error "struct glyph_matrix changed"
 # endif
-# ifndef HASH_frame_2B78606BC6
+# ifndef HASH_frame_594FC99F11
 #  error "struct frame changed"
 # endif
 # ifndef HASH_window_part_E738CB387B
@@ -172,7 +172,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # ifndef HASH_coding_system_77D58F21B9
 #  error "struct coding_system changed"
 # endif
-# ifndef HASH_terminal_AC512E7FF7
+# ifndef HASH_terminal_168C8D97C1
 #  error "struct terminal changed"
 # endif
 # ifndef HASH_Lisp_Native_Comp_Unit_0BDAB1A94D
