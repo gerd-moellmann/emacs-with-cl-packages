@@ -14758,7 +14758,7 @@ static struct image_type const image_types[] =
    IMAGE_TYPE_INIT (init_xpm_functions) },
 #endif
 #if defined HAVE_WEBP
- { SYMBOL_INDEX (Qwebp), webp_image_p, webp_load, image_clear_image,
+ { SYMBOL_INDEX (Qwebp), webp_image_p, webp_load, gif_clear_image,
    IMAGE_TYPE_INIT (init_webp_functions) },
 #endif
  { SYMBOL_INDEX (Qxbm), xbm_image_p, xbm_load, image_clear_image },
