@@ -439,13 +439,20 @@ ALL_OBJC_CFLAGS = $(EMACS_CFLAGS) \
 ALL_CXX_CFLAGS = $(EMACS_CFLAGS) \
   $(filter-out $(NON_CXX_CFLAGS),$(WARN_CFLAGS)) $(CXXFLAGS)
 
-.SUFFIXES: .c .m .cc
-.c.o:
+# Don't delete .i files
+.PRECIOUS: %.i
+# Don't take the shortcut .c -> .o which is there by default
+%.o: %.c
+.SUFFIXES: .c .m .cc .i .o
+.c.i:
+	$(AM_V_CC)$(CC) -E -o $@ $(CPPFLAGS) $(ALL_CFLAGS) $(PROFILING_CFLAGS) $<
+.i.o:
 	$(AM_V_CC)$(CC) -c $(CPPFLAGS) $(ALL_CFLAGS) $(PROFILING_CFLAGS) $<
 .m.o:
 	$(AM_V_CC)$(CC) -c $(CPPFLAGS) $(ALL_OBJC_CFLAGS) $(PROFILING_CFLAGS) $<
 .cc.o:
 	$(AM_V_CXX)$(CXX) -c $(CPPFLAGS) $(ALL_CXX_CFLAGS) $(PROFILING_CFLAGS) $<
+
 
 base_obj = dispnew.o frame.o scroll.o xdisp.o menu.o $(XMENU_OBJ) window.o     \
 	charset.o coding.o category.o ccl.o character.o chartab.o bidi.o       \
@@ -686,7 +693,11 @@ gl-stamp: $(libsrc)/make-docfile$(EXEEXT) $(GLOBAL_SOURCES)
 
 globals.h: gl-stamp; @true
 
+
+$(ALLOBJS): %.o: %.i
+ALL_I = $(ALLOBJS:.o=.i)
 $(ALLOBJS): globals.h
+$(ALL_I): globals.h
 
 LIBEGNU_ARCHIVE = $(lib)/libgnu.a
 
