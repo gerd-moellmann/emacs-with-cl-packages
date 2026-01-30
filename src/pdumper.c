@@ -2868,6 +2868,10 @@ dump_buffer (struct dump_context *ctx, const struct buffer *in_buffer)
 #if CHECK_STRUCTS && !defined HASH_buffer_46DA92A241
 # error "buffer changed. See CHECK_STRUCTS comment in config.h."
 #endif
+#if CHECK_STRUCTS && !defined HASH_buffer_text_43E82F3212
+# error "buffer_text changed. See CHECK_STRUCTS comment in config.h."
+#endif
+
   struct buffer munged_buffer = *in_buffer;
   struct buffer *buffer = &munged_buffer;
 
