@@ -218,6 +218,7 @@ See also `diff-mode-read-only-map'."
   "<mouse-2>" #'diff-goto-source
   "o" #'diff-goto-source                ; other-window
   "<remap> <undo>" #'undo-ignore-read-only
+  "s" #'diff-split-hunk
 
   ;; The foregoing commands don't affect buffers beyond this one.
   ;; The following command is the only one that has a single-letter
@@ -2359,7 +2360,7 @@ applied.  Other non-nil values are reserved."
       (while (pcase-let ((`(,buf ,line-offset ,pos ,_src ,dst ,switched)
                           (diff-find-source-location nil reverse test)))
                ;; FIXME: Should respect `diff-apply-hunk-to-backup-file'
-               ;; similarly to how `diff-apply-buffer' does.
+               ;; similarly to how `diff-apply-hunk' does.
                ;; Prompt for each relevant file.
                (cond ((and line-offset (not switched))
                       (push (cons pos dst)

@@ -5145,7 +5145,7 @@ List of directories to search for source files named in error messages.
 Elements should be directory names, not file names of directories.
 The value nil as an element means to try the default directory.")
 (custom-autoload 'compilation-search-path "compile" t)
-(defvar compile-command "make -k " "\
+(defvar compile-command (format "make -k -j%d " (ceiling (num-processors) 1.5)) "\
 Last shell command used to do a compilation; default for next compilation.
 
 Sometimes it is useful for files to supply local values for this variable.
@@ -37026,6 +37026,50 @@ topic branch.  (With a double prefix argument, this command is like
 When called from Lisp, optional argument FILESET overrides the fileset.
 
 (fn &optional UPSTREAM-LOCATION FILESET)" t)
+(autoload 'vc-log-outgoing-base "vc" "\
+Show log for the VC fileset since the merge base with UPSTREAM-LOCATION.
+The merge base with UPSTREAM-LOCATION means the common ancestor of the
+working revision and UPSTREAM-LOCATION.
+
+When unspecified, UPSTREAM-LOCATION is the outgoing base.
+For a trunk branch this is always the place \\[vc-push] would push to.
+For a topic branch, query the backend for an appropriate outgoing base.
+See `vc-trunk-branch-regexps' and `vc-topic-branch-regexps' regarding
+the difference between trunk and topic branches.
+
+When called interactively with a prefix argument, prompt for
+UPSTREAM-LOCATION.  In some version control systems, UPSTREAM-LOCATION
+can be a remote branch name.
+
+When called interactively with a \\[universal-argument] \\[universal-argument] prefix argument, always
+use the place to which \\[vc-push] would push to as the outgoing base,
+i.e., treat this branch as a trunk branch even if Emacs thinks it is a
+topic branch.
+
+When called from Lisp, optional argument FILESET overrides the fileset.
+
+(fn &optional UPSTREAM-LOCATION FILESET)" t)
+(autoload 'vc-root-log-outgoing-base "vc" "\
+Show log of revisions since the merge base with UPSTREAM-LOCATION.
+The merge base with UPSTREAM-LOCATION means the common ancestor of the
+working revision and UPSTREAM-LOCATION.
+
+When unspecified, UPSTREAM-LOCATION is the outgoing base.
+For a trunk branch this is always the place \\[vc-push] would push to.
+For a topic branch, query the backend for an appropriate outgoing base.
+See `vc-trunk-branch-regexps' and `vc-topic-branch-regexps' regarding
+the difference between trunk and topic branches.
+
+When called interactively with a prefix argument, prompt for
+UPSTREAM-LOCATION.  In some version control systems, UPSTREAM-LOCATION
+can be a remote branch name.
+
+When called interactively with a \\[universal-argument] \\[universal-argument] prefix argument, always
+use the place to which \\[vc-push] would push to as the outgoing base,
+i.e., treat this branch as a trunk branch even if Emacs thinks it is a
+topic branch.
+
+(fn &optional UPSTREAM-LOCATION)" t)
 (autoload 'vc-version-ediff "vc" "\
 Show differences between REV1 and REV2 of FILES using ediff.
 This compares two revisions of the files in FILES.  Currently,
@@ -40419,11 +40463,8 @@ output of this command when the backend is etags.
  (define-key ctl-x-5-map "." #'xref-find-definitions-other-frame)
 (autoload 'xref-references-in-directory "xref" "\
 Find all references to SYMBOL in directory DIR.
+See `xref-references-in-directory-function' for the implementation.
 Return a list of xref values.
-
-This function uses the Semantic Symbol Reference API, see
-`semantic-symref-tool-alist' for details on which tools are used,
-and when.
 
 (fn SYMBOL DIR)")
 (autoload 'xref-matches-in-directory "xref" "\
@@ -40432,8 +40473,9 @@ Return a list of xref values.
 Only files matching some of FILES and none of IGNORES are searched.
 FILES is a string with glob patterns separated by spaces.
 IGNORES is a list of glob patterns for files to ignore.
+If DELIMITED is `symbol', only select matches that span full symbols.
 
-(fn REGEXP FILES DIR IGNORES)")
+(fn REGEXP FILES DIR IGNORES &optional DELIMITED)")
 (autoload 'xref-matches-in-files "xref" "\
 Find all matches for REGEXP in FILES.
 Return a list of xref values.
