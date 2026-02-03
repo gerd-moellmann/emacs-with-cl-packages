@@ -853,10 +853,10 @@ Northern Iroquoian language family: 'mohawk-postfix' (Mohawk
 [Kanien’kéha / Kanyen’kéha / Onkwehonwehnéha]), 'oneida-postfix' (Oneida
 [Onʌyote’a·ká· / Onyota’a:ká: / Ukwehuwehnéha]), 'cayuga-postfix'
 (Cayuga [Gayogo̱ho:nǫhnéha:ˀ]), 'onondaga-postfix' (Onondaga
-[Onųdaʔgegáʔ]), and 'seneca-postfix' (Seneca [Onödowá’ga:’]).
-Additionally, there is a general-purpose 'haudenosaunee-postfix' input
-method to facilitate writing in the orthographies of the five languages
-simultaneously.
+[Onųdaʔgegáʔ]), 'seneca-postfix' (Seneca [Onödowá’ga:’]), and
+'tuscarora-postfix' (Tuscarora [Skarù·ręʔ]).  Additionally, there is a
+general-purpose 'haudenosaunee-postfix' input method to facilitate
+writing in the orthographies of the six languages simultaneously.
 
 ---
 *** New input methods for languages based on Burmese.
@@ -2284,9 +2284,10 @@ one as before.  This makes them different from 'vc-diff' and
 *** 'diff-apply-hunk' now supports creating and deleting files.
 
 +++
-*** 'diff-apply-hunk' and 'diff-apply-buffer' now consider the region.
-If the region is active, these commands now apply all hunks that the
-region overlaps.  Otherwise, they have their existing behavior.
+*** Diff mode's application and killing commands now consider the region.
+If the region is active, 'diff-apply-hunk', 'diff-apply-buffer' and
+'diff-hunk-kill' now apply or kill all hunks that the region overlaps.
+Otherwise, they have their existing behavior.
 
 +++
 *** 'diff-apply-buffer' can reverse-apply.
@@ -3337,6 +3338,11 @@ each refresh.  The sort direction can be controlled by using a cons cell
 of a format string and a boolean.  Alternatively, a sorting function can
 be provided directly.
 
+---
+*** New user option 'display-time-help-echo-format'.
+This option controls the format of the help echo when hovering over the
+time.
+
 ** Fill
 
 +++
@@ -3845,6 +3851,14 @@ It has been obsolete since Emacs 26.1.  Use the group 'text' instead.
 ** New optional BUFFER argument for 'string-pixel-width'.
 If supplied, 'string-pixel-width' will use any face remappings from
 BUFFER when computing the string's width.
+
++++
+** New function 'truncate-string-pixelwise'.
+This function truncates a string to the specified maximum number of
+pixels rather than by characters, as in 'truncate-string-to-width', and
+respects face remappings if BUFFER is specified.  You can also specify
+an optional ellipsis string to append, similar to
+'truncate-string-to-width'.
 
 ---
 ** New macro 'with-work-buffer'.
