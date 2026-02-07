@@ -3347,7 +3347,9 @@ Uncommitted changes are included in the diff.
 
 When unspecified, UPSTREAM-LOCATION is the outgoing base.
 For a trunk branch this is always the place \\[vc-push] would push to.
-For a topic branch, query the backend for an appropriate outgoing base.
+For a topic branch, see whether the branch matches one of
+`vc-trunk-branch-regexps' or `vc-topic-branch-regexps', or else query
+the backend for an appropriate outgoing base.
 See `vc-trunk-branch-regexps' and `vc-topic-branch-regexps' regarding
 the difference between trunk and topic branches.
 
@@ -3375,7 +3377,9 @@ Uncommitted changes are included in the diff.
 
 When unspecified, UPSTREAM-LOCATION is the outgoing base.
 For a trunk branch this is always the place \\[vc-push] would push to.
-For a topic branch, query the backend for an appropriate outgoing base.
+For a topic branch, see whether the branch matches one of
+`vc-trunk-branch-regexps' or `vc-topic-branch-regexps', or else query
+the backend for an appropriate outgoing base.
 See `vc-trunk-branch-regexps' and `vc-topic-branch-regexps' regarding
 the difference between trunk and topic branches.
 
@@ -3409,7 +3413,9 @@ working revision and UPSTREAM-LOCATION.
 
 When unspecified, UPSTREAM-LOCATION is the outgoing base.
 For a trunk branch this is always the place \\[vc-push] would push to.
-For a topic branch, query the backend for an appropriate outgoing base.
+For a topic branch, see whether the branch matches one of
+`vc-trunk-branch-regexps' or `vc-topic-branch-regexps', or else query
+the backend for an appropriate outgoing base.
 See `vc-trunk-branch-regexps' and `vc-topic-branch-regexps' regarding
 the difference between trunk and topic branches.
 
@@ -3441,7 +3447,9 @@ working revision and UPSTREAM-LOCATION.
 
 When unspecified, UPSTREAM-LOCATION is the outgoing base.
 For a trunk branch this is always the place \\[vc-push] would push to.
-For a topic branch, query the backend for an appropriate outgoing base.
+For a topic branch, see whether the branch matches one of
+`vc-trunk-branch-regexps' or `vc-topic-branch-regexps', or else query
+the backend for an appropriate outgoing base.
 See `vc-trunk-branch-regexps' and `vc-topic-branch-regexps' regarding
 the difference between trunk and topic branches.
 
@@ -5018,6 +5026,9 @@ log entries should be gathered."
 
 (defvar vc-filter-command-function)
 
+(defvar vc-edit-next-command-history nil
+  "Minibuffer history for `vc-edit-next-command'.")
+
 ;;;###autoload
 (defun vc-edit-next-command ()
   "Request editing the next VC shell command before execution.
@@ -5041,7 +5052,8 @@ immediately after this one."
     (add-hook 'prefix-command-echo-keystrokes-functions echofun)
     (setq vc-filter-command-function
           (lambda (&rest args)
-            (apply #'vc-user-edit-command (apply old args))))))
+            (let ((vc-user-edit-command-history 'vc-edit-next-command-history))
+              (apply #'vc-user-edit-command (apply old args)))))))
 
 ;; This is used in .dir-locals.el in the Emacs source tree.
 ;;;###autoload (put 'vc-prepare-patches-separately 'safe-local-variable 'booleanp)

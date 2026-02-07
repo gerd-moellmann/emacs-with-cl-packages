@@ -1472,7 +1472,9 @@ line of the commit message in an entry with key \"Subject\"."
                  (if (eq system-type 'windows-nt)
                      locale-coding-system
                    coding-system-for-write)))
-            (vc-git--call input-file t "mailinfo" msg-file patch-file))
+            (vc-git--call input-file t "mailinfo"
+                          (file-local-name msg-file)
+                          (file-local-name patch-file)))
           (goto-char (point-min))
           ;; git-mailinfo joins up any header continuation lines for us.
           (while (re-search-forward "^\\([^\t\n\s:]+\\):\\(.*\\)$" nil t)
@@ -1612,7 +1614,9 @@ If PROMPT is non-nil, prompt for the Git command to run."
          (vc-filter-command-function
           (if prompt
               (lambda (&rest args)
-                (cl-destructuring-bind (&whole args git _ flags)
+                (cl-destructuring-bind
+                    (&whole args git _ flags
+                            &aux (vc-user-edit-command-history 'vc-git-history))
                     (apply #'vc-user-edit-command args)
                   (setq git-program git
                         command (car flags)
