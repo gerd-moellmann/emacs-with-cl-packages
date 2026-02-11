@@ -80,10 +80,10 @@ selection process starts again from the user's $HOME."
   "When non-nil, show completions when first prompting for input.
 This means to show completions even when the current minibuffer contents
 is the same as was the initial input after minibuffer activation.
-This also means that if you traverse the list of completions with
-commands like \\`C-.' and just hit \\`RET' without typing any
+This also means that if you just hit \\`C-j' without typing any
 characters, the match under point will be chosen instead of the
-default."
+default.  But \\`RET' will still choose the default value exactly
+as when this option is nil."
   :type 'boolean
   :version "24.4")
 
@@ -242,13 +242,15 @@ Used to implement the option `icomplete-show-matches-on-no-input'.")
   :doc "Keymap used by `icomplete-mode' in the minibuffer."
   "C-M-i" #'icomplete-force-complete
   "C-j"   #'icomplete-force-complete-and-exit
-  "M-j"   #'icomplete-exit
   "C-."   #'icomplete-forward-completions
-  "C-,"   #'icomplete-backward-completions
-  "<remap> <minibuffer-complete-and-exit>" #'icomplete-ret)
+  "C-,"   #'icomplete-backward-completions)
 
 (defun icomplete-ret ()
-  "Exit minibuffer for icomplete."
+  "Exit minibuffer for icomplete.
+You can bind this command to \\`RET' in `icomplete-minibuffer-map',
+or remap from `minibuffer-complete-and-exit', to be able to choose
+the completion under point with \\`RET' instead of choosing the
+default value."
   (interactive)
   (if (and icomplete-show-matches-on-no-input
            (car completion-all-sorted-completions)
@@ -455,8 +457,6 @@ if that doesn't produce a completion match."
   (if (and (not force) minibuffer--require-match)
       (minibuffer-complete-and-exit)
     (exit-minibuffer)))
-
-(defalias 'icomplete-exit #'icomplete-fido-exit)
 
 (defun icomplete-fido-backward-updir ()
   "Delete char before or go up directory, like `ido-mode'."
