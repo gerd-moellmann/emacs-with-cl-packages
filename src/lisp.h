@@ -3468,15 +3468,15 @@ struct Lisp_Fwd
   enum Lisp_Fwd_Type type : 8;
   union
   {
-    intmax_t *intvar;
-    bool *boolvar;
-    Lisp_Object *objvar;
+    intmax_t *intvar;		/* when type == Lisp_Fwd_Int */
+    bool *boolvar;		/* when type == Lisp_Fwd_Bool */
+    Lisp_Object *objvar;	/* when type == Lisp_Fwd_Obj */
     struct
     {
       uint16_t offset;
       enum Lisp_Fwd_Predicate predicate : 8;
-    } buf;
-    int kbdoffset;
+    } buf;			/* when type == Lisp_Fwd_Buffer_Obj */
+    int kbdoffset;		/* when type == Lisp_Fwd_Kboard_Obj */
   } u;
 };
 
@@ -3853,15 +3853,19 @@ extern void defvar_kboard (struct Lisp_Fwd const *, char const *);
       #define cons_cells_consed globals.f_cons_cells_consed
 
    All C code uses the `cons_cells_consed' name.  This is all done
-   this way to support indirection for multi-threaded Emacs.
-
-   DEFVAR_LISP staticpro's the variable.  */
+   this way to support indirection for multi-threaded Emacs.  */
 
 #define DEFVAR_LISP(lname, vname, doc)			\
   do {							\
     static struct Lisp_Fwd const o_fwd			\
       = {Lisp_Fwd_Obj, .u.objvar = &globals.f_##vname};	\
     defvar_lisp (&o_fwd, lname);			\
+  } while (false)
+#define DEFVAR_LISP_NOPRO(lname, vname, doc)		\
+  do {							\
+    static struct Lisp_Fwd const o_fwd			\
+      = {Lisp_Fwd_Obj, .u.objvar = &globals.f_##vname};	\
+    defvar_lisp_nopro (&o_fwd, lname);			\
   } while (false)
 #define DEFVAR_BOOL(lname, vname, doc)				\
   do {								\

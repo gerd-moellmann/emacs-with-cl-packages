@@ -178,7 +178,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>. */
 # ifndef HASH_Lisp_Native_Comp_Unit_0BDAB1A94D
 #  error "struct Lisp_Native_Comp_Unit changed"
 # endif
-# ifndef HASH_pvec_type_9A5F4E1904
+# ifndef HASH_pvec_type_5458B8D85B
 #  error "enum pvec_type changed"
 # endif
 # ifndef HASH_Lisp_Type_45F0582FD7

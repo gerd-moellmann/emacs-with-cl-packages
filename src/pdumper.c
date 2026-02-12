@@ -2458,7 +2458,10 @@ dump_blv (struct dump_context *ctx,
   DUMP_FIELD_COPY (&out, blv, local_if_set);
   DUMP_FIELD_COPY (&out, blv, found);
   if (blv->fwd)
-    dump_field_fwd (ctx, &out, blv, &blv->fwd);
+    {
+      eassert (XFWDTYPE (blv->fwd) != Lisp_Fwd_Buffer_Obj);
+      dump_field_fwd (ctx, &out, blv, &blv->fwd);
+    }
   dump_field_lv (ctx, &out, blv, &blv->where, WEIGHT_NORMAL);
   dump_field_lv (ctx, &out, blv, &blv->defcell, WEIGHT_STRONG);
   dump_field_lv (ctx, &out, blv, &blv->valcell, WEIGHT_STRONG);
@@ -3196,7 +3199,7 @@ dump_vectorlike (struct dump_context *ctx,
                  Lisp_Object lv,
                  dump_off offset)
 {
-#if CHECK_STRUCTS && !defined HASH_pvec_type_9A5F4E1904
+#if CHECK_STRUCTS && !defined HASH_pvec_type_5458B8D85B
 # error "pvec_type changed. See CHECK_STRUCTS comment in config.h."
 #endif
   const struct Lisp_Vector *v = XVECTOR (lv);
