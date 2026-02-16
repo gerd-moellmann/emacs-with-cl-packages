@@ -148,7 +148,6 @@
 (require 'cl-lib)
 (eval-when-compile (require 'subr-x))
 (eval-when-compile (require 'epg))      ;For setf accessors.
-(eval-when-compile (require 'inline))   ;For `define-inline'
 (require 'seq)
 
 (require 'tabulated-list)
@@ -508,8 +507,6 @@ package."
 ;; `package-load-all-descriptors', which ultimately populates the
 ;; `package-alist' variable.
 
-(declare-function package-vc-version "package-vc" (pkg))
-
 (defun package-process-define-package (exp)
   "Process define-package expression EXP and push it to `package-alist'.
 EXP should be a form read from a foo-pkg.el file.
@@ -748,7 +745,6 @@ wants to review the package prior to installation.  See `package-review'."
 
 (declare-function mail-text "sendmail" ())
 (declare-function message-goto-body "message" (&optional interactive))
-(declare-function diff-no-select "diff" (old new &optional switches no-async buf))
 
 (defun package-review (pkg-desc pkg-dir old-desc)
   "Review the package specified PKG-DESC which is about to be installed.
@@ -781,7 +777,6 @@ attached."
                                            (package-desc-full-name pkg-desc)))))
               t)
              (?m
-              (require 'diff)             ;for `diff-no-select'
               (with-temp-buffer
                 (diff-no-select
                  (package-desc-dir old-desc) pkg-dir
@@ -805,12 +800,8 @@ attached."
                       (insert-buffer-substring tmp-buf)
                       (comment-region start (point))))))
               t)
-             (?c
-              (view-file news)
-              t)
-             (?b
-              (dired pkg-dir "-R") ;FIXME: Is recursive dired portable?
-              t)))))
+             (?c (view-file news) t)
+             (?b (dired pkg-dir) t)))))
 
 (declare-function dired-get-marked-files "dired")
 
@@ -1107,7 +1098,7 @@ The return result is a `package-desc'."
           (dolist (file (sort files :key #'length))
             ;; The file may be a link to a nonexistent file; e.g., a
             ;; lock file.
-            (when (file-exists-p file)
+            (when (and (file-readable-p file) (file-regular-p file))
               (with-temp-buffer
                 (insert-file-contents file)
                 ;; When we find the file with the data,
@@ -2067,8 +2058,6 @@ had been enabled."
                 (message  "Package `%s' installed" name))
             (error  "Package `%s' not installed" name))))))
 
-(declare-function package-vc-upgrade "package-vc" (pkg))
-
 ;;;###autoload
 (defun package-upgrade (name)
   "Upgrade package NAME if a newer version exists.
@@ -2083,7 +2072,7 @@ NAME should be a symbol."
          (package-install-upgrade-built-in (not pkg-desc)))
     ;; `pkg-desc' will be nil when the package is an "active built-in".
     (if (and pkg-desc (package-vc-p pkg-desc))
-        (package-vc-upgrade pkg-desc)
+        (error "Use `package-vc-upgrade' for VC packages")
       (let ((new-desc (cadr (assq name package-archive-contents))))
         (when (or (null new-desc)
                   (version-list-= (package-desc-version pkg-desc)
@@ -2104,16 +2093,16 @@ NAME should be a symbol."
    #'car
    (seq-filter
     (lambda (elt)
-      (or (let ((available
-                 (assq (car elt) package-archive-contents)))
-            (and available
-                 (or (and
-                      include-builtins
-                      (not (package-desc-version (cadr elt))))
-                     (version-list-<
-                      (package-desc-version (cadr elt))
-                      (package-desc-version (cadr available))))))
-          (package-vc-p (cadr elt))))
+      (let ((available
+             (assq (car elt) package-archive-contents)))
+        (and available
+             (or (and
+                  include-builtins
+                  (not (package-desc-version (cadr elt))))
+                 (version-list-<
+                  (package-desc-version (cadr elt))
+                  (package-desc-version (cadr available))))
+             (not (package-vc-p (cadr elt))))))
     (if include-builtins
         (append package-alist
                 (mapcan
@@ -2146,7 +2135,9 @@ from ELPA by either using `\\[package-upgrade]' or
                          (format "%s packages to upgrade.  Do it?"
                                  (length upgradeable))))))
         (user-error "Upgrade aborted"))
-      (mapc #'package-upgrade upgradeable))))
+      (dolist (pkg upgradeable)
+        (with-demoted-errors "Error while upgrading: %S"
+          (package-upgrade pkg))))))
 
 (defun package--dependencies (pkg)
   "Return a list of all transitive dependencies of PKG.
@@ -4533,7 +4524,7 @@ The list is displayed in a buffer named `*Packages*'."
 ;;;; Package Suggestions
 
 (defun package--autosuggest-install-and-enable (sug)
-  "Install and enable a package suggestion PKG-ENT.
+  "Install and enable a package suggestion SUG.
 SUG should be of the form as described in `package--suggestion-applies-p'."
   (let ((buffers-to-update '()))
     (dolist (buf (buffer-list))
@@ -4550,9 +4541,9 @@ SUG should be of the form as described in `package--suggestion-applies-p'."
 
 (defun package--autosugest-prompt (packages)
   "Query the user whether to install PACKAGES or not.
-PACKAGES is a list of package suggestions in the form as described in
+PACKAGES is a list of package suggestions in the form described in
 `package--suggestion-applies-p'.  The function returns a non-nil value
-if affirmative, otherwise nil"
+if the user confirms installation, otherwise nil."
   (let* ((inhibit-read-only t) (use-hard-newlines t)
          (nl (propertize "\n" 'hard t)) (nlnl (concat nl nl))
          (buf (current-buffer)))
@@ -4627,9 +4618,9 @@ so you have to select which to install!)" nl))
 ;;;###autoload
 (defun package-autosuggest (&optional candidates)
   "Prompt the user to install the suggested packages.
-The optional argument CANDIDATES may be a list of packages that match
-for form described in `package--suggestion-applies-p'.  If omitted, the
-list of candidates will be computed from the database."
+The optional argument CANDIDATES may be a list of package suggestions
+in the form described in `package--suggestion-applies-p'.  If omitted
+or nil, the list of candidates will be computed from the database."
   (interactive)
   (package--autosugest-prompt
    (or candidates

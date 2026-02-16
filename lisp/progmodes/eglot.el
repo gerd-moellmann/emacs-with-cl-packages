@@ -244,7 +244,7 @@ automatically)."
   ;; `eglot.el' is installed via GNU ELPA in an older Emacs.
   `(((rust-ts-mode rust-mode) . ("rust-analyzer"))
     ((cmake-mode cmake-ts-mode)
-     . ,(eglot-alternatives '(("neocmakelsp" "--stdio") "cmake-language-server")))
+     . ,(eglot-alternatives '(("neocmakelsp" "stdio") "cmake-language-server")))
     (vimrc-mode . ("vim-language-server" "--stdio"))
     ((python-mode python-ts-mode)
      . ,(eglot-alternatives
@@ -4208,7 +4208,7 @@ for which LSP on-type-formatting should be requested."
          (let ((elems
                 (eglot--collecting-ranged
                     (s reg objs (lambda (o)
-                                  (plist-get :range (plist-get o :location))))
+                                  (plist-get (plist-get o :location) :range)))
                   (eglot--dbind ((SymbolInformation) kind name) s
                     (let ((kind (alist-get kind eglot--symbol-kind-names)))
                       (cons (propertize name
