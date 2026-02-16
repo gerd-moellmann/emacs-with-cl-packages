@@ -2462,32 +2462,42 @@ ARGS is the argument list of function SYM."
                     start (match-beginning 0)
                     end   (match-end 0)))))))
     ;; Handle now positional arguments.
-    (while (and index (>= index 1))
-      (if (string-match "[^ ()]+" args end)
-	  (progn
-	    (setq start (match-beginning 0)
-		  end   (match-end 0))
-	    (let ((argument (match-string 0 args)))
-	      (cond ((string= argument "&rest")
-		     ;; All the rest arguments are the same.
-		     (setq index 1))
-		    ((string= argument "&optional"))         ; Skip.
-                    ((string= argument "&allow-other-keys")) ; Skip.
-                    ;; Back to index 0 in ARG1 ARG2 ARG2 ARG3 etc...
-                    ;; like in `setq'.
-		    ((or (and (string-match-p "\\.\\.\\.\\'" argument)
-                              (string= argument (car (last args-lst))))
-                         (and (string-match-p "\\.\\.\\.\\'"
-                                              (substring args 1 (1- (length args))))
-                              (= (length (remove "..." args-lst)) 2)
-                              (> index 1) (oddp index)))
-                     (setq index 0))
-		    (t
-		     (setq index (1- index))))))
-	(setq end           (length args)
-	      start         (1- end)
-	      argument-face 'font-lock-warning-face
-	      index         0)))
+    (with-temp-buffer
+      (insert args)
+      (goto-char (1+ (point-min)))
+      (while (and index (>= index 1))
+        (skip-chars-forward "[:blank:]")
+        (let ((origin (point)))
+          (skip-chars-forward "[")
+          (if (condition-case nil
+	          (forward-sexp)
+	        (:success t)
+	        (scan-error nil))
+	      (progn
+	        (skip-chars-forward "].")
+	        (setq start (- origin (point-min))
+		      end   (- (point) (point-min)))
+	        (let ((argument (substring args start end)))
+	          (cond ((string= argument "&rest")
+		         ;; All the rest arguments are the same.
+		         (setq index 1))
+		        ((string= argument "&optional"))         ; Skip.
+		        ((string= argument "&allow-other-keys")) ; Skip.
+		        ;; Back to index 0 in ARG1 ARG2 ARG2 ARG3 etc...
+		        ;; like in `setq'.
+		        ((or (and (string-match-p "\\.\\.\\.\\'" argument)
+			          (string= argument (car (last args-lst))))
+                             (and (string-match-p "\\.\\.\\.\\'"
+					          (substring args 1 (1- (length args))))
+			          (= (length (remove "..." args-lst)) 2)
+			          (> index 1) (oddp index)))
+		         (setq index 0))
+		        (t
+		         (setq index (1- index))))))
+	    (setq end           (length args)
+	          start         (1- end)
+	          argument-face 'font-lock-warning-face
+	          index         0)))))
     (let ((doc args))
       (when start
 	(setq doc (copy-sequence args))

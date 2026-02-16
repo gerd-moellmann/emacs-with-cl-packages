@@ -296,6 +296,12 @@ that your popup interface uses for a more integrated experience.
 but as a plain Lisp variable, not a user option.)
 
 ---
+*** New user option 'completion-preview-inhibit-functions'.
+This option provides fine-grained control over Completion Preview mode
+activation.  You can use it to specify arbitrary conditions in which to
+inhibit the mode's operation.
+
+---
 *** New mode 'minibuffer-nonselected-mode'.
 This mode, enabled by default, directs the attention to the active
 minibuffer window using the 'minibuffer-nonselected' face in case
@@ -310,6 +316,12 @@ It still can use 'read-key' when the variable
 *** 'map-y-or-n-p' now uses the minibuffer to read a character.
 It still can use 'read-key' when the variable
 'y-or-n-p-use-read-key' is non-nil.
+
+*** 'flex' completion style rewritten to be faster and more accurate.
+Completion and highlighting use a new superior algorithm.  For example,
+pattern "scope" now ranks 'elisp-scope-*' functions well above
+'dos-codepage' and 'test-completion'.  Pattern "botwin" finds
+'menu-bar-bottom-window-divider' before 'ibuffer-other-window'.
 
 ** Mouse
 
@@ -983,6 +995,11 @@ of the modified region.
 
 * Changes in Specialized Modes and Packages in Emacs 31.1
 
+** Delete-selection mode
+*** New face 'delete-selection-replacement' for the replacement text
+This comes with a change to how we track what is considered "the
+replacement text", which should be more robust now, and is made
+more clear by the highlighting.
 ** Editorconfig
 
 ---
@@ -2989,15 +3006,19 @@ presenting a diff between the downloaded code and a previous
 installation or displaying a ChangeLog.
 
 +++
-*** New command 'package-autosuggest'
-Using a built-in database of package suggestions from ELPA, this command
-will install viable packages if no specific major mode is available.
+*** New command 'package-autosuggest'.
+Using a built-in database of ELPA package suggestions, this command will
+install viable packages if no specific major mode is available for the
+contents of the current buffer.
 
 +++
-*** New minor mode 'package-autosuggest-mode'
-When enabled, this displays a hint in the mode line indicating the
-availability of a suggested package.  You can customise the presentation
-of these hints using 'package-autosuggest-style'.
+*** New minor mode 'package-autosuggest-mode'.
+When enabled, this displays indications about the availability of add-on
+ELPA packages for the current buffer and suggestions for installing
+those packages.  The default is to show a button on the mode line that
+can be used to install such packages, but you can customise the
+presentation style of these suggestions using
+'package-autosuggest-style'.
 
 ** Rcirc
 
@@ -3789,10 +3810,11 @@ Emacs core.
 
 +++
 ** A thread's current buffer can now be killed.
-We introduce a new attribute for threads called 'buffer-disposition'.
-See the new argument in 'make-thread'.  The default value allows the
-thread's current buffer to be killed by another thread.  This does not
-apply to the main thread's buffer.
+We introduce a new attribute for threads called "buffer disposition".
+See the new argument in 'make-thread' as well as the
+'thread-buffer-disposition' and 'thread-set-buffer-disposition' functions.
+The default value allows the thread's current buffer to be killed by another
+thread.  This does not apply to the main thread's buffer.
 
 ---
 ** Defining or modifying a face so that it inherits from itself signals error.
@@ -3803,6 +3825,13 @@ could get away with this, and the problem would either be detected at
 display time or even cause Emacs to hang trying to display such a face.
 Affected APIs include 'defface', 'set-face-attribute', their callers,
 and other similar functions.
+
++++
+Original behavior of 'overlays-in' and 'overlays-at' has been restored.
+Before Emacs 29.1, the list of overlays returned by these two functions
+included overlays outside of the current narrowing of the buffer.  This
+behavior has been restored.  As result, 'remove-overlays' can now again
+remove overlays outside of the narrowing, as it did before Emacs 29.1.
 
 ---
 ** 'help-setup-xref' now re-enables the major mode of the Help buffer.

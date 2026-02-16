@@ -615,17 +615,17 @@
 ;;
 ;;   Return the name of the current branch, if there is one, else nil.
 ;;
-;; - trunk-or-topic-p ()
+;; - trunk-or-topic-p (&optional branch)
 ;;
 ;;   For the current branch, or the closest equivalent for a VCS without
-;;   named branches, return `trunk' if it is definitely a longer-lived
-;;   trunk branch, `topic' if it is definitely a shorter-lived topic
-;;   branch, or nil if no general determination can be made.
+;;   named branches, or the branch named BRANCH if non-nil, return
+;;   `trunk' if it is definitely a longer-lived trunk branch, `topic' if
+;;   it is definitely a shorter-lived topic branch, or nil if no general
+;;   determination can be made.
 ;;
 ;;   What counts as a longer-lived or shorter-lived branch for VC is
 ;;   explained in Info node `(emacs)Outstanding Changes' and in the
-;;   docstrings for the `vc-trunk-branch-regexps' and
-;;   `vc-topic-branch-regexps' user options.
+;;   docstring for `vc-trunk-or-topic-p'.
 ;;
 ;; - topic-outgoing-base ()
 ;;
@@ -1023,7 +1023,7 @@ for the backend you use."
 		 (repeat :tag "Argument List" :value ("") string))
   :version "25.1")
 
-(defcustom vc-log-show-limit 2000
+(defcustom vc-log-show-limit 500
   "Limit the number of items shown by the VC log commands.
 Zero means unlimited.
 Not all VC backends are able to support this feature."
@@ -3178,20 +3178,11 @@ There value can be of one of the following forms:
   whether a branch is a trunk.  Emacs will ask the backend whether it
   thinks the current branch is a trunk.
 
-In VC, trunk branches are those where you've finished sharing the work
-on the branch with your collaborators just as soon as you've checked it
-in, and in the case of a decentralized VCS, pushed it.  In addition,
-typically you never delete trunk branches.
-
-The specific VCS workflow you are using may only acknowledge a single
-trunk, and give other names to kinds of branches which VC would consider
-to be just further trunks.
-
 If trunk branches in your project can be identified by name, include
 regexps matching their names in the value of this variable.  This is
 more reliable than letting Emacs ask the backend.
 
-See also `vc-topic-branch-regexps'."
+See also `vc-trunk-or-topic-p' and `vc-topic-branch-regexps'."
   :type '(choice (repeat :tag "Regexps" string)
                  (cons :tag "Negated regexps"
                        (const not) (repeat :tag "Regexps" string))
@@ -3221,21 +3212,11 @@ There value can be of one of the following forms:
   whether a branch is a topic branch.  Emacs will ask the backend
   whether it thinks the current branch is a topic branch.
 
-In VC, topic branches are those where checking in work, and pushing it
-in the case of a decentralized VCS, is not enough to complete the
-process of sharing the changes with your collaborators.  In addition,
-it's required that you merge the topic branch into another branch.
-After this is done, typically you delete the topic branch.
-
-Topic branches are sometimes called \"feature branches\", though it is
-also common for that term to be reserved for only a certain kind of
-topic branch.
-
 If topic branches in your project can be identified by name, include
 regexps matching their names in the value of this variable.  This is
 more reliable than letting Emacs ask the backend.
 
-See also `vc-trunk-branch-regexps'."
+See also `vc-trunk-or-topic-p' and `vc-trunk-branch-regexps'."
   :type '(choice (repeat :tag "Regexps" string)
                  (cons :tag "Negated regexps"
                        (const not) (repeat :tag "Regexps" string))
@@ -3287,6 +3268,51 @@ defcustoms don't decide the matter of which kind of branch this is."
             (trunk 'trunk)
             (topic 'topic)))))
 
+(defun vc-trunk-or-topic-p (&optional branch backend)
+  "Return whether BRANCH, or the current branch, is a trunk or a topic.
+Returns `trunk' if BRANCH is definitely a trunk, `topic' if BRANCH is
+definitely a topic, or nil if no general determination can be made.
+
+In VC, trunk branches are those where you've finished sharing the work
+on the branch with your collaborators just as soon as you've checked it
+in, and in the case of a decentralized VCS, pushed it.  In addition,
+typically you never delete trunk branches.  The specific VCS workflow
+you are using may only acknowledge a single trunk, and give other names
+to kinds of branches which VC would consider to be just further trunks.
+
+Topic branches are those where checking in work, and pushing it in the
+case of a decentralized VCS, is not enough to complete the process of
+sharing the changes with your collaborators.  In addition, it's required
+that you merge the topic branch into another branch.  After this is
+done, typically you delete the topic branch.  Topic branches are
+sometimes called \"feature branches\", though it is also common for that
+term to be reserved for only a certain kind of topic branch.
+
+Determining whether BRANCH is a trunk or a topic proceeds in two stages:
+1. If BRANCH is non-nil, compare that name against
+   `vc-trunk-branch-regexps' and `vc-topic-branch-regexps', which see.
+   If BRANCH is nil, ask the backend for the name of the current branch.
+   If the backend returns a name, compare it against
+   `vc-trunk-branch-regexps' and `vc-topic-branch-regexps'.
+2. If that doesn't settle it, either because the backend reports that
+   the current branch has no name or because comparing the name against
+   the two regexp defcustoms yields no decisive answer, call the backend's
+   `trunk-or-topic-p' VC API function.
+
+If trunk and/or topic branches in your project can be identified by
+name, include regexps matching those names in `vc-trunk-branch-regexps'
+and/or `vc-topic-branch-regexps' as appropriate.  This is more reliable
+than letting Emacs ask the backend.
+
+BACKEND is the VC backend."
+  (let* ((backend (or backend (vc-deduce-backend)))
+         (branch (or branch (vc-call-backend backend 'working-branch))))
+    (or (and branch (vc--match-branch-name-regexps branch))
+        ;; It's okay to pass nil BRANCH here, which is what happens in
+        ;; case of a VCS without named branches or where the current
+        ;; branch has no name.
+        (vc-call-backend backend 'trunk-or-topic-p branch))))
+
 (defun vc--outgoing-base (backend)
   "Return an outgoing base for the current branch under VC backend BACKEND.
 The outgoing base is the upstream location for which outstanding changes
@@ -3294,30 +3320,18 @@ on this branch are destined once they are no longer outstanding.
 
 There are two stages to determining the outgoing base.
 First we decide whether we think this is a shorter-lived or a
-longer-lived (\"trunk\") branch (see `vc-trunk-branch-regexps' and
-`vc-topic-branch-regexps' regarding this distinction), as follows:
-1. Ask the backend for the name of the current branch.
-   If it returns non-nil, compare that name against
-   `vc-trunk-branch-regexps' and `vc-topic-branch-regexps'.
-2. If that doesn't settle it, either because the backend returns nil for
-   the name of the current branch, or because comparing the name against
-   the two regexp defcustoms yields no decisive answer, call BACKEND's
-   `trunk-or-topic-p' VC API function.
-3. If that doesn't settle it either, assume this is a shorter-lived
-   branch.  This is based on how it's commands primarily intended for
-   working with shorter-lived branches that call this function.
+longer-lived (\"trunk\") branch by calling `vc-trunk-or-topic-p'.
+If that function returns nil, assume this is a shorter-lived branch.
+This is based on how it's commands primarily intended for working with
+shorter-lived branches that call this function.
 Second, if we have determined that this is a trunk, return nil, meaning
 that the outgoing base is the place to which `vc-push' would push.
 Otherwise, we have determined that this is a shorter-lived branch, and
 we return the value of calling BACKEND's `topic-outgoing-base' VC API
 function."
   ;; For further discussion see bug#80006.
-  (let* ((branch (vc-call-backend backend 'working-branch))
-         (type (or (and branch (vc--match-branch-name-regexps branch))
-                   (vc-call-backend backend 'trunk-or-topic-p)
-                   'topic)))
-    (and (eq type 'topic)
-         (vc-call-backend backend 'topic-outgoing-base))))
+  (and (memq (vc-trunk-or-topic-p nil backend) '(topic nil))
+       (vc-call-backend backend 'topic-outgoing-base)))
 
 (defun vc--outgoing-base-mergebase (backend &optional upstream-location refresh)
   "Return, under VC backend BACKEND, the merge base with UPSTREAM-LOCATION.
@@ -3350,8 +3364,8 @@ For a trunk branch this is always the place \\[vc-push] would push to.
 For a topic branch, see whether the branch matches one of
 `vc-trunk-branch-regexps' or `vc-topic-branch-regexps', or else query
 the backend for an appropriate outgoing base.
-See `vc-trunk-branch-regexps' and `vc-topic-branch-regexps' regarding
-the difference between trunk and topic branches.
+See `vc-trunk-or-topic-p' regarding the difference between trunk and
+topic branches.
 
 When called interactively with a prefix argument, prompt for
 UPSTREAM-LOCATION.  In some version control systems, UPSTREAM-LOCATION
@@ -3380,8 +3394,8 @@ For a trunk branch this is always the place \\[vc-push] would push to.
 For a topic branch, see whether the branch matches one of
 `vc-trunk-branch-regexps' or `vc-topic-branch-regexps', or else query
 the backend for an appropriate outgoing base.
-See `vc-trunk-branch-regexps' and `vc-topic-branch-regexps' regarding
-the difference between trunk and topic branches.
+See `vc-trunk-or-topic-p' regarding the difference between trunk and
+topic branches.
 
 When called interactively with a prefix argument, prompt for
 UPSTREAM-LOCATION.  In some version control systems, UPSTREAM-LOCATION
@@ -3416,8 +3430,8 @@ For a trunk branch this is always the place \\[vc-push] would push to.
 For a topic branch, see whether the branch matches one of
 `vc-trunk-branch-regexps' or `vc-topic-branch-regexps', or else query
 the backend for an appropriate outgoing base.
-See `vc-trunk-branch-regexps' and `vc-topic-branch-regexps' regarding
-the difference between trunk and topic branches.
+See `vc-trunk-or-topic-p' regarding the difference between trunk and
+topic branches.
 
 When called interactively with a prefix argument, prompt for
 UPSTREAM-LOCATION.  In some version control systems, UPSTREAM-LOCATION
@@ -3450,8 +3464,8 @@ For a trunk branch this is always the place \\[vc-push] would push to.
 For a topic branch, see whether the branch matches one of
 `vc-trunk-branch-regexps' or `vc-topic-branch-regexps', or else query
 the backend for an appropriate outgoing base.
-See `vc-trunk-branch-regexps' and `vc-topic-branch-regexps' regarding
-the difference between trunk and topic branches.
+See `vc-trunk-or-topic-p' regarding the difference between trunk and
+topic branches.
 
 When called interactively with a prefix argument, prompt for
 UPSTREAM-LOCATION.  In some version control systems, UPSTREAM-LOCATION
@@ -4046,11 +4060,12 @@ or if PL-RETURN is `limit-unsupported'."
         (goto-char (point-max))
         (insert "\n")
         (insert-text-button
-         "Show 2X entries"
+         "Show 4X entries"
          'action (lambda (&rest _ignore)
-                   (vc-print-log-internal
-                    log-view-vc-backend log-view-vc-fileset
-                    working-revision nil (* 2 limit)))
+                   (let ((new-limit (read-number "How many: " (* 4 limit))))
+                     (vc-print-log-internal
+                      log-view-vc-backend log-view-vc-fileset
+                      working-revision nil new-limit)))
          'help-echo
          "Show the log again, and double the number of log entries shown")
         (insert "    ")
@@ -4354,7 +4369,8 @@ can specify a revision ID instead of a branch name to produce a log
 starting at that revision.  Tags and remote references also work."
   ;; Currently the prefix argument is conserved.  Possibly it could be
   ;; used to prompt for a LIMIT argument like \\`C-x v l' has.  Though
-  ;; now we have "Show 2X entries" and "Show unlimited entries" that
+  ;; now we have "Show 4X entries" and "Show unlimited entries" that
+
   ;; might be a waste of the prefix argument to this command.  --spwhitton
   (interactive (list (vc--read-branch-to-log t)))
   (let ((fileset (vc-deduce-fileset t)))
@@ -4652,13 +4668,25 @@ file, this simply replaces the work file with the latest revision
 on its branch.  If the file contains changes, any changes in the
 tip revision are merged into the working file."
   (interactive "P")
-  (let* ((vc-fileset (vc-deduce-fileset t))
-	 (backend (car vc-fileset))
-	 (files (cadr vc-fileset)))
+  (let (backend files fn)
+    (condition-case ret (vc-deduce-fileset 'not-state-changing)
+      (error
+       ;; If `vc-deduce-fileset' failed then try again with
+       ;; ALLOW-UNREGISTERED non-nil, but in this case we require a
+       ;; `pull' function because that doesn't need a list of files.
+       (unless
+           (setq fn
+                 (and-let* ((fileset (vc-deduce-fileset 'not-state-changing
+                                                        'allow-unregistered)))
+                   (vc-find-backend-function (car fileset) 'pull)))
+         (signal (car ret) (cdr ret))))
+      (:success
+       (setq backend (car ret) files (cadr ret)
+             fn (vc-find-backend-function backend 'pull))))
     (cond
      ;; If a pull operation is defined, use it.
-     ((vc-find-backend-function backend 'pull)
-      (vc-call-backend backend 'pull arg)
+     (fn
+      (funcall fn arg)
       ;; FIXME: Ideally we would only clear out the stored value for the
       ;; REMOTE-LOCATION from which we are pulling.
       (vc-run-delayed
@@ -4671,14 +4699,14 @@ tip revision are merged into the working file."
 		  (let ((file (buffer-file-name)))
 		    (and file (member file files))))))
       (dolist (file files)
-	(if (vc-up-to-date-p file)
+        (if (vc-up-to-date-p file)
 	    (vc-checkout file t)
 	  (vc-maybe-resolve-conflicts
 	   file (vc-call-backend backend 'merge-news file)))))
      ;; For a locking VCS, check out each file.
      ((eq (vc-checkout-model backend files) 'locking)
       (dolist (file files)
-	(if (vc-up-to-date-p file)
+        (if (vc-up-to-date-p file)
 	    (vc-checkout file t))))
      (t
       (error "VC update is unsupported for `%s'" backend)))))
@@ -4698,9 +4726,8 @@ VCS command to run.
 On a non-distributed version control system, this signals an error.
 It also signals an error in a Bazaar bound branch."
   (interactive "P")
-  (let* ((vc-fileset (vc-deduce-fileset t))
-	 (backend (car vc-fileset)))
-;;;	 (files (cadr vc-fileset)))
+  (let* ((fileset (vc-deduce-fileset t t))
+	 (backend (car fileset)))
     (if (vc-find-backend-function backend 'push)
         (progn (vc-call-backend backend 'push arg)
                ;; FIXME: Ideally we would only clear out the
@@ -4714,8 +4741,6 @@ It also signals an error in a Bazaar bound branch."
   "First pull, and then push the current branch.
 The push will only be performed if the pull operation was successful.
 
-You must be visiting a version controlled file, or in a `vc-dir' buffer.
-
 On a distributed version control system, this runs a \"pull\"
 operation on the current branch, prompting for the precise
 command if required.  Optional prefix ARG non-nil forces a prompt
@@ -4726,8 +4751,8 @@ where the pull operation returns a process.
 On a non-distributed version control system, this signals an error.
 It also signals an error in a Bazaar bound branch."
   (interactive "P")
-  (let* ((vc-fileset (vc-deduce-fileset t))
-	 (backend (car vc-fileset)))
+  (let* ((fileset (vc-deduce-fileset t t))
+	 (backend (car fileset)))
     (if (vc-find-backend-function backend 'pull)
         (when-let* ((proc (vc-call-backend backend 'pull arg))
                     (buf (and (processp proc) (process-buffer proc))))
