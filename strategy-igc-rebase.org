@@ -1,0 +1,64 @@
+This is a tricky situation because cl-packages has interleaved merge
+commits from feature/igc throughout its history, and after the rebase
+those commits will have new SHAs — git won't automatically know
+they're "the same" work.
+
+Here's how to think through your options, from simplest to most
+thorough:
+
+1. If you only care about the end state: rebase cl-packages onto the new feature/igc
+#+begin_src bash
+git rebase --onto new-feature/igc old-feature/igc-tip cl-packages
+#+end_src
+
+The three-arg form of --onto says: "take the commits in cl-packages
+that are not in the old feature/igc tip, and replay them on top of the
+new one." You need the SHA of the old tip before the rebase happened
+(grab it from ORIG_HEAD on their end, or note it yourself beforehand).
+This works well if the history is relatively linear, but with all
+those merges it can get messy.
+
+2. The safer, more explicit approach: identify what's truly yours
+   
+Since cl-packages has a lot of its own work mixed with merges from
+master, emacs-mac, and feature/igc, your real goal is to isolate the
+commits that are unique to cl-packages and replay them on a new base.
+You can inspect this with:
+
+#+begin_src bash
+git log cl-packages --not master --not emacs-mac --not feature/igc
+#+end_src
+
+This shows commits that are exclusively yours. You can then
+cherry-pick those onto a new branch based off the rebased feature/igc.
+
+3. The pragmatic "merge-forward" approach
+   
+If the rebase of feature/igc produces a new tip (say feature/igc-new),
+you can simply:
+
+#+begin_src bash
+git merge feature/igc-new
+#+end_src
+
+Git will likely flag conflicts where old feature/igc commits clash
+with the rebased ones (since they touch the same code but have
+different SHAs). You resolve those conflicts knowing that the "theirs"
+side is just the rebased version of what you already merged before.
+The diff should be small or zero if the rebase was clean. This is the
+lowest-effort path and often works fine in practice.
+
+4. The cleanest but most work: rebuild cl-packages from scratch
+   
+Create a fresh branch from the rebased feature/igc, then cherry-pick
+only the commits unique to cl-packages (from step 2 above). This gives
+you a clean history but requires the most manual work, especially if
+those unique commits depended on the old merge state.
+
+My recommendation: Before the rebase happens, note the current tip SHA
+of feature/igc. After the rebase, try option 3 (merge the new tip)
+first — if the rebase was a straightforward rebase onto a newer master
+with no rewrites of the actual diffs, git will resolve most things
+automatically and conflicts will be minimal. If the rebase involved
+significant changes to the patch content, fall back to option 1 or
+
