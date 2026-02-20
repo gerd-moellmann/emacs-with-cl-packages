@@ -1,3 +1,9 @@
+## Note
+
+Note that this is a new branch `cl-packages2` which is based on the new
+`feature/igc2` branch on savannah. The new igc branch made it necessary
+to rebase all my changes.
+
 ## What is it?
 
 It is my fork of Emacs, if you will.
