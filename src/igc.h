@@ -23,49 +23,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "config.h"
 #include "lisp.h"
 
-enum igc_obj_type
-{
-  IGC_OBJ_INVALID,
-  IGC_OBJ_PAD,
-  IGC_OBJ_FWD,
-  IGC_OBJ_CONS,
-  IGC_OBJ_SYMBOL,
-  IGC_OBJ_INTERVAL,
-  IGC_OBJ_STRING,
-  IGC_OBJ_STRING_DATA,
-  IGC_OBJ_VECTOR,
-  IGC_OBJ_MARKER_VECTOR,
-  IGC_OBJ_ITREE_TREE,
-  IGC_OBJ_ITREE_NODE,
-  IGC_OBJ_IMAGE,
-  IGC_OBJ_IMAGE_CACHE,
-  IGC_OBJ_FACE,
-  IGC_OBJ_FACE_CACHE,
-  IGC_OBJ_FLOAT,
-  IGC_OBJ_BLV,
-  IGC_OBJ_HANDLER,
-  IGC_OBJ_BYTES,
-  IGC_OBJ_BUILTIN_SYMBOL,
-  IGC_OBJ_BUILTIN_THREAD,
-  IGC_OBJ_BUILTIN_SUBR,
-  IGC_OBJ_DUMPED_CODE_SPACE_MASKS,
-  IGC_OBJ_DUMPED_BUFFER_TEXT,
-  IGC_OBJ_DUMPED_BIGNUM_DATA,
-  IGC_OBJ_DUMPED_BYTES,
-#ifndef USE_EPHEMERON_POOL
-  IGC_OBJ_WEAK_HASH_TABLE_WEAK_PART,
-  IGC_OBJ_WEAK_HASH_TABLE_STRONG_PART,
-#endif
-#ifdef USE_EPHEMERON_POOL
-  IGC_OBJ_PAIR_VECTOR,
-  IGC_OBJ_WEAK_KEY_PAIR_VECTOR,
-  IGC_OBJ_WEAK_VALUE_PAIR_VECTOR,
-  IGC_OBJ_WEAK_OR_PAIR_VECTOR,
-  IGC_OBJ_WEAK_AND_PAIR_VECTOR,
-#endif
-  IGC_OBJ_NUM_TYPES
-};
-
 #ifdef HAVE_MPS
 
 enum { IGC_NO_PIN = -1 };
@@ -211,6 +168,10 @@ void w32_remove_non_lisp_thread (void *);
 void igc_init_mac_early (void);
 void igc_init_mac_late (void);
 # endif
+
+void igc_init_header (union igc_header *, enum igc_obj_type);
+void igc_init_header_bytes (union igc_header *,
+			    enum igc_obj_type type, size_t bytes);
 
 extern void igc_assert_not_an_mps_object (void *ptr);
 # define eassert_not_mps() eassert (false)

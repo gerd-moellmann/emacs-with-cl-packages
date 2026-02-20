@@ -583,28 +583,6 @@ struct igc_stats
    two unaligned 32-bit words.  It's easiest to implement that for all
    objects.  */
 
-enum
-{
-  IGC_HEADER_TAG_BITS = 2,
-  IGC_HEADER_TYPE_BITS = 6,
-  IGC_HEADER_HASH_BITS = 24,
-#if INTPTR_MAX <= INT_MAX
-  IGC_HEADER_NWORDS_BITS = 31,
-#else
-  IGC_HEADER_NWORDS_BITS = 32,
-#endif
-  IGC_HEADER_TAG_MASK = (1 << IGC_HEADER_TAG_BITS) - 1,
-  IGC_HEADER_TYPE_MASK = (1 << IGC_HEADER_TYPE_BITS) - 1,
-  IGC_HEADER_HASH_MASK = (1 << IGC_HEADER_HASH_BITS) - 1,
-
-  IGC_HEADER_TAG_SHIFT = 0,
-  IGC_HEADER_TYPE_SHIFT = IGC_HEADER_TAG_SHIFT + IGC_HEADER_TAG_BITS,
-  IGC_HEADER_HASH_SHIFT = IGC_HEADER_TYPE_SHIFT + IGC_HEADER_TYPE_BITS,
-  IGC_HEADER_NWORDS_SHIFT = 64 - IGC_HEADER_NWORDS_BITS,
-};
-
-static_assert (IGC_OBJ_NUM_TYPES - 1 < (1 << IGC_HEADER_TYPE_BITS));
-
 struct igc_exthdr
 {
   EMACS_UINT nwords;
@@ -613,133 +591,111 @@ struct igc_exthdr
   Lisp_Object extra_dependency;
 };
 
-enum igc_tag
-{
-  IGC_TAG_NULL = 0, /* entire value must be 0 to avoid MPS issues */
-  IGC_TAG_OBJ = 1, /* IGC object */
-  IGC_TAG_EXTHDR = 2, /* pointer to aligned external header */
-};
-
-#ifdef IN_MY_FORK
-
-/* After Pip Cet's header changes, Lisp objects include a gc_header
-   union, which has an uint64_t member 'v'.  struct igc_header then
-   contained the same 'v', and not bitfields anymore.  This makes things
-   inconvenient in LLDB.  */
-
-struct igc_header
-{
-  enum igc_tag tag : IGC_HEADER_TAG_BITS;
-  enum igc_obj_type obj_type : IGC_HEADER_TYPE_BITS;
-  mps_word_t hash : IGC_HEADER_HASH_BITS;
-  mps_word_t nwords : IGC_HEADER_NWORDS_BITS;
-};
 
 static unsigned
-header_nwords (const struct igc_header *h)
+header_nwords (const union igc_header *h)
 {
-  return h->nwords;
+  return h->s.nwords;
 }
 
 static unsigned
-header_hash (const struct igc_header *h)
+header_hash (const union igc_header *h)
 {
-  return h->hash;
+  return h->s.hash;
 }
 
 static enum igc_obj_type
-header_type (const struct igc_header *h)
+header_type (const union igc_header *h)
 {
-  return h->obj_type;
+  return h->s.obj_type;
 }
 
 static uint64_t
-header_tag (const struct igc_header *h)
+header_tag (const union igc_header *h)
 {
-  return h->tag;
+  return h->s.tag;
 }
 
 static struct igc_exthdr *
-header_exthdr (const struct igc_header *h)
+header_exthdr (const union igc_header *h)
 {
-  uint64_t v = *(uint64_t *) h;
+  uint64_t v = h->v;
   return ((struct igc_exthdr *) (intptr_t) (v & ~IGC_HEADER_TAG_MASK));
 }
 
-#else
-
-struct igc_header
-{
-  uint64_t v;
-};
-
-static unsigned
-header_nwords (const struct igc_header *h)
-{
-  return h->v >> IGC_HEADER_NWORDS_SHIFT;
-}
-
-static unsigned
-header_hash (const struct igc_header *h)
-{
-  return (h->v >> IGC_HEADER_HASH_SHIFT) & IGC_HEADER_HASH_MASK;
-}
-
-static enum igc_obj_type
-header_type (const struct igc_header *h)
-{
-  return (h->v >> IGC_HEADER_TYPE_SHIFT) & IGC_HEADER_TYPE_MASK;
-}
-
-static uint64_t
-header_tag (const struct igc_header *h)
-{
-  return h->v & IGC_HEADER_TAG_MASK;
-}
-
-static struct igc_exthdr *
-header_exthdr (const struct igc_header *h)
-{
-  return ((struct igc_exthdr *) (intptr_t) (h->v & ~IGC_HEADER_TAG_MASK));
-}
-
-#endif /* not IN_MY_FORK */
-
-unsigned igc_header_hash (struct igc_header *h);
-size_t igc_header_nwords (const struct igc_header *h);
-enum igc_obj_type igc_header_type (struct igc_header *h);
+unsigned igc_header_hash (union igc_header *h);
+size_t igc_header_nwords (const union igc_header *h);
+enum igc_obj_type igc_header_type (union igc_header *h);
 
 enum igc_obj_type
-igc_header_type (struct igc_header *h)
+igc_header_type (union igc_header *h)
 {
   if (header_tag (h) == IGC_TAG_EXTHDR)
     return header_exthdr (h)->obj_type;
+  igc_assert (header_tag (h) == IGC_TAG_OBJ);
   return header_type (h);
 }
 
 unsigned
-igc_header_hash (struct igc_header *h)
+igc_header_hash (union igc_header *h)
 {
   if (header_tag (h) == IGC_TAG_EXTHDR)
     return header_exthdr (h)->hash;
+  igc_assert (header_tag (h) == IGC_TAG_OBJ);
   return header_hash (h);
 }
 
 size_t
-igc_header_nwords (const struct igc_header *h)
+igc_header_nwords (const union igc_header *h)
 {
   if (header_tag (h) == IGC_TAG_EXTHDR)
     return header_exthdr (h)->nwords;
+  igc_assert (header_tag (h) == IGC_TAG_OBJ);
   return header_nwords (h);
 }
 
 struct igc_fwd
 {
-  struct igc_header header;
+  union igc_header header;
   mps_addr_t new_addr;
 };
 
-static_assert (sizeof (struct igc_header) == 8);
+static_assert (sizeof (union igc_header) == 8);
+
+static void
+check_header_bit (union igc_header h1, size_t i, size_t shift)
+{
+  union igc_header h2 = { .v = ((uint64_t) 1 << i) << shift };
+  eassert (h1.v == h2.v);
+}
+
+/* Check that the ABI for bitfields matches our expectations (in
+   particular on big-endian machines).  */
+static bool
+check_header_abi (void)
+{
+  for (size_t i = 0; i < IGC_HEADER_TAG_BITS; i++)
+    {
+      union igc_header h = { .s = { .tag = 1 << i } };
+      check_header_bit (h, i, IGC_HEADER_TAG_SHIFT);
+    }
+  for (size_t i = 0; i < IGC_HEADER_TYPE_BITS; i++)
+    {
+      union igc_header h = { .s = { .obj_type = 1 << i } };
+      check_header_bit (h, i, IGC_HEADER_TYPE_SHIFT);
+    }
+  for (size_t i = 0; i < IGC_HEADER_HASH_BITS; i++)
+    {
+      union igc_header h = { .s = { .hash = (size_t) 1 << i } };
+      check_header_bit (h, i, IGC_HEADER_HASH_SHIFT);
+    }
+  for (size_t i = 0; i < IGC_HEADER_NWORDS_BITS; i++)
+    {
+      union igc_header h = { .s = { .nwords = (size_t) 1 << i } };
+      check_header_bit (h, i, IGC_HEADER_NWORDS_SHIFT);
+    }
+  return true;
+}
 
 static mps_word_t
 to_words (mps_word_t nbytes)
@@ -758,7 +714,7 @@ to_bytes (mps_word_t nwords)
    This includes the header itself.  */
 
 static mps_word_t
-obj_size (const struct igc_header *h)
+obj_size (const union igc_header *h)
 {
   mps_word_t nbytes = to_bytes (igc_header_nwords (h));
   igc_assert (header_type (h) == IGC_OBJ_PAD || nbytes >= sizeof (struct igc_fwd));
@@ -769,7 +725,7 @@ obj_size (const struct igc_header *h)
    setting the fields directly to make it easy to add assertions.  */
 
 static void
-set_header (struct igc_header *h, enum igc_obj_type type,
+set_header (union igc_header *h, enum igc_obj_type type,
 	    mps_word_t nbytes, mps_word_t hash)
 {
 #if IGC_HEADER_NWORDS_BITS >= 32 && INTPTR_MAX > INT_MAX
@@ -777,15 +733,16 @@ set_header (struct igc_header *h, enum igc_obj_type type,
      causes compiler warnings.  */
   igc_assert (nbytes < ((size_t) 1 << IGC_HEADER_NWORDS_BITS));
 #endif
-  igc_assert (type == IGC_OBJ_PAD || nbytes >= sizeof (struct igc_fwd));
-  uint64_t tag = IGC_TAG_OBJ;
-  /* Make sure upper 32-bit word is unaligned on IA-32.  */
-  if (INTPTR_MAX <= INT_MAX)
-    tag += (1LL << 32);
-  uint64_t v = (((uint64_t) to_words (nbytes) << IGC_HEADER_NWORDS_SHIFT)
-		+ ((hash & IGC_HEADER_HASH_MASK) << (IGC_HEADER_HASH_SHIFT))
-		+ (type << IGC_HEADER_TYPE_SHIFT) + tag);
-  *(uint64_t *) h = v;
+  igc_assert (type == IGC_OBJ_PAD
+	      || nbytes >= sizeof (struct igc_fwd));
+  union igc_header val = { .s = { .tag = IGC_TAG_OBJ,
+				  .obj_type = type,
+				  .hash = hash,
+#if INTPTR_MAX <= INT_MAX
+				  .tag2 = 1,
+#endif
+				  .nwords = to_words (nbytes) } };
+  *h = val;
 }
 
 static unsigned alloc_hash (void);
@@ -794,9 +751,9 @@ static size_t igc_round (size_t nbytes, size_t align);
 /* Called throughout Emacs to initialize the GC header of an object
    which does not live in GC-managed memory, such as a builtin
    symbol.  */
-void gc_init_header (union gc_header *header, enum igc_obj_type type)
+void igc_init_header (union igc_header *header, enum igc_obj_type type)
 {
-  struct igc_header *h = (struct igc_header *) header;
+  union igc_header *h = (union igc_header *) header;
   switch (type)
     {
     case IGC_OBJ_CONS:
@@ -874,10 +831,10 @@ void gc_init_header (union gc_header *header, enum igc_obj_type type)
     }
 }
 
-void gc_init_header_bytes (union gc_header *header, enum igc_obj_type type,
-			   size_t nbytes)
+void igc_init_header_bytes (union igc_header *header, enum igc_obj_type type,
+			    size_t nbytes)
 {
-  struct igc_header *h = (struct igc_header *) header;
+  union igc_header *h = (union igc_header *) header;
   switch (type)
     {
     case IGC_OBJ_STRING_DATA:
@@ -924,7 +881,7 @@ alloc_hash (void)
 void
 igc_check_fwd (void *addr, bool is_vector)
 {
-  struct igc_header *h = addr;
+  union igc_header *h = addr;
   igc_assert (header_type (h) != IGC_OBJ_FWD);
   igc_assert (obj_size (h) >= sizeof (struct igc_fwd));
 }
@@ -1912,15 +1869,15 @@ scan_hash_table_user_test (mps_ss_t ss, void *start, void *end, void *closure)
 static void
 dflt_pad (mps_addr_t addr, size_t nbytes)
 {
-  igc_assert (nbytes >= sizeof (struct igc_header));
-  struct igc_header *h = addr;
+  igc_assert (nbytes >= sizeof (union igc_header));
+  union igc_header *h = addr;
   set_header (h, IGC_OBJ_PAD, nbytes, 0);
 }
 
 static void
 dflt_fwd (mps_addr_t old_addr, mps_addr_t new_addr)
 {
-  struct igc_header *h = old_addr;
+  union igc_header *h = old_addr;
   igc_assert (obj_size (h) >= sizeof (struct igc_fwd));
   igc_assert (header_type (h) != IGC_OBJ_PAD);
   struct igc_fwd *f = old_addr;
@@ -1941,7 +1898,7 @@ is_dflt_fwd (mps_addr_t addr)
 static mps_addr_t
 dflt_skip (mps_addr_t addr)
 {
-  struct igc_header *h = addr;
+  union igc_header *h = addr;
   mps_addr_t next = (char *) addr + obj_size (h);
   igc_assert (next > addr);
   return next;
@@ -2123,9 +2080,9 @@ fix_handler (mps_ss_t ss, struct handler *h)
 }
 
 #ifdef USE_EPHEMERON_POOL
-static struct igc_header *
-as_igc_header (union gc_header *h) {
-  return (struct igc_header *)h;
+static union igc_header *
+as_igc_header (union igc_header *h) {
+  return (union igc_header *)h;
 }
 
 static mps_res_t
@@ -2475,7 +2432,7 @@ collect_stats_1 (struct igc_stat *s, size_t nbytes)
 }
 
 static void
-collect_stats (struct igc_stats *st, struct igc_header *header)
+collect_stats (struct igc_stats *st, union igc_header *header)
 {
   mps_word_t obj_type = igc_header_type (header);
   igc_assert (obj_type < IGC_OBJ_NUM_TYPES);
@@ -2496,7 +2453,7 @@ dflt_scan_obj (mps_ss_t ss, mps_addr_t start)
   MPS_SCAN_BEGIN (ss)
   {
     mps_addr_t addr = start;
-    struct igc_header *header = addr;
+    union igc_header *header = addr;
 
     if (header_tag (header) == IGC_TAG_EXTHDR)
       {
@@ -4401,7 +4358,7 @@ finalize_vector (mps_addr_t v)
 static void
 finalize (struct igc *gc, mps_addr_t addr)
 {
-  struct igc_header *h = addr;
+  union igc_header *h = addr;
   if (header_tag (h) == IGC_TAG_EXTHDR)
     {
       struct igc_exthdr *exthdr = header_exthdr (h);
@@ -4439,7 +4396,7 @@ maybe_process_messages (void)
 static void
 maybe_finalize (mps_addr_t ref, enum pvec_type tag)
 {
-  struct igc_header *h = ref;
+  union igc_header *h = ref;
   if (header_tag (h) == IGC_TAG_EXTHDR)
     {
       mps_res_t res = mps_finalize (global_igc->arena, &ref);
@@ -4899,7 +4856,7 @@ igc_hash (Lisp_Object key)
       break;
     }
 
-  struct igc_header *h = addr;
+  union igc_header *h = addr;
   return igc_header_hash (h);
 }
 
@@ -4932,7 +4889,7 @@ alloc_multi (ptrdiff_t count, mps_addr_t ret[count],
 	  memclear (p, size);
 	  for (ptrdiff_t i = 0; i < count; i++)
 	    {
-	      set_header ((struct igc_header *) ((char *) p + off), types[i],
+	      set_header ((union igc_header *) ((char *) p + off), types[i],
 			  (i == 0) ? size : sizes[i],
 			  alloc_hash ());
 	      off += sizes[i];
@@ -4946,7 +4903,7 @@ alloc_multi (ptrdiff_t count, mps_addr_t ret[count],
       ptrdiff_t off = 0;
       for (ptrdiff_t i = 0; i < count; i++)
 	{
-	  set_header ((struct igc_header *) ((char *) p + off), types[i],
+	  set_header ((union igc_header *) ((char *) p + off), types[i],
 		      (i == 0) ? size : sizes[i],
 		      alloc_hash ());
 	  off += sizes[i];
@@ -5217,7 +5174,7 @@ igc_alloc_lisp_obj_vec (size_t n)
 static mps_addr_t
 weak_hash_find_dependent (mps_addr_t addr)
 {
-  struct igc_header *h = addr;
+  union igc_header *h = addr;
   switch (igc_header_type (h))
     {
     case IGC_OBJ_WEAK_HASH_TABLE_WEAK_PART:
@@ -5545,7 +5502,7 @@ root.  Each element has the form (LABEL TYPE START END), where
 }
 
 static struct igc_exthdr *
-igc_external_header (struct igc_header *h, bool is_builtin)
+igc_external_header (union igc_header *h, bool is_builtin)
 {
   if (header_tag (h) != IGC_TAG_EXTHDR)
     {
@@ -5871,7 +5828,7 @@ igc_postmortem (void)
 size_t
 igc_header_size (void)
 {
-  return sizeof (struct igc_header);
+  return sizeof (union igc_header);
 }
 
 static enum igc_obj_type
@@ -5938,14 +5895,14 @@ igc_dump_finish_obj (void *client, enum igc_obj_type type,
       break;
     }
 
-  struct igc_header *out = (struct igc_header *) base;
+  union igc_header *out = (union igc_header *) base;
 
   /* If the client object to be dumped has a header, copy that.  */
   if (type != IGC_OBJ_DUMPED_BYTES && type != IGC_OBJ_DUMPED_CODE_SPACE_MASKS
       && type != IGC_OBJ_DUMPED_BUFFER_TEXT)
     if (!is_in_dump)
       {
-	struct igc_header *h = client;
+	union igc_header *h = client;
 	if (igc_header_type (h) == IGC_OBJ_MARKER_VECTOR)
 	  igc_assert ((type == IGC_OBJ_VECTOR
 		       && igc_header_type (h) == IGC_OBJ_MARKER_VECTOR)
@@ -6013,7 +5970,7 @@ check_dump (mps_addr_t start, mps_addr_t end)
   for (mps_addr_t p = start; p != end; p = dflt_skip (p))
     {
       eassert (p < end);
-      struct igc_header *h = p;
+      union igc_header *h = p;
       if (header_type (h) != IGC_OBJ_PAD)
 	{
 	  mps_addr_t obj = pdumper_next_object (&it);
@@ -6036,13 +5993,13 @@ igc_on_pdump_loaded (void *dump_base, void *hot_start, void *hot_end,
 {
   dump_base = (char *) dump_base - igc_header_size ();
   igc_assert (global_igc->park_count > 0);
-  igc_assert (header_type ((struct igc_header *) hot_start)
+  igc_assert (header_type ((union igc_header *) hot_start)
 	      == IGC_OBJ_DUMPED_BYTES);
-  igc_assert (header_type ((struct igc_header *) cold_start)
+  igc_assert (header_type ((union igc_header *) cold_start)
 	      == IGC_OBJ_DUMPED_CODE_SPACE_MASKS);
-  igc_assert (header_type ((struct igc_header *) cold_user_data_start)
+  igc_assert (header_type ((union igc_header *) cold_user_data_start)
 	      == IGC_OBJ_DUMPED_BYTES);
-  igc_assert (header_type ((struct igc_header *) heap_end)
+  igc_assert (header_type ((union igc_header *) heap_end)
 	      == IGC_OBJ_DUMPED_BYTES);
 
   size_t discardable_size
@@ -6050,7 +6007,7 @@ igc_on_pdump_loaded (void *dump_base, void *hot_start, void *hot_end,
   size_t dump_header_size
     = (uint8_t *) hot_start - (uint8_t *) dump_base;
   size_t relocs_size = (uint8_t *) cold_end - (uint8_t *) heap_end;
-  struct igc_header *h = dump_base;
+  union igc_header *h = dump_base;
 
   igc_assert (header_type (h) == IGC_OBJ_INVALID);
   igc_assert (obj_size (h)
@@ -6151,7 +6108,7 @@ Internal use only.  */)
   if (addr == NULL)
     return Qnil;
 
-  struct igc_header *h = addr;
+  union igc_header *h = addr;
   struct igc_exthdr *exthdr = igc_external_header (h, is_builtin_obj (obj));
   return exthdr->extra_dependency;
 }
@@ -6168,7 +6125,7 @@ KEY is the key to associate with DEPENDENCY in a hash table.  */)
   if (addr == NULL)
     return Qnil;
 
-  struct igc_header *h = addr;
+  union igc_header *h = addr;
   struct igc_exthdr *exthdr = igc_external_header (h, is_builtin_obj (obj));
   Lisp_Object hash = exthdr->extra_dependency;
 #ifndef USE_EPHEMERON_POOL
@@ -6200,7 +6157,7 @@ KEY is the key associated with DEPENDENCY in a hash table.  */)
   if (addr == NULL)
     return Qnil;
 
-  struct igc_header *h = addr;
+  union igc_header *h = addr;
   struct igc_exthdr *exthdr = igc_external_header (h, is_builtin_obj (repl));
   Lisp_Object hash = exthdr->extra_dependency;
 #ifndef USE_EPHEMERON_POOL
@@ -6317,6 +6274,7 @@ DEFUN ("igc-test-probe", Figc_test_probe, Sigc_test_probe, 1, 1, 0, doc: /* */)
 static void
 init_global_igc (void)
 {
+  eassert (check_header_abi ());
   /* Returns previous handler.  */
   (void) mps_lib_assert_fail_install (igc_assert_fail);
   global_igc = make_igc ();

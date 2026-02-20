@@ -46,24 +46,8 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 INLINE_HEADER_BEGIN
 
 #ifdef HAVE_MPS
-union gc_header;
-#else
-union gc_header { };
-#endif
-
-#ifdef HAVE_MPS
-enum igc_obj_type;
-extern void gc_init_header (union gc_header *header, enum igc_obj_type type);
-extern void gc_init_header_bytes (union gc_header *header, enum igc_obj_type type, size_t bytes);
 extern void gc_assert_untraced_object (void *obj);
-#else
-/* These are macros so they don't evaluate their `type' argument.  */
-#define gc_init_header(header, type) ((void)(header))
-#define gc_init_header_bytes(header, type, nbytes) ((void)(header))
 #endif
-
-#define GC_HEADER union gc_header gc_header;
-#define GC_HEADER_INIT {},
 
 /* Enable this with --enable-checking=igc_check_fwd. */
 # if defined HAVE_MPS && defined IGC_CHECK_FWD
@@ -345,11 +329,12 @@ DEFINE_GDB_SYMBOL_END (VALMASK)
 #define GCALIGNED(type) (alignof (type) % GCALIGNMENT == 0)
 
 #ifdef HAVE_MPS
-union gc_header
-{
-  uint64_t v;
-  GCALIGNED_UNION_MEMBER
-};
+# include "igc-types.h"
+# define GC_HEADER union igc_header gc_header;
+# define GC_HEADER_INIT { .v = 0 },
+#else
+# define GC_HEADER
+# define GC_HEADER_INIT
 #endif
 
 /* Lisp_Word is a scalar word suitable for holding a tagged pointer or
@@ -4667,7 +4652,7 @@ ptrdiff_t hash_put (struct Lisp_Hash_Table *, Lisp_Object, Lisp_Object,
 		    hash_hash_t);
 void hash_remove_from_table (struct Lisp_Hash_Table *, Lisp_Object);
 
-#ifdef HAVE_MPS
+#if defined HAVE_MPS && !defined USE_EPHEMERON_POOL
 Lisp_Object strong_copy_hash_table (Lisp_Object);
 void strengthen_hash_table_for_dump (struct Lisp_Weak_Hash_Table *);
 ptrdiff_t weak_hash_lookup (struct Lisp_Weak_Hash_Table *, Lisp_Object);
