@@ -544,7 +544,10 @@ or an empty string if none."
 (defun vc-git-dir-printer (info)
   "Pretty-printer for the vc-dir-fileinfo structure."
   (let* ((isdir (vc-dir-fileinfo->directory info))
-	 (state (if isdir "" (vc-dir-fileinfo->state info)))
+         (state (if isdir "" (vc-dir-fileinfo->state info)))
+         (display-state (cond (isdir "")
+                              ((vc-dir-fileinfo->display-state info))
+                              ((vc-dir-fileinfo->state info))))
          (extra (vc-dir-fileinfo->extra info))
          (old-perm (when extra (vc-git-extra-fileinfo->old-perm extra)))
          (new-perm (when extra (vc-git-extra-fileinfo->new-perm extra))))
@@ -554,10 +557,13 @@ or an empty string if none."
                  'face 'vc-dir-mark-indicator)
      "  "
      (propertize
-      (format "%-12s" state)
-      'face (cond ((eq state 'up-to-date) 'vc-dir-status-up-to-date)
-                  ((memq state '(missing conflict)) 'vc-dir-status-warning)
-                  ((eq state 'ignored) 'vc-dir-status-ignored)
+      (format "%-12s" display-state)
+      'face (cond ((eq display-state 'up-to-date)
+                   'vc-dir-status-up-to-date)
+                  ((member display-state '(missing conflict "committing"))
+                   'vc-dir-status-warning)
+                  ((eq display-state 'ignored)
+                   'vc-dir-status-ignored)
                   (t 'vc-dir-status-edited))
       'mouse-face 'highlight
       'keymap vc-dir-status-mouse-map)
@@ -1704,9 +1710,20 @@ If PROMPT is non-nil, prompt for the Git command to run."
 
 (defun vc-git-pull (prompt)
   "Pull changes into the current Git branch.
-Normally, this runs \"git pull\".  If PROMPT is non-nil, prompt
-for the Git command to run."
-  (vc-git--pushpull "pull" prompt '("--stat")))
+Normally, this runs \"git pull\", unless there is a configured push
+remote, in which case pull from that.
+If PROMPT is non-nil, prompt for the Git command to run."
+  (let ((remotes (vc-git--branch-remotes)))
+    (vc-git--pushpull "pull" prompt
+                      (if-let* ((remote (cdr (assq 'push remotes)))
+                                (slash-pos (string-search "/" remote)))
+                          (list "--stat"
+                                (substring remote 0 slash-pos)
+                                (substring remote (1+ slash-pos)))
+                        ;; When (cdr (assq 'upstream remotes)) is of the
+                        ;; form "REMOTE/BRANCH", 'git pull' is equivalent
+                        ;; to 'git pull REMOTE BRANCH' per git-pull(1).
+                        '("--stat")))))
 
 (defun vc-git-push (prompt)
   "Push changes from the current Git branch.
@@ -1894,7 +1911,10 @@ If LIMIT is a non-empty string, use it as a base revision."
 		'("--")))))))
 
 (defun vc-git-incoming-revision (&optional upstream-location refresh)
-  (let ((rev (or upstream-location "@{upstream}")))
+  (let* ((remotes (and (not upstream-location) (vc-git--branch-remotes)))
+         (rev (or upstream-location
+                  (cdr (assq 'push remotes))
+                  (cdr (assq 'upstream remotes)))))
     (when (and (or refresh (null (vc-git--rev-parse rev)))
                ;; If the branch has no upstream, and we weren't supplied
                ;; with one, then fetching is always useless (bug#79952).
@@ -2334,6 +2354,9 @@ This requires git 1.8.4 or later, for the \"-L\" option of \"git log\"."
 
 (defun vc-git-delete-file (file)
   (vc-git-command nil 0 file "rm" "-f" "--"))
+
+(defun vc-git-delete-files (files)
+  (vc-git-command nil 0 files "rm" "-f" "--"))
 
 (defun vc-git-rename-file (old new)
   (vc-git-command nil 0 (list old new) "mv" "-f" "--"))

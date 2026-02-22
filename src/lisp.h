@@ -506,10 +506,10 @@ typedef EMACS_INT Lisp_Word;
    extending their range from, e.g., -2^28..2^28-1 to -2^29..2^29-1.  */
 #define INTMASK (EMACS_INT_MAX >> (INTTYPEBITS - 1))
 
-/* Idea stolen from GDB.  Pedantic GCC complains about enum bitfields,
-   and xlc and Oracle Studio c99 complain vociferously about them.  */
-#if (defined __STRICT_ANSI__ || defined __IBMC__ \
-     || (defined __SUNPRO_C && __STDC__))
+/* Idea stolen from GDB.  Although all known Emacs targets support enum
+   bitfields, the C standard does not require support, and they cause too
+   many diagnostics on xlc 16.1 and on Oracle Studio 12.6 'cc -Xc'.  */
+#if defined __IBMC__ || (defined __SUNPRO_C && __STDC__)
 #define ENUM_BF(TYPE) unsigned int
 #else
 #define ENUM_BF(TYPE) enum TYPE
@@ -3450,7 +3450,7 @@ enum Lisp_Fwd_Predicate
 
 struct Lisp_Fwd
 {
-  enum Lisp_Fwd_Type type : 8;
+  ENUM_BF (Lisp_Fwd_Type) type : 8;
   union
   {
     intmax_t *intvar;		/* when type == Lisp_Fwd_Int */
@@ -3459,7 +3459,7 @@ struct Lisp_Fwd
     struct
     {
       uint16_t offset;
-      enum Lisp_Fwd_Predicate predicate : 8;
+      ENUM_BF (Lisp_Fwd_Predicate) predicate : 8;
     } buf;			/* when type == Lisp_Fwd_Buffer_Obj */
     int kbdoffset;		/* when type == Lisp_Fwd_Kboard_Obj */
   } u;

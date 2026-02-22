@@ -108,12 +108,13 @@
   "A list of active sleep-block tokens.
 If non-nil, idle sleep is inhibited by `system-sleep'.")
 
-;;;###autoload
 (cl-defstruct
     (sleep-event (:type list) :named
                  (:constructor nil)
                  (:constructor make-sleep-event (state)))
   state)
+
+;;;###autoload (autoload 'sleep-event-state "system-sleep.el")
 
 ;;;###autoload
 (defcustom system-sleep-event-functions nil

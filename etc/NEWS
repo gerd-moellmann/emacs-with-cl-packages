@@ -443,6 +443,10 @@ vertically first, so to get previous behavior, you can customize this
 option to 'vertical'.  The value 'horizontal' always prefers the
 horizontal split.
 
+---
+The default value of 'split-width-threshold' is changed from 160 to 150.
+After splitting it's still comfortable to read text filled to 75 columns.
+
 +++
 *** New argument INDIRECT for 'get-buffer-window-list'.
 With this argument non-nil, 'get-buffer-window-list' will include in the
@@ -489,6 +493,27 @@ If this function returns nil, the following call to 'delete-frame' might
 fail to delete its argument FRAME or might signal an error.  It is
 therefore advisable to use this function as part of a condition that
 determines whether to call 'delete-frame'.
+
++++
+*** New function 'frame-use-time'.
+This function is the frame equivalent of the function 'window-use-time'
+for a window.  The result is the `window-use-time' of a frame's most
+recently used window.
+
++++
+*** New function 'get-mru-frame'.
+This function returns the most recently used frame from among all
+frames, or those visible or iconified on the same terminal as the
+selected frame.  A frame can be excluded, for example, the selected
+frame, as it will always be the most recently used frame on the current
+terminal.
+
+---
+*** After deleting, 'delete-frame' now selects the most recently used frame.
+Previously, after deleting a specified frame, 'delete-frame' would
+select the next eligible frame in the order of the frame list.  This is
+often unrelated to frames' recent use and can appear somewhat random to
+users.
 
 +++
 *** New value 'force' for user option 'frame-inhibit-implied-resize'.
@@ -839,6 +864,11 @@ cursor's shape and color.  For example, if you use a purple bar cursor
 on graphical displays then when this option is enabled Emacs will use a
 purple bar cursor on compatible terminals as well.  See the Info node
 "(emacs) Cursor Display" for more information.
+
+---
+** New command 'copy-theme-options'
+You can use this command to copy options from a theme into your user
+configuration.
 
 
 * Editing Changes in Emacs 31.1
@@ -1553,6 +1583,11 @@ correctly regardless of margin position.
 ---
 ** SMerge
 
+*** New 'repeat-map' for SMerge conflict resolution commands.
+With 'repeat-mode' enabled, after invoking an SMerge command (for
+example, 'C-c ^ n'), you can repeat further SMerge commands by typing
+just the final key (for example, n, p, u, l).
+
 *** New command 'smerge-extend' extends a conflict over surrounding lines.
 
 *** New command 'smerge-refine-exchange-point' to jump to the other side.
@@ -1612,6 +1647,12 @@ to visit URLs by typing just 'RET' instead of 'C-c RET' in read-only buffers.
 *** Removed support for some obsolete web browsers.
 Conkeror (obsolete since Emacs 28.1), gnome-moz-remote (obsolete since
 Emacs 25.1), and gnudoit (obsolete since Emacs 25.1).
+
+*** 'browse-url-firefox-program' now supports LibreWolf and Zen Browser.
+LibreWolf, Floorp and Zen Browser, three popular Firefox forks, have been
+added to the programs that are automatically recognizable as Firefox
+workalikes.  Emacs will set 'browse-url-firefox-program' to the first
+one of these found on your system.
 
 ** CL-Lib
 
@@ -1936,6 +1977,13 @@ only search in input history.  If you customize it to the symbol 'dwim',
 those commands search in input history only when the point is after the
 last prompt.
 
+---
+*** Eshell 'alias' command now sorts the alias list.
+When adding an alias interactively, Eshell now sorts the list of aliases
+before saving the alias file.  This maintains the stability of the
+list of aliases to make the diff between versions more readable if you
+store your aliases in version control.
+
 ** Mail Utils
 
 +++
@@ -1965,6 +2013,12 @@ to 'imap-open' for 'imap-authenticate' to use, or remove 'plain' from
 'mail-re-regexps' is a new user option that is easier to customize than
 'rmail-re-abbrevs'.  'rmail-re-abbrevs' is still honored if it was
 already set.
+
++++
+*** New user options for formatting Rmail summary lines.
+'rmail-summary-sender-function' and 'rmail-summary-recipient-function'
+control how the sender/recipient fields are displayed in the summary.
+'rmail-summary-address-width' controls the width of that field.
 
 +++
 *** New user option 'rmail-mime-save-action'.
@@ -2550,6 +2604,11 @@ To allow for finer-grained adjustment of timeout for
 'python-eldoc-function', 'python-eldoc-function-timeout' now accepts
 floating-point numbers as well as integers.
 
+---
+*** The default value of 'python-shell-completion-setup-code' is changed.
+A new function is added to the setup code.  Users who modify this option
+may need to update the value for the Python shell completion to work.
+
 ** Tmm Menubar
 
 ---
@@ -2748,6 +2807,12 @@ To restore the old, more limited behavior for VC Directory, you can do
 These correspond to the existing 'z p' to pop a stash and 'P' to pop the
 stash at point (deleting the stash at point is also bound to 'C-k').
 
++++
+*** New VC Directory command 'V' ('vc-dir-root-next-action').
+This is like 'v' ('vc-next-action') but applies to the whole VC-Dir
+buffer, ignoring the position of point and any marks.  This is useful to
+check in all local changes at once.
+
 ---
 *** VC Directory can now register files when checking in mixed filesets.
 Previously, if some files to be checked in were unregistered but others
@@ -2806,11 +2871,11 @@ current VC fileset.
 
 +++
 *** New commands to report information about outstanding changes.
-'C-x v T =' ('vc-diff-outgoing-base') and 'C-x v T D'
-('vc-root-diff-outgoing-base') report diffs of changes since the merge
+'C-x v T =' ('vc-diff-outstanding') and 'C-x v T D'
+('vc-root-diff-outstanding') report diffs of changes since the merge
 base with the remote branch, including uncommitted changes.
-'C-x v T l' ('vc-log-outgoing-base') and 'C-x v T L'
-('vc-root-log-outgoing-base') show the corresponding revision logs.
+'C-x v T l' ('vc-log-outstanding') and 'C-x v T L'
+('vc-root-log-outstanding') show the corresponding revision logs.
 These are useful to view all outstanding (unmerged, unpushed) changes on
 the current branch.  They are also available as 'T =', 'T D', 'T l' and
 'T L' in VC Directory buffers.
@@ -2929,6 +2994,12 @@ To enable it again, use 'M-x enable-command'.
 
 ---
 *** 'C-x v !' has its own input history.
+
+---
+*** 'C-x v +' for Git pulls from a configured push remote.
+If the current branch has a configured push remote, the default
+arguments to 'git pull' will cause a pull from the push remote.
+You can use 'C-u C-x v +' to preview or change the arguments.
 
 ---
 *** 'C-u C-x v +' and 'C-u C-x v P' for Git have an input history.
@@ -3288,6 +3359,14 @@ useful when you want the face attributes to be absolute and not
 If non-nil, FFAP always finds remote files in buffers with remote
 'default-directory'.  If nil, FFAP finds local files first for absolute
 file names in above buffers.  The default is nil.
+
++++
+*** New theme 'newcomers-presets'
+This new theme configures user options and minor modes that might
+interest new users, but would otherwise be too invasive to enable by
+default.  Recall that an Emacs theme is a generic collection of
+settings, that doesn't have to affect the appearance.  See the Info node
+"(emacs) Newcomers Theme" for more information.
 
 ** Edebug
 
