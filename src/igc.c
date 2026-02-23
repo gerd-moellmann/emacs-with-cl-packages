@@ -728,19 +728,12 @@ static void
 set_header (union igc_header *h, enum igc_obj_type type,
 	    mps_word_t nbytes, mps_word_t hash)
 {
-#if IGC_HEADER_NWORDS_BITS >= 32 && INTPTR_MAX > INT_MAX
-  /* On 32-bit architecture the assertion below is redundant and
-     causes compiler warnings.  */
-  igc_assert (nbytes < ((size_t) 1 << IGC_HEADER_NWORDS_BITS));
-#endif
+  igc_assert (nbytes < ((uint64_t) 1 << IGC_HEADER_NWORDS_BITS));
   igc_assert (type == IGC_OBJ_PAD
 	      || nbytes >= sizeof (struct igc_fwd));
   union igc_header val = { .s = { .tag = IGC_TAG_OBJ,
 				  .obj_type = type,
 				  .hash = hash,
-#if INTPTR_MAX <= INT_MAX
-				  .tag2 = 1,
-#endif
 				  .nwords = to_words (nbytes) } };
   *h = val;
 }
