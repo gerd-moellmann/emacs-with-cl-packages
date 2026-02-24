@@ -511,9 +511,9 @@ terminal.
 ---
 *** After deleting, 'delete-frame' now selects the most recently used frame.
 Previously, after deleting a specified frame, 'delete-frame' would
-select the next eligible frame in the order of the frame list.  This is
-often unrelated to frames' recent use and can appear somewhat random to
-users.
+select the oldest visible frame on the same terminal.  To revert to the
+old behavior, set the new user option
+'after-delete-frame-select-mru-frame' to nil.
 
 +++
 *** New value 'force' for user option 'frame-inhibit-implied-resize'.
@@ -3493,6 +3493,20 @@ diary and display and mark their contents in the calendar without
 importing them to the diary file.  The library uses the new iCalendar
 library (see above) and makes diary import and export more customizable.
 
++++
+*** New commands to display more months in the calendar.
+'calendar-show-more-months' and 'calendar-show-fewer-months' display
+more or fewer months in the calendar, respectively.  The calendar shows
+at most 12 months and at least 3 months.
+
++++
+*** 'calendar-scroll-left-three-months' and its variants are obsolete aliases.
+Because the calendar can display more than three months now, commands
+'calendar-scroll-left-three-months' and
+'calendar-scroll-right-three-months' have been renamed to
+'calendar-scroll-calendar-left' and 'calendar-scroll-calendar-right'.
+The old names are kept as obsolete aliases.
+
 ** Calc
 
 *** New user option 'calc-string-maximum-character'.
@@ -3747,6 +3761,18 @@ all versions, sleep events require Windows 8 or later).
 
 * Incompatible Lisp Changes in Emacs 31.1
 
+---
+** 'FOO-ts-mode-indent-offset' renamed to 'FOO-ts-indent-offset'.
+When the new TS modes were introduced, a mistake was made where those
+modes used 'FOO-mode-indent-offset' instead of the previous conventional
+'FOO-indent-offset'.  The following names are the new names:
+'toml-ts-indent-offset', 'mhtml-ts-js-css-indent-offset',
+'html-ts-indent-offset', 'typescript-ts-indent-offset',
+'php-ts-indent-offset', 'php-ts-html-indent-offset',
+'json-ts-indent-offset', 'java-ts-indent-offset',
+'go-ts-indent-offset', 'csharp-ts-indent-offset',
+'cmake-ts-indent-offset', 'c-ts-indent-offset'.
+
 ** Files loaded from '-x' and '--script' now use lexical binding.
 If you don't have time to adapt your script's code to the lexical
 binding dialect (see "(elisp) Converting to Lexical Binding"), you can
@@ -3930,6 +3956,13 @@ that will provide an Xref backend when used.
 * Lisp Changes in Emacs 31.1
 
 +++
+** 'secure-hash' now supports generating SHA-3 message digests.
+The list returned by 'secure-hash-algorithms' now contains the symbols
+'sha3-224', 'sha3-256', 'sha3-384', and 'sha3-512'.  These symbols can
+be used as the ALGORITHM argument of 'secure-hash' to generate SHA-3
+hashes.
+
++++
 ** New function 'garbage-collect-heapsize'.
 Same as 'garbage-collect' but just returns the info from the last GC
 without performing a collection.
@@ -4002,6 +4035,11 @@ These work like 'drop' and 'take' but use a predicate instead of counting.
 ** New functions 'any' and 'all'.
 These return non-nil for lists where any and all elements, respectively,
 satisfy a given predicate.
+
++++
+** 'equal' now compares circular lists without raising an error.
+Comparing very deeply nested objects will still fail, but 'equal'
+will no longer signal the 'circular-list' error.
 
 +++
 ** The 'defvar-local' macro second argument is now optional.
@@ -4286,6 +4324,10 @@ of an inherently asynchronous command such as 'compile'.
 ** Binary format specifications '%b' and '%B' added.
 These produce the binary representation of a number.
 '%#b' and '%#B' prefix the bits with '0b' and '0B', respectively.
+
+** 'pp-eval-expression' can now insert results into the current buffer
+With a prefix argument, 'pp-eval-expression' inserts the result into the
+current buffer, just like 'eval-expression' already did.
 
 
 * Changes in Emacs 31.1 on Non-Free Operating Systems

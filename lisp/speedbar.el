@@ -1050,7 +1050,7 @@ Return nil if both are closed."
    ((and (frame-live-p (speedbar-current-frame))
          speedbar-buffer
 	 (buffer-live-p speedbar-buffer)
-         (buffer-local-value dframe-controlled speedbar-buffer)
+         (buffer-local-value 'dframe-controlled speedbar-buffer)
 	 (not (speedbar-window--live-p)))
     'frame)
    (t nil)))

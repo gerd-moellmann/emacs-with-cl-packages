@@ -280,6 +280,10 @@
   "Fitting Emacs with its environment."
   :group 'emacs)
 
+(defgroup system-interface nil
+  "Interaction with the host system."
+  :group 'environment)
+
 (defgroup hardware nil
   "Support for interfacing with miscellaneous hardware."
   :group 'environment)

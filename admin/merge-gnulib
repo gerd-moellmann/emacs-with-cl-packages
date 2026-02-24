@@ -35,6 +35,7 @@ GNULIB_MODULES='
   careadlinkat close-stream copy-file-range
   crypto/md5 crypto/md5-buffer
   crypto/sha1-buffer crypto/sha256-buffer crypto/sha512-buffer
+  crypto/sha3-buffer
   d-type diffseq double-slash-root dtoastr dtotimespec dup2
   environ execinfo faccessat
   fchmodat fcntl fcntl-h fdopendir file-has-acl
