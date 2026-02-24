@@ -70,6 +70,7 @@ AC_DEFUN([gl_EARLY],
   # Code from module crypto/md5-buffer:
   # Code from module crypto/sha1-buffer:
   # Code from module crypto/sha256-buffer:
+  # Code from module crypto/sha3-buffer:
   # Code from module crypto/sha512-buffer:
   # Code from module d-type:
   # Code from module diffseq:
@@ -285,6 +286,8 @@ AC_DEFUN([gl_INIT],
   gl_SHA1
   AC_REQUIRE([AC_C_RESTRICT])
   gl_SHA256
+  AC_REQUIRE([AC_C_RESTRICT])
+  gl_SHA3
   AC_REQUIRE([AC_C_RESTRICT])
   gl_SHA512
   gl_CHECK_TYPE_STRUCT_DIRENT_D_TYPE
@@ -1445,6 +1448,8 @@ AC_DEFUN([gl_FILE_LIST], [
   lib/sha1.h
   lib/sha256.c
   lib/sha256.h
+  lib/sha3.c
+  lib/sha3.h
   lib/sha512.c
   lib/sha512.h
   lib/sig2str.c
@@ -1609,6 +1614,7 @@ AC_DEFUN([gl_FILE_LIST], [
   m4/selinux-selinux-h.m4
   m4/sha1.m4
   m4/sha256.m4
+  m4/sha3.m4
   m4/sha512.m4
   m4/sig2str.m4
   m4/sigdescr_np.m4

@@ -1863,10 +1863,10 @@ Return non-nil if PROJECT is not a remote project."
          (predicate
           (lambda (buffer)
             ;; BUFFER is an entry (BUF-NAME . BUF-OBJ) of Vbuffer_alist.
-            (and (memq (cdr buffer) buffers)
-                 (not
-                  (project--buffer-check
-                   buffer project-ignore-buffer-conditions)))))
+            (setq buffer (cdr buffer))
+            (and (memq buffer buffers)
+                 (not (project--buffer-check
+                       buffer project-ignore-buffer-conditions)))))
          (completion-ignore-case read-buffer-completion-ignore-case)
          (buffers-alist
           (if (and (fboundp 'uniquify-get-unique-names)

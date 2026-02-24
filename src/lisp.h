@@ -6454,15 +6454,24 @@ struct for_each_tail_internal
    is little point to calling maybe_quit here.  */
 
 #define FOR_EACH_TAIL_INTERNAL(tail, cycle, check_quit)			\
-  for (struct for_each_tail_internal li = { tail, 2, 0, 2 };		\
-       CONSP (tail);							\
-       ((tail) = XCDR (tail),						\
-	((--li.q != 0							\
-	  || ((check_quit) ? maybe_quit () : (void) 0, 0 < --li.n)	\
-	  || (li.q = li.n = li.max <<= 1, li.n >>= USHRT_WIDTH,		\
-	      li.tortoise = (tail), false))				\
-	 && BASE_EQ (tail, li.tortoise))				\
-	? (cycle) : (void) 0))
+ FOR_EACH_TAIL_BASIC(tail,						\
+		     FOR_EACH_TAIL_STEP_CYCLEP (tail, check_quit)	\
+		     ? (cycle) : (void) 0)
+
+#define FOR_EACH_TAIL_BASIC(tail, stepper)			\
+  for (struct for_each_tail_internal li = { tail, 2, 0, 2 };	\
+       CONSP (tail); stepper)
+
+/* Step TAIL and return whether a cycle has been detected.
+   If CHECK_QUIT then check for quit occasionally.  */
+#define FOR_EACH_TAIL_STEP_CYCLEP(tail, check_quit)		\
+  ((tail) = XCDR (tail),					\
+   ((--li.q != 0						\
+     || ((check_quit) ? maybe_quit () : (void) 0, 0 < --li.n)	\
+     || (li.q = li.n = li.max <<= 1, li.n >>= USHRT_WIDTH,	\
+	 li.tortoise = (tail), false))				\
+    && BASE_EQ (tail, li.tortoise)))
+
 
 /* Do a `for' loop over alist values.  */
 

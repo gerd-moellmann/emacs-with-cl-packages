@@ -4370,6 +4370,8 @@ as belonging to the node that ends before POS (by subtracting 1 from POS)."
                         pred (treesit-language-at (if end-p (1- pos) pos)))
                    (treesit-parent-until
                     (treesit-node-at (if end-p (1- pos) pos)) pred)))
+         (parent (when (and parent (> (treesit-node-child-count parent) 1))
+                   parent))
          (first (when parent (treesit-node-child parent 0)))
          (first-start (when first (treesit-node-start first)))
          (first-end (when first (treesit-node-end first)))

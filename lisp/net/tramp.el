@@ -286,6 +286,8 @@ pair of the form (KEY VALUE).  The following KEYs are defined:
     - \"%c\" adds additional `tramp-ssh-controlmaster-options'
       options for the first hop.
     - \"%n\" expands to \"2>/dev/null\".
+    - \"%w\" is replaced by the `tramp-ssh-setenv-term'
+      argument if it is supported.
     - \"%x\" is replaced by the `tramp-scp-strict-file-name-checking'
       argument if it is supported.
     - \"%y\" is replaced by the `tramp-scp-force-scp-protocol'
@@ -2148,10 +2150,11 @@ does not exist, otherwise propagate the error."
 	      (tramp-error ,vec 'file-missing ,filename))
 	  (signal (car ,err) (cdr ,err)))))))
 
-;; This function provides traces in case of errors not triggered by
-;; Tramp functions.
 (defun tramp-signal-hook-function (error-symbol data)
-  "Function to be called via `signal-hook-function'."
+  "Function to be called via `signal-hook-function'.
+It provides traces in case of errors not triggered by Tramp functions.
+If there is an error which should not appear in Tramp traces, let-bind
+`signal-hook-function' to nil around the respective code."
   ;; `custom-initialize-*' functions provoke `void-variable' errors.
   ;; We don't want to see them in the backtrace.
   (declare (tramp-suppress-trace t))

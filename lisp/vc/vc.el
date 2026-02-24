@@ -582,7 +582,7 @@
 ;;   history of this branch, or only local history.  I.e., whether REV
 ;;   has been pushed.  Implementations should not consider whether REV
 ;;   is part of the public history of any other branches.
-;;   It is an error if REV is not present on the current branch.
+;;   Should signal an error if REV is not present on the current branch.
 ;;   Centralized VCS *must not* implement this, and there is no default
 ;;   implementation.
 

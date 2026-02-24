@@ -378,6 +378,7 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 				  "26.1")
 	     (tooltip-reuse-hidden-frame tooltip boolean "26.1")
              (use-system-tooltips tooltip boolean "29.1")
+             (after-delete-frame-select-mru-frame frames boolean "31.1")
 	     ;; fringe.c
 	     (overflow-newline-into-fringe fringe boolean)
 	     ;; image.c

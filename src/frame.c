@@ -2760,7 +2760,9 @@ delete_frame (Lisp_Object frame, Lisp_Object force)
       else
 	{
 	  frame1 = Qnil;
-	  if (!EQ (force, Qnoelisp))
+
+	  if (after_delete_frame_select_mru_frame
+	      && !EQ (force, Qnoelisp))
 	    {
 	      /* Find the most recently used visible frame among all
 		 frames on the same terminal as FRAME, excluding FRAME
@@ -7815,6 +7817,13 @@ The default is \\+`inhibit' in NS builds and nil everywhere else.  */);
 #else
   alter_fullscreen_frames = Qnil;
 #endif
+
+  DEFVAR_BOOL ("after-delete-frame-select-mru-frame",
+	       after_delete_frame_select_mru_frame,
+	       doc: /* Non-nil means `delete-frame' selects most recently used frame.
+If this is nil, `delete-frame' will select the oldest visible frame on
+the same terminal.  */);
+  after_delete_frame_select_mru_frame = true;
 
   defsubr (&Sframe_id);
   defsubr (&Sframep);

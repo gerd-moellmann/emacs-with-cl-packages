@@ -2744,70 +2744,66 @@ The candidate will still be chosen by `choose-completion' unless
     (goto-char (or (next-single-property-change (point) 'completion--string)
                    (point-max)))))
 
-(defun completion--eager-update-p (start)
-  "Return non-nil if *Completions* should be automatically updated.
+(defun completions--should-show-p (metadata &optional force-eager-update)
+  "Return non-nil if *Completions* should be automatically updated or displayed.
 
-If `completion-eager-update' is the symbol `auto', checks completion
-metadata for the string from START to point."
-  (if (eq completion-eager-update 'auto)
-      (completion-metadata-get (completion--field-metadata start) 'eager-update)
-    completion-eager-update))
+Based on METADATA.
 
-(defun completions--background-update ()
+If FORCE-EAGER-UPDATE is non-nil, acts as if the eager-update property
+is always true."
+  (and
+   ;; eager-update is enabled or FORCE-EAGER-UPDATE is true
+   ;; (the latter is when we're first starting up completion)
+   (or force-eager-update
+       (if (eq completion-eager-update 'auto)
+           (completion-metadata-get metadata 'eager-update)
+         completion-eager-update))
+   ;; eager-display is enabled or *Completions* is already displayed.
+   (or (if (eq completion-eager-display 'auto)
+           (completion-metadata-get metadata 'eager-display)
+         completion-eager-display)
+       (minibuffer--completions-visible))))
+
+(defvar completions--background-update-timer nil)
+
+(defun completions--background-update (force-eager-update)
   "Try to update *Completions* without blocking input.
 
 This function uses `while-no-input' and sets `non-essential' to t
 so that the update is less likely to interfere with user typing."
-  (while-no-input
-    (let ((non-essential t))
-      (redisplay)
-      (cond
-       (completion-in-region-mode (completion-help-at-point t))
-       ((completion--eager-update-p (minibuffer-prompt-end))
-        (minibuffer-completion-help))))))
+  (setq completions--background-update-timer nil)
+  (when (while-no-input
+          (let ((non-essential t))
+            (redisplay)
+            (cond
+             (completion-in-region-mode (completion-help-at-point t))
+             ((completions--should-show-p
+               (completion--field-metadata (minibuffer-prompt-end))
+               force-eager-update)
+              (minibuffer-completion-help))))
+          nil)
+    ;; If we got interrupted, try again the next time the user is idle.
+    (completions--start-background-update force-eager-update)))
 
-(defvar completion-eager-display--timer nil)
+(defun completions--start-background-update (&optional force-eager-update)
+  "Maybe update the *Completions* buffer when the user is next idle.
 
-(defun completions--eager-display ()
-  "Try to display *Completions* without blocking input."
-  ;; If the user has left the minibuffer, give up on eager display of
-  ;; *Completions*.
-  (when (minibufferp nil t)
-    (when (while-no-input
-            (let ((non-essential t))
-              (minibuffer-completion-help)))
-      ;; If we got interrupted, try again the next time the user is idle.
-      (completions--start-eager-display))))
+Whether we update the buffer is based on `completion-eager-display' and
+`completion-eager-update', and the completion table properties
+`eager-display' and `eager-update'.
 
-(defun completions--start-eager-display (&optional require-eager-update)
+If FORCE-EAGER-UPDATE is non-nil, we only check eager-display."
+  (unless completions--background-update-timer
+    (setq completions--background-update-timer
+          (run-with-idle-timer
+           0 nil #'completions--background-update force-eager-update))))
+
+(defun completions--start-eager-display ()
   "Maybe display the *Completions* buffer when the user is next idle.
 
 Only displays if `completion-eager-display' is t, or if eager display
-has been requested by the completion table.
-
-When REQUIRE-EAGER-UPDATE is non-nil, also require eager-display to be
-requested by the completion table."
-  (when (and completion-eager-display
-             ;; If it's already displayed, don't display it again.
-             (not (get-buffer-window "*Completions*" 0)))
-    (when (let ((metadata
-                 (completion-metadata
-                  (buffer-substring-no-properties (minibuffer-prompt-end) (point))
-                  minibuffer-completion-table minibuffer-completion-predicate)))
-            (and
-             (or (eq completion-eager-display t)
-                 (completion-metadata-get metadata 'eager-display))
-             (or (not require-eager-update)
-                 (eq completion-eager-update t)
-                 (completion-metadata-get metadata 'eager-update))))
-      (setq completion-eager-display--timer
-            (run-with-idle-timer 0 nil #'completions--eager-display)))))
-
-(defun completions--post-command-update ()
-  "Update displayed *Completions* buffer after command, once."
-  (remove-hook 'post-command-hook #'completions--post-command-update)
-  (when (and completion-eager-update (minibuffer--completions-visible))
-    (completions--background-update)))
+has been requested by the completion table."
+  (completions--start-background-update t))
 
 (defun completions--after-change (_start _end _old-len)
   "Update displayed *Completions* buffer after change in buffer contents."
@@ -2816,11 +2812,8 @@ requested by the completion table."
     (when-let* ((window (get-buffer-window "*Completions*" 0)))
       (when completion-auto-deselect
         (with-selected-window window
-          (completions--deselect)))
-      (when completion-eager-update
-        (add-hook 'post-command-hook #'completions--post-command-update)))
-    (when (minibufferp nil t)
-      (completions--start-eager-display t))))
+          (completions--deselect))))
+    (completions--start-background-update)))
 
 (defun minibuffer-completion-help (&optional start end)
   "Display a list of possible completions of the current minibuffer contents."
@@ -3327,7 +3320,8 @@ The completion method is determined by `completion-at-point-functions'."
                `(,start ,(copy-marker end t) ,collection
                         ,(plist-get plist :predicate)))
          (completion-in-region-mode 1)
-         (when (or (not only-if-eager) (completion--eager-update-p start))
+         (when (or (not only-if-eager)
+                   (completions--should-show-p (completion--field-metadata start)))
            (minibuffer-completion-help start end))))
       (`(,hookfun . ,_)
        ;; The hook function already performed completion :-(

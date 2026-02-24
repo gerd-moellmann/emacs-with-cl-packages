@@ -949,8 +949,16 @@
   (should-error (reverse (dot2 1 2)) :type 'wrong-type-argument))
 
 (ert-deftest test-cycle-equal ()
-  (should-error (equal (cyc1 1) (cyc1 1)))
-  (should-error (equal (cyc2 1 2) (cyc2 1 2))))
+  (should (equal (cyc1 1) (cyc1 1)))
+  (should (equal (cyc2 1 2) (cyc2 1 2)))
+
+  (cl-labels ((cycle (x) (let ((y (copy-sequence x))) (nconc y y))))
+    (should-not (equal (cycle '(1 2 3)) '(1 2 3 1 2 3)))
+    (should-not (equal '(1 2 3 1 2 3) (cycle '(1 2 3))))
+    (should (equal (cycle '(1 2 3)) (cycle '(1 2 3 1 2 3))))
+    (should (equal (cycle '(1 2 3 1 2 3)) (cycle '(1 2 3))))
+    (should (equal (cycle '(1 2 3)) (append '(1 2) (cycle '(3 1 2 3 1 2)))))
+    (should (equal (append '(1 2) (cycle '(3 1 2 3 1 2))) (cycle '(1 2 3))))))
 
 (ert-deftest test-cycle-nconc ()
   (should-error (nconc (cyc1 1) 'tail) :type 'circular-list)
@@ -1502,6 +1510,18 @@
                  (concat "0a50261ebd1a390fed2bf326f2673c145582a6342d5"
                          "23204973d0219337f81616a8069b012587cf5635f69"
                          "25f1b56c360230c19b273500ee013e030601bf2425")))
+  (should (equal (secure-hash 'sha3-224 "foobar")
+                 "1ad852ba147a715fe5a3df39a741fad08186c303c7d21cefb7be763b"))
+  (should (equal (secure-hash 'sha3-256 "foobar")
+                 (concat "09234807e4af85f17c66b48ee3bca89d"
+                         "ffd1f1233659f9f940a2b17b0b8c6bc5")))
+  (should (equal (secure-hash 'sha3-384 "foobar")
+                 (concat "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac"
+                         "8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8")))
+  (should (equal (secure-hash 'sha3-512 "foobar")
+                 (concat "ff32a30c3af5012ea395827a3e99a13073c3a8d8410"
+                         "a708568ff7e6eb85968fccfebaea039bc21411e9d43"
+                         "fdb9a851b529b9960ffea8679199781b8f45ca85e2")))
   ;; Test that a call to getrandom returns the right format.
   ;; This does not test randomness; it's merely a format check.
   (should (string-match "\\`[0-9a-f]\\{128\\}\\'"
