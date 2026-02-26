@@ -1,7 +1,7 @@
 ## Note
 
-Note that this is a new branch `cl-packages2` which is based on the new
-`feature/igc2` branch on savannah. The new igc branch made it necessary
+Note that this is a new branch `cl-packages3` which is based on the new
+`feature/igc3` branch on savannah. The new igc branch made it necessary
 to rebase all my changes.
 
 ## What is it?
