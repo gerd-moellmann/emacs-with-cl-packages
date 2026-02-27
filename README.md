@@ -1,8 +1,8 @@
 ## Note
 
 Note that this is a new branch `cl-packages3` which is based on the new
-`feature/igc3` branch on savannah. The new igc branch made it necessary
-to rebase all my changes.
+`feature/igc3` branch on `savannah` which has been `filter-repo`d. The
+new igc branch made it necessary to rebase all my changes.
 
 ## What is it?
 
@@ -56,19 +56,20 @@ is only tested on macOS.
 
 ### TTY menus in Lisp (not ported)
 
-See `lisp/tm.el`. Can also can be used with mainstream master.  Use `M-x
+See `lisp/tm.el`. Can also be used with mainstream master.  Use `M-x
 tm-menu-mode` to activate. See the doc string of that function. The
 menu's behavior is patterned after what macOS does.
 
-### Markers, Text indices, and marker vectors (ported)
+### Markers, text indices, and marker vectors (ported)
 
 A text index is a data structure which supports byte/character position
-conversions with predictable performance.  See `text-index.c`.  A marker
+conversions with predictable performance. See `text-index.c`.  A marker
 vector is used as replacement for doubly-linked lists of markers, with
 better performance. See `marker-vector.c`. Port found in
 `scratch/text-index`.
 
-## Emacs Mac Port (not ported)
+### Emacs Mac Port (not ported)
 
 I am using `mac` instead of `NS`. See
-https://github.com/jdtsmith/emacs-mac, Also ported `igc` to `mac`.
+https://github.com/jdtsmith/emacs-mac, Also made `mac` use `igc` in my
+repo.
