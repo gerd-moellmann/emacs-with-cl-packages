@@ -728,7 +728,7 @@ whether SUBPAT (as well as the subpatterns that contain/precede it) matches,"
                            (if (null (cdr clearing))
                                `(or ,expression
                                     ,(car clearing))
-                             `(progn ,@clearing))))))
+                             `(or ,expression (progn ,@clearing)))))))
                (push expression expressions)))
            ;; At end of (or...), EACH variable bound by any arm
            ;; has a backtrack alias gensym.  At run time, that gensym's value

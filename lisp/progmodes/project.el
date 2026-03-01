@@ -1372,6 +1372,8 @@ by the user at will."
 
 Depending on `project-file-history-behavior', entries are made
 project-relative where possible."
+  (unless all-files
+    (user-error "Empty file list"))
   (let ((file
          (cl-letf ((history-add-new-input nil)
                    ((symbol-value hist)
@@ -1400,7 +1402,8 @@ directories listed in `vc-directory-exclusion-list'."
   (let* ((vc-dirs-ignores (mapcar
                            (lambda (dir)
                              (concat dir "/"))
-                           vc-directory-exclusion-list))
+                           (and include-all
+                                vc-directory-exclusion-list)))
          (all-files
           (if include-all
               (mapcan

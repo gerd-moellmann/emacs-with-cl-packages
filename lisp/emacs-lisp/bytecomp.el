@@ -4052,29 +4052,20 @@ If it is nil, then the handler is \"byte-compile-SYMBOL.\""
 (byte-defop-compiler-1 interactive byte-compile-noop)
 
 
-(defun byte-compile-subr-wrong-args (form n)
-  (when (byte-compile-warning-enabled-p 'callargs (car form))
-    (byte-compile-warn-x (car form)
-                         "`%s' called with %d arg%s, but requires %s"
-                         (car form) (length (cdr form))
-                         (if (= 1 (length (cdr form))) "" "s") n)
-    ;; Get run-time wrong-number-of-args error.
-    (byte-compile-normal-call form)))
-
 (defun byte-compile-no-args (form)
   (if (not (= (length form) 1))
-      (byte-compile-subr-wrong-args form "none")
+      (byte-compile-normal-call form)
     (byte-compile-out (get (car form) 'byte-opcode) 0)))
 
 (defun byte-compile-one-arg (form)
   (if (not (= (length form) 2))
-      (byte-compile-subr-wrong-args form 1)
+      (byte-compile-normal-call form)
     (byte-compile-form (car (cdr form)))  ;; Push the argument
     (byte-compile-out (get (car form) 'byte-opcode) 0)))
 
 (defun byte-compile-two-args (form)
   (if (not (= (length form) 3))
-      (byte-compile-subr-wrong-args form 2)
+      (byte-compile-normal-call form)
     (byte-compile-form (car (cdr form)))  ;; Push the arguments
     (byte-compile-form (nth 2 form))
     (byte-compile-out (get (car form) 'byte-opcode) 0)))
@@ -4100,7 +4091,7 @@ If it is nil, then the handler is \"byte-compile-SYMBOL.\""
 
 (defun byte-compile-three-args (form)
   (if (not (= (length form) 4))
-      (byte-compile-subr-wrong-args form 3)
+      (byte-compile-normal-call form)
     (byte-compile-form (car (cdr form)))  ;; Push the arguments
     (byte-compile-form (nth 2 form))
     (byte-compile-form (nth 3 form))
@@ -4110,26 +4101,26 @@ If it is nil, then the handler is \"byte-compile-SYMBOL.\""
   (let ((len (length form)))
     (cond ((= len 1) (byte-compile-one-arg (append form '(nil))))
 	  ((= len 2) (byte-compile-one-arg form))
-	  (t (byte-compile-subr-wrong-args form "0-1")))))
+	  (t (byte-compile-normal-call form)))))
 
 (defun byte-compile-one-or-two-args (form)
   (let ((len (length form)))
     (cond ((= len 2) (byte-compile-two-args (append form '(nil))))
 	  ((= len 3) (byte-compile-two-args form))
-	  (t (byte-compile-subr-wrong-args form "1-2")))))
+	  (t (byte-compile-normal-call form)))))
 
 (defun byte-compile-two-or-three-args (form)
   (let ((len (length form)))
     (cond ((= len 3) (byte-compile-three-args (append form '(nil))))
 	  ((= len 4) (byte-compile-three-args form))
-	  (t (byte-compile-subr-wrong-args form "2-3")))))
+	  (t (byte-compile-normal-call form)))))
 
 (defun byte-compile-one-to-three-args (form)
   (let ((len (length form)))
     (cond ((= len 2) (byte-compile-three-args (append form '(nil nil))))
           ((= len 3) (byte-compile-three-args (append form '(nil))))
           ((= len 4) (byte-compile-three-args form))
-          (t (byte-compile-subr-wrong-args form "1-3")))))
+          (t (byte-compile-normal-call form)))))
 
 (defun byte-compile-noop (_form)
   (byte-compile-constant nil))
@@ -4354,11 +4345,9 @@ This function is never called when `lexical-binding' is nil."
     (cond ((= len 2)
 	   (byte-compile-form (car (cdr form)))
 	   (byte-compile-out 'byte-indent-to 0))
-	  ((= len 3)
-	   ;; no opcode for 2-arg case.
-	   (byte-compile-normal-call form))
 	  (t
-	   (byte-compile-subr-wrong-args form "1-2")))))
+	   ;; no opcode for 2-arg case.
+	   (byte-compile-normal-call form)))))
 
 (defun byte-compile-insert (form)
   (cond ((null (cdr form))

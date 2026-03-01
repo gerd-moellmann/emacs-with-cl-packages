@@ -46,7 +46,9 @@
 @c If you clear this, the figures will be printed as ASCII diagrams
 @c rather than PostScript/PDF.
 @c (This is not relevant to Info, since Info only handles ASCII.)
+@iftex
 @set print-postscript-figures
+@end iftex
 @c clear print-postscript-figures
 
 @comment %**end of header
@@ -9568,26 +9570,12 @@ This sounds more complicated than it is and is easier seen in a diagram:
 
 @c clear print-postscript-figures
 @c !!! cons-cell-diagram #1
-@ifnottex
-@smallexample
-@group
-    ___ ___      ___ ___      ___ ___
-   |___|___|--> |___|___|--> |___|___|--> nil
-     |            |            |
-     |            |            |
-      --> rose     --> violet   --> buttercup
-@end group
-@end smallexample
-@end ifnottex
 @ifset print-postscript-figures
 @sp 1
-@tex
 @center @image{cons-1}
-@end tex
 @sp 1
 @end ifset
 @ifclear print-postscript-figures
-@iftex
 @smallexample
 @group
     ___ ___      ___ ___      ___ ___
@@ -9597,7 +9585,6 @@ This sounds more complicated than it is and is easier seen in a diagram:
       --> rose     --> violet   --> buttercup
 @end group
 @end smallexample
-@end iftex
 @end ifclear
 
 @noindent
@@ -9625,28 +9612,12 @@ evaluation of the expression
 creates a situation like this:
 
 @c cons-cell-diagram #2
-@ifnottex
-@smallexample
-@group
-bouquet
-     |
-     |     ___ ___      ___ ___      ___ ___
-      --> |___|___|--> |___|___|--> |___|___|--> nil
-            |            |            |
-            |            |            |
-             --> rose     --> violet   --> buttercup
-@end group
-@end smallexample
-@end ifnottex
 @ifset print-postscript-figures
 @sp 1
-@tex
 @center @image{cons-2}
-@end tex
 @sp 1
 @end ifset
 @ifclear print-postscript-figures
-@iftex
 @smallexample
 @group
 bouquet
@@ -9658,7 +9629,6 @@ bouquet
              --> rose     --> violet   --> buttercup
 @end group
 @end smallexample
-@end iftex
 @end ifclear
 
 @noindent
@@ -9670,28 +9640,12 @@ This same list can be illustrated in a different sort of box notation
 like this:
 
 @c cons-cell-diagram #2a
-@ifnottex
-@smallexample
-@group
-bouquet
- |
- |    --------------       ---------------       ----------------
- |   | car   | cdr  |     | car    | cdr  |     | car     | cdr  |
-  -->| rose  |   o------->| violet |   o------->| butter- |  nil |
-     |       |      |     |        |      |     | cup     |      |
-      --------------       ---------------       ----------------
-@end group
-@end smallexample
-@end ifnottex
 @ifset print-postscript-figures
 @sp 1
-@tex
 @center @image{cons-2a}
-@end tex
 @sp 1
 @end ifset
 @ifclear print-postscript-figures
-@iftex
 @smallexample
 @group
 bouquet
@@ -9703,7 +9657,6 @@ bouquet
       --------------       ---------------       ----------------
 @end group
 @end smallexample
-@end iftex
 @end ifclear
 
 (Symbols consist of more than pairs of addresses, but the structure of
@@ -9730,31 +9683,12 @@ evaluation of the following expression
 produces this:
 
 @c cons-cell-diagram #3
-@ifnottex
-@sp 1
-@smallexample
-@group
-bouquet        flowers
-  |              |
-  |     ___ ___  |     ___ ___      ___ ___
-   --> |   |   |  --> |   |   |    |   |   |
-       |___|___|----> |___|___|--> |___|___|--> nil
-         |              |            |
-         |              |            |
-          --> rose       --> violet   --> buttercup
-@end group
-@end smallexample
-@sp 1
-@end ifnottex
 @ifset print-postscript-figures
 @sp 1
-@tex
 @center @image{cons-3}
-@end tex
 @sp 1
 @end ifset
 @ifclear print-postscript-figures
-@iftex
 @sp 1
 @smallexample
 @group
@@ -9769,7 +9703,6 @@ bouquet        flowers
 @end group
 @end smallexample
 @sp 1
-@end iftex
 @end ifclear
 
 @noindent
@@ -9800,31 +9733,12 @@ the expression
 produces:
 
 @c cons-cell-diagram #4
-@ifnottex
-@sp 1
-@smallexample
-@group
-bouquet                       flowers
-  |                             |
-  |     ___ ___        ___ ___  |     ___ ___       ___ ___
-   --> |   |   |      |   |   |  --> |   |   |     |   |   |
-       |___|___|----> |___|___|----> |___|___|---->|___|___|--> nil
-         |              |              |             |
-         |              |              |             |
-          --> lily      --> rose       --> violet    --> buttercup
-@end group
-@end smallexample
-@sp 1
-@end ifnottex
 @ifset print-postscript-figures
 @sp 1
-@tex
 @center @image{cons-4}
-@end tex
 @sp 1
 @end ifset
 @ifclear print-postscript-figures
-@iftex
 @sp 1
 @smallexample
 @group
@@ -9839,7 +9753,6 @@ bouquet                       flowers
 @end group
 @end smallexample
 @sp 1
-@end iftex
 @end ifclear
 
 @need 1200
@@ -9899,45 +9812,12 @@ Reference Manual}.)
 Here is a fanciful representation:
 
 @c chest-of-drawers diagram
-@ifnottex
-@sp 1
-@smallexample
-@group
-            Chest of Drawers            Contents of Drawers
-
-            __   o0O0o   __
-          /                 \
-         ---------------------
-        |    directions to    |            [map to]
-        |     symbol name     |             bouquet
-        |                     |
-        +---------------------+
-        |    directions to    |
-        |  symbol definition  |             [none]
-        |                     |
-        +---------------------+
-        |    directions to    |            [map to]
-        |    variable value   |             (rose violet buttercup)
-        |                     |
-        +---------------------+
-        |    directions to    |
-        |    property list    |             [not described here]
-        |                     |
-        +---------------------+
-        |/                   \|
-@end group
-@end smallexample
-@sp 1
-@end ifnottex
 @ifset print-postscript-figures
 @sp 1
-@tex
 @center @image{drawers}
-@end tex
 @sp 1
 @end ifset
 @ifclear print-postscript-figures
-@iftex
 @sp 1
 @smallexample
 @group
@@ -9966,7 +9846,6 @@ Here is a fanciful representation:
 @end group
 @end smallexample
 @sp 1
-@end iftex
 @end ifclear
 
 @node List Exercise
@@ -10082,34 +9961,12 @@ duplicated.  Instead, the two Lisp variables point to the same pieces of
 text.  Here is a diagram:
 
 @c cons-cell-diagram #5
-@ifnottex
-@smallexample
-@group
-kill-ring     kill-ring-yank-pointer
-    |               |
-    |      ___ ___  |     ___ ___      ___ ___
-     ---> |   |   |  --> |   |   |    |   |   |
-          |___|___|----> |___|___|--> |___|___|--> nil
-            |              |            |
-            |              |            |
-            |              |             --> "yet more text"
-            |              |
-            |               --> "a different piece of text"
-            |
-             --> "some text"
-@end group
-@end smallexample
-@sp 1
-@end ifnottex
 @ifset print-postscript-figures
 @sp 1
-@tex
 @center @image{cons-5}
-@end tex
 @sp 1
 @end ifset
 @ifclear print-postscript-figures
-@iftex
 @smallexample
 @group
 kill-ring     kill-ring-yank-pointer
@@ -10127,7 +9984,6 @@ kill-ring     kill-ring-yank-pointer
 @end group
 @end smallexample
 @sp 1
-@end iftex
 @end ifclear
 
 Both the variable @code{kill-ring} and the variable
@@ -20853,25 +20709,12 @@ If we want to multiply 3 by 7, we can write:
 
 @c clear print-postscript-figures
 @c lambda example diagram #1
-@ifnottex
-@smallexample
-@group
-(multiply-by-seven 3)
- \_______________/ ^
-         |         |
-      function  argument
-@end group
-@end smallexample
-@end ifnottex
 @ifset print-postscript-figures
 @sp 1
-@tex
 @center @image{lambda-1}
-@end tex
 @sp 1
 @end ifset
 @ifclear print-postscript-figures
-@iftex
 @smallexample
 @group
 (multiply-by-seven 3)
@@ -20880,7 +20723,6 @@ If we want to multiply 3 by 7, we can write:
       function  argument
 @end group
 @end smallexample
-@end iftex
 @end ifclear
 
 @noindent
@@ -20891,25 +20733,12 @@ This expression returns 21.
 Similarly, we can write:
 
 @c lambda example diagram #2
-@ifnottex
-@smallexample
-@group
-((lambda (number) (* 7 number)) 3)
- \____________________________/ ^
-               |                |
-      anonymous function     argument
-@end group
-@end smallexample
-@end ifnottex
 @ifset print-postscript-figures
 @sp 1
-@tex
 @center @image{lambda-2}
-@end tex
 @sp 1
 @end ifset
 @ifclear print-postscript-figures
-@iftex
 @smallexample
 @group
 ((lambda (number) (* 7 number)) 3)
@@ -20918,7 +20747,6 @@ Similarly, we can write:
       anonymous function     argument
 @end group
 @end smallexample
-@end iftex
 @end ifclear
 
 @need 1250
@@ -20926,25 +20754,12 @@ Similarly, we can write:
 If we want to divide 100 by 50, we can write:
 
 @c lambda example diagram #3
-@ifnottex
-@smallexample
-@group
-((lambda (arg) (/ arg 50)) 100)
- \______________________/  \_/
-             |              |
-    anonymous function   argument
-@end group
-@end smallexample
-@end ifnottex
 @ifset print-postscript-figures
 @sp 1
-@tex
 @center @image{lambda-3}
-@end tex
 @sp 1
 @end ifset
 @ifclear print-postscript-figures
-@iftex
 @smallexample
 @group
 ((lambda (arg) (/ arg 50)) 100)
@@ -20953,7 +20768,6 @@ If we want to divide 100 by 50, we can write:
     anonymous function   argument
 @end group
 @end smallexample
-@end iftex
 @end ifclear
 
 @noindent

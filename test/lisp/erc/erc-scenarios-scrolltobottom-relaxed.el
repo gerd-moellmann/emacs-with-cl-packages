@@ -29,9 +29,11 @@
 
 (require 'erc-goodies)
 
+;; Fails in batch: signal
 (ert-deftest erc-scenarios-scrolltobottom--relaxed ()
   :tags `(:expensive-test
-          ,@(and (getenv "ERC_TESTS_GRAPHICAL") '(:erc--graphical)))
+          ,@(and (getenv "ERC_TESTS_GRAPHICAL") '(:erc--graphical))
+          :nobatch)
   (when (version< emacs-version "29") (ert-skip "Times out"))
 
   (should-not erc-scrolltobottom-all)

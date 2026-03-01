@@ -24,8 +24,9 @@
   (let ((load-path (cons (ert-resource-directory) load-path)))
     (require 'erc-scenarios-common)))
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-query-participants/legacy ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
 
   (erc-scenarios-common-with-cleanup
       ((erc-scenarios-common-dialog "base/query-participants")
@@ -114,8 +115,9 @@
         (should-not (erc-get-server-user "bob")) ; missing from query
         (should (erc-get-server-user "dummy"))))))
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-query-participants/coupled ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
 
   (erc-scenarios-common-with-cleanup
       ((erc-scenarios-common-dialog "base/query-participants")

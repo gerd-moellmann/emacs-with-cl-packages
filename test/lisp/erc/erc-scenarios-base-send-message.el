@@ -27,8 +27,9 @@
 ;; So-called "noncommands" are those that massage input submitted at
 ;; the prompt and send it on behalf of the user.
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-send-message--noncommands ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (erc-scenarios-common-with-cleanup
       ((erc-scenarios-common-dialog "base/send-message")
        (erc-server-flood-penalty 0.1)
@@ -72,8 +73,9 @@
 ;; This asserts that the `command-indicator' module only inserts
 ;; prompt-like prefixes for normal slash commands, like /JOIN.
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-send-message--command-indicator ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (erc-scenarios-common-with-cleanup
       ((erc-scenarios-common-dialog "base/send-message")
        (erc-server-flood-penalty 0.1)

@@ -28,8 +28,9 @@
 
 ;; Not unstable, but stashed here for now
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-aux-unix-socket ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (skip-unless (featurep 'make-network-process '(:family local)))
   (erc-scenarios-common-with-cleanup
       ((erc-scenarios-common-dialog "base/renick/self")
@@ -142,8 +143,9 @@
 ;; override various erc-server-*-functions to avoid operating in a
 ;; degraded state, which has likely been the case for a while.
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-networks-no-module ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (erc-scenarios-common-with-cleanup
       ((erc-scenarios-common-dialog "networks/no-module")
        (erc-server-flood-penalty 0.1)

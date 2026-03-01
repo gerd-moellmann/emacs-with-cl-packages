@@ -1979,7 +1979,8 @@ log entries."
                   (cadr vc-git-root-log-format)
                 "^commit +\\([0-9a-z]+\\)"))
   ;; Allow expanding short log entries.
-  (when (memq vc-log-view-type '(short log-outgoing log-incoming mergebase))
+  (when (memq vc-log-view-type
+              '(short log-outgoing log-incoming log-outstanding mergebase))
     (setq truncate-lines t)
     (setq-local log-view-expanded-log-entry-function
                 'vc-git-expanded-log-entry))

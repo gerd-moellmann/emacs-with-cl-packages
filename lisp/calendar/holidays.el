@@ -538,6 +538,7 @@ strings describing those holidays that apply on DATE, or nil if none do."
         (displayed-year (calendar-extract-year date))
         (calendar-total-months 1)
         holiday-list)
+    (calendar-increment-month displayed-month displayed-year 1)
     (dolist (h (calendar-holiday-list) holiday-list)
       (if (calendar-date-equal date (car h))
           (setq holiday-list (append holiday-list (cdr h)))))))

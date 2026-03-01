@@ -3544,8 +3544,11 @@ values (of the same type as START)."
            (interval (icr:find-interval date start rule)))
       (cl-typecase start
         (ical:date
-         (when (member date (icr:recurrences-in-interval interval vevent))
-           entry))
+          (if (ical:recur-count rule)
+              (when (member date (icr:recurrences-to-count vevent))
+                entry)
+            (when (member date (icr:recurrences-in-interval interval vevent))
+              entry)))
         (ical:date-time
          ;; TODO.  If start is a date-time, it was probably imported from
          ;; an iCalendar file, but in order to calculate recurrences, we

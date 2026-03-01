@@ -1710,6 +1710,12 @@ be altered so that they start at @var{end}.
 Overlays that start before @var{start} and end after @var{end} will be
 split into two overlays: one that ends at @var{start} and the other that
 begins at @var{end}.
+
+@item
+Empty overlays (@pxref{empty overlays}) will be removed if they are
+either at @var{start}, or strictly between @var{start} and @var{end}
+excluding @var{end}, or at @var{end} when @var{end} denotes the position
+at the end of the buffer.
 @end itemize
 
 If @var{name} is omitted or @code{nil}, it means to delete/modify all
@@ -2145,7 +2151,10 @@ strictly between @var{beg} and @var{end} excluding @var{end}, or at
 @var{end} when @var{end} denotes the position at the end of the buffer.
 (The special handling of empty overlays at end of buffer is to allow
 such overlays to be found and processed.  For any other value of
-@var{end} you could increment the @var{end} position instead.)
+@var{end} you could increment the @var{end} position instead.)  Note
+that if @var{beg} and @var{end} are the same position, an empty overlay
+that is at @var{beg} is also at @var{end}, so this case is somewhat
+similar to an empty overlay at the end of the buffer.
 
 The order in which the overlays appear in the returned list is
 unpredictable.

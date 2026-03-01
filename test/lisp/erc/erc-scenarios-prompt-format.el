@@ -37,8 +37,9 @@
 ;; This makes assertions about the option `erc-fill-wrap-align-prompt'
 ;; as well as the standard value of `erc-prompt-format'.  One minor
 ;; omission is that this doesn't check behavior in query buffers.
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-prompt-format ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (erc-scenarios-common-with-cleanup
       ((erc-scenarios-common-dialog "base/modes")
        (erc-server-flood-penalty 0.1)

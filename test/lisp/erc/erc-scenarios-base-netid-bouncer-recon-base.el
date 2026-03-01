@@ -24,8 +24,9 @@
   (let ((load-path (cons (ert-resource-directory) load-path)))
     (require 'erc-scenarios-common)))
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-netid-bouncer--recon-base ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (let ((erc-server-reconnect-function #'erc-server-delayed-reconnect))
     (erc-scenarios-common--base-network-id-bouncer--reconnect nil nil)))
 

@@ -28,8 +28,9 @@
 ;; enabled and a user issues a /part.  Also assert that code in
 ;; `erc-kill-channel-hook' can detect when `erc-response-PART' is
 ;; killing a buffer on behalf of that option.
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-kill-on-part--enabled ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (should-not erc-kill-buffer-on-part)
 
   (erc-scenarios-common-with-cleanup
@@ -62,8 +63,9 @@
 
 ;; When `erc-kill-buffer-on-part' is non-nil, and the parted buffer has
 ;; already been killed, don't kill the server buffer.  Bug#70840
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-kill-on-part--enabled/killed ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (should-not erc-kill-buffer-on-part)
 
   (erc-scenarios-common-with-cleanup

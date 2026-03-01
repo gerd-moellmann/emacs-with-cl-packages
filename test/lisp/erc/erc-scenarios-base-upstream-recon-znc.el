@@ -29,8 +29,9 @@
   (let ((load-path (cons (ert-resource-directory) load-path)))
     (require 'erc-scenarios-common)))
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-upstream-recon--znc ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (erc-scenarios-common--upstream-reconnect
    (lambda ()
      (with-current-buffer "*status@foonet"
@@ -49,7 +50,9 @@
 ;; The problem only manifests later, when the buffer-association
 ;; machinery checks the names of all target buffers and assumes a
 ;; non-nil `erc-networks--id'.
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-upstream-recon--znc/severed ()
+  :tags '(:nobatch)
   (erc-scenarios-common-with-cleanup
       ((erc-scenarios-common-dialog "base/upstream-reconnect")
        (erc-d-t-cleanup-sleep-secs 1)

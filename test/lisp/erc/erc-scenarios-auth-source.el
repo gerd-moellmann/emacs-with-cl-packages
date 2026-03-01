@@ -62,8 +62,9 @@
                                          (format "127.0.0.1:%d" port))))
         (erc-d-t-wait-for 10 (eq erc-network 'FooNet))))))
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-auth-source-server--dialed ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (let ((erc-port 'test))
     (erc-scenarios-common--auth-source
      nil 'foonet
@@ -72,16 +73,18 @@
      "machine 127.0.0.1 port \"%s\" user tester password changeme" ; correct
      "machine 127.0.0.1 port %d user imposter password fake")))
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-auth-source-server--netid ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (erc-scenarios-common--auth-source
    'MySession 'foonet
    "machine MySession port %d user tester password changeme"
    "machine 127.0.0.1 port %d user tester password fake"
    "machine FooNet port %d user tester password fake"))
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-auth-source-server--netid-custom ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (let ((erc-auth-source-server-function
          (lambda (&rest _) (erc-auth-source-search :host "MyHost"))))
     (erc-scenarios-common--auth-source
@@ -90,13 +93,15 @@
      "machine MyHost port %d user tester password changeme"
      "machine MySession port %d user tester password fake")))
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-auth-source-server--nopass ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (let (erc-auth-source-server-function)
     (erc-scenarios-common--auth-source nil 'nopass)))
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-auth-source-server--nopass-netid ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (let (erc-auth-source-server-function)
     (erc-scenarios-common--auth-source 'MySession 'nopass)))
 
@@ -140,8 +145,9 @@
 
 ;; These tests are about authenticating to nick services
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-services-auth-source--network ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   ;; Skip consulting auth-source for the server password (PASS).
   (let (erc-auth-source-server-function)
     (erc-scenarios-common--services-auth-source
@@ -149,30 +155,34 @@
      "machine zirconium.libera.chat port %d user tester password fake"
      "machine Libera.Chat port %d user tester password changeme")))
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-services-auth-source--network-connect-lookup ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   ;; Do consult auth-source for the server password (and find nothing)
   (erc-scenarios-common--services-auth-source
    "machine zirconium.libera.chat port %d user tester password fake"
    "machine Libera.Chat port %d user tester password changeme"))
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-services-auth-source--announced ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (let (erc-auth-source-server-function)
     (erc-scenarios-common--services-auth-source
      "machine 127.0.0.1 port %d user tester password spam"
      "machine zirconium.libera.chat port %d user tester password changeme")))
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-services-auth-source--dialed ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   ;; Support legacy host -> domain name
   ;; (likely most common in real configs)
   (let (erc-auth-source-server-function)
     (erc-scenarios-common--services-auth-source
      "machine 127.0.0.1 port %d user tester password changeme")))
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-services-auth-source--custom ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (let (erc-auth-source-server-function
         (erc-auth-source-services-function
          (lambda (&rest _) (erc-auth-source-search :host "MyAccount"))))

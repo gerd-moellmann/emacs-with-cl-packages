@@ -29,9 +29,11 @@
 ;; These two actually seem to run fine on Emacs 28, but skip them for
 ;; now to stay in sync with `erc-scenarios-scrolltobottom--relaxed'.
 
+;; Fails in batch: signal
 (ert-deftest erc-scenarios-scrolltobottom--normal ()
-  :tags `(:expensive-test ,@(and (getenv "ERC_TESTS_GRAPHICAL")
-                                 '(:erc--graphical)))
+  :tags `(:expensive-test
+          ,@(and (getenv "ERC_TESTS_GRAPHICAL") '(:erc--graphical))
+          :nobatch)
   (when (version< emacs-version "29") (ert-skip "Times out"))
 
   (should-not erc-scrolltobottom-all)
@@ -45,9 +47,11 @@
          (erc-d-t-wait-for 10
              (not (erc-scenarios-common--at-win-end-p w))))))))
 
+;; Fails in batch: signal
 (ert-deftest erc-scenarios-scrolltobottom--all ()
-  :tags `(:expensive-test ,@(and (getenv "ERC_TESTS_GRAPHICAL")
-                                 '(:erc--graphical)))
+  :tags `(:expensive-test
+          ,@(and (getenv "ERC_TESTS_GRAPHICAL") '(:erc--graphical))
+          :nobatch)
   (when (version< emacs-version "29") (ert-skip "Times out"))
 
   (should-not erc-scrolltobottom-all)

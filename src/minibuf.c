@@ -712,7 +712,8 @@ read_minibuf (Lisp_Object map, Lisp_Object initial, Lisp_Object prompt,
   if (minibuffer_auto_raise)
     Fraise_frame (mini_frame);
 
-  temporarily_switch_to_single_kboard (XFRAME (mini_frame));
+  if (!multiple_terminals_merge_keyboards)
+    temporarily_switch_to_single_kboard (XFRAME (mini_frame));
 
   /* We have to do this after saving the window configuration
      since that is what restores the current buffer.  */

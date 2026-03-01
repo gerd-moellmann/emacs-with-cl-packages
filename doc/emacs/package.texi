@@ -350,13 +350,16 @@ version of the package, a newer version is also installed.
 @findex package-install
 @findex package-upgrade
 @findex package-upgrade-all
+@vindex package-retention-policy
   Packages are most conveniently installed using the package menu
 (@pxref{Package Menu}), but you can also use the command @kbd{M-x
 package-install}.  This prompts for the name of a package with the
 @samp{available} status, then downloads and installs it.  Similarly,
 if you want to upgrade a package, you can use the @kbd{M-x
 package-upgrade} command, and if you want to upgrade all the packages,
-you can use the @kbd{M-x package-upgrade-all} command.
+you can use the @kbd{M-x package-upgrade-all} command.  By default,
+these commands will delete old installations, but you can adjust that
+behavior by customizing the variable @code{package-retention-policy}.
 
   Note that @code{package-install} will not suggest to install packages
 that are already installed.  Similarly, @code{package-upgrade} will only

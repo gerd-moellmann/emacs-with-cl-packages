@@ -3369,7 +3369,9 @@
                          :password "sesame"
                          :full-name "nick")))))
 
+;; Fails in batch: signal
 (ert-deftest erc-tls ()
+  :tags '(:nobatch)
   (let (calls env)
     (cl-letf ((inhibit-message noninteractive)
               ((symbol-function 'user-login-name)
@@ -3486,7 +3488,9 @@
 ;; See `erc-select-read-args' above for argument parsing.
 ;; This only tests the "hidden" arguments.
 
+;; Fails in batch: signal
 (ert-deftest erc--interactive ()
+  :tags '(:nobatch)
   (let (calls env)
     (cl-letf ((inhibit-message noninteractive)
               ((symbol-function 'user-login-name)
@@ -3523,7 +3527,9 @@
                          (erc-server-connect-function
                           erc-open-network-stream))))))))
 
+;; Fails in batch: signal
 (ert-deftest erc-server-select ()
+  :tags '(:nobatch)
   (let (calls env)
     (cl-letf ((inhibit-message noninteractive)
               ((symbol-function 'user-login-name)

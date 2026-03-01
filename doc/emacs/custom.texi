@@ -3256,3 +3256,6 @@ Therefore, if you get used to the newcomers' presets, consider copying
 them into your own configuration and then disabling the theme again.
 You can use the command @code{copy-theme-options} (@pxref{Custom
 Themes}) to do this.
+
+  (If you got here by clicking a link on the startup screen, type
+@kbd{q} to go back).

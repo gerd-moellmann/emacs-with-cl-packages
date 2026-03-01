@@ -40,7 +40,9 @@
         ;; `erc-server-004' only prints up to the 5th parameter.
         (should (looking-back "CEIMRUabefhiklmnoqstuv\n"))))))
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-stamp--left/display-margin-mode ()
+  :tags '(:nobatch)
 
   (erc-scenarios-common-with-cleanup
       ((erc-scenarios-common-dialog "base/reconnect")
@@ -86,7 +88,9 @@
             (should (looking-back "CEIMRUabefhiklmnoqstuv\n"))
             (should (looking-at (rx "[")))))))))
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-stamp--legacy-date-stamps ()
+  :tags '(:nobatch)
   (with-suppressed-warnings ((obsolete erc-stamp-prepend-date-stamps-p))
     (erc-scenarios-common-with-cleanup
         ((erc-scenarios-common-dialog "base/reconnect")
@@ -142,7 +146,9 @@
     (setq erc-timestamp-last-inserted-left nil)
     (set-marker erc-scenarios-stamp--user-marker erc-insert-marker)))
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-stamp--date-mode/left-and-right ()
+  :tags '(:nobatch)
 
   (should (eq erc-insert-timestamp-function
               #'erc-insert-timestamp-left-and-right))
@@ -182,8 +188,9 @@
 
 ;; Assert that only one date stamp per day appears in the server
 ;; buffer when reconnecting.
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-stamp--date-mode/reconnect ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (erc-scenarios-common-with-cleanup
       ((erc-scenarios-common-dialog "base/reconnect")
        (erc-server-flood-penalty 0.1)

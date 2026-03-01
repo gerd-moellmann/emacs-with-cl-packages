@@ -3930,7 +3930,9 @@ END.
 
 Empty overlays do not contain any characters, so they are included in the
 result if they are located at BEG, between BEG and END, or at END provided
-END denotes the position at the end of the buffer.
+END denotes the position at the end of the buffer.  (If BEG and END are the
+same buffer position, an empty overlay at BEG will also be at END, but it
+still qualifies because it's at BEG.)
 
 The resulting list of overlays is in an arbitrary unpredictable order.
 

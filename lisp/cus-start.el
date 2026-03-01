@@ -649,6 +649,7 @@ Leaving \"Default\" unchecked is equivalent with specifying a default of
 	     ;;    			(directory :format "%v"))))
 	     (load-prefer-newer lisp boolean "24.4")
              (record-all-keys keyboard boolean)
+             (multiple-terminals-merge-keyboards keyboard boolean "31.1")
 	     ;; minibuf.c
 	     (minibuffer-follows-selected-frame
               minibuffer (choice (const :tag "Always" t)

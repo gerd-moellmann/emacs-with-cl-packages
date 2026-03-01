@@ -1851,6 +1851,11 @@ If this is nil, no message will be displayed."
 ;;; Fancy splash screen
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;; The default frame sizes are chosen so as to neatly accommodate the
+;; fancy splash screen contents.
+;; Therefore if you make a change that affects the total number of
+;; lines, you may also need to update default frame sizes.
+
 (defconst fancy-startup-text
   `((:face (variable-pitch font-lock-comment-face)
      "Welcome to "

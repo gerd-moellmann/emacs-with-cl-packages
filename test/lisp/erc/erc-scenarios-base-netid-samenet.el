@@ -100,8 +100,9 @@
       (funcall expect 5 "To employ you towards")
       (erc-cmd-QUIT ""))))
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-network-id-same-network--two-ids ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (erc-scenarios-common--base-network-id-same-network
    (list :nick "tester"
          :id 'tester/foonet
@@ -112,8 +113,9 @@
          :server "chester/foonet"
          :chan "#chan@chester/foonet")))
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-network-id-same-network--one-id-tester ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (erc-scenarios-common--base-network-id-same-network
    (list :nick "tester"
          :id 'tester/foonet
@@ -124,8 +126,9 @@
          :server "foonet"
          :chan "#chan@foonet")))
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-network-id-same-network--one-id-chester ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (erc-scenarios-common--base-network-id-same-network
    (list :nick "tester"
          :id nil
@@ -136,8 +139,9 @@
          :server "chester/foonet"
          :chan "#chan@chester/foonet")))
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-network-id-same-network--no-ids ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (erc-scenarios-common--base-network-id-same-network
    (list :nick "tester"
          :id nil

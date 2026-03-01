@@ -4984,7 +4984,9 @@ def foo():
          (python-shell-interpreter "/some/path/to/bin/pypy"))
     (should (python-shell-completion-native-interpreter-disabled-p))))
 
+;; Fails in batch: signal
 (ert-deftest python-shell-completion-at-point-1 ()
+  :tags '(:nobatch)
   (python-tests-with-temp-buffer-with-shell-interpreter
    (when (eq system-type 'darwin) #'python-tests-interpreter-3-p)
    ""
@@ -4998,7 +5000,9 @@ def foo():
      (end-of-line 0)
      (should-not (nth 2 (python-shell-completion-at-point))))))
 
+;; Fails in batch: signal
 (ert-deftest python-shell-completion-at-point-native-1 ()
+  :tags '(:nobatch)
   (python-tests-with-temp-buffer-with-shell-interpreter
    nil
    ""
@@ -5083,7 +5087,9 @@ def foo():
             (string-trim (buffer-string))
           ""))))
 
+;; Fails in batch: json-parse-string
 (ert-deftest python-shell-completion-at-point-jedi-completer ()
+  :tags '(:nobatch)
   "Check if Python shell completion works when Jedi completer is used."
   (python-tests-with-shell-interpreter
    nil
@@ -5101,7 +5107,9 @@ def foo():
         (python-tests--completion-parameters)
         (python-tests--completion-extra-context))))))
 
+;; Fails in batch: json-parse-string
 (ert-deftest python-shell-completion-at-point-ipython ()
+  :tags '(:nobatch)
   "Check if Python shell completion works for IPython."
   (let ((python-shell-interpreter "ipython")
         (python-shell-interpreter-args "-i --simple-prompt"))
@@ -5140,7 +5148,9 @@ def foo():
   (python-shell-accept-process-output (python-shell-get-process))
   (should (python-ffap-module-path "abc")))
 
+;; Fails in batch: json-parse-string
 (ert-deftest python-shell-pdb-1 ()
+  :tags '(:nobatch)
   "Check if completion and ffap works in Pdb."
   (ert-with-temp-directory dir
     (let ((inhibit-message t)
@@ -5171,7 +5181,9 @@ from test1 import f1"
 
 ;;; Symbol completion
 
+;; Fails in batch: json-parse-string
 (ert-deftest python-completion-at-point-1 ()
+  :tags '(:nobatch)
   (python-tests-with-temp-buffer-with-shell-interpreter
    (when (eq system-type 'darwin) #'python-tests-interpreter-3-p)
    "
@@ -5188,7 +5200,9 @@ import abc
      (insert "A")
      (should (completion-at-point)))))
 
+;; Fails in batch: json-parse-string
 (ert-deftest python-completion-at-point-2 ()
+  :tags '(:nobatch)
   "Should work regardless of the point in the Shell buffer."
   (python-tests-with-temp-buffer-with-shell-interpreter
    (when (eq system-type 'darwin) #'python-tests-interpreter-3-p)
@@ -5242,7 +5256,9 @@ time.sleep(3)
      (insert "time.")
      (should-not (with-timeout (1 t) (completion-at-point))))))
 
+;; Fails in batch: json-parse-string
 (ert-deftest python-completion-at-point-native-1 ()
+  :tags '(:nobatch)
   (python-tests-with-temp-buffer-with-shell-interpreter
    (when (eq system-type 'darwin) #'python-tests-interpreter-3-p)
    "
@@ -5260,7 +5276,9 @@ import abc
      (insert "A")
      (should (completion-at-point)))))
 
+;; Fails in batch: json-parse-string
 (ert-deftest python-completion-at-point-native-2 ()
+  :tags '(:nobatch)
   "Should work regardless of the point in the Shell buffer."
   (python-tests-with-temp-buffer-with-shell-interpreter
    (when (eq system-type 'darwin) #'python-tests-interpreter-3-p)
@@ -5279,7 +5297,9 @@ import abc
      (insert "abc.")
      (should (completion-at-point)))))
 
+;; Fails in batch: json-parse-string
 (ert-deftest python-completion-at-point-native-with-ffap-1 ()
+  :tags '(:nobatch)
   (python-tests-with-temp-buffer-with-shell-interpreter
    (when (eq system-type 'darwin) #'python-tests-interpreter-3-p)
    "
@@ -5297,7 +5317,9 @@ import abc
      (python-ffap-module-path "abc.")
      (should (completion-at-point)))))
 
+;; Fails in batch: json-parse-string
 (ert-deftest python-completion-at-point-native-with-eldoc-1 ()
+  :tags '(:nobatch)
   (python-tests-with-temp-buffer-with-shell-interpreter
    (when (eq system-type 'darwin) #'python-tests-interpreter-3-p)
    "
@@ -5324,7 +5346,9 @@ import abc
 
 ;;; FFAP
 
+;; Fails in batch: signal
 (ert-deftest python-ffap-module-path-1 ()
+  :tags '(:nobatch)
   (python-tests-with-temp-buffer-with-shell-interpreter
    nil
    "

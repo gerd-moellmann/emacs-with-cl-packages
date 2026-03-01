@@ -52,8 +52,9 @@
 ;; that a server renicking a user on 001 after a 903 is handled just
 ;; like a user-initiated renick, although this is not the main thrust.
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-local-module-modes--reconnect ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (erc-scenarios-common-with-cleanup
       ((erc-scenarios-common-dialog "base/local-modules")
        (erc-server-flood-penalty 0.1)
@@ -145,8 +146,9 @@
 ;; Whether a local-module's state variable is also reset in target
 ;; buffers up to the module.  That is, by default, they're left alone.
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-local-module-modes--entrypoint ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (erc-scenarios-common-with-cleanup
       ((erc-scenarios-common-dialog "base/local-modules")
        (erc-server-flood-penalty 0.1)

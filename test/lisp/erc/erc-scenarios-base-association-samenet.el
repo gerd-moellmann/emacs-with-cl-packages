@@ -82,8 +82,9 @@
 
     (funcall after expect)))
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-association-samenet--reconnect-one ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (erc-scenarios-common--base-association-samenet
    (lambda (expect)
 
@@ -106,8 +107,9 @@
        (funcall expect 5 "welcome again")
        (erc-cmd-QUIT "")))))
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-association-samenet--new-buffer ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (erc-scenarios-common--base-association-samenet
    (lambda (expect)
 

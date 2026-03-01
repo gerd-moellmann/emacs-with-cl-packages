@@ -61,8 +61,9 @@
   (let ((load-path (cons (ert-resource-directory) load-path)))
     (require 'erc-scenarios-common)))
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-attach--ensure-target-buffer--enabled ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (should erc-ensure-target-buffer-on-privmsg)
 
   (erc-scenarios-common-with-cleanup
@@ -103,8 +104,9 @@
         (erc-scenarios-common-say "bob: hi")
         (funcall expect 10 "Pawn me to this")))))
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-attach--ensure-target-buffer--disabled ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (should erc-ensure-target-buffer-on-privmsg)
 
   (erc-scenarios-common-with-cleanup
@@ -149,8 +151,9 @@
 ;; this option and already covered many times over by other tests in
 ;; this directory.
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-attach--ensure-target-buffer--disabled-query ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (should erc-ensure-target-buffer-on-privmsg)
 
   (erc-scenarios-common-with-cleanup

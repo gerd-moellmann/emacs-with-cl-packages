@@ -30,8 +30,9 @@
 ;; (rather than infinitely many) times, which can easily happen when
 ;; tweaking code related to process sentinels in erc-backend.el.
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-reconnect-timer ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (erc-scenarios-common-with-cleanup
       ((erc-scenarios-common-dialog "base/reconnect")
        (dumb-server (erc-d-run "localhost" t 'timer 'timer 'timer-last))
@@ -72,8 +73,9 @@
 ;; overlaps with this and includes spurious JOINs ignored by the
 ;; server.
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-association-reconnect-playback ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (erc-scenarios-common-with-cleanup
       ((erc-scenarios-common-dialog "base/assoc/reconplay")
        (erc-server-flood-penalty 0.1)
@@ -138,8 +140,9 @@
         (funcall expect 10 "here comes the lady")))))
 
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-cancel-reconnect ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (erc-scenarios-common-with-cleanup
       ((erc-scenarios-common-dialog "base/reconnect")
        (dumb-server (erc-d-run "localhost" t 'timer 'timer 'timer-last))

@@ -870,6 +870,13 @@ purple bar cursor on compatible terminals as well.  See the Info node
 You can use this command to copy options from a theme into your user
 configuration.
 
+---
+** New user option 'multiple-terminals-merge-keyboards'.
+Customizing this option to non-nil disables entering single-keyboard
+mode in most cases in which Emacs would by default enter that mode.
+This can make things work better for some cases of X forwarding; see the
+docstring for the new option.
+
 
 * Editing Changes in Emacs 31.1
 
@@ -3091,6 +3098,11 @@ can be used to install such packages, but you can customise the
 presentation style of these suggestions using
 'package-autosuggest-style'.
 
++++
+*** New user option 'package-retention-policy'.
+This user option controls what previous packages versions to keep on
+upgrade.  By default, this is set to nil, to keep the previous behavior.
+
 ** Rcirc
 
 +++
@@ -3931,12 +3943,15 @@ display time or even cause Emacs to hang trying to display such a face.
 Affected APIs include 'defface', 'set-face-attribute', their callers,
 and other similar functions.
 
-+++
-Original behavior of 'overlays-in' and 'overlays-at' has been restored.
-Before Emacs 29.1, the list of overlays returned by these two functions
-included overlays outside of the current narrowing of the buffer.  This
-behavior has been restored.  As result, 'remove-overlays' can now again
-remove overlays outside of the narrowing, as it did before Emacs 29.1.
++++ Original behavior of 'overlays-in' and 'overlays-at' has been
+restored.  Before Emacs 28.1, the list of overlays returned by these two
+functions included overlays outside of the current narrowing of the
+buffer, and there wasn't a special exception for including empty
+overlays at end of accessible portion of the buffer.  This behavior has
+been restored, and the special behavior for empty overlays is again
+reserved only to the actual end of buffer, disregarding the narrowing.
+As result, 'remove-overlays' can now again remove overlays outside of
+the narrowing, as it did before Emacs 28.1.
 
 ---
 ** 'help-setup-xref' now re-enables the major mode of the Help buffer.
@@ -4328,6 +4343,14 @@ These produce the binary representation of a number.
 ** 'pp-eval-expression' can now insert results into the current buffer
 With a prefix argument, 'pp-eval-expression' inserts the result into the
 current buffer, just like 'eval-expression' already did.
+
++++
+** New function 'multiple-command-partition-arguments'.
+This function partitions a list of command arguments that might be
+arbitrarily long.  It can be used in cases in which it's known to be
+safe to run the command multiple times on subsequent partitions of the
+list of arguments.  The variable 'command-line-max-length' controls the
+partitioning.
 
 
 * Changes in Emacs 31.1 on Non-Free Operating Systems

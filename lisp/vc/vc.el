@@ -3463,7 +3463,8 @@ When called from Lisp, optional argument FILESET overrides the fileset."
          (backend (car fileset)))
     (vc-print-log-internal backend (cadr fileset) nil nil
                            (vc--outgoing-base-mergebase backend
-                                                        upstream-location))))
+                                                        upstream-location)
+                           'log-outstanding)))
 
 ;;;###autoload
 (defun vc-root-log-outstanding (&optional upstream-location)
@@ -4182,13 +4183,14 @@ LIMIT can also be a string, which means the revision before which to stop."
   "Set this to record the type of VC log shown in the current buffer.
 Supported values are:
 
-  `short'        -- short log form, one line for each commit
-  `long'         -- long log form, including full log message and author
-  `with-diff'    -- log including diffs
-  `log-outgoing' -- log of changes to be pushed to upstream
-  `log-incoming' -- log of changes to be brought by pulling from upstream
-  `log-search'   -- log entries matching a pattern; shown in long format
-  `mergebase'    -- log created by `vc-log-mergebase'.")
+  `short'           -- short log form, one line for each commit
+  `long'            -- long log form, including full log message and author
+  `with-diff'       -- log including diffs
+  `log-outgoing'    -- log of changes to be pushed to upstream
+  `log-incoming'    -- log of changes to be brought by pulling from upstream
+  `log-outstanding' -- log of changes you've not yet finished sharing
+  `log-search'      -- log entries matching a pattern; shown in long format
+  `mergebase'       -- log created by `vc-log-mergebase'.")
 (put 'vc-log-view-type 'permanent-local t)
 (defvar vc-sentinel-movepoint)
 
@@ -5032,18 +5034,23 @@ current buffer's file name if it's under version control."
   (cl-callf expand-file-name old)
   (cl-callf expand-file-name new)
   (let ((oldbuf (get-file-buffer old))
-        (default-directory (file-name-directory old)))
+        (default-directory (file-name-directory old))
+        (dirp (file-directory-p old)))
     (when (and oldbuf (buffer-modified-p oldbuf))
       (error "Please save files before moving them"))
     (when (get-file-buffer new)
       (error "Already editing new file name"))
     (when (file-exists-p new)
       (error "New file already exists"))
-    (let ((state (vc-state old)))
-      (unless (memq state '(up-to-date edited added))
-	(error "Please %s files before moving them"
-	       (if (stringp state) "check in" "update"))))
-    (vc-call rename-file old new)
+    (unless dirp
+      (let ((state (vc-state old)))
+        (unless (memq state '(up-to-date edited added))
+          (error "Please %s files before moving them"
+	         (if (stringp state) "check in" "update")))))
+    (vc-call-backend (if dirp
+                         (vc-responsible-backend old)
+                       (vc-backend old))
+                     'rename-file old new)
     (vc-file-clearprops old)
     (vc-file-clearprops new)
     ;; Move the actual file (unless the backend did it already)

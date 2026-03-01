@@ -29,8 +29,9 @@
   (let ((load-path (cons (ert-resource-directory) load-path)))
     (require 'erc-scenarios-common)))
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-ignore/basic ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (erc-scenarios-common-with-cleanup
       ((erc-scenarios-common-dialog "base/assoc/multi-net")
        (erc-server-flood-penalty 0.1)

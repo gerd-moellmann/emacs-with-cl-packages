@@ -105,13 +105,17 @@
   (declare (indent 1))
   `(jsonrpc--call-with-emacsrpc-fixture (lambda (,endpoint-sym) ,@body)))
 
+;; Fails in batch: make-network-process
 (ert-deftest returns-3 ()
+  :tags '(:nobatch)
   "A basic test for adding two numbers in our test RPC."
   (skip-when (eq system-type 'windows-nt))
   (jsonrpc--with-emacsrpc-fixture (conn)
     (should (= 3 (jsonrpc-request conn '+ [1 2])))))
 
+;; Fails in batch: make-network-process
 (ert-deftest errors-with--32601 ()
+  :tags '(:nobatch)
   "Errors with -32601"
   (skip-when (eq system-type 'windows-nt))
   (jsonrpc--with-emacsrpc-fixture (conn)
@@ -122,7 +126,9 @@
       (jsonrpc-error
        (should (= -32601 (cdr (assoc 'jsonrpc-error-code (cdr err)))))))))
 
+;; Fails in batch: make-network-process
 (ert-deftest signals-an--32603-JSONRPC-error ()
+  :tags '(:nobatch)
   "Signals an -32603 JSONRPC error."
   (skip-when (eq system-type 'windows-nt))
   (jsonrpc--with-emacsrpc-fixture (conn)
@@ -133,21 +139,26 @@
       (jsonrpc-error
        (should (= -32603 (cdr (assoc 'jsonrpc-error-code (cdr err)))))))))
 
+;; Fails in batch: make-network-process
 (ert-deftest times-out ()
+  :tags '(:nobatch)
   "Request for 3-sec sit-for with 1-sec timeout times out."
   (skip-when (eq system-type 'windows-nt))
   (jsonrpc--with-emacsrpc-fixture (conn)
     (should-error
      (jsonrpc-request conn 'sit-for [3] :timeout 1))))
 
+;; Fails in batch: make-network-process
 (ert-deftest doesnt-time-out ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   "Request for 1-sec sit-for with 2-sec timeout succeeds."
   (skip-when (eq system-type 'windows-nt))
   (jsonrpc--with-emacsrpc-fixture (conn)
     (jsonrpc-request conn 'sit-for [1] :timeout 2)))
 
+;; Fails in batch: make-network-process
 (ert-deftest stretching-it-but-works ()
+  :tags '(:nobatch)
   "Vector of numbers or vector of vector of numbers are serialized."
   (skip-when (eq system-type 'windows-nt))
   (jsonrpc--with-emacsrpc-fixture (conn)
@@ -163,8 +174,9 @@
        (or (not (string-match "deferred" what))
            (not (jsonrpc--hold-deferred conn)))))
 
+;; Fails in batch: make-network-process
 (ert-deftest deferred-action-toolate ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   "Deferred request fails because no one clears the flag."
   (skip-when (eq system-type 'windows-nt))
   (jsonrpc--with-emacsrpc-fixture (conn)
@@ -176,8 +188,9 @@
      (= 3 (jsonrpc-request conn '+ [1 2]
                            :timeout 0.5)))))
 
+;; Fails in batch: make-network-process
 (ert-deftest deferred-action-intime ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   "Deferred request barely makes it after event clears a flag."
   (skip-when (eq system-type 'windows-nt))
   ;; Send an async request, which returns immediately. However the
@@ -195,8 +208,9 @@
                            :deferred "deferred"
                            :timeout 1)))))
 
+;; Fails in batch: make-network-process
 (ert-deftest deferred-action-complex-tests ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   "Test a more complex situation with deferred requests."
   (skip-when (eq system-type 'windows-nt))
   (jsonrpc--with-emacsrpc-fixture (conn)

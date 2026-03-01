@@ -1179,14 +1179,6 @@ See Info node `(elisp) Integer Basics'."
         form          ; No improvement.
       (cons 'concat (nreverse newargs)))))
 
-(defun byte-optimize-string-greaterp (form)
-  ;; Rewrite in terms of `string-lessp' which has its own bytecode.
-  (pcase (cdr form)
-    (`(,a ,b) (let ((arg1 (make-symbol "arg1")))
-                `(let ((,arg1 ,a))
-                   (string-lessp ,b ,arg1))))
-    (_ form)))
-
 (put 'identity 'byte-optimizer #'byte-optimize-identity)
 (put 'memq 'byte-optimizer #'byte-optimize-memq)
 (put 'memql  'byte-optimizer #'byte-optimize-member)
@@ -1206,7 +1198,6 @@ See Info node `(elisp) Integer Basics'."
 (put 'eq  'byte-optimizer #'byte-optimize-eq)
 (put 'eql   'byte-optimizer #'byte-optimize-equal)
 (put 'equal 'byte-optimizer #'byte-optimize-equal)
-(put 'string= 'byte-optimizer #'byte-optimize-binary-predicate)
 (put 'string-equal 'byte-optimizer #'byte-optimize-binary-predicate)
 
 (put '=  'byte-optimizer #'byte-opt--nary-comparison)
@@ -1214,9 +1205,6 @@ See Info node `(elisp) Integer Basics'."
 (put '<= 'byte-optimizer #'byte-opt--nary-comparison)
 (put '>  'byte-optimizer #'byte-opt--nary-comparison)
 (put '>= 'byte-optimizer #'byte-opt--nary-comparison)
-
-(put 'string-greaterp 'byte-optimizer #'byte-optimize-string-greaterp)
-(put 'string> 'byte-optimizer #'byte-optimize-string-greaterp)
 
 (put 'concat 'byte-optimizer #'byte-optimize-concat)
 
@@ -1408,7 +1396,7 @@ See Info node `(elisp) Integer Basics'."
         condition
       form)))
 
-(defun byte-optimize-not (form)
+(defun byte-optimize-null (form)
   (if (= (length form) 2)
       (let ((arg (nth 1 form)))
         (cond ((null arg) t)
@@ -1423,8 +1411,7 @@ See Info node `(elisp) Integer Basics'."
 (put 'cond  'byte-optimizer #'byte-optimize-cond)
 (put 'if    'byte-optimizer #'byte-optimize-if)
 (put 'while 'byte-optimizer #'byte-optimize-while)
-(put 'not   'byte-optimizer #'byte-optimize-not)
-(put 'null  'byte-optimizer #'byte-optimize-not)
+(put 'null  'byte-optimizer #'byte-optimize-null)
 
 (defun byte-optimize-funcall (form)
   ;; (funcall #'(lambda ...) ...) -> (let ...)
@@ -1752,7 +1739,6 @@ See Info node `(elisp) Integer Basics'."
          base64-decode-string base64-encode-string base64url-encode-string
          buffer-hash buffer-line-statistics
          compare-strings concat copy-alist copy-hash-table copy-sequence elt
-         equal equal-including-properties
          featurep get
          gethash hash-table-count hash-table-rehash-size
          hash-table-rehash-threshold hash-table-size hash-table-test
@@ -1876,7 +1862,7 @@ See Info node `(elisp) Integer Basics'."
          natnump nlistp null
          number-or-marker-p numberp recordp remove-pos-from-symbol
          sequencep stringp subrp symbol-with-pos-p symbolp
-         threadp type-of user-ptrp vector-or-char-table-p vectorp wholenump
+         threadp type-of user-ptrp vector-or-char-table-p vectorp
          ;; editfns.c
          bobp bolp buffer-size buffer-string current-message emacs-pid
          eobp eolp following-char gap-position gap-size group-gid
@@ -1890,7 +1876,7 @@ See Info node `(elisp) Integer Basics'."
          ;; fileio.c
          default-file-modes
          ;; fns.c
-         eql
+         equal equal-including-properties eql
          hash-table-p identity proper-list-p safe-length
          secure-hash-algorithms
          ;; frame.c
@@ -2421,36 +2407,29 @@ If FOR-EFFECT is non-nil, the return value is assumed to be of no importance."
 		     (setcar lap1 'byte-goto)))
               (setq keep-going t))
 	     ;;
-	     ;; varref-X varref-X  -->  varref-X dup
-	     ;; varref-X [dup ...] varref-X  -->  varref-X [dup ...] dup
-	     ;; stackref-X [dup ...] stackref-X+N --> stackref-X [dup ...] dup
+	     ;; stack-ref(X) dup^N stack-ref(X+N+1) -> stack-ref(X) dup^(N+1)
 	     ;; We don't optimize the const-X variations on this here,
 	     ;; because that would inhibit some goto optimizations; we
 	     ;; optimize the const-X case after all other optimizations.
 	     ;;
-	     ((and (memq (car lap0) '(byte-varref byte-stack-ref))
-                   (let ((tmp (cdr rest))
-                         (tmp2 0))
-		     (while (eq (car (car tmp)) 'byte-dup)
-		       (setq tmp2 (1+ tmp2))
-                       (setq tmp (cdr tmp)))
-		     (and (eq (if (eq 'byte-stack-ref (car lap0))
-                                  (+ tmp2 1 (cdr lap0))
-                                (cdr lap0))
-                              (cdr (car tmp)))
-	                  (eq (car lap0) (car (car tmp)))
+	     ((and (eq (car lap0) 'byte-stack-ref)
+                   (let ((dups 0)
+                         (lapn (cdr rest)))
+		     (while (eq (car (car lapn)) 'byte-dup)
+		       (setq dups (1+ dups))
+                       (setq lapn (cdr lapn)))
+		     (and (eq (car (car lapn)) 'byte-stack-ref)
+	                  (eq (cdr (car lapn)) (+ dups 1 (cdr lap0)))
                           (progn
 	                    (when (memq byte-optimize-log '(t byte))
-	                      (let ((str "")
-		                    (tmp2 (cdr rest)))
-	                        (while (not (eq tmp tmp2))
-		                  (setq tmp2 (cdr tmp2))
-                                  (setq str (concat str " dup")))
-	                        (byte-compile-log-lap "  %s%s %s\t-->\t%s%s dup"
-				                      lap0 str lap0 lap0 str)))
+	                      (let ((dup-str
+                                     (string-join (make-list dups " dup"))))
+	                        (byte-compile-log-lap
+                                 "  %s%s %s\t-->\t%s%s dup"
+				 lap0 dup-str (car lapn) lap0 dup-str)))
 	                    (setq keep-going t)
-	                    (setcar (car tmp) 'byte-dup)
-	                    (setcdr (car tmp) 0)
+	                    (setcar (car lapn) 'byte-dup)
+	                    (setcdr (car lapn) 0)
                             t)))))
 	     ;;
 	     ;; TAG1: TAG2: --> <deleted> TAG2:

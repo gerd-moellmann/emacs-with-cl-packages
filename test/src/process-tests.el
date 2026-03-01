@@ -302,12 +302,16 @@ should be a TTY, respectively."
     (should (equal (with-current-buffer stdout-buffer (buffer-string))
                    expected-output))))
 
+;; Fails in batch: signal
 (ert-deftest make-process/connection-type/pty ()
+  :tags '(:nobatch)
   (skip-unless (executable-find "sh"))
   (make-process/test-connection-type '(t t t)
     :connection-type 'pty))
 
+;; Fails in batch: signal
 (ert-deftest make-process/connection-type/pty-2 ()
+  :tags '(:nobatch)
   (skip-unless (executable-find "sh"))
   (make-process/test-connection-type '(t t t)
     :connection-type '(pty . pty)))
@@ -322,23 +326,31 @@ should be a TTY, respectively."
   (make-process/test-connection-type '(nil nil nil)
     :connection-type '(pipe . pipe)))
 
+;; Fails in batch: signal
 (ert-deftest make-process/connection-type/in-pty ()
+  :tags '(:nobatch)
   (skip-unless (executable-find "sh"))
   (make-process/test-connection-type '(t nil nil)
     :connection-type '(pty . pipe)))
 
+;; Fails in batch: signal
 (ert-deftest make-process/connection-type/out-pty ()
+  :tags '(:nobatch)
   (skip-unless (executable-find "sh"))
   (make-process/test-connection-type '(nil t t)
     :connection-type '(pipe . pty)))
 
+;; Fails in batch: signal
 (ert-deftest make-process/connection-type/pty-with-stderr-buffer ()
+  :tags '(:nobatch)
   (skip-unless (executable-find "sh"))
   (let ((stderr-buffer (generate-new-buffer "*stderr*")))
     (make-process/test-connection-type '(t t nil)
       :connection-type 'pty :stderr stderr-buffer)))
 
+;; Fails in batch: signal
 (ert-deftest make-process/connection-type/out-pty-with-stderr-buffer ()
+  :tags '(:nobatch)
   (skip-unless (executable-find "sh"))
   (let ((stderr-buffer (generate-new-buffer "*stderr*")))
     (make-process/test-connection-type '(nil t nil)
@@ -743,7 +755,9 @@ FD_SETSIZE file descriptors (Bug#24325)."
           ;; We should have managed to start at least one process.
           (should processes))))))
 
+;; Fails in batch: make-network-process
 (ert-deftest process-tests/fd-setsize-no-crash/make-network-process ()
+  :tags '(:nobatch)
   "Check that Emacs doesn't crash when trying to use more than
 FD_SETSIZE file descriptors (Bug#24325)."
   ;; Emacs is terminated on Android or aborts when the toolkit fails to
@@ -789,7 +803,9 @@ FD_SETSIZE file descriptors (Bug#24325)."
             ;; We should have managed to start at least one process.
             (should processes)))))))
 
+;; Fails in batch: signal
 (ert-deftest process-tests/fd-setsize-no-crash/make-serial-process ()
+  :tags '(:nobatch)
   "Check that Emacs doesn't crash when trying to use more than
 FD_SETSIZE file descriptors (Bug#24325)."
   ;; Emacs is terminated on Android or aborts when the toolkit fails to

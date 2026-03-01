@@ -3034,7 +3034,9 @@ sort_args (int argc, char **argv)
 DEFUN ("kill-emacs", Fkill_emacs, Skill_emacs, 0, 2, "P",
        doc: /* Exit the Emacs job and kill it.
 If ARG is an integer, return ARG as the exit program code.
-If ARG is a string, stuff it as keyboard input.
+If ARG is a string, stuff it and then a newline as keyboard input,
+if Emacs is running interactively on a terminal and the platform
+supports and allows stuffing; this may need special privileges.
 Any other value of ARG, or ARG omitted, means return an
 exit code that indicates successful program termination.
 

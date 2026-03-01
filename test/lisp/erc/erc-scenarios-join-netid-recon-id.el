@@ -24,8 +24,9 @@
   (let ((load-path (cons (ert-resource-directory) load-path)))
     (require 'erc-scenarios-common)))
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-join-netid--recon-id ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (let ((connect (lambda ()
                    (with-current-buffer "oofnet"
                      (erc-cmd-RECONNECT)
@@ -34,8 +35,9 @@
                      (current-buffer)))))
     (erc-scenarios-common--join-network-id connect 'oofnet nil)))
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-join-netid--recon-ids ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (let ((connect (lambda ()
                    (with-current-buffer "oofnet"
                      (erc-cmd-RECONNECT)

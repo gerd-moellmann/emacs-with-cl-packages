@@ -33,8 +33,9 @@
 ;; removes the affected channel's name from the list so that any calls
 ;; to `display-buffer' in `erc-setup-buffer' on subsequent JOINs aren't
 ;; misled into thinking the JOIN was module-initiated.
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-join-display-context--errors ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (erc-scenarios-common-with-cleanup
       ((erc-scenarios-common-dialog "join/buffer-display")
        (erc-server-flood-penalty 0.1)

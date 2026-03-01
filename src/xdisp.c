@@ -514,6 +514,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 /* Holds the list (error).  */
 static Lisp_Object list_of_error;
 
+/* Forward declarations.  */
+static void restore_selected_window (Lisp_Object);
+static void restore_frame_selected_window (Lisp_Object);
+
 #ifdef HAVE_WINDOW_SYSTEM
 
 /* Test if overflow newline into fringe.  Called with iterator IT
@@ -12491,15 +12495,8 @@ message_log_check_duplicate (ptrdiff_t prev_bol_byte, ptrdiff_t this_bol_byte)
 }
 
 
-/* Display an echo area message M with a specified length of NBYTES
-   bytes.  The string may include null characters.  If M is not a
-   string, clear out any existing message, and let the mini-buffer
-   text show through.
-
-   This function cancels echoing.  */
-
-void
-message3 (Lisp_Object m)
+static void
+log_message (Lisp_Object m)
 {
   clear_message (true, true);
   cancel_echoing ();
@@ -12516,8 +12513,32 @@ message3 (Lisp_Object m)
       message_dolog (buffer, nbytes, true, multibyte);
       SAFE_FREE ();
     }
+}
+
+/* Display an echo area message M with a specified length of NBYTES
+   bytes.  The string may include null characters.  If M is not a
+   string, clear out any existing message, and let the mini-buffer
+   text show through.
+
+   This function cancels echoing.  */
+
+void
+message3 (Lisp_Object m)
+{
+  log_message (m);
   if (! inhibit_message)
     message3_nolog (m);
+}
+
+/* Display an echo area message M on frame F, which may not be the
+   selected frame.  */
+
+void
+message3_frame (Lisp_Object m, struct frame *f)
+{
+  log_message (m);
+  if (! inhibit_message)
+    message3_frame_nolog (m, f);
 }
 
 /* Log the message M to stderr.  Log an empty line if M is not a string.  */
@@ -12548,7 +12569,7 @@ message_to_stderr (Lisp_Object m)
     errputc ('\n');
 }
 
-/* The non-logging version of message3.
+/* The non-logging versions of message3 & message3_frame.
    This does not cancel echoing, because it is used for echoing.
    Perhaps we need to make a separate function for echoing
    and make this cancel echoing.  */
@@ -12556,28 +12577,55 @@ message_to_stderr (Lisp_Object m)
 void
 message3_nolog (Lisp_Object m)
 {
+  message3_frame_nolog (m, NULL);
+}
+
+void
+message3_frame_nolog (Lisp_Object m, struct frame *f)
+{
   struct frame *sf = SELECTED_FRAME ();
+  if (!f) f = sf;
 
-  if (FRAME_INITIAL_P (sf))
+  if (FRAME_INITIAL_P (f))
     message_to_stderr (m);
-  /* Error messages get reported properly by cmd_error, so this must be just an
-     informative message; if the frame hasn't really been initialized yet, just
-     toss it.  */
-  else if (INTERACTIVE && sf->glyphs_initialized_p)
+  /* Error messages get reported properly by cmd_error, so this must be
+     just an informative message; therefore if the frame hasn't really
+     been initialized yet, just toss it.  */
+  else if (INTERACTIVE && f->glyphs_initialized_p)
     {
-      /* Get the frame containing the mini-buffer
-	 that the selected frame is using.  */
-      Lisp_Object mini_window = FRAME_MINIBUF_WINDOW (sf);
-      Lisp_Object frame = XWINDOW (mini_window)->frame;
-      struct frame *f = XFRAME (frame);
+      Lisp_Object frame = Qnil;
+      struct frame *mbf = NULL;
+      specpdl_ref count = SPECPDL_INDEX ();
 
-      if (FRAME_VISIBLE_P (sf) && !FRAME_VISIBLE_P (f))
-	Fmake_frame_visible (frame);
+      if (f == sf)
+	{
+	  /* Get the frame containing the mini-buffer that the selected
+	     frame is using.  */
+	  Lisp_Object mini_window = FRAME_MINIBUF_WINDOW (f);
+	  frame = XWINDOW (mini_window)->frame;
+	  mbf = XFRAME (frame);
+
+	  if (FRAME_VISIBLE_P (f) && !FRAME_VISIBLE_P (mbf))
+	    Fmake_frame_visible (frame);
+	}
+      else
+	{
+	  /* We temporarily switch frame, show the message, and then
+	     when we unwind the message will normally still be visible
+	     in the other frame, at least for a few seconds.  */
+	  record_unwind_protect
+	    (restore_selected_window, selected_window);
+	  record_unwind_protect
+	    (restore_frame_selected_window, f->selected_window);
+	  XSETFRAME (frame, f);
+	  selected_frame = frame;
+	  selected_window = FRAME_SELECTED_WINDOW (f);
+	}
 
       if (STRINGP (m) && SCHARS (m) > 0)
 	{
 	  set_message (m);
-	  if (minibuffer_auto_raise)
+	  if (minibuffer_auto_raise && !NILP (frame))
 	    Fraise_frame (frame);
 	  /* Assume we are not echoing.
 	     (If we are, echo_now will override this.)  */
@@ -12589,8 +12637,10 @@ message3_nolog (Lisp_Object m)
       do_pending_window_change (false);
       echo_area_display (true);
       do_pending_window_change (false);
-      if (FRAME_TERMINAL (f)->frame_up_to_date_hook)
-	(*FRAME_TERMINAL (f)->frame_up_to_date_hook) (f);
+      if (mbf && FRAME_TERMINAL (mbf)->frame_up_to_date_hook)
+	(*FRAME_TERMINAL (mbf)->frame_up_to_date_hook) (mbf);
+
+      unbind_to (count, Qnil);
     }
 }
 

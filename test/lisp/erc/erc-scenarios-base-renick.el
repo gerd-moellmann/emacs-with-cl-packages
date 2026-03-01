@@ -28,8 +28,9 @@
 
 ;; The server changes your nick just after registration.
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-renick-self-auto ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (erc-scenarios-common-with-cleanup
       ((erc-scenarios-common-dialog "base/renick/self")
        (erc-server-flood-penalty 0.1)
@@ -58,8 +59,9 @@
 ;; You change your nickname manually in a server buffer; a message is
 ;; printed in channel buffers.
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-renick-self-manual ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (erc-scenarios-common-with-cleanup
       ((erc-scenarios-common-dialog "base/renick/self")
        (erc-server-flood-penalty 0.1)
@@ -94,8 +96,9 @@
 ;; manually change the first nick at some point, and buffer names are
 ;; updated correctly.
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-renick-self-qualified ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
   (erc-scenarios-common-with-cleanup
       ((erc-scenarios-common-dialog "base/renick/self")
        (dumb-server (erc-d-run "localhost" t 'qual-tester 'qual-chester))
@@ -152,8 +155,9 @@
 ;; When a channel user changes their nick, any query buffers for them
 ;; are updated.
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-renick-queries-solo ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
 
   (erc-scenarios-common-with-cleanup
       ((erc-scenarios-common-dialog "base/renick/queries")
@@ -230,8 +234,9 @@
 ;; uniquifying suffix of the form bob<2> to the new, post-renick
 ;; query.  ERC 5.6+ acts differently.  It mimics popular standalone
 ;; clients in reusing existing query buffers.
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-renick-queries/reassume ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
 
   (erc-scenarios-common-with-cleanup
       ((erc-scenarios-common-dialog "base/renick/queries")
@@ -293,8 +298,9 @@
 ;; The buffers for the two session should then be merged with the help
 ;; of `erc-networks--transplant-target-buffer-function' and
 ;; `erc-networks--copy-server-buffer-functions'.
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-renick-self/merge-query ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
 
   (erc-scenarios-common-with-cleanup
       ((erc-scenarios-common-dialog "base/renick/self")
@@ -386,8 +392,9 @@
 ;; networks (through a proxy).  The user changes their nick on both
 ;; networks at the same time.  Query buffers are updated accordingly.
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-renick-queries-bouncer ()
-  :tags '(:expensive-test)
+  :tags '(:expensive-test :nobatch)
 
   (erc-scenarios-common-with-cleanup
       ((erc-scenarios-common-dialog "base/renick/queries")

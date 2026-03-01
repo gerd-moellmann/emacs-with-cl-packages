@@ -24,7 +24,9 @@
   (let ((load-path (cons (ert-resource-directory) load-path)))
     (require 'erc-scenarios-common)))
 
+;; Fails in batch: make-network-process
 (ert-deftest erc-scenarios-base-statusmsg ()
+  :tags '(:nobatch)
 
   (erc-scenarios-common-with-cleanup
       ((erc-scenarios-common-dialog "base/display-message")

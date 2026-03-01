@@ -804,7 +804,7 @@ to execute it asynchronously.
 When operating on multiple files, asynchronous commands
 are executed in the background on each file in parallel.
 In shell syntax this means separating the individual commands
-with `&'.  However, when COMMAND ends in `;' or `;&' then commands
+with `&'.  However, when COMMAND ends in `;&' then commands
 are executed in the background on each file sequentially waiting
 for each command to terminate before running the next command.
 In shell syntax this means separating the individual commands with `;'.
@@ -2358,7 +2358,9 @@ unless OK-IF-ALREADY-EXISTS is non-nil."
     (dired-handle-overwrite newname)
     (dired-maybe-create-dirs (file-name-directory newname))
     (if (and dired-vc-rename-file
-             (vc-backend file)
+             (if file-is-dir-p
+                 (ignore-errors (vc-responsible-backend file))
+               (vc-backend file))
              (ignore-errors (vc-responsible-backend newname)))
         (vc-rename-file file newname)
       ;; error is caught in -create-files

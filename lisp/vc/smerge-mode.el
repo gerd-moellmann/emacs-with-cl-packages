@@ -1130,7 +1130,7 @@ Its appearance is controlled by the face `smerge-refine-shadow-cursor'."
   :version "31.1")
 
 (defface smerge-refine-shadow-cursor
-  '((t :box (:line-width (-2 . -2))))
+  '((t :box (:line-width (-1 . -1))))
   "Face placed on a character to highlight it as the shadow cursor.
 The presence of the shadow cursor depends on the
 variable `smerge-refine-shadow-cursor'.")
