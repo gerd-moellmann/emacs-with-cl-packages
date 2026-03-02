@@ -1,7 +1,7 @@
 ## Note
 
 Note that this is a new branch `cl-packages3` which is based on the new
-`feature/igc3` branch on `savannah` which has been `filter-repo`d. The
+`feature/igc3` branch on `savannah` which has been `filter-repo`'d. The
 new igc branch made it necessary to rebase all my changes.
 
 ## What is it?
@@ -23,7 +23,7 @@ etc., so I'd say it's pretty backwards compatible.
 
 `C-h i d m emacs RET s gerd RET`
 
-Former head maintainer for Emacs 21 who didn't use Emacs for 2ß years
+Former head maintainer for Emacs 21 who didn't use Emacs for 20 years
 after stepping down, and who doesn't consider himself a member of the
 GNU/Emacs project today.
 
