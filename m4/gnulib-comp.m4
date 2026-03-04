@@ -146,6 +146,7 @@ AC_DEFUN([gl_EARLY],
   # Code from module malloc-gnu:
   # Code from module malloc-posix:
   # Code from module manywarnings:
+  # Code from module memeq:
   # Code from module memmem-simple:
   # Code from module mempcpy:
   # Code from module memrchr:
@@ -196,9 +197,10 @@ AC_DEFUN([gl_EARLY],
   # Code from module stdio-windows:
   # Code from module stdlib-h:
   # Code from module stpcpy:
+  # Code from module streq:
   # Code from module string-h:
-  # Code from module stringeq:
   # Code from module strnlen:
+  # Code from module strnul:
   # Code from module strtoimax:
   # Code from module strtoll:
   # Code from module symlink:
@@ -446,6 +448,8 @@ AC_DEFUN([gl_INIT],
     AC_LIBOBJ([malloc])
   fi
   gl_STDLIB_MODULE_INDICATOR([malloc-posix])
+  gl_FUNC_MEMEQ
+  gl_STRING_MODULE_INDICATOR([memeq])
   gl_FUNC_MEMMEM_SIMPLE
   if test $HAVE_MEMMEM = 0 || test $REPLACE_MEMMEM = 1; then
     AC_LIBOBJ([memmem])
@@ -621,12 +625,11 @@ AC_DEFUN([gl_INIT],
     gl_PREREQ_STPCPY
   ])
   gl_STRING_MODULE_INDICATOR([stpcpy])
+  gl_FUNC_STREQ
+  gl_STRING_MODULE_INDICATOR([streq])
   gl_STRING_H
   gl_STRING_H_REQUIRE_DEFAULTS
   AC_PROG_MKDIR_P
-  gl_FUNC_STREQ
-  gl_FUNC_MEMEQ
-  gl_STRING_MODULE_INDICATOR([stringeq])
   gl_FUNC_STRNLEN
   gl_CONDITIONAL([GL_COND_OBJ_STRNLEN],
                  [test $HAVE_DECL_STRNLEN = 0 || test $REPLACE_STRNLEN = 1])
@@ -634,6 +637,7 @@ AC_DEFUN([gl_INIT],
     gl_PREREQ_STRNLEN
   ])
   gl_STRING_MODULE_INDICATOR([strnlen])
+  gl_STRING_MODULE_INDICATOR([strnul])
   gl_FUNC_STRTOIMAX
   gl_CONDITIONAL([GL_COND_OBJ_STRTOIMAX],
                  [test $HAVE_DECL_STRTOIMAX = 0 || test $REPLACE_STRTOIMAX = 1])
@@ -1405,6 +1409,7 @@ AC_DEFUN([gl_FILE_LIST], [
   lib/md5-stream.c
   lib/md5.c
   lib/md5.h
+  lib/memeq.c
   lib/memmem.c
   lib/mempcpy.c
   lib/memrchr.c
@@ -1476,11 +1481,12 @@ AC_DEFUN([gl_FILE_LIST], [
   lib/stdlib.in.h
   lib/stpcpy.c
   lib/str-two-way.h
+  lib/streq.c
   lib/strftime.c
   lib/strftime.h
-  lib/string.c
   lib/string.in.h
   lib/strnlen.c
+  lib/strnul.c
   lib/strtoimax.c
   lib/strtol.c
   lib/strtoll.c
@@ -1581,6 +1587,7 @@ AC_DEFUN([gl_FILE_LIST], [
   m4/manywarnings.m4
   m4/mbstate_t.m4
   m4/md5.m4
+  m4/memeq.m4
   m4/memmem.m4
   m4/mempcpy.m4
   m4/memrchr.m4
@@ -1631,8 +1638,8 @@ AC_DEFUN([gl_FILE_LIST], [
   m4/stdio_h.m4
   m4/stdlib_h.m4
   m4/stpcpy.m4
+  m4/streq.m4
   m4/string_h.m4
-  m4/stringeq.m4
   m4/strnlen.m4
   m4/strtoimax.m4
   m4/strtoll.m4

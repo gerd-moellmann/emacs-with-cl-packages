@@ -140,6 +140,7 @@
 #  lstat \
 #  malloc-gnu \
 #  manywarnings \
+#  memeq \
 #  memmem-simple \
 #  mempcpy \
 #  memrchr \
@@ -172,7 +173,7 @@
 #  stdio-h \
 #  stdio-windows \
 #  stpcpy \
-#  stringeq \
+#  streq \
 #  strnlen \
 #  strtoimax \
 #  symlink \
@@ -537,6 +538,7 @@ GL_GNULIB_MDA_UMASK = @GL_GNULIB_MDA_UMASK@
 GL_GNULIB_MDA_UNLINK = @GL_GNULIB_MDA_UNLINK@
 GL_GNULIB_MDA_WRITE = @GL_GNULIB_MDA_WRITE@
 GL_GNULIB_MEMCHR = @GL_GNULIB_MEMCHR@
+GL_GNULIB_MEMEQ = @GL_GNULIB_MEMEQ@
 GL_GNULIB_MEMMEM = @GL_GNULIB_MEMMEM@
 GL_GNULIB_MEMPCPY = @GL_GNULIB_MEMPCPY@
 GL_GNULIB_MEMRCHR = @GL_GNULIB_MEMRCHR@
@@ -626,12 +628,12 @@ GL_GNULIB_STPNCPY = @GL_GNULIB_STPNCPY@
 GL_GNULIB_STRCASESTR = @GL_GNULIB_STRCASESTR@
 GL_GNULIB_STRCHRNUL = @GL_GNULIB_STRCHRNUL@
 GL_GNULIB_STRDUP = @GL_GNULIB_STRDUP@
+GL_GNULIB_STREQ = @GL_GNULIB_STREQ@
 GL_GNULIB_STRERROR = @GL_GNULIB_STRERROR@
 GL_GNULIB_STRERRORNAME_NP = @GL_GNULIB_STRERRORNAME_NP@
 GL_GNULIB_STRERROR_L = @GL_GNULIB_STRERROR_L@
 GL_GNULIB_STRERROR_R = @GL_GNULIB_STRERROR_R@
 GL_GNULIB_STRFTIME = @GL_GNULIB_STRFTIME@
-GL_GNULIB_STRINGEQ = @GL_GNULIB_STRINGEQ@
 GL_GNULIB_STRNCAT = @GL_GNULIB_STRNCAT@
 GL_GNULIB_STRNCPY = @GL_GNULIB_STRNCPY@
 GL_GNULIB_STRNDUP = @GL_GNULIB_STRNDUP@
@@ -2790,6 +2792,14 @@ EXTRA_libgnu_a_SOURCES += malloc.c
 endif
 ## end   gnulib module malloc-posix
 
+## begin gnulib module memeq
+ifeq (,$(OMIT_GNULIB_MODULE_memeq))
+
+libgnu_a_SOURCES += memeq.c
+
+endif
+## end   gnulib module memeq
+
 ## begin gnulib module memmem-simple
 ifeq (,$(OMIT_GNULIB_MODULE_memmem-simple))
 
@@ -3729,6 +3739,14 @@ endif
 endif
 ## end   gnulib module stpcpy
 
+## begin gnulib module streq
+ifeq (,$(OMIT_GNULIB_MODULE_streq))
+
+libgnu_a_SOURCES += streq.c
+
+endif
+## end   gnulib module streq
+
 ## begin gnulib module string-h
 ifeq (,$(OMIT_GNULIB_MODULE_string-h))
 
@@ -3763,6 +3781,7 @@ string.h: string.in.h $(top_builddir)/config.status $(CXXDEFS_H) $(ARG_NONNULL_H
 	      -e 's/@''GNULIB_MBS_ENDSWITH''@/$(GL_GNULIB_MBS_ENDSWITH)/g' \
 	      -e 's/@''GNULIB_MBS_STARTSWITH''@/$(GL_GNULIB_MBS_STARTSWITH)/g' \
 	      -e 's/@''GNULIB_MEMCHR''@/$(GL_GNULIB_MEMCHR)/g' \
+	      -e 's/@''GNULIB_MEMEQ''@/$(GL_GNULIB_MEMEQ)/g' \
 	      -e 's/@''GNULIB_MEMMEM''@/$(GL_GNULIB_MEMMEM)/g' \
 	      -e 's/@''GNULIB_MEMPCPY''@/$(GL_GNULIB_MEMPCPY)/g' \
 	      -e 's/@''GNULIB_MEMRCHR''@/$(GL_GNULIB_MEMRCHR)/g' \
@@ -3772,7 +3791,7 @@ string.h: string.in.h $(top_builddir)/config.status $(CXXDEFS_H) $(ARG_NONNULL_H
 	      -e 's/@''GNULIB_STPNCPY''@/$(GL_GNULIB_STPNCPY)/g' \
 	      -e 's/@''GNULIB_STRCHRNUL''@/$(GL_GNULIB_STRCHRNUL)/g' \
 	      -e 's/@''GNULIB_STRDUP''@/$(GL_GNULIB_STRDUP)/g' \
-	      -e 's/@''GNULIB_STRINGEQ''@/$(GL_GNULIB_STRINGEQ)/g' \
+	      -e 's/@''GNULIB_STREQ''@/$(GL_GNULIB_STREQ)/g' \
 	      -e 's/@''GNULIB_STRNCAT''@/$(GL_GNULIB_STRNCAT)/g' \
 	      -e 's/@''GNULIB_STRNCPY''@/$(GL_GNULIB_STRNCPY)/g' \
 	      -e 's/@''GNULIB_STRNDUP''@/$(GL_GNULIB_STRNDUP)/g' \
@@ -3863,14 +3882,6 @@ EXTRA_DIST += string.in.h
 endif
 ## end   gnulib module string-h
 
-## begin gnulib module stringeq
-ifeq (,$(OMIT_GNULIB_MODULE_stringeq))
-
-libgnu_a_SOURCES += string.c
-
-endif
-## end   gnulib module stringeq
-
 ## begin gnulib module strnlen
 ifeq (,$(OMIT_GNULIB_MODULE_strnlen))
 
@@ -3880,6 +3891,14 @@ endif
 
 endif
 ## end   gnulib module strnlen
+
+## begin gnulib module strnul
+ifeq (,$(OMIT_GNULIB_MODULE_strnul))
+
+libgnu_a_SOURCES += strnul.c
+
+endif
+## end   gnulib module strnul
 
 ## begin gnulib module strtoimax
 ifeq (,$(OMIT_GNULIB_MODULE_strtoimax))

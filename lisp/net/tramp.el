@@ -2097,16 +2097,24 @@ In case a second asynchronous communication has been started, it is different
 from the default one."
   (and (tramp-file-name-p vec) (get-process (tramp-get-connection-name vec))))
 
+(defsubst tramp-get-connection-local-criteria (vec)
+  "Get connection-local criteria for VEC."
+  (append
+   '(:application tramp)
+   (when (tramp-file-name-method vec)
+     `(:protocol ,(substring-no-properties (tramp-file-name-method vec))))
+   (when (tramp-file-name-user-domain vec)
+     `(:user ,(substring-no-properties (tramp-file-name-user-domain vec))))
+   (when (tramp-file-name-host-port vec)
+     `(:machine ,(substring-no-properties (tramp-file-name-host-port vec))))))
+
 (defun tramp-set-connection-local-variables (vec)
   "Set connection-local variables in the connection buffer used for VEC.
 If connection-local variables are not supported by this Emacs
 version, the function does nothing."
   (with-current-buffer (tramp-get-connection-buffer vec)
     (hack-connection-local-variables-apply
-     `(:application tramp
-       :protocol    ,(tramp-file-name-method vec)
-       :user        ,(tramp-file-name-user-domain vec)
-       :machine     ,(tramp-file-name-host-port vec)))))
+     (tramp-get-connection-local-criteria vec))))
 
 (defun tramp-set-connection-local-variables-for-buffer ()
   "Set connection-local variables in the current buffer.
@@ -2114,10 +2122,7 @@ If connection-local variables are not supported by this Emacs
 version, the function does nothing."
   (when (tramp-tramp-file-p default-directory)
     (hack-connection-local-variables-apply
-     `(:application tramp
-       :protocol    ,(file-remote-p default-directory 'method)
-       :user        ,(file-remote-p default-directory 'user)
-       :machine     ,(file-remote-p default-directory 'host)))))
+     (connection-local-criteria-for-default-directory))))
 
 (defsubst tramp-get-default-directory (buffer)
   "Return `default-directory' of BUFFER."

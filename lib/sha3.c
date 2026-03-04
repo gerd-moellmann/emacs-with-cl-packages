@@ -378,7 +378,7 @@ sha3_read_ctx (struct sha3_ctx const *restrict ctx, void *restrict resbuf)
     {
       if (EVP_MD_CTX_copy_ex (evp_ctx, ctx->evp_ctx))
         {
-          if (EVP_DigestFinal_ex (evp_ctx, resbuf, 0))
+          if (EVP_DigestFinal_ex (evp_ctx, resbuf, NULL))
             result = resbuf;
           err = EINVAL;
         }

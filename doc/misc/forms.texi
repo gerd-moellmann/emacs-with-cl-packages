@@ -926,6 +926,9 @@ used to fill to the column."
 @node Credits
 @chapter Credits
 
+Forms mode was developed by Johan Vromans while working at Multihouse
+Research in the Netherlands.
+
 Bug fixes and other useful suggestions were supplied by
 Harald Hanche-Olsen (@code{hanche@@imf.unit.no}),
 @code{cwitty@@portia.stanford.edu},

@@ -4693,7 +4693,21 @@ process to set up.  VEC specifies the connection."
 	 t))
       (when unset
 	(tramp-send-command
-	 vec (format "unset %s" (string-join unset " ")) t)))))
+	 vec (format "unset %s" (string-join unset " ")) t)))
+
+    ;; Set connection-local variable `command-line-max-length'.
+    ;; `command-line-max-length' exists since Emacs 31.
+    ;; `connection-local-profile-name-for-criteria' exists since Emacs 29.1.
+    ;; We simulate it with `make-symbol'.
+    (when (boundp 'command-line-max-length)
+      (let* ((criteria (tramp-get-connection-local-criteria vec))
+	     (profile (if (fboundp 'connection-local-profile-name-for-criteria)
+			  (connection-local-profile-name-for-criteria criteria)
+			(make-symbol "generated-profile-name"))))
+	(connection-local-set-profile-variables
+	 profile
+	 `((command-line-max-length . ,(tramp-get-remote-pipe-buf vec))))
+	(connection-local-set-profiles criteria profile)))))
 
 ;; Old text from documentation of tramp-methods:
 ;; Using a uuencode/uudecode inline method is discouraged, please use one
