@@ -1402,8 +1402,10 @@ Interactively, with a prefix arg, FORCE is t."
                    ((and (not force)
                          (flymake--with-backend-state backend state
                            (flymake--state-disabled state)))
-                    (flymake-log :debug "Backend %s is disabled, not starting"
-                                 backend))
+                    (flymake-log :debug "Backend %s is disabled, not starting: %S"
+                                 backend
+                                 (flymake--with-backend-state backend state
+                                   (flymake--state-disabled state))))
                    (t
                     (flymake--run-backend backend backend-args)))
                   nil)))
@@ -1622,13 +1624,13 @@ default) no filter is applied."
                finally (cl-return
                         (cl-sort retval (if (cl-plusp n) #'< #'>)
                                  :key #'overlay-start))))
-         (tail (cl-member-if (lambda (ov)
-                               (if (cl-plusp n)
-                                   (> (overlay-start ov)
-                                      (point))
-                                 (< (overlay-start ov)
-                                    (point))))
-                             ovs))
+         (tail (member-if (lambda (ov)
+                            (if (plusp n)
+                                (> (overlay-start ov)
+                                   (point))
+                              (< (overlay-start ov)
+                                 (point))))
+                          ovs))
          (chain (if flymake-wrap-around
                     (if tail
                         (progn (setcdr (last tail) ovs) tail)

@@ -943,6 +943,35 @@ region, instead of just filling the current paragraph."
                      (fill-region-as-paragraph beg end justify))))))
        fill-pfx))))
 
+(defun unfill-paragraph (arg &optional beg end)
+  "Join lines of this paragraph and fix up whitespace at joins.
+Interactively, if the region is active, join lines of each paragraph in
+the region.  A numeric prefix argument means join the lines of the
+following ARG paragraphs.  In this case an active region is ignored.
+
+With an active region and no prefix argument this is roughly the same as
+`delete-indentation' with that active region, except that this command
+only joins lines within paragraphs, preserving the paragraphs
+themselves.
+
+When called from Lisp, ARG is the number of following paragraphs to join
+lines within, or if ARG is nil, optional arguments BEG and END non-nil
+means to join the lines of each paragraph in the region delimited by BEG
+and END."
+  (interactive "P\nR")
+  (when (or arg (not beg))
+    (let ((arg (prefix-numeric-value arg)))
+      (when (zerop arg)
+        (user-error "Invalid numeric argument to `unfill-paragraph'"))
+      (save-excursion
+        (fill-forward-paragraph 1)
+        (fill-forward-paragraph -1)
+        (setq beg (point))
+        (fill-forward-paragraph arg)
+        (setq end (point)))))
+  (let ((fill-column (point-max)))
+    (fill-region beg end)))
+
 (declare-function comment-search-forward "newcomment" (limit &optional noerror))
 (declare-function comment-string-strip "newcomment" (str beforep afterp))
 
