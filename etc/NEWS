@@ -141,32 +141,11 @@ If you have been using these variables in Lisp code (for example, in
 font-lock rules), simply quote the symbol, to use the face directly
 instead of its now-obsolete variable.
 
-** Network Security Manager (NSM) is now more strict.
-
 ---
 ** New char-table 'special-mirror-table' for mirroring special glyphs.
 This char-table is used to mirror special glyphs (truncation and
 continuation) when the user has defined an alternative representation
 for those characters via display tables.
-
-*** NSM warns about TLS 1.1 by default.
-It has been deprecated by RFC 8996, published in 2021.
-
-*** NSM warns about DHE and RSA key exchange by default.
-Emacs now warns about ephemeral Diffie-Hellman key exchange, and static
-RSA key exchange, also when 'network-security-level' is customized to
-its default 'medium' value.
-
-** Etags
-
-+++
-*** New command-line options for handling unrecognized programming languages.
-The new command-line option '--no-fallback-lang' disables attempts to
-parse as Fortran or C/C++ files whose programming language 'etags' could
-not determine.  This allows to avoid false positives and reduces the time
-required to scan directories with many such files.  Another new option
-'--no-empty-file-entries' disables generation of file entries in tags
-tables for files in which no tags were found.
 
 ---
 ** find-func.el commands now have history enabled.
@@ -443,7 +422,7 @@ possible according to the values of 'split-width-threshold' and
 to prefer to split horizontally if the window's frame is a "landscape"
 frame, and vertically if it is a "portrait" frame.  (A frame is
 considered to be "portrait" if its vertical dimension in pixels is
-greater or equal to its horizontal dimension, otherwise it's considered
+greater or equal to its horizontal dimension, otherwise it is considered
 to be "landscape".)  Previous versions of Emacs always tried to split
 vertically first, so to get previous behavior, you can customize this
 option to 'vertical'.  The value 'horizontal' always prefers the
@@ -451,7 +430,7 @@ horizontal split.
 
 ---
 The default value of 'split-width-threshold' is changed from 160 to 150.
-After splitting it's still comfortable to read text filled to 75 columns.
+After splitting it is still comfortable to read text filled to 75 columns.
 
 +++
 *** New argument INDIRECT for 'get-buffer-window-list'.
@@ -503,7 +482,7 @@ determines whether to call 'delete-frame'.
 +++
 *** New function 'frame-use-time'.
 This function is the frame equivalent of the function 'window-use-time'
-for a window.  The result is the `window-use-time' of a frame's most
+for a window.  The result is the 'window-use-time' of a frame's most
 recently used window.
 
 +++
@@ -518,8 +497,8 @@ single frame can be excluded, for example, the selected frame.
 *** After deleting, 'delete-frame' now selects the most recently used frame.
 Previously, after deleting a specified frame, 'delete-frame' would
 select the oldest visible frame on the same terminal.  To revert to the
-old behavior, set the new user option
-'after-delete-frame-select-mru-frame' to nil.
+old behavior, set the new variable 'after-delete-frame-select-mru-frame'
+to nil.
 
 +++
 *** New value 'force' for user option 'frame-inhibit-implied-resize'.
@@ -679,101 +658,6 @@ will change its appearance if the tab buffer has been modified.
 This user option controls which buffers should appear in the tab line.
 By default, this is set to not filter the buffers.
 
-** Project
-
----
-*** New command 'project-root-find-file'.
-It is equivalent to running 'project-any-command' with 'find-file'.
-
----
-*** New command 'project-customize-dirlocals'.
-It is equivalent to running 'project-any-command' with
-'customize-dirlocals'.
-
----
-*** Improved prompt for 'project-switch-project'.
-The prompt now displays the chosen project on which to invoke a command.
-
----
-*** 'project-prompter' values may be called with up to four arguments.
-These allow callers of the value of 'project-prompter' to specify a
-prompt string; prompt the user to choose between a subset of all the
-known projects; disallow returning arbitrary directories; and allow
-returning an empty string.
-See the docstring of 'project-prompter' for a full specification of
-these new optional arguments.
-
----
-*** 'project-current' has a new optional argument, MAYBE-PROMPT.
-If 'project-current' is called with this argument non-nil, then it is
-passed to the 'project-prompter' to use as a prompt string.
-Callers can use this to indicate the reason for which or context in
-which Emacs should ask the user to select a project.
-
----
-*** New command 'project-find-matching-buffer'.
-It can be used when switching between projects with similar file trees
-(such as Git worktrees of the same repository).  It supports being
-invoked standalone or from the 'project-switch-commands' dispatch menu.
-
----
-*** New variable 'project-find-matching-buffer-function'.
-Major modes can set this to major mode-specific functions to control how
-'project-find-matching-buffer' finds matching buffers.
-
-+++
-*** New user option 'project-list-exclude'.
-This user option describes projects that should always be skipped by
-'project-remember-project'.
-
----
-*** New user option 'project-prune-zombie-projects'.
-This user option controls the automatic deletion of projects from
-'project-list-file' that cannot be accessed when prompting for a
-project.
-
-The value must be an alist where each element must be in the form:
-
-    (WHEN . PREDICATE)
-
-where WHEN specifies where the deletion will be performed, and PREDICATE
-is a function which takes one argument, and must return non-nil if the
-project should be removed.
-
----
-*** New command 'project-save-some-buffers' bound to 'C-x p C-x s'.
-This is like 'C-x s', but only for this project's buffers.
-
-*** 'project-remember-project' can now be called interactively.
-
----
-*** 'project-shell' and 'project-eshell' support numeric prefix buffer naming.
-They now accept numeric prefix arguments to select or create numbered
-shell sessions.  For example, 'C-2 C-x p s' switches to or creates a
-buffer named "*name-of-project-shell<2>*".  By comparison, a plain
-universal argument as in 'C-u C-x p s' always creates a new session.
-
----
-*** 'project-switch-buffer' re-uniquifies buffer names while prompting.
-When 'uniquify-buffer-name-style' is non-nil, 'project-switch-buffer'
-changes the buffer names to only make them unique within the given
-project, during completion.  That makes some items shorter.
-
-*** 'project-switch-buffer' uses 'project-buffer' as completion category.
-The category defaults are the same as for 'buffer' but any user
-customizations would need to be re-added.
-
-+++
-*** 'project-mode-line' can now show project name only for local files.
-If the value of 'project-mode-line' is 'non-remote', project name and
-the Project menu will be shown on the mode line only for projects with
-local files.
-
-*** The "VC-aware" project backend caches the current project and its name.
-The duration for which the values are cached depends on whether it's
-called from 'non-essential' context, and it determined by variables
-'project-vc-cache-timeout' and 'project-vc-non-essential-cache-timeout'.
-
 ** Help
 
 +++
@@ -872,7 +756,7 @@ purple bar cursor on compatible terminals as well.  See the Info node
 "(emacs) Cursor Display" for more information.
 
 ---
-** New command 'copy-theme-options'
+** New command 'copy-theme-options'.
 You can use this command to copy options from a theme into your user
 configuration.
 
@@ -1042,11 +926,129 @@ This is the inverse of 'M-q' ('fill-paragraph').
 
 * Changes in Specialized Modes and Packages in Emacs 31.1
 
-** Delete-selection mode
-*** New face 'delete-selection-replacement' for the replacement text
+** Project
+
+---
+*** New command 'project-root-find-file'.
+It is equivalent to running 'project-any-command' with 'find-file'.
+
+---
+*** New command 'project-customize-dirlocals'.
+It is equivalent to running 'project-any-command' with
+'customize-dirlocals'.
+
+---
+*** Improved prompt for 'project-switch-project'.
+The prompt now displays the chosen project on which to invoke a command.
+
+---
+*** 'project-prompter' values may be called with up to four arguments.
+These allow callers of the value of 'project-prompter' to specify a
+prompt string; prompt the user to choose between a subset of all the
+known projects; disallow returning arbitrary directories; and allow
+returning an empty string.
+See the docstring of 'project-prompter' for a full specification of
+these new optional arguments.
+
+---
+*** 'project-current' has a new optional argument, MAYBE-PROMPT.
+If 'project-current' is called with this argument non-nil, then it is
+passed to the 'project-prompter' to use as a prompt string.
+Callers can use this to indicate the reason for which or context in
+which Emacs should ask the user to select a project.
+
+---
+*** New command 'project-find-matching-buffer'.
+It can be used when switching between projects with similar file trees
+(such as Git worktrees of the same repository).  It supports being
+invoked standalone or from the 'project-switch-commands' dispatch menu.
+
+---
+*** New variable 'project-find-matching-buffer-function'.
+Major modes can set this to major mode-specific functions to control how
+'project-find-matching-buffer' finds matching buffers.
+
++++
+*** New user option 'project-list-exclude'.
+This user option describes projects that should always be skipped by
+'project-remember-project'.
+
+---
+*** New user option 'project-prune-zombie-projects'.
+This user option controls the automatic deletion of projects from
+'project-list-file' that cannot be accessed when prompting for a
+project.
+
+The value must be an alist where each element must be in the form:
+
+    (WHEN . PREDICATE)
+
+where WHEN specifies where the deletion will be performed, and PREDICATE
+is a function which takes one argument, and must return non-nil if the
+project should be removed.
+
+---
+*** New command 'project-save-some-buffers' bound to 'C-x p C-x s'.
+This is like 'C-x s', but only for this project's buffers.
+
+*** 'project-remember-project' can now be called interactively.
+
+---
+*** 'project-shell' and 'project-eshell' support numeric prefix buffer naming.
+They now accept numeric prefix arguments to select or create numbered
+shell sessions.  For example, 'C-2 C-x p s' switches to or creates a
+buffer named "*name-of-project-shell<2>*".  By comparison, a plain
+universal argument as in 'C-u C-x p s' always creates a new session.
+
+---
+*** 'project-switch-buffer' re-uniquifies buffer names while prompting.
+When 'uniquify-buffer-name-style' is non-nil, 'project-switch-buffer'
+changes the buffer names to only make them unique within the given
+project, during completion.  That makes some items shorter.
+
+*** 'project-switch-buffer' uses 'project-buffer' as completion category.
+The category defaults are the same as for 'buffer' but any user
+customizations would need to be re-added.
+
++++
+*** 'project-mode-line' can now show project name only for local files.
+If the value of 'project-mode-line' is 'non-remote', project name and
+the Project menu will be shown on the mode line only for projects with
+local files.
+
+*** The "VC-aware" project backend caches the current project and its name.
+The duration for which the values are cached depends on whether it is
+called from 'non-essential' context, and it determined by variables
+'project-vc-cache-timeout' and 'project-vc-non-essential-cache-timeout'.
+
+** Network Security Manager (NSM) is now more strict.
+
+*** NSM warns about TLS 1.1 by default.
+It has been deprecated by RFC 8996, published in 2021.
+
+*** NSM warns about DHE and RSA key exchange by default.
+Emacs now warns about ephemeral Diffie-Hellman key exchange, and static
+RSA key exchange, also when 'network-security-level' is customized to
+its default 'medium' value.
+
+** Etags
+
++++
+*** New command-line options for handling unrecognized programming languages.
+The new command-line option '--no-fallback-lang' disables attempts to
+parse as Fortran or C/C++ files whose programming language 'etags' could
+not determine.  This allows to avoid false positives and reduces the time
+required to scan directories with many such files.  Another new option
+'--no-empty-file-entries' disables generation of file entries in tags
+tables for files in which no tags were found.
+
+** Delete Selection mode
+
+*** New face 'delete-selection-replacement' for the replacement text.
 This comes with a change to how we track what is considered "the
 replacement text", which should be more robust now, and is made
 more clear by the highlighting.
+
 ** Editorconfig
 
 ---
@@ -1270,7 +1272,6 @@ of relevance.  (Deeper-embedded parsers have higher relevance.)  These
 functions now also take an additional optional argument, PARSER, that
 allows caller to specify a parser or language to use.  That also means
 'treesit-beginning/end-of-defun' now can move across parsers.
-
 
 +++
 *** New command 'treesit-explore'.
@@ -1611,18 +1612,18 @@ terminal emulators. Control sequences and escape sequences are still processed
 correctly regardless of margin position.
 
 ---
-** SMerge
+** SMerge mode
 
 *** New 'repeat-map' for SMerge conflict resolution commands.
 With 'repeat-mode' enabled, after invoking an SMerge command (for
 example, 'C-c ^ n'), you can repeat further SMerge commands by typing
-just the final key (for example, n, p, u, l).
+just the final key (for example, 'n', 'p', 'u', 'l').
 
 *** New command 'smerge-extend' extends a conflict over surrounding lines.
 
 *** New command 'smerge-refine-exchange-point' to jump to the other side.
 When used inside a refined chunk, it jumps to the matching position in
-the "other" side of the refinement: if you're in the new text, it jumps
+the "other" side of the refinement: if you are in the new text, it jumps
 to the corresponding position in the old text and vice versa.
 
 *** New user option 'smerge-refine-shadow-cursor'.
@@ -1632,6 +1633,8 @@ is in the "upper" version, and vice versa.  The "shadow cursor" is
 just the character corresponding to the position where
 'smerge-refine-exchange-point' would jump, shown in a new distinct
 face 'smerge-refine-shadow-cursor', by default a box face.
+
+*** 'smerge-refine-regions' can compare regions in different buffers.
 
 ** Cursor Sensor mode
 
@@ -1671,7 +1674,7 @@ browser windows under Wayland using the xdg_activation_v1 protocol.
 
 *** 'RET' can visit URLs in read-only buffers.
 In some keymaps such as 'ansi-osc-hyperlink-map', 'browse-url-button-map',
-'goto-address-highlight-keymap', 'bug-reference-map' it's possible now
+'goto-address-highlight-keymap', 'bug-reference-map' it is possible now
 to visit URLs by typing just 'RET' instead of 'C-c RET' in read-only buffers.
 
 *** Removed support for some obsolete web browsers.
@@ -2850,7 +2853,7 @@ stash at point (deleting the stash at point is also bound to 'C-k').
 
 +++
 *** New VC Directory command 'V' ('vc-dir-root-next-action').
-This is like 'v' ('vc-next-action') but applies to the whole VC-Dir
+This is like 'v' ('vc-next-action') but applies to the whole VC Directory
 buffer, ignoring the position of point and any marks.  This is useful to
 check in all local changes at once.
 
@@ -2945,7 +2948,7 @@ Currently only supported by the Git and Mercurial backends.
 +++
 *** New user option 'vc-display-failed-async-commands'.
 If non-nil, displays the buffer with the output of the failed command
-when an asynchronous VC command (e.g. pulls and pushes) fails.
+when an asynchronous VC command (e.g., pulls and pushes) fails.
 
 ---
 *** New 'log-edit-hook' option to display diff of changes to commit.
@@ -3161,6 +3164,13 @@ destination window is chosen using 'display-buffer-alist'.  Example:
                                    display-buffer-use-some-window)
                                   (some-window . mru))))
 
++++
+*** New minor mode 'xref-mouse-mode'.
+This minor mode binds 'xref-find-definitions-at-mouse' to
+'C-<down-mouse-1>', allowing you to "control click" to jump to a
+definition, following the convention from other editors.  The global
+minor mode 'global-xref-mouse-mode' will enable this in all buffers.
+
 ** Revert
 
 +++
@@ -3300,6 +3310,16 @@ functions defined later than the variable, as is common for minor modes.
 This is intended for customizing directory-local variables in the
 current directory's ".dir-locals.el" file.
 
++++
+*** New keybinding 'C-c C-k' for 'Custom-reset-standard'
+
++++
+*** New command 'Custom-goto-first-choice' (bound to 'C-c C-i')
+When first opening the customization interface for a user option, you
+can use this command as a shortcut to jump to the first actionable
+button or field (for instance an on/off button for boolean options, or a
+text field for other values).
+
 ** Pulse
 
 --
@@ -3363,7 +3383,7 @@ and the buffers like the completions buffer that enable
 *** New value 'window' for the user option 'global-hl-line-sticky-flag'.
 Unlike the value t that highlights the line with buffer's point,
 it highlights the line with window's point.  Also it uses the new face
-`hl-line-nonselected' for highlighting the line with window's point
+'hl-line-nonselected' for highlighting the line with window's point
 in non-selected windows.
 
 ---
@@ -3412,7 +3432,7 @@ If non-nil, FFAP always finds remote files in buffers with remote
 file names in above buffers.  The default is nil.
 
 +++
-*** New theme 'newcomers-presets'
+*** New theme 'newcomers-presets'.
 This new theme configures user options and minor modes that might
 interest new users, but would otherwise be too invasive to enable by
 default.  Recall that an Emacs theme is a generic collection of
@@ -3692,7 +3712,7 @@ value "java org.antlr.Tool") when 'antlr-tool-version' has the value
 'antlr-v3'.
 
 *** Command 'antlr-mode' now also works on ANTLR v3 or v4 grammars.
-If the variable 'antlr-tool-version' is not set locally, e.g. by the
+If the variable 'antlr-tool-version' is not set locally, e.g., by the
 file’s local variables specs, the command sets its local value to
 'antlr-v2' if a keyword "class" or "header" appears at the beginning of
 the source, or to 'antlr-v3' otherwise.
@@ -3982,15 +4002,16 @@ display time or even cause Emacs to hang trying to display such a face.
 Affected APIs include 'defface', 'set-face-attribute', their callers,
 and other similar functions.
 
-+++ Original behavior of 'overlays-in' and 'overlays-at' has been
-restored.  Before Emacs 28.1, the list of overlays returned by these two
-functions included overlays outside of the current narrowing of the
-buffer, and there wasn't a special exception for including empty
-overlays at end of accessible portion of the buffer.  This behavior has
-been restored, and the special behavior for empty overlays is again
-reserved only to the actual end of buffer, disregarding the narrowing.
-As result, 'remove-overlays' can now again remove overlays outside of
-the narrowing, as it did before Emacs 28.1.
++++
+** Original behavior of 'overlays-in' and 'overlays-at' has been restored.
+Before Emacs 28.1, the list of overlays returned by these two functions
+included overlays outside of the current narrowing of the buffer, and
+there wasn't a special exception for including empty overlays at end of
+accessible portion of the buffer.  This behavior has been restored, and
+the special behavior for empty overlays is again reserved only to the
+actual end of buffer, disregarding the narrowing.  As result,
+'remove-overlays' can now again remove overlays outside of the
+narrowing, as it did before Emacs 28.1.
 
 ---
 ** 'help-setup-xref' now re-enables the major mode of the Help buffer.
@@ -4379,7 +4400,7 @@ of an inherently asynchronous command such as 'compile'.
 These produce the binary representation of a number.
 '%#b' and '%#B' prefix the bits with '0b' and '0B', respectively.
 
-** 'pp-eval-expression' can now insert results into the current buffer
+** 'pp-eval-expression' can now insert results into the current buffer.
 With a prefix argument, 'pp-eval-expression' inserts the result into the
 current buffer, just like 'eval-expression' already did.
 
