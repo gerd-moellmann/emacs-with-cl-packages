@@ -2487,8 +2487,13 @@ make_image_cache (void)
 
   c->size = 50;
   c->used = c->refcount = 0;
+#ifndef HAVE_MPS
   c->images = xmalloc (c->size * sizeof *c->images);
   c->buckets = xzalloc (IMAGE_CACHE_BUCKETS_SIZE * sizeof *c->buckets);
+#else
+  c->images = igc_xzalloc_ambig (c->size * sizeof *c->images);
+  c->buckets = igc_xzalloc_ambig (IMAGE_CACHE_BUCKETS_SIZE * sizeof *c->buckets);
+#endif
   /* This value should never be encountered.  */
   c->scaling_col_width = -1;
   return c;
@@ -2628,9 +2633,17 @@ free_image_cache (struct frame *f)
 
   for (i = 0; i < c->used; ++i)
     free_image (f, c->images[i]);
+#ifdef HAVE_MPS
+  igc_xfree (c->images);
+#else
   xfree (c->images);
+#endif
   c->images = NULL;
+#ifdef HAVE_MPS
+  igc_xfree (c->buckets);
+#else
   xfree (c->buckets);
+#endif
   c->buckets = NULL;
 #ifndef HAVE_MPS
   xfree (c);
@@ -4004,7 +4017,11 @@ cache_image (struct frame *f, struct image *img)
   /* If no free slot found, maybe enlarge c->images.  */
   if (i == c->used && c->used == c->size)
     {
+#ifndef HAVE_MPS
       c->images = xpalloc (c->images, &c->size, 1, -1, sizeof *c->images);
+#else
+      c->images = igc_xpalloc_ambig (c->images, &c->size, 1, -1, sizeof *c->images);
+#endif
     }
 
   /* Add IMG to c->images, and assign IMG an id.  */
