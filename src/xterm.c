@@ -4874,9 +4874,11 @@ x_dnd_cancel_dnd_early (void)
 #endif
 
 static void
-x_dnd_cleanup_drag_and_drop (void *frame)
+x_dnd_cleanup_drag_and_drop (void *data)
 {
-  struct frame *f = frame;
+  gc_handle gch = data;
+  struct frame *f = XFRAME (gc_handle_value (gch));
+  free_gc_handle (gch);
   xm_drop_start_message dmsg;
 
   if (!x_dnd_unwind_flag)
@@ -13105,7 +13107,8 @@ x_dnd_begin_drag_and_drop (struct frame *f, Time time, Atom xaction,
 		  x_dnd_unwind_flag = true;
 
 		  ref = SPECPDL_INDEX ();
-		  record_unwind_protect_ptr (x_dnd_cleanup_drag_and_drop, f);
+		  record_unwind_protect_ptr (x_dnd_cleanup_drag_and_drop,
+					     gc_handle_for_pvec (&f->header));
 		  calln (Vx_dnd_movement_function, frame_object,
 			 Fposn_at_x_y (x, y, frame_object, Qnil));
 		  x_dnd_unwind_flag = false;
@@ -13139,7 +13142,8 @@ x_dnd_begin_drag_and_drop (struct frame *f, Time time, Atom xaction,
 		  x_dnd_unwind_flag = true;
 
 		  ref = SPECPDL_INDEX ();
-		  record_unwind_protect_ptr (x_dnd_cleanup_drag_and_drop, f);
+		  record_unwind_protect_ptr (x_dnd_cleanup_drag_and_drop,
+					     gc_handle_for_pvec (&f->header));
 		  calln (Vx_dnd_wheel_function,
 			 Fposn_at_x_y (x, y, frame_object, Qnil),
 			 make_fixnum (x_dnd_wheel_button),
@@ -13179,7 +13183,8 @@ x_dnd_begin_drag_and_drop (struct frame *f, Time time, Atom xaction,
 	      x_dnd_unwind_flag = true;
 
 	      ref = SPECPDL_INDEX ();
-	      record_unwind_protect_ptr (x_dnd_cleanup_drag_and_drop, f);
+	      record_unwind_protect_ptr (x_dnd_cleanup_drag_and_drop,
+					 gc_handle_for_pvec (&f->header));
 	      x_handle_pending_selection_requests ();
 	      x_dnd_unwind_flag = false;
 	      unbind_to (ref, Qnil);
@@ -13206,7 +13211,8 @@ x_dnd_begin_drag_and_drop (struct frame *f, Time time, Atom xaction,
 	      x_dnd_unwind_flag = true;
 
 	      ref = SPECPDL_INDEX ();
-	      record_unwind_protect_ptr (x_dnd_cleanup_drag_and_drop, f);
+	      record_unwind_protect_ptr (x_dnd_cleanup_drag_and_drop,
+					 gc_handle_for_pvec (&f->header));
 
 	      if (!NILP (Vx_dnd_unsupported_drop_function))
 		val = calln (Vx_dnd_unsupported_drop_function,
@@ -32650,6 +32656,18 @@ x_get_keyboard_modifiers (struct x_display_info *dpyinfo)
 		make_uint (dpyinfo->meta_mod_mask));
 }
 
+#ifdef HAVE_MPS
+static void
+protect_dnd_frames (void)
+{
+  igc_root_create_exact_ptr (&x_dnd_frame);
+  igc_root_create_exact_ptr (&x_dnd_finish_frame);
+  igc_root_create_exact_ptr (&x_dnd_return_frame_object);
+  igc_root_create_exact_ptr (&x_dnd_movement_frame);
+  igc_root_create_exact_ptr (&x_dnd_wheel_frame);
+}
+#endif
+
 void
 syms_of_xterm (void)
 {
@@ -32671,6 +32689,10 @@ syms_of_xterm (void)
 #ifdef USE_TOOLKIT_SCROLL_BARS
   window_being_scrolled = Qnil;
   staticpro (&window_being_scrolled);
+#endif
+
+#ifdef HAVE_MPS
+  pdumper_do_now_and_after_load (protect_dnd_frames);
 #endif
 
   /* Used by x_cr_export_frames.  */

@@ -31,6 +31,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "text-index.h"
 #include "window.h"
 #include "igc.h"
+#include "pdumper.h"
 
 /* Juanma Barranquero <lekktu@gmail.com> reported ~3x increased
    bootstrap time when byte_char_debug_check is enabled; so this
@@ -458,6 +459,7 @@ verify_bytepos (ptrdiff_t charpos)
 
 #endif /* MARKER_DEBUG */
 
+
 void
 syms_of_marker (void)
 {

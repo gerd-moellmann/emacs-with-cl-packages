@@ -38099,6 +38099,7 @@ gui_union_rectangles (const Emacs_Rectangle *a, const Emacs_Rectangle *b,
 static void
 protect_global_values (void)
 {
+  igc_root_create_exact_ptr (&this_line_buffer);
   igc_root_create_exact_ptr (&displayed_buffer);
   igc_root_create_exact_ptr (&last_escape_glyph_frame);
   igc_root_create_exact_ptr (&last_glyphless_glyph_frame);
@@ -38331,7 +38332,6 @@ doesn't exist, it will be created and put into
 
 #ifdef HAVE_MPS
   this_line_buffer = NULL;
-  igc_root_create_exact_ptr (&this_line_buffer);
 
   for (size_t i = 0; i < ARRAYELTS (default_invis_vector); i++)
     {
@@ -38341,6 +38341,7 @@ doesn't exist, it will be created and put into
 
   echo_area_window = Qnil;
   staticpro (&echo_area_window);
+  staticpro (&echo_message_buffer);
 
   for (size_t i = 0; i < ARRAYELTS (scratch_glyphs); i++)
     {
